@@ -1,0 +1,90 @@
+[band] 距离合格区间 = 0.50 ~ 1.50 m (来自 /home/earl/workspace/VLA/vla_demo/vision_config.json)
+[EVAL] 复位 robot=True person=True
+[EVAL] 等待 2s 稳定后下发 FOLLOW...
+[EVAL] FOLLOW 第1次 CLI 下发 rc=0 
+[EVAL] FOLLOW 第2次 CLI 下发 rc=0 
+[EVAL] FOLLOW 第3次 CLI 下发 rc=0 
+[EVAL] FOLLOW 已下发, 开始 120s 评测
+[EVAL  15.0s] d=1.02 cam=front trk=TRACK lost=0 gap=+2.91
+[EVAL  30.0s] d=1.03 cam=front trk=TRACK lost=0 gap=+2.31
+[EVAL  45.0s] d=0.86 cam=front trk=TRACK lost=0 gap=+1.81
+[EVAL  60.0s] d=0.91 cam=front trk=TRACK lost=0 gap=+2.16
+[EVAL  75.1s] d=0.92 cam=front trk=TRACK lost=0 gap=+1.61
+[EVAL  90.1s] d=1.10 cam=front trk=TRACK lost=0 gap=+2.26
+[EVAL 105.1s] d=1.03 cam=front trk=TRACK lost=0 gap=+1.42
+
+================ 评测结果 (120s) ================
+{
+ "dist": {
+  "n": 2160,
+  "mean": 0.97,
+  "median": 0.976,
+  "std": 0.069,
+  "min": 0.783,
+  "max": 1.111,
+  "band": [
+   0.5,
+   1.5
+  ],
+  "in_band_pct": 100.0,
+  "near_pct": 0.0,
+  "far_pct": 0.0,
+  "min_all": 0.783,
+  "max_streak_s": 108.0
+ },
+ "contact": {
+  "thr_m": 0.44,
+  "n": 0,
+  "events": 0,
+  "det_pct": 0.0,
+  "dmin": 0.0,
+  "detail": []
+ },
+ "center": {
+  "n": 2160,
+  "within10_pct": 100.0,
+  "within15_pct": 100.0,
+  "median_deg": 2.9,
+  "p90_deg": 5.8,
+  "max_deg": 7.4
+ },
+ "avoid": {
+  "min_gap": 0.875,
+  "hit_n": 0,
+  "brush_n": 0
+ },
+ "switch": {
+  "n": 2,
+  "resp_mean": 2.15,
+  "resp_max": 2.8,
+  "resp_none": 0,
+  "cross_n": 0,
+  "cross_mean": null
+ },
+ "lost": {
+  "n": 0,
+  "goto_n": 0,
+  "reached_n": 0,
+  "dur_mean": 0,
+  "dur_max": 0,
+  "regen_mean": 0,
+  "events": []
+ },
+ "sanity": {
+  "samples": 2442,
+  "vis_pct": 96.4,
+  "front_pct": 95.9,
+  "cmd_v_mean": 0.163
+ },
+ "back": {
+  "pct": 5.5,
+  "events": 4,
+  "per_100s": 3.7,
+  "mean_dur_s": 1.49,
+  "max_dur_s": 2.2,
+  "total_s": 6.0
+ },
+ "dur": 120.0
+}
+轨迹图: /home/earl/workspace/VLA/tests/out/p84_1_traj.png
+原始数据: /home/earl/workspace/VLA/tests/out/p84_1.json

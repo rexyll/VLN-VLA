@@ -1,0 +1,6 @@
+[P98] GO_DRINK: 已确认 (1 条)
+[P98][1] 模型就绪 → PASS
+[P98][2] 倒水水柱峰值 3 段 → PASS
+[P98][3] 喝水消耗: 水位 15.7→-1976.0mm (降 1991.8) → PASS
+[P98][4] 残留悬空 ['cup_water_disc', 'stream0', 'stream1', 'stream2'] → FAIL
+[P98] ===== FAILED =====

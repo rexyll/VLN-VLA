@@ -1,0 +1,24 @@
+[EVAL] 复位 robot=True person=True
+[EVAL] 等待 6s 稳定后下发 FOLLOW...
+[EVAL] FOLLOW 已下发, 开始 150s 评测
+[EVAL  15.0s] d=5.15 cam=front trk=TRACK lost=0 gap=+0.68
+[EVAL  30.0s] d=10.34 cam=front trk=TRACK lost=0 gap=+1.17
+[EVAL  45.1s] d=7.86 cam=front trk=TRACK lost=0 gap=+1.42
+Traceback (most recent call last):
+  File "/home/earl/workspace/VLA/tmp_random_eval.py", line 400, in <module>
+    main()
+  File "/home/earl/workspace/VLA/tmp_random_eval.py", line 382, in main
+    rclpy.spin_once(node, timeout_sec=0.05)
+  File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/__init__.py", line 226, in spin_once
+    executor.spin_once(timeout_sec=timeout_sec)
+  File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/executors.py", line 926, in spin_once
+    self._spin_once_impl(timeout_sec)
+  File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/executors.py", line 907, in _spin_once_impl
+    handler, entity, node = self.wait_for_ready_callbacks(
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/executors.py", line 877, in wait_for_ready_callbacks
+    return next(self._cb_iter)
+           ^^^^^^^^^^^^^^^^^^^
+  File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/executors.py", line 785, in _wait_for_ready_callbacks
+    raise ExternalShutdownException()
+rclpy.executors.ExternalShutdownException

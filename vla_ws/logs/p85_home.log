@@ -1,0 +1,42 @@
+[INFO] [1793026232.758315827] [drink_task]: drink_task 已起: 37 路指令 @20Hz, 人体手高 1.00m, 服务位 (1.75, 0.35, 0.0)
+[INFO] [1793026234.305945666] [drink_task]: R 侧 home: 臂 到位 (最大残差 0.0°)  手 到位 (0.0°)
+[INFO] [1793026234.352883237] [drink_task]: L 侧 home: 臂 到位 (最大残差 0.0°)  手 到位 (0.0°)
+==========================================================================
+P85 自检 —— 关节通道 / 静态姿态
+==========================================================================
+底盘 base = (-0.000, 0.000, yaw -0.0°)
+R 侧
+   指令-实测(°)    +0.0   +0.0   -0.0   +0.0   +0.0   -0.0   -0.0   最大 0.0°
+   掌心 FK(世界)  (+0.5133 -0.1900 +0.6088)
+   掌心 真值      (+0.5133 -0.1900 +0.6088)
+   FK-真值       位置 0.0 mm  姿态 0.00°
+L 侧
+   指令-实测(°)    +0.0   +0.0   -0.0   +0.0   +0.0   -0.0   -0.0   最大 0.0°
+   掌心 FK(世界)  (+0.5133 +0.1900 +0.6088)
+   掌心 真值      (+0.5133 +0.1900 +0.6088)
+   FK-真值       位置 0.0 mm  姿态 0.00°
+--------------------------------------------------------------------------
+指令节拍 19.9 Hz (目标 20 Hz), 已发 48 帧
+结论: 通过
+==========================================================================
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/earl/workspace/VLA/vla_ws/build/vla_follow/vla_follow/drink_task.py", line 377, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/home/earl/workspace/VLA/vla_ws/build/vla_follow/vla_follow/drink_task.py", line 366, in main
+    rclpy.spin_once(node, timeout_sec=0.05)
+  File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/__init__.py", line 226, in spin_once
+    executor.spin_once(timeout_sec=timeout_sec)
+  File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/executors.py", line 926, in spin_once
+    self._spin_once_impl(timeout_sec)
+  File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/executors.py", line 907, in _spin_once_impl
+    handler, entity, node = self.wait_for_ready_callbacks(
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/executors.py", line 877, in wait_for_ready_callbacks
+    return next(self._cb_iter)
+           ^^^^^^^^^^^^^^^^^^^
+  File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/executors.py", line 785, in _wait_for_ready_callbacks
+    raise ExternalShutdownException()
+rclpy.executors.ExternalShutdownException

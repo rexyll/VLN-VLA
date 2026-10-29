@@ -1,0 +1,125 @@
+[band] 距离合格区间 = 0.50 ~ 1.50 m (来自 vla_demo/vision_config.json)
+[EVAL] 复位 robot=True person=True
+[EVAL] 等待 2s 稳定后下发 FOLLOW...
+[EVAL] FOLLOW 第1次 CLI 下发 rc=0 
+[EVAL] FOLLOW 第2次 CLI 下发 rc=0 
+[EVAL] FOLLOW 第3次 CLI 下发 rc=0 
+[EVAL] FOLLOW 已下发, 开始 120s 评测
+[EVAL  15.0s] d=0.84 cam=front trk=TRACK lost=0 gap=+2.02
+[EVAL  30.0s] d=0.99 cam=front trk=TRACK lost=0 gap=+1.88
+[EVAL  45.0s] d=0.97 cam=front trk=TRACK lost=0 gap=+1.36
+[EVAL  60.1s] d=1.21 cam=front trk=TRACK lost=0 gap=+0.76
+[EVAL  75.1s] d=1.05 cam=front trk=TRACK lost=0 gap=+2.36
+[EVAL  90.1s] d=0.87 cam=front trk=TRACK lost=0 gap=+2.25
+[EVAL 105.2s] d=0.87 cam=front trk=TRACK lost=0 gap=+2.25
+
+================ 评测结果 (120s) ================
+{
+ "dist": {
+  "n": 2070,
+  "mean": 0.934,
+  "median": 0.93,
+  "std": 0.126,
+  "min": 0.41,
+  "max": 1.242,
+  "band": [
+   0.5,
+   1.5
+  ],
+  "in_band_pct": 98.0,
+  "near_pct": 2.0,
+  "far_pct": 0.0,
+  "min_all": 0.41,
+  "max_streak_s": 65.4
+ },
+ "contact": {
+  "thr_m": 0.44,
+  "n": 86,
+  "events": 2,
+  "det_pct": 11.6,
+  "dmin": 0.41,
+  "detail": [
+   {
+    "t0": 77.6,
+    "dur": 2.1,
+    "det": 10,
+    "dmin": 0.41,
+    "mode": "ALIGN/MOVE",
+    "note": "原地扫描 | 对正-102° | 对正-122°(方向锁定)"
+   },
+   {
+    "t0": 80.3,
+    "dur": 2.2,
+    "det": 0,
+    "dmin": 0.41,
+    "mode": "ALIGN",
+    "note": "对正-136°(方向锁定) | 对正-137°(方向锁定) | 对正-138°(方向锁定)"
+   }
+  ]
+ },
+ "center": {
+  "n": 1938,
+  "within10_pct": 95.1,
+  "within15_pct": 97.8,
+  "median_deg": 2.2,
+  "p90_deg": 7.0,
+  "max_deg": 42.7
+ },
+ "avoid": {
+  "min_gap": 0.195,
+  "hit_n": 0,
+  "brush_n": 0
+ },
+ "switch": {
+  "n": 5,
+  "resp_mean": 2.54,
+  "resp_max": 8.5,
+  "resp_none": 0,
+  "cross_n": 1,
+  "cross_mean": 8.5
+ },
+ "lost": {
+  "n": 2,
+  "goto_n": 1,
+  "reached_n": 0,
+  "dur_mean": 2.25,
+  "dur_max": 3.85,
+  "regen_mean": 2.25,
+  "events": [
+   {
+    "t0": 77.9,
+    "dur": 0.6,
+    "goto": 0,
+    "reached": 0,
+    "goto_pt": null
+   },
+   {
+    "t0": 80.1,
+    "dur": 3.8,
+    "goto": 1,
+    "reached": 0,
+    "goto_pt": [
+     5.15,
+     5.06
+    ]
+   }
+  ]
+ },
+ "sanity": {
+  "samples": 2438,
+  "vis_pct": 93.0,
+  "front_pct": 89.5,
+  "cmd_v_mean": 0.116
+ },
+ "back": {
+  "pct": 4.6,
+  "events": 8,
+  "per_100s": 7.4,
+  "mean_dur_s": 0.6,
+  "max_dur_s": 0.9,
+  "total_s": 4.8
+ },
+ "dur": 120.0
+}
+轨迹图: /home/earl/workspace/VLA/shots/t35_p80d_traj.png
+原始数据: /home/earl/workspace/VLA/t35_p80d.json

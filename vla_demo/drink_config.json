@@ -1,0 +1,21 @@
+{
+  "approach_speed": 0.16,
+  "approach_gap": 1.05,
+  "approach_tol_m": 0.03,
+  "yaw_tol_deg": 2.0,
+  "turn_speed": 0.45,
+  "seg_slow_s": 0.55,
+  "grip_close_s": 0.9,
+  "grip_open_s": 0.6,
+  "lift_kettle_h": 0.12,
+  "kettle_tilt_deg": 68.0,
+  "pour_s": 7.0,
+  "pour_hold_s": 1.2,
+  "jet_gap": 0.075,
+  "cup_lift_z": 0.86,
+  "handover_wait_s": 30.0,
+  "drink_s": 5.0,
+  "person_return_s": 3.2,
+  "backoff_m": 0.0,
+  "place_tol_m": 0.01
+}

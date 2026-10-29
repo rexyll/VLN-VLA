@@ -1,0 +1,153 @@
+[EVAL] 复位 robot=True person=True
+[EVAL] 等待 2s 稳定后下发 FOLLOW...
+[EVAL] FOLLOW 第1次 CLI 下发 rc=0 
+[EVAL] FOLLOW 第2次 CLI 下发 rc=0 
+[EVAL] FOLLOW 第3次 CLI 下发 rc=0 
+[EVAL] FOLLOW 已下发, 开始 120s 评测
+[EVAL  15.0s] d=0.62 cam=-     trk=TRACK lost=0 gap=+0.55
+[EVAL  30.1s] d=0.95 cam=-     trk=TRACK lost=0 gap=+0.92
+[EVAL  45.1s] d=2.86 cam=-     trk=TRACK lost=0 gap=+1.44
+[EVAL  60.1s] d=4.03 cam=-     trk=TRACK lost=0 gap=+2.28
+[EVAL  75.1s] d=0.99 cam=front trk=TRACK lost=0 gap=+1.14
+[EVAL  90.1s] d=1.00 cam=front trk=TRACK lost=0 gap=+2.02
+[EVAL 105.1s] d=1.00 cam=front trk=TRACK lost=0 gap=+1.08
+
+================ 评测结果 (120s) ================
+{
+ "dist": {
+  "n": 1732,
+  "mean": 1.515,
+  "median": 1.03,
+  "std": 1.079,
+  "min": 0.41,
+  "max": 4.377,
+  "in_band_pct": 43.9,
+  "near_pct": 17.5,
+  "far_pct": 38.6,
+  "min_all": 0.41,
+  "max_streak_s": 30.3
+ },
+ "avoid": {
+  "min_gap": 0.442,
+  "hit_n": 0,
+  "brush_n": 0
+ },
+ "switch": {
+  "n": 31,
+  "resp_mean": 29.39,
+  "resp_max": 54.4,
+  "resp_none": 0,
+  "cross_n": 5,
+  "cross_mean": 37.6
+ },
+ "lost": {
+  "n": 10,
+  "goto_n": 7,
+  "reached_n": 0,
+  "dur_mean": 2.11,
+  "dur_max": 6.6,
+  "regen_mean": 2.11,
+  "events": [
+   {
+    "t0": 21.9,
+    "dur": 0.2,
+    "goto": 0,
+    "reached": 0,
+    "goto_pt": null
+   },
+   {
+    "t0": 23.2,
+    "dur": 2.8,
+    "goto": 0,
+    "reached": 0,
+    "goto_pt": null
+   },
+   {
+    "t0": 30.3,
+    "dur": 1.1,
+    "goto": 0,
+    "reached": 0,
+    "goto_pt": null
+   },
+   {
+    "t0": 35.7,
+    "dur": 6.6,
+    "goto": 1,
+    "reached": 0,
+    "goto_pt": [
+     2.94,
+     -1.39
+    ]
+   },
+   {
+    "t0": 43.9,
+    "dur": 0.5,
+    "goto": 1,
+    "reached": 0,
+    "goto_pt": [
+     2.16,
+     -1.03
+    ]
+   },
+   {
+    "t0": 45.6,
+    "dur": 3.4,
+    "goto": 1,
+    "reached": 0,
+    "goto_pt": [
+     2.16,
+     -1.03
+    ]
+   },
+   {
+    "t0": 53.8,
+    "dur": 2.2,
+    "goto": 1,
+    "reached": 0,
+    "goto_pt": [
+     1.27,
+     -0.37
+    ]
+   },
+   {
+    "t0": 58.1,
+    "dur": 0.4,
+    "goto": 1,
+    "reached": 0,
+    "goto_pt": [
+     0.71,
+     0.17
+    ]
+   },
+   {
+    "t0": 60.6,
+    "dur": 1.4,
+    "goto": 1,
+    "reached": 0,
+    "goto_pt": [
+     0.15,
+     0.82
+    ]
+   },
+   {
+    "t0": 67.7,
+    "dur": 2.3,
+    "goto": 1,
+    "reached": 0,
+    "goto_pt": [
+     -2.7,
+     1.58
+    ]
+   }
+  ]
+ },
+ "sanity": {
+  "samples": 2437,
+  "vis_pct": 63.4,
+  "front_pct": 56.1,
+  "cmd_v_mean": 0.197
+ },
+ "dur": 120.0
+}
+轨迹图: /home/earl/workspace/VLA/shots/t6_p73_traj.png
+原始数据: /home/earl/workspace/VLA/t6_p73.json

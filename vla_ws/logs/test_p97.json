@@ -1,0 +1,25 @@
+{
+ "1": {
+  "ok": true,
+  "seen_at_start": true,
+  "nav2_engaged": true,
+  "search_disp_m": 0.301,
+  "clear_m": 0.513
+ },
+ "2": {
+  "ok": false,
+  "dist_m": 0.167
+ },
+ "3": {
+  "ok": false,
+  "task_started": false,
+  "done": false,
+  "nav2_leak": false,
+  "resumed": false
+ },
+ "4": {
+  "ok": true,
+  "nav2_true_n": 8
+ },
+ "_ok": false
+}

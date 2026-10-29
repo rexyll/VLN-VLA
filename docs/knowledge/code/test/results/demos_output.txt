@@ -1,0 +1,37 @@
+ckpt=runs/gz_model_v6/ckpt.pt
+===== DEMO 1 =====
+=== DEMO 1: 虚拟相机 + 推理服务联通验证 ===
+[1] 相机感知: agent 质心误差=0.93px  目标十字质心误差=0.63px
+[2] 快照已保存: results/demo1_frame.png
+[3] 推理: chunk[0]=[40.0, -14.2] px/s  专家参考=[40.0, -28.3]  方向余弦=0.962
+RESULT: PASS  (阈值: 质心误差<2.5px, 余弦>0.8)
+===== DEMO 2 =====
+=== DEMO 2: VLA 闭环控制验证 (task=reach) ===
+ep00: SUCCESS  steps=6
+ep01: SUCCESS  steps=6
+ep02: SUCCESS  steps=4
+ep03: SUCCESS  steps=4
+ep04: SUCCESS  steps=4
+ep05: FAIL  steps=60
+ep06: FAIL  steps=60
+ep07: FAIL  steps=60
+ep08: FAIL  steps=60
+ep09: SUCCESS  steps=4
+成功率 = 60.0%  Wilson95=[31.3, 83.2]  平均步数=26.8
+RESULT: FAIL  (门禁: SR>=70%)
+===== DEMO 3 =====
+=== DEMO 3: push 任务 + 安全层/看门狗验证 ===
+[A] push 任务闭环:
+  ep00: SUCCESS  steps=3
+  ep01: FAIL  steps=60
+  ep02: FAIL  steps=60
+  ep03: FAIL  steps=60
+  ep04: FAIL  steps=60
+[A] push 成功率=20.0%  接触传感器峰值=0
+[B] 看门狗测试（第 4 步起推理崩溃）:
+    推理中断于 t=3: 停止前=[40.1, 38.1] 停止后=[40.1, 38.1] 漂移=0.00px -> 受控停止生效
+[C] 安全层测试（下发 [999, -999] px/s）:
+    裁剪后=[40.0, -40.0] 拒绝原因=None -> 限速生效
+    NaN 动作 -> 拒绝原因=non-finite action/observation -> 拦截生效
+RESULT: CHECK
+ALL-DEMOS-DONE

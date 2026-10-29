@@ -1,0 +1,65 @@
+{
+  "ok": false,
+  "fails": [
+    "[8] 人的双手  手心间距 张开 345 → 合拢 184mm | 手到杯轴 交接前 45.4/140.3 交接后 45.4/140.3 mm(相切 92±25, 前后变化 0.0mm) | 交还时 130/218 mm"
+  ],
+  "shots": [
+    "/home/earl/workspace/VLA/vla_ws/logs/p91_arrive.png",
+    "/home/earl/workspace/VLA/vla_ws/logs/p91_present.png",
+    "/home/earl/workspace/VLA/vla_ws/logs/p91_grip.png",
+    "/home/earl/workspace/VLA/vla_ws/logs/p91_drink.png",
+    "/home/earl/workspace/VLA/vla_ws/logs/p91_takeback.png",
+    "/home/earl/workspace/VLA/vla_ws/logs/p91_handback.png",
+    "/home/earl/workspace/VLA/vla_ws/logs/p91_placed.png",
+    "/home/earl/workspace/VLA/vla_ws/logs/p91_following.png"
+  ],
+  "person_start": [
+    2.415,
+    -1.765
+  ],
+  "start_dist_m": 2.94,
+  "elapsed_s": 236.0,
+  "sim_elapsed_s": 113.3,
+  "stages": [
+    "PREPARE",
+    "PRESENT",
+    "HANDOVER",
+    "PERSON_DRINK",
+    "TAKE_BACK",
+    "PUT_BACK",
+    "RETREAT",
+    "HANDBACK",
+    "DONE",
+    "IDLE"
+  ],
+  "arrive": {
+    "to_spot_mm": 87.71019056132288,
+    "face_deg": 8.052433001889412,
+    "pos": [
+      2.138,
+      1.251
+    ]
+  },
+  "to_spot_mm": 87.7,
+  "face_deg": 8.1,
+  "cup_home_mm": 1.4,
+  "cup_tilt_deg": 0.01,
+  "follow": {
+    "retreat": true,
+    "handback": true,
+    "travel_m": 6.58,
+    "d_end_m": 1.01,
+    "in_band_pct": 96.7
+  },
+  "hands": {
+    "open_gap_mm": 345.27172958084526,
+    "close_gap_mm": 184.08288308771162,
+    "recv_l_mm": 45.4,
+    "recv_r_mm": 140.3,
+    "grip_l_mm": 45.4,
+    "grip_r_mm": 140.3,
+    "grip_dz_mm": 0.0,
+    "give_l_mm": 129.5,
+    "give_r_mm": 218.4
+  }
+}

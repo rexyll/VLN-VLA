@@ -1,0 +1,12 @@
+>>> percept  [INFO] [1793160538.660213931] [depth_percept]: PERCEPT 扇区精度 前Δ1.48(+18°) 左Δ3.13(+18°
+>>> vision   [INFO] [1793160539.310499619] [person_vision]: VISION 📷 快照保存 1 张: 120859_front_d0.6m_b-
+>>> mux      
+>>> follower [INFO] [1793160536.328971726] [follower]: FOLLOWER Nav2 action server 预热完成
+>>> gt_tf    [INFO] [1793160532.921532518] [gt_tf]: GT_TF 真值定位桥就绪: map→odom→base_link (/odom �
+>>> nav2     [lifecycle_manager-7] [INFO] [1793160534.313102865] [lifecycle_manager_navigation]: [34m[1mCreatin
+>>> viz      [INFO] [1793160533.580727859] [gz_viz]: VIZ 就绪: 蓝=行进 红=停住 品红=Nav2 规划路径
+>>> pw       [INFO] [1793160533.270444009] [person_walk]: PERSON "人"节点就绪, 3 秒后开始在工作区内
+>>> voice    [INFO] [1793160533.737984803] [voice_node]: VOICE 中文声学模型加载完成: /home/earl/workspa
+>>> drink    DRINK 待命: /robot/command {"action":"DRINK"} 触发整套任务
+>>> 已起 感知/follower/cmd_mux/person_walk/voice_node/drink_task + gt_tf/Nav2/gz_viz
+>>> 下一步: bash vla_demo/send_person_cmd.sh drink

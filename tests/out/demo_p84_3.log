@@ -1,0 +1,9 @@
+>>> 清理旧进程...
+>>> 清理完成, 残留进程数: 0
+MAP-GEN: /home/earl/workspace/VLA/vla_demo/maps/arena.pgm (246x246, 占用栅格 7657)
+[GUI-FIX] 无需改动
+>>> gz sim 启动中...
+>>> gz topics 出现 (2s)
+>>> DEMO 已启动 (pid=50948), 日志: /home/earl/workspace/VLA/vla_ws/logs/demo.log
+>>> 单实例校验: ros2 launch=1, gz sim=3
+>>> 启动完成

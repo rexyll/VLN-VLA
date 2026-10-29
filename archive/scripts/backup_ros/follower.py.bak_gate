@@ -1,0 +1,976 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""follower.py —— 语音指令驱动的跟随控制器 (方案 v4)
+
+控制方案:
+1. 位姿: Gazebo 真值(dynamic_pose/info, gz-transport 直连)
+2. 朝向: "先对正、再移动" 两段式
+   - 目标偏离 front 相机垂直中线超过 aim_band_deg(默认 15°) → ALIGN:
+     原地纯旋转, 比例控制 + 软死区, 角速度上限 recenter_rot_speed;
+     目标在左/右/后相机时同样先转回前向视野。
+   - 目标进入 ±15° → TRACK: 距离 PID 决定前进/后退/保持,
+     同时小幅修正航向把目标压在 ±15° 内。
+3. 速度: 距离环 PID + 人速前馈, 人停→机器人停; 近人限速、过近后退
+4. 绕障(真值地图): 仅在对正之后生效, 取障碍侧方切点绕行
+5. 目标丢失: 按 2Hz 快照历史外推去向 → 前往最后出现点 → 原地扫描
+注: v/PID 全部参数来自 vla_demo/vision_config.json。
+"""
+import json
+import math
+import os
+import threading
+import time
+
+import rclpy
+from rclpy.node import Node
+from geometry_msgs.msg import Twist
+from sensor_msgs.msg import LaserScan
+from std_msgs.msg import String
+
+import gz.transport13 as gz_transport
+from gz.msgs10.pose_v_pb2 import Pose_V as GzPose_V
+
+# ---- 跟踪配置(P15, 与视觉节点共用同一配置文件) ----
+CONFIG_PATH = os.path.join(
+    os.environ.get('VLA_HOME', '/home/earl/workspace/VLA'),
+    'vla_demo', 'vision_config.json')
+
+DEFAULT_CFG = {
+    'track_dist_m': 1.0, 'track_dist_tol_m': 0.10,
+    'recenter_rot_speed': 1.5,      # 对正最大角速度 rad/s
+    'approach_speed': 0.2,
+    'pid_kp_v': 0.6, 'pid_ki_v': 0.20, 'pid_kd_v': 0.08,
+    'pid_kp_w': 2.2, 'pid_ki_w': 0.40, 'pid_kd_w': 0.30,
+    # P20: 对正(align)参数
+    'aim_band_deg': 15.0,           # 目标允许偏离 front 中线的角度带
+    'recenter_kp': 2.0,             # 对正比例增益 (rad/s per rad)
+    'turn_min_w': 0.35,             # 对正最小角速度(克服静摩擦)
+    'hold_kp': 2.2,                 # TRACK 中保持航向的增益
+    # P25/P26: 全向安全层(避障最高优先级)
+    #   车体 0.30x0.20 → 外接半径 0.18。停车距离必须同时覆盖
+    #   ① 车体半径 ② 测距滞后(v*age) ③ 制动距离。
+    #   旧值 0.42 只够 ① —— 实测 0.5m/s + 5Hz 相机 + 0.45s 陈旧,
+    #   等于"看到 0.42m 时实际已在 0.20m", 车体(0.18)已经贴上去了。
+    'lidar_stop_m': 0.66,           # 到障碍表面 <= 此值: 立即停车
+    'lidar_slow_m': 1.60,           # 到障碍表面 <  此值: 按距离限速
+    'lidar_side_m': 0.50,           # 侧向安全距离(防侧擦)
+    'lidar_max_age_s': 0.28,        # 测距数据最大陈旧度(相机 10Hz → 约 3 帧)
+    'lidar_tau_s': 0.60,            # 限速时假设的制动反应时间
+    'escape_s': 0.90,               # 卡死后脱困动作持续时长
+}
+
+
+def load_track_cfg():
+    cfg = dict(DEFAULT_CFG)
+    try:
+        with open(CONFIG_PATH, encoding='utf-8') as f:
+            data = json.load(f)
+        for k in cfg:
+            v = data.get(k)
+            if v is not None:
+                cfg[k] = float(v)
+    except Exception:
+        pass
+    return cfg
+
+
+# ---- 真值地图: 与 world 严格一致 ----
+# P22 修正: 原表有 7 项, 其中 4 项(3.5,2.0)/(-3.0,3.2)/(4.2,-3.0)/(-1.5,-4.5)
+# 在 work_area.sdf 里根本没有任何几何体, 半径也统一多写了 0.07。这些"幽灵
+# 障碍"让绕障反复误触发: 机器人对着空气打方向(实测 w 冲到 2.2, 指令 v 冲到
+# 0.6), 目标方位被甩到 ±22°, 看上去就像"原地打转"。下面是 SDF 里真实存在
+# 的 3 根立柱, 半径按 <cylinder><radius> 原值填写。
+WALL_SOFT = 5.15        # 接近该值开始向场内修正(提前+加强)
+WALL_HARD = 5.75        # 不得越过
+# P24 修正: 原表只剩 3 项(误判为"幽灵障碍"), 实际 SDF 的 obstacles 模型下
+# 有 ob1..ob7 共 7 个几何体。漏项会让绕障直接撞柱子: 实测机器人顶着 ob3
+# (0.5,-3.2) 绿柱, 指令 v=+0.12 而实际 v=+0.01, 原地卡死。
+# 半径取水平外接圆(方块按半对角), 保证斜向也不会擦碰。
+OBSTACLES = [           # (x, y, 外接半径) —— 与 work_area.sdf ob1..ob7 一一对应
+    (3.5, 2.0, 0.57),     # ob1 0.8x0.8 方块
+    (-3.0, 3.2, 0.67),    # ob2 1.2x0.6 方块(yaw 0.5)
+    (0.5, -3.2, 0.40),    # ob3 r0.40 圆柱
+    (-4.2, -2.5, 0.50),   # ob4 r0.50 圆柱
+    (4.2, -3.0, 0.42),    # ob5 0.6x0.6 方块
+    (-1.5, -4.5, 0.56),   # ob6 1.0x0.5 方块(yaw -0.4)
+    (2.2, 4.6, 0.35),     # ob7 r0.35 圆柱
+]
+ROBOT_R = 0.18          # 机器人外接半径
+INFLATE = ROBOT_R + 0.38  # 绕障膨胀余量
+
+
+def wrap(a):
+    while a > math.pi:
+        a -= 2 * math.pi
+    while a < -math.pi:
+        a += 2 * math.pi
+    return a
+
+
+def yaw_of(q):
+    """四元数 → 航向角.
+
+    P20 修正: 分母必须是 1-2*(y²+z²)。原代码写成 1-2*(y²+x²), 会把航向角
+    严重压缩(实测真值 90° 读成 45°、180° 读成 0°、141° 读成 32°), 于是
+    "目标方位" 与 "实际航向" 对不上, 控制器永远算不出正确的转角 ——
+    表现为机器人原地打转、朝任何方向都追不上目标。
+    """
+    return math.atan2(2.0 * (q.w * q.z + q.x * q.y),
+                      1.0 - 2.0 * (q.y * q.y + q.z * q.z))
+
+
+def seg_dist(cx, cy, ax, ay, bx, by):
+    """点 (cx,cy) 到线段 (ax,ay)-(bx,by) 的距离"""
+    abx, aby = bx - ax, by - ay
+    denom = abx * abx + aby * aby
+    if denom < 1e-9:
+        return math.hypot(cx - ax, cy - ay)
+    t = ((cx - ax) * abx + (cy - ay) * aby) / denom
+    t = max(0.0, min(1.0, t))
+    return math.hypot(cx - (ax + t * abx), cy - (ay + t * aby))
+
+
+class Follower(Node):
+
+    def __init__(self):
+        super().__init__('follower')
+        self.cfg = load_track_cfg()
+        self.pub = self.create_publisher(Twist, '/robot/cmd_vel', 10)
+        self.create_subscription(String, '/robot/command', self._cmd_cb, 10)
+        self.create_subscription(String, '/perception/proximity',
+                                 self._prox_cb, 10)
+        self.create_subscription(String, '/perception/person',
+                                 self._vis_cb, 10)
+        self.create_subscription(String, '/perception/person_history',
+                                 self._hist_cb, 10)
+        self.create_subscription(LaserScan, '/scan', self._scan_cb, 10)
+        self._gz_node = gz_transport.Node()
+        self._gz_node.subscribe(GzPose_V,
+                                '/world/follow_world/dynamic_pose/info',
+                                self._pose_cb)
+        self._lock = threading.Lock()
+        self.state = 'IDLE'
+        self.target_d = self.cfg['track_dist_m']
+        self.rx, self.ry, self.ryaw = 0.0, 0.0, 0.0
+        self.px, self.py = 1.0, 0.0
+        self._r_prev = None
+        self._p_prev = None
+        self.robot_speed = 0.0
+        self.person_speed = 0.0
+        self.scan_count = 0
+        self.scan = None          # P25: (ranges, angle_min, angle_inc, mono)
+        # P26: 8 个 45° 方位的全向测距(4 台深度相机分扇区合成)
+        self.prox = {'front': -1.0, 'fl': -1.0, 'left': -1.0, 'bl': -1.0,
+                     'back': -1.0, 'br': -1.0, 'right': -1.0, 'fr': -1.0,
+                     'age': 99.0}
+        self.vis = None
+        self._vis_mono = 0.0
+        self._vis_msg_mono = 0.0      # P23: 视觉消息到达时刻(含未检出帧)
+        self._vis_prev = None
+        self.vis_pspd = 0.0
+        self._src_prev = ''
+        # 快照式跟踪状态机(P12): TRACK | GOTO | SCAN
+        self._track = 'TRACK'
+        self._search_target = None
+        self._search_t0 = 0.0
+        self._scan_until = 0.0
+        self._reacq_until = 0.0
+        self.hist = []
+        # PID 状态(P16)
+        self._int_d = 0.0
+        self._prev_err_d = 0.0
+        self.v = 0.0
+        self._pub_t = None        # P21: 上次发布时刻, 用于真实 dt 的加速度限幅
+        self._last_w = 0.0
+        # 对正状态(P20)
+        self._aligning = False
+        self._align_dir = 0.0     # ±180° 附近的方向锁存
+        self._stuck_t0 = 0.0
+        self._stuck_pos = (0.0, 0.0)
+        self._stuck_yaw = 0.0
+        # P25: 脱困窗口(卡死后持续倒退+转向, 而不是只发一个 tick)
+        self._escape_until = 0.0
+        self._escape_v = 0.0
+        self._escape_w = 0.0
+        self._bypass = None       # (障碍索引, 绕行侧)
+        self._bypass_t0 = 0.0     # 当前绕行侧开始时间
+        self._bypass_arc = 0.0    # 轮廓跟随的弧进度(rad)
+        self._bypass_last = None  # (i, side, arc, t) 短暂释放记忆
+        self._last_pose_mono = 0.0
+        self._last_pose_warn = 0.0
+        self._last_log = 0.0
+        self._last_diag = 0.0
+        self._last_avoid_log = 0.0    # P26: 全向安全层单独的日志限流
+        # P26: 雷达可用性自检 —— gpu_lidar 只支持 ogre2, 本项目为绕开 VMware
+        # 白屏固定用 ogre1, 于是 /scan 会返回全 range_min。开局探一次并落日志,
+        # 避免以后误以为"雷达在参与避障"。
+        self._lidar_checked = False
+        self._lidar_ok = False
+        self.create_timer(0.05, self._tick)  # 20 Hz
+        self.get_logger().info(
+            'FOLLOWER 跟随控制器v4就绪(对正带±%.0f° / 距离PID / 真值地图绕障)'
+            % self.cfg['aim_band_deg'])
+
+    # ---------- 回调 ----------
+    def _cmd_cb(self, msg):
+        try:
+            cmd = json.loads(msg.data)
+        except Exception:
+            self.get_logger().warn(f'FOLLOWER 无法解析指令: {msg.data}')
+            return
+        action = cmd.get('action')
+        if action == 'FOLLOW':
+            d = cmd.get('distance')
+            self.target_d = float(d) if d is not None \
+                else self.cfg['track_dist_m']
+            self.state = 'FOLLOW'
+            self._int_d = 0.0
+            self._prev_err_d = 0.0
+            self.get_logger().info(
+                f'FOLLOWER ★ 收到跟随指令(来自语音: "{cmd.get("text", "")}"), '
+                f'目标距离 = {self.target_d:.2f}m — 开始跟随')
+        elif action == 'STOP':
+            self.state = 'IDLE'
+            self.v = 0.0
+            self._publish(0.0, 0.0)
+            self.get_logger().info(
+                f'FOLLOWER ★ 收到停止指令(来自语音: "{cmd.get("text", "")}"), '
+                f'已停止跟随')
+        else:
+            self.get_logger().info(
+                f'FOLLOWER 忽略指令: {json.dumps(cmd, ensure_ascii=False)}')
+
+    def _pose_cb(self, msg):
+        stamp = msg.header.stamp.sec + msg.header.stamp.nsec * 1e-9
+        robot = person = None
+        for p in msg.pose:
+            if p.name == 'robot':
+                robot = p
+            elif p.name == 'person':
+                person = p
+        if robot is None or person is None:
+            return
+        with self._lock:
+            self.rx = robot.position.x
+            self.ry = robot.position.y
+            self.ryaw = yaw_of(robot.orientation)
+            self.px = person.position.x
+            self.py = person.position.y
+            if self._r_prev is not None and stamp > self._r_prev[0] + 1e-3:
+                pt, prx, pry = self._r_prev
+                inst = math.hypot(robot.position.x - prx,
+                                  robot.position.y - pry) / (stamp - pt)
+                self.robot_speed = 0.6 * self.robot_speed + 0.4 * min(inst, 2.0)
+            if self._p_prev is not None and stamp > self._p_prev[0] + 1e-3:
+                pt, ppx, ppy = self._p_prev
+                inst = math.hypot(person.position.x - ppx,
+                                  person.position.y - ppy) / (stamp - pt)
+                self.person_speed = 0.6 * self.person_speed + 0.4 * min(inst, 2.0)
+            self._r_prev = (stamp, robot.position.x, robot.position.y)
+            self._p_prev = (stamp, person.position.x, person.position.y)
+        self._last_pose_mono = time.monotonic()
+
+    def _scan_cb(self, msg):
+        """P25: 保存 360° 雷达测距, 供全向安全层使用。
+
+        原实现只做 scan_count += 1 —— 雷达帧数仅用于打日志, 也就是说这台
+        机器人"看得见 360°"却完全没用它避障, 避障只剩两样东西:
+          (a) 硬编码的真值障碍表(依赖人工维护, 只能预判正前方)
+          (b) 5Hz 的深度相机, 且最小停车距离取 0.30m
+        而车体半径 0.18m + 立柱半径 0.40m = 中心距 0.58m 时就已物理接触,
+        所以"等 0.30m 才停"必然撞上去; 斜向接近时地图层的前向点积又判不到,
+        于是表现为"有时能绕开、有时直接撞"。
+        """
+        with self._lock:
+            self.scan_count += 1
+            self.scan = (list(msg.ranges), float(msg.angle_min),
+                         float(msg.angle_increment), time.monotonic())
+
+    def _sector_min(self, lo_deg, hi_deg):
+        """雷达扇区 [lo_deg, hi_deg] 内的最小距离(米)。相对车头, 逆时针为正。
+
+        无有效回波返回 -1。自动过滤 nan / inf / 贴脸噪声点(<=6cm)。
+        """
+        sc = self.scan
+        if sc is None:
+            return -1.0
+        rng, amin, ainc, _ = sc
+        n = len(rng)
+        if n == 0 or ainc <= 1e-6:
+            return -1.0
+        i0 = int(round((math.radians(lo_deg) - amin) / ainc))
+        i1 = int(round((math.radians(hi_deg) - amin) / ainc))
+        best = -1.0
+        for i in range(i0, i1 + 1):
+            r = rng[i % n]
+            if r is None or not (0.06 < r < 11.5):
+                continue          # nan / inf / 无效点: nan 比较恒为 False
+            if best < 0.0 or r < best:
+                best = r
+        return best
+
+    def _prox_cb(self, msg):
+        """8 方位全向测距: front/fl/left/bl/back/br/right/fr + age"""
+        try:
+            p = json.loads(msg.data)
+        except Exception:
+            return
+        keys = ('front', 'fl', 'left', 'bl', 'back', 'br', 'right', 'fr')
+        self.prox = {k: p.get(k, -1.0) for k in keys}
+        self.prox['age'] = p.get('age', 99.0)
+
+    def _vis_cb(self, msg):
+        """相机人检测: {detected, cam, dist, bearing, bearing_cam, u, area}"""
+        try:
+            v = json.loads(msg.data)
+        except Exception:
+            return
+        self.vis = v
+        self._vis_msg_mono = time.monotonic()
+        # P23 修正: 只有"确实检出"才刷新检出生效时刻。
+        # 原实现每帧无条件刷新(包括 detected=false), 于是
+        # "now - _vis_mono > 2.0"(视觉丢失 2s) 永远不成立 ——
+        # 目标丢失后的 GOTO→SCAN 搜索链路整段是死代码, 实测 24 次
+        # "四相机视野内均无人" 却 0 次触发搜索。
+        if v.get('detected'):
+            self._vis_mono = self._vis_msg_mono
+
+    def _hist_cb(self, msg):
+        """快照历史: {seq:[{t,cam,bearing,dist,wx,wy}...], lateral:bool}"""
+        try:
+            h = json.loads(msg.data)
+        except Exception:
+            return
+        self.hist = h.get('seq', [])
+
+    def _infer_target(self):
+        """由最近快照序列推测目标去向: 先方位(相机序列)后距离(世界外推)"""
+        CAM_CN = {'front': '前', 'left': '左', 'right': '右', 'back': '后'}
+        if not self.hist:
+            return None, '无快照历史'
+        last = self.hist[-1]
+        lx, ly = float(last['wx']), float(last['wy'])
+        tx, ty = lx, ly
+        if len(self.hist) >= 2:
+            prev = self.hist[-2]
+            dt = max(float(last['t']) - float(prev['t']), 0.4)
+            vx = (lx - float(prev['wx'])) / dt
+            vy = (ly - float(prev['wy'])) / dt
+            if math.hypot(vx, vy) > 0.05:
+                ex, ey = vx * 2.5, vy * 2.5   # 外推 2.5s
+                e = math.hypot(ex, ey)
+                if e > 2.5:
+                    ex, ey = ex * 2.5 / e, ey * 2.5 / e
+                tx, ty = lx + ex, ly + ey
+        tx = max(-5.3, min(5.3, tx))
+        ty = max(-5.3, min(5.3, ty))
+        seq = [h.get('cam', '?') for h in self.hist]
+        seq_cn = ','.join(CAM_CN.get(c, c) for c in seq[-5:])
+        lateral = len(set(seq)) > 1
+        desc = (f'方位序列[{seq_cn}]'
+                f'{"横向移动" if lateral else "同相机"}, '
+                f'末位置({lx:+.1f},{ly:+.1f}) → 前往({tx:+.1f},{ty:+.1f})')
+        return (tx, ty), desc
+
+    # ---------- 绕障航点 ----------
+    def _waypoint(self, rx, ry, px, py):
+        """返回 (tx, ty, note, 到航点距离)。
+
+        连线穿障碍膨胀圆时, 取切点为初始航点; 机器人到达切点而连线仍被挡
+        时, 航点沿圆弧向绕行侧推进(轮廓跟随), 直到连线畅通;
+        短暂释放后重新命中同一障碍时保留侧别与弧进度(防边缘翻转);
+        单侧绕行超过 10s 或走满一圈仍被挡 → 换边重来。"""
+        best = None
+        dist_t = math.hypot(px - rx, py - ry)
+        for i, (ox, oy, r) in enumerate(OBSTACLES):
+            R = r + INFLATE
+            # P22 修正: 障碍必须真的挡在"机器人→目标"之间。
+            # 只用 seg_dist() 是不够的 —— 它把投影参数 t 夹到 [0,1], 于是停在
+            # 目标"身后"的障碍也会被算成挡路。实测: 人在 (-2.4,-4)、障碍5在
+            # (-1.5,-4.5)(人在其前方 1m), 判定仍命中 → 绕障接管角速度通道,
+            # 目标方位被反复甩到 +22°, 机器人绕着一个根本没挡路的东西打转。
+            # 这里显式要求投影落在 (0.05, 0.97) 区间内, 即障碍严格在目标之前。
+            t = 0.0
+            if dist_t > 1e-6:
+                t = ((ox - rx) * (px - rx) + (oy - ry) * (py - ry)) / dist_t ** 2
+            if not (0.05 < t < 0.97):
+                continue
+            d = seg_dist(ox, oy, rx, ry, px, py)
+            # 迟滞带: 新触发需深入 0.15m; 已在绕行则越出 0.05m 才释放
+            if self._bypass is not None and self._bypass[0] == i:
+                blocked = d < R + 0.05
+            else:
+                blocked = d < R - 0.15
+            if blocked:
+                pen = R - d
+                if best is None or pen > best[0]:
+                    best = (pen, i, ox, oy, R)
+        now = time.monotonic()
+        if best is None:
+            if self._bypass is not None:
+                self._bypass_last = (self._bypass[0], self._bypass[1],
+                                     self._bypass_arc, now)
+            self._bypass = None
+            self._bypass_t0 = 0.0
+            self._bypass_arc = 0.0
+            return px, py, '', 0.0
+        _, i, ox, oy, R = best
+        side = -1.0 if ((px - rx) * (oy - ry) - (py - ry) * (ox - rx)) > 0 else 1.0
+        arc = 0.0
+        if self._bypass is not None and self._bypass[0] == i:
+            side = self._bypass[1]
+            arc = self._bypass_arc
+            if now - self._bypass_t0 > 10.0 or arc > 6.0:
+                side = -side
+                arc = 0.0
+                self._bypass_t0 = now
+                self.get_logger().info(
+                    f'FOLLOWER 绕障{i}换边{"左" if side > 0 else "右"}')
+        else:
+            last = self._bypass_last
+            if (last is not None and last[0] == i
+                    and now - last[3] < 2.5):
+                side = last[1]      # 短暂释放: 续用原侧与弧进度
+                arc = last[2]
+            self._bypass_t0 = now
+        self._bypass = (i, side)
+        d_ro = math.hypot(rx - ox, ry - oy)
+        ac = math.atan2(ry - oy, rx - ox)      # 圆心->机器人 方向
+        if d_ro <= R + 0.05:
+            at = ac + side * math.pi / 2       # 已在圆边: 沿切向走出
+        else:
+            alpha = math.acos(min(1.0, R / d_ro))
+            at = ac + side * alpha             # 切点方位(从圆心看)
+        at += side * arc                       # 轮廓跟随: 弧推进
+        wx = ox + R * math.cos(at)
+        wy = oy + R * math.sin(at)
+        wx = max(-5.2, min(5.2, wx))
+        wy = max(-5.2, min(5.2, wy))
+        dwp = math.hypot(wx - rx, wy - ry)
+        if dwp < 0.40 and now - getattr(self, '_arc_adv_t', 0.0) > 1.5:
+            # 已到当前航点且连线仍被挡 → 航点沿圆弧前推一步
+            self._arc_adv_t = now
+            arc = min(arc + 0.4, 6.2)
+            self._bypass_arc = arc
+            at2 = (ac + (math.pi / 2 if d_ro <= R + 0.05 else
+                         math.acos(min(1.0, R / d_ro)))) + side * arc
+            wx = ox + R * math.cos(at2)
+            wy = oy + R * math.sin(at2)
+            wx = max(-5.2, min(5.2, wx))
+            wy = max(-5.2, min(5.2, wy))
+            dwp = math.hypot(wx - rx, wy - ry)
+        else:
+            self._bypass_arc = arc
+        return wx, wy, f'绕障{i}{"左" if side > 0 else "右"}', dwp
+
+    # ---------- 主循环 ----------
+    def _tick(self):
+        now = time.monotonic()
+        # 雷达可用性自检(只做一次): 见 __init__ 里的说明
+        if not self._lidar_checked and self.scan_count >= 5:
+            self._lidar_checked = True
+            r = self._sector_min(-25.0, 25.0)
+            self._lidar_ok = r > 0.135
+            self.get_logger().info(
+                'FOLLOWER 雷达自检: %s (前向 %.2fm)'
+                % ('可用, 已叠加到全向安全层' if self._lidar_ok
+                   else '不可用(全为量程下限) → 全向避障改用 4 台深度相机', r))
+        if self.state != 'FOLLOW':
+            self._publish(0.0, 0.0)
+            if now - self._last_log > 5.0:
+                self._last_log = now
+                self.get_logger().info('FOLLOWER 待命: 等待语音指令...')
+            return
+        with self._lock:
+            rx, ry, ryaw = self.rx, self.ry, self.ryaw
+            px, py = self.px, self.py
+            pspd = self.person_speed
+            rspd = self.robot_speed
+            nscan = self.scan_count
+        if now - self._last_pose_mono > 1.5:
+            self._publish(0.0, 0.0)
+            self.v = 0.0
+            if now - self._last_pose_warn > 3.0:   # P21: 限流, 否则 20Hz 刷屏
+                self._last_pose_warn = now
+                self.get_logger().warn('FOLLOWER 丢失真值位姿, 已停车')
+            return
+
+        band = math.radians(self.cfg['aim_band_deg'])
+
+        # --- 1. 目标估计: 视觉优先, 真值兜底 ---
+        vis = self.vis
+        vision_ok = (vis is not None and bool(vis.get('detected'))
+                     and now - self._vis_mono < 0.5
+                     and vis.get('dist', -1) > 0)
+        src = '真值'
+        if vision_ok:
+            vis_cam = str(vis.get('cam', 'front'))
+            bearing = float(vis['bearing'])     # 相对机器人前向, + = 左
+            vdist = float(vis['dist'])
+            if self._track != 'TRACK':
+                self.get_logger().info('FOLLOWER ★ 重新捕获目标, 恢复跟踪')
+                self._track = 'TRACK'
+                self._reacq_until = now + 8.0
+            px = rx + math.cos(ryaw + bearing) * vdist
+            py = ry + math.sin(ryaw + bearing) * vdist
+            if vis_cam == 'front':
+                if self._vis_prev is not None:
+                    dt = now - self._vis_prev[0]
+                    if dt > 0.15:
+                        dd = (self._vis_prev[1] - vdist) / dt
+                        self.vis_pspd = 0.7 * self.vis_pspd + \
+                            0.3 * max(0.0, min(1.0, dd))
+                        self._vis_prev = (now, vdist)
+                else:
+                    self._vis_prev = (now, vdist)
+            else:
+                self._vis_prev = None
+            pspd = self.vis_pspd
+            src = '视觉' if vis_cam == 'front' else f'视觉-{vis_cam}'
+            brg = bearing                       # 相机直接测得的相对方位
+        else:
+            self._vis_prev = None
+            self.vis_pspd = 0.0
+            brg = wrap(math.atan2(py - ry, px - rx) - ryaw)
+            # 视觉丢失 2s → 按快照序列推测去向并搜索
+            if self._track == 'TRACK' and self._vis_mono > 0 \
+                    and now - self._vis_mono > 2.0 and self.hist:
+                tgt, desc = self._infer_target()
+                if tgt is not None:
+                    self._search_target = tgt
+                    self._search_t0 = now
+                    self._track = 'GOTO'
+                    self.get_logger().info(f'FOLLOWER ★ 目标丢失→搜索 {desc}')
+
+        # --- 2. 搜索/扫描状态 ---
+        if self._track == 'GOTO':
+            if now - self._search_t0 > 30.0:
+                self._track = 'TRACK'
+                self.get_logger().warn('FOLLOWER 搜索超时, 真值兜底恢复跟踪')
+            else:
+                gx, gy = self._search_target
+                if math.hypot(gx - rx, gy - ry) < 0.5:
+                    self._track = 'SCAN'
+                    self._scan_until = now + 12.0
+                    self.get_logger().info(
+                        f'FOLLOWER 到达最后出现位置({gx:+.1f},{gy:+.1f}),'
+                        f' 原地扫描搜索')
+                else:
+                    px, py = gx, gy
+                    brg = wrap(math.atan2(gy - ry, gx - rx) - ryaw)
+                src = '搜索'
+        elif self._track == 'SCAN':
+            if now > self._scan_until:
+                if now - self._search_t0 < 30.0 and self.hist:
+                    tgt, desc = self._infer_target()
+                    if tgt is not None:
+                        self._search_target = tgt
+                        self._track = 'GOTO'
+                        self.get_logger().info(
+                            f'FOLLOWER 扫描无果, 再次推测 {desc}')
+                else:
+                    self._track = 'TRACK'
+                    self.get_logger().warn('FOLLOWER 搜索超时, 真值兜底')
+            src = '扫描'
+
+        if src != self._src_prev:
+            if '真值' in (src, self._src_prev) or '视觉' in (src, self._src_prev):
+                self.get_logger().info(f'FOLLOWER 感知源切换 → {src}')
+            self._src_prev = src
+
+        dist = math.hypot(px - rx, py - ry)
+
+        # --- 3. 对正判定(P20): 目标是否落在 front 中线 ±band 内 ---
+        aim = abs(brg)
+        if self._aligning:
+            # 退出对正需进入 0.65*band 内, 防边界抖动
+            if aim <= band * 0.65:
+                self._aligning = False
+                self.get_logger().info(
+                    f'FOLLOWER ✓ 已对正目标(偏差 {math.degrees(brg):+.1f}°'
+                    f' ≤ {self.cfg["aim_band_deg"]:.0f}°), 转入距离跟踪')
+        else:
+            if aim > band:
+                self._aligning = True
+                self.get_logger().info(
+                    f'FOLLOWER ⟳ 目标偏离中线 {math.degrees(brg):+.1f}°'
+                    f' > {self.cfg["aim_band_deg"]:.0f}°, 先原地对正')
+        # 扫描态固定小角速度旋转
+        if src == '扫描':
+            self._aligning = False
+
+        v_t = 0.0
+        w_t = 0.0
+        note = ''
+
+        if src == '扫描':
+            w_t = self.cfg['recenter_rot_speed'] * 0.8
+            self._publish_smooth(v_t, w_t, now)
+            self._log(now, src, dist, pspd, rspd, w_t, brg, '原地扫描', nscan,
+                      rx, ry, px, py)
+            return
+
+        if self._aligning:
+            # ---- ALIGN: 原地纯旋转, 比例 + 软死区, 方向锁存防 ±180° 抖动 ----
+            sgn = 1.0 if brg >= 0 else -1.0
+            if aim > 2.1:
+                if self._align_dir == 0.0:
+                    self._align_dir = sgn
+                sgn = self._align_dir
+            elif aim < 1.05:
+                self._align_dir = 0.0
+            w_mag = self.cfg['recenter_kp'] * (aim - band * 0.5)
+            w_mag = max(self.cfg['turn_min_w'],
+                        min(self.cfg['recenter_rot_speed'], w_mag))
+            w_t = sgn * w_mag
+            # P22: 偏差不大(≤34°)时允许"边走边转"。纯原地旋转 v=0 会让逃跑的
+            # 目标越拉越远, 实测 90s 内进出对正 44 次 —— 每次进对正就停车,
+            # 目标跑开 → 又进对正, 形成"走走停停追不上"。大偏差(目标在左右/
+            # 后相机)仍保持纯旋转, 因为那时前方是空的, 边走会撞。
+            if aim < math.radians(34.0):
+                v_t = 0.6 * self.cfg['approach_speed']
+            else:
+                v_t = 0.0
+            note = (f'对正{math.degrees(brg):+.0f}°'
+                    f'{"(边转边走)" if v_t > 0 else ""}'
+                    f'{"(方向锁定)" if self._align_dir != 0 else ""}')
+            self._publish_smooth(v_t, w_t, now)
+            self._log(now, src, dist, pspd, rspd, w_t, brg, note, nscan,
+                      rx, ry, px, py)
+            return
+
+        # ---- TRACK: 已对正 → 距离环决定前进/后退/保持 ----
+        err_d = dist - self.target_d
+        tol = self.cfg['track_dist_tol_m']
+        # 安全距(低于此值必须后退), 下面限速也要用, 故提前算
+        guard_d = max(0.55, self.target_d - tol - 0.25)
+        dtc = 0.05
+        if abs(err_d) <= tol:
+            v_t = 0.0
+            self._int_d = 0.0
+            self._prev_err_d = err_d
+        else:
+            self._int_d = max(-1.5, min(1.5,
+                               self._int_d + self.cfg['pid_ki_v'] * err_d * dtc))
+            der_d = (err_d - self._prev_err_d) / dtc
+            self._prev_err_d = err_d
+            v_pid = (self.cfg['pid_kp_v'] * err_d + self._int_d
+                     + self.cfg['pid_kd_v'] * der_d)
+            # P22 修正: 原式 v_cap = max(approach_speed, pspd+0.25) 在目标快跑时
+            # 会把上限抬到 0.9 m/s 以上。而视觉距离只有 5 Hz、且允许 0.8s 陈旧,
+            # 0.6 m/s 意味着最多 0.5m 的"盲走" —— 实测直冲 0.58m(安全距 0.65),
+            # 差点撞人。这里改成"接近速度"与"视觉时延内不冲进安全距"取小:
+            #   v_lat = (dist - guard_d) / 视觉时延
+            # 目标 1.5m 时 v_lat≈1.06(不限制), 1.0m 时 0.44, 近了自然收。
+            lat = 0.8
+            room = max(0.02, dist - guard_d)
+            v_lat = room / lat
+            v_ff = min(0.6, pspd + 0.20) if dist > 2.0 else 0.0
+            v_cap = min(max(self.cfg['approach_speed'], v_ff), v_lat)
+            v_t = max(-0.35, min(v_cap, v_pid))
+        # 保持航向: 目标留在 ±band 内
+        # P22: 增益从 hold_kp(1.6)/上限0.9 提到 2.2/1.3 —— 目标以 0.7m/s 横移、
+        # 距离 1m 时角速度需求达 0.7 rad/s, 原上限 0.9 贴着极限, 稍有滞后就
+        # 掉回对正段, 造成每 2s 一次模式抖动。实测被控对象 w 跟踪精度 1.00,
+        # 放大增益是安全的。
+        if abs(brg) > math.radians(3.0):
+            w_t = max(-1.3, min(1.3, self.cfg['hold_kp'] * brg))
+        else:
+            w_t = 0.0
+
+        # --- 4. 绕障(仅对正后) ---
+        tx, ty, note, dwp = self._waypoint(rx, ry, px, py)
+        if note:
+            err_yaw = wrap(math.atan2(ty - ry, tx - rx) - ryaw)
+            # P22 修正: 绕障只允许"限速 + 偏转", 不得越过接近速度与对正带的约束。
+            # 原实现直接下 0.6 m/s、±1.8~±2.2 rad/s, 一旦触发就把机器人从目标
+            # 方向上硬拽走 —— 日志里 指令v=+0.60 / w=±3.2 全部来自这一段。
+            v_t = min(self.cfg['approach_speed'], 1.0 * dwp + 0.10)
+            if dwp < 0.30:
+                v_t = 0.0
+            w_lim = self.cfg['recenter_rot_speed']
+            w_t = max(-w_lim, min(w_lim, self.cfg['pid_kp_w'] * err_yaw))
+            if abs(err_yaw) > 2.2:
+                v_t = 0.0
+                w_t = (w_lim if err_yaw >= 0 else -w_lim)
+
+        # --- 5. (已并入 7.5 的全向安全层) ---
+        # P26: 原来这里是"层1 深度相机"独立减速, 但它的数据源(prox)现在就是
+        # 7.5 用的同一份 8 方位测距, 而且它的硬停阈值 0.48 比 7.5 的 0.62 更宽松
+        # —— 留着只会让两套阈值互相覆盖。统一由 7.5 一处裁决。
+        # --- 6. 避障层2: 真值地图硬保护 ---
+        if v_t > 0:
+            look = 0.35 + 0.5 * abs(v_t)
+            nx = rx + math.cos(ryaw) * look
+            ny = ry + math.sin(ryaw) * look
+            if abs(nx) > WALL_HARD or abs(ny) > WALL_HARD:
+                v_t = 0.0
+            else:
+                for (ox, oy, r) in OBSTACLES:
+                    dx, dy = ox - rx, oy - ry
+                    d = math.hypot(dx, dy)
+                    if d < r + INFLATE + 0.15 and \
+                            (dx * math.cos(ryaw) + dy * math.sin(ryaw)) / \
+                            max(d, 1e-6) > 0.7:
+                        v_t = 0.0
+                        break
+
+        # --- 7. 近墙修正 ---
+        if abs(rx) > WALL_SOFT or abs(ry) > WALL_SOFT:
+            to_c = math.atan2(-ry, -rx)
+            w_t += 1.6 * wrap(to_c - ryaw)
+            if v_t > 0:
+                v_t = min(v_t, 0.35)
+
+        # --- 7.5 避障层3: 全向 8 方位安全层(最高优先级, 硬否决) ---
+        # P25 新增 / P26 换数据源。前面几层都是"预判": 真值地图依赖人工维护
+        # 且只覆盖正前方; 深度相机的 front 原本是"图像上带 10% 分位数", 斜前方
+        # 只占画面边缘几列的立柱会被大片背景稀释, 于是斜着走过去时它报得很远
+        # —— 这正是"有时能绕开、有时直接撞"的来源。
+        #
+        # 为什么不用 /scan: 实测它的 360 条射线 min=中位=max=0.120(正好是
+        # range_min), 一条 inf 都没有。原因是启动脚本为绕开 VMware 下 ogre2
+        # 白屏固定用了 --render-engine ogre(ogre1), 而 GpuLidar 依赖 ogre2 的
+        # GPU 深度预渲染; 换 CPU 版 type="lidar" 又被 gz-sim8 拒绝
+        # ("Sensor type LIDAR not supported yet")。所以本环境唯一可靠的 360°
+        # 测距就是 4 台深度相机 —— depth_percept 已改为按 5 扇区合成 8 个
+        # 45° 方位。这一层放在所有决策之后, 拥有最终否决权。
+        p8 = self.prox
+        avoid_note = ''
+        if p8.get('age', 99.0) < self.cfg['lidar_max_age_s']:
+
+            def _pv(k):
+                v = p8.get(k, -1.0)
+                return v if v > 0 else 99.0
+
+            def _lr(lo, hi):
+                r = self._sector_min(lo, hi)
+                return r if r > 0 else 99.0
+
+            d_f, d_fl, d_fr = _pv('front'), _pv('fl'), _pv('fr')
+            d_l, d_r = _pv('left'), _pv('right')
+            # 雷达若在本环境真的可用(ogre2)则一并纳入, 取更保守值
+            if self._lidar_ok and self.scan is not None \
+                    and now - self.scan[3] < self.cfg['lidar_max_age_s']:
+                d_f = min(d_f, _lr(-26.0, 26.0))
+                d_fl = min(d_fl, _lr(26.0, 65.0))
+                d_fr = min(d_fr, _lr(-65.0, -26.0))
+            stop_d = self.cfg['lidar_stop_m']
+            slow_d = self.cfg['lidar_slow_m']
+            tau = self.cfg['lidar_tau_s']
+            side_d = self.cfg['lidar_side_m']
+            # 正前走廊取"前 / 左前 / 右前"里最紧的那个。斜 45° 方向折算到
+            # 前向要乘 cos45°≈0.72(原来加的是常数 0.10, 在 1.5m 量级上等于
+            # 完全不折算, 于是斜前方的立柱一直被当成"前方还很空")
+            d_head = min(d_f, min(d_fl, d_fr) * 0.72)
+            if d_head <= stop_d:
+                v_t = 0.0
+                w_t = 1.1 if d_fl >= d_fr else -1.1     # 朝更空的一侧偏转
+                avoid_note = (f'全向急停 前{d_f:.2f} 左前{d_fl:.2f}'
+                              f' 右前{d_fr:.2f}')
+            elif d_head < slow_d:
+                v_cap = (d_head - stop_d) / tau
+                if v_t > v_cap:
+                    v_t = max(0.0, v_cap)
+                avoid_note = (f'全向限速 前{d_f:.2f} 左前{d_fl:.2f}'
+                              f' 右前{d_fr:.2f} v≤{v_cap:.2f}')
+                if v_t > 0.05 and abs(d_fl - d_fr) > 0.25 \
+                        and min(d_fl, d_fr) > stop_d:
+                    w_t += 0.55 if d_fl > d_fr else -0.55
+            # 侧向防擦: 只在确有前进速度时介入, 避免与对正/绕障抢角速度
+            if v_t > 0.05:
+                if d_l < side_d:
+                    w_t -= 0.9 * (side_d - d_l) / side_d    # 左侧太近 → 右让
+                if d_r < side_d:
+                    w_t += 0.9 * (side_d - d_r) / side_d    # 右侧太近 → 左让
+                # 侧面已经贴死时不再往前挤
+                if min(d_l, d_r) < stop_d:
+                    v_t = min(v_t, 0.12)
+            # 后退保护: "防撞人"和"卡死脱困"都会下发负速度, 原来这两条路径
+            # 完全不看后方 —— 实测 E 场景(斜冲 ob5)就是倒车时撞上背后的立柱,
+            # gap 到 -0.062。这里补上 bl/back/br 三个方位。
+            if v_t < -0.05:
+                d_b = min(_pv('bl'), _pv('back'), _pv('br'))
+                if d_b < stop_d:
+                    v_t = 0.0
+                    if not avoid_note:
+                        avoid_note = f'后退受阻 后{d_b:.2f}'
+                elif d_b < slow_d:
+                    v_cap_b = -(d_b - stop_d) / tau
+                    if v_t < v_cap_b:
+                        v_t = v_cap_b
+                        if not avoid_note:
+                            avoid_note = f'后退限速 后{d_b:.2f}'
+            if avoid_note and now - self._last_avoid_log > 1.0:
+                self._last_avoid_log = now
+                self.get_logger().info(
+                    f'FOLLOWER {avoid_note} | 左{d_l:.2f} 右{d_r:.2f}')
+
+        # --- 8. 防撞人 ---
+        if dist < guard_d:
+            back_clear = True
+            for (ox, oy, r) in OBSTACLES:
+                dx, dy = ox - rx, oy - ry
+                d = math.hypot(dx, dy)
+                if d < r + 0.45 and \
+                        (dx * math.cos(ryaw) + dy * math.sin(ryaw)) / \
+                        max(d, 1e-6) < -0.5:
+                    back_clear = False
+                    break
+            if back_clear:
+                v_t = max(min(v_t, -(0.2 + 0.7 * (guard_d - dist))), -0.5)
+            else:
+                v_t = 0.0
+                l_, r_ = self.prox.get('left', -1), self.prox.get('right', -1)
+                if l_ > 0 and r_ > 0:
+                    w_t = 1.0 if l_ > r_ else -1.0
+                else:
+                    w_t = 1.0
+
+        # --- 9. 贴墙应急 ---
+        if abs(rx) > 5.55 or abs(ry) > 5.55:
+            to_c = math.atan2(-ry, -rx)
+            errc = wrap(to_c - ryaw)
+            if abs(errc) > 0.5:
+                v_t = 0.0
+                w_t = 1.8 if errc >= 0 else -1.8
+            else:
+                v_t = 0.35
+                w_t = 1.2 * errc
+            if now - self._last_log > 1.0:
+                self.get_logger().warn(
+                    f'FOLLOWER 贴墙应急 转向场心后离开 (x={rx:+.2f}, y={ry:+.2f})')
+
+        # --- 10. 卡死脱困(指令在走/在转, 但位姿不动) ---
+        # P25 修正: 原实现判定卡死后把 _stuck_t0 立刻重置为当前时刻, 于是脱困
+        # 指令只下发一个 tick(50ms), 下一个 tick 又从零开始 2.5s 计数 ——
+        # 实测机器人顶住立柱后每 2.5s 才退 5cm, 基本等于不动。现在改成
+        # "进入脱困窗口": 窗口内持续推进倒退+转向, 直到真的挪开 0.25m。
+        escape_s = self.cfg['escape_s']
+        if now < self._escape_until:
+            v_t, w_t = self._escape_v, self._escape_w
+            if not note:
+                note = '脱困中'
+            moved = math.hypot(rx - self._stuck_pos[0],
+                               ry - self._stuck_pos[1])
+            # 倒退前看一眼背后, 别自己撞上后面的柱子/墙
+            if moved < 0.06 and self._escape_v < 0:
+                d_b1 = self._sector_min(150.0, 180.0)
+                d_b2 = self._sector_min(-180.0, -150.0)
+                if (d_b1 > 0 and d_b1 < 0.55) or (d_b2 > 0 and d_b2 < 0.55):
+                    self._escape_v = 0.0     # 背后贴死 → 只原地转
+                    v_t = 0.0
+            if moved > 0.25:
+                self._escape_until = 0.0
+                self._stuck_t0 = 0.0
+                self.get_logger().info(
+                    f'FOLLOWER ✓ 已脱困(挪开 {moved:.2f}m), 恢复跟踪')
+        else:
+            blocked_lin = abs(self.v) > 0.12 and rspd < 0.06
+            blocked_rot = abs(w_t) > 0.7
+            near_wall = abs(rx) > 5.4 or abs(ry) > 5.4
+            if blocked_lin or blocked_rot:
+                if self._stuck_t0 == 0.0:
+                    self._stuck_t0 = now
+                    self._stuck_pos = (rx, ry)
+                    self._stuck_yaw = ryaw
+                elif now - self._stuck_t0 > 1.8:
+                    moved = math.hypot(rx - self._stuck_pos[0],
+                                       ry - self._stuck_pos[1])
+                    dyaw = abs(wrap(ryaw - self._stuck_yaw))
+                    if (blocked_lin and moved < 0.12) or \
+                            (blocked_rot and dyaw < 0.22):
+                        to_c = math.atan2(-ry, -rx)
+                        w_esc = 1.2 if wrap(to_c - ryaw) >= 0 else -1.2
+                        if near_wall:
+                            fw_look = 0.30
+                            fx = rx + math.cos(ryaw) * fw_look
+                            fy = ry + math.sin(ryaw) * fw_look
+                            fw_ok = abs(fx) < WALL_HARD and abs(fy) < WALL_HARD
+                            v_esc = 0.40 if fw_ok else -0.40
+                        else:
+                            v_esc = -0.50
+                        self._escape_v = v_esc
+                        self._escape_w = w_esc
+                        self._escape_until = now + escape_s
+                        self._stuck_pos = (rx, ry)
+                        self.get_logger().warn(
+                            f'FOLLOWER 卡死脱困 进入{escape_s:.1f}s窗口'
+                            f'(平移{moved:.2f}m/旋转{math.degrees(dyaw):.0f}°'
+                            f'{"贴墙" if near_wall else "倒车"})')
+                    self._stuck_t0 = now
+                    self._stuck_pos = (rx, ry)
+                    self._stuck_yaw = ryaw
+            else:
+                self._stuck_t0 = 0.0
+
+        self._publish_smooth(v_t, w_t, now)
+        self._log(now, src, dist, pspd, rspd, w_t, brg, note, nscan,
+                  rx, ry, px, py)
+
+    # ---------- 输出与日志 ----------
+    def _publish_smooth(self, v_t, w_t, now):
+        """线速度梯形限幅: 加速温和、刹车果断。
+
+        P21 修正: 原实现上升/下降共用一个斜率(0.9 m/s²)。切进 ALIGN 时目标
+        线速度已置 0, 但 self.v 仍以 0.9 m/s² 缓慢收敛, 于是在"原地对正"期间
+        机器人还带着 0.2~0.3 m/s 往前提速平移(实测日志 指令v=+0.26)。一边转
+        一边平移会把目标相对方位越拖越偏, 对正变慢甚至对不上。
+        现在减速斜率放大到 4.0 m/s²(0.3 m/s 约 75 ms 停住), 加速仍保持 1.2。
+        dt 用真实时间差, 不再硬编码 0.05。
+        """
+        dt = 0.05 if self._pub_t is None else now - self._pub_t
+        dt = max(0.005, min(0.20, dt))
+        self._pub_t = now
+        a_up = 1.2 * dt          # 加速度上限 1.2 m/s²
+        a_dn = 4.0 * dt          # 减速度上限 4.0 m/s²
+        dv = v_t - self.v
+        if self.v * v_t <= 0.0 or abs(v_t) < abs(self.v):
+            lim = a_dn           # 减速 / 反向(先刹过零) → 用大斜率
+        else:
+            lim = a_up
+        self.v += max(-lim, min(lim, dv))
+        if v_t == 0.0 and abs(self.v) < 0.01:
+            self.v = 0.0         # 掐掉残余, 避免对正段长期挂着小速度
+        w_t = max(-2.2, min(2.2, w_t))
+        self._publish(self.v, w_t)
+        self._last_w = w_t
+
+    def _log(self, now, src, dist, pspd, rspd, w_t, brg, note, nscan,
+             rx, ry, px, py):
+        if now - self._last_log > 0.5:
+            self._last_log = now
+            mode = '对正' if self._aligning else ('扫描' if src == '扫描'
+                                              else '跟踪')
+            self.get_logger().info(
+                f'FOLLOWER [{mode}|{src}] 距离={dist:.2f}m'
+                f'(目标{self.target_d:.2f}m) 目标方位={math.degrees(brg):+.0f}°'
+                f' 人速={pspd:.2f} 指令v={self.v:+.2f} 实际v={rspd:.2f} '
+                f'w={self._last_w:+.1f} {note}')
+        if now - self._last_diag > 4.0:
+            self._last_diag = now
+            self.get_logger().info(
+                f'FOLLOWER 诊断 雷达帧={nscan} 机器人=({rx:+.2f},{ry:+.2f},'
+                f'{math.degrees(self.ryaw):+.0f}°) 人=({px:+.2f},{py:+.2f})')
+
+    def _publish(self, v, w):
+        msg = Twist()
+        msg.linear.x = float(v)
+        msg.angular.z = float(w)
+        self.pub.publish(msg)
+
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = Follower()
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.destroy_node()
+        rclpy.try_shutdown()
+
+
+if __name__ == '__main__':
+    main()

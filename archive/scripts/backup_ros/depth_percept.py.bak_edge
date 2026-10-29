@@ -1,0 +1,244 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""depth_percept.py —— 4 向深度相机感知层（方案 §4.2）
+
+输入: gz-transport /depth_front|left|right|back (gz.msgs.Image, 32FC1, 米)
+输出: ROS /perception/proimity (std_msgs/String, JSON)
+      {"front":d, "left":d, "right":d, "back":d, "age":s}
+      d=-1 表示该向帧过期(>0.6s)或无有效深度
+真值对比: 订阅 dynamic_pose/info, 用已知地图(墙+障碍+人)计算各向理论
+      最近距离, 每 5s 输出感知误差日志(M1/Gate-1 验收指标: 误差≤0.3m)
+"""
+import json
+import math
+import threading
+import time
+
+import numpy as np
+
+import rclpy
+from rclpy.node import Node
+from std_msgs.msg import String
+
+import gz.transport13 as gz_transport
+from gz.msgs10.image_pb2 import Image as GzImage
+from gz.msgs10.pose_v_pb2 import Pose_V as GzPose_V
+
+WALL = 6.0
+ROBOT_R = 0.18
+OBSTACLES = [  # (x, y, 半径) —— 与 world 一致
+    (3.5, 2.0, 0.57), (-3.0, 3.2, 0.67), (0.5, -3.2, 0.47),
+    (-4.2, -2.5, 0.57), (4.2, -3.0, 0.37), (-1.5, -4.5, 0.62),
+    (2.2, 4.6, 0.42),
+]
+PERSON_R = 0.30
+DIRS = (('front', 0.0), ('left', 1.5707963), ('right', -1.5707963),
+        ('back', 3.1415926))
+MAX_D = 12.0
+SECT_N = 5          # 每台相机水平分 5 个扇区(每个 20°)
+SECT_Q = 0.05       # 扇区内取 5% 分位数(扇区窄, 不怕被背景稀释)
+
+
+def ray_min_dist(x, y, ang, extra_circles=()):
+    """从 (x,y) 沿 ang 方向到地图(墙+障碍+附加圆)的最近距离"""
+    best = MAX_D
+    c, s = math.cos(ang), math.sin(ang)
+    if c > 1e-6:
+        best = min(best, (WALL - x) / c)
+    if c < -1e-6:
+        best = min(best, (-WALL - x) / c)
+    if s > 1e-6:
+        best = min(best, (WALL - y) / s)
+    if s < -1e-6:
+        best = min(best, (-WALL - y) / s)
+    for ox, oy, r in list(OBSTACLES) + list(extra_circles):
+        R = r + ROBOT_R
+        dx, dy = ox - x, oy - y
+        proj = dx * c + dy * s
+        if proj <= 0:
+            continue
+        perp2 = dx * dx + dy * dy - proj * proj
+        if perp2 < R * R:
+            d = proj - math.sqrt(max(R * R - perp2, 0.0))
+            best = min(best, d)
+    return max(best, 0.05)
+
+
+class DepthPercept(Node):
+
+    def __init__(self):
+        super().__init__('depth_percept')
+        self.pub = self.create_publisher(String, '/perception/proximity', 10)
+        self._gz = gz_transport.Node()
+        self._lock = threading.Lock()
+        self.depth = {n: -1.0 for n, _ in DIRS}
+        self.stamp = {n: 0.0 for n, _ in DIRS}
+        # P26: 每台相机 5 个扇区的最近距离(左→右, 中心方位 c+40,c+20,c,c-20,c-40)
+        self.sect = {n: [-1.0] * SECT_N for n, _ in DIRS}
+        for name, _ in DIRS:
+            # rgbd_camera: RGB 在基础话题, 深度在 /depth_image;
+            # 回调内自动甄别 32FC1 深度帧(排除 RGB/RGBA)
+            self._gz.subscribe(GzImage, '/depth_' + name,
+                               self._mk_cb(name))
+            self._gz.subscribe(GzImage, '/depth_' + name + '/depth_image',
+                               self._mk_cb(name))
+        # 真值位姿(用于误差对比)
+        self.rx, self.ry, self.ryaw = 0.0, 0.0, 0.0
+        self.px, self.py = 1.0, 0.0
+        self._gz.subscribe(GzPose_V,
+                           '/world/follow_world/dynamic_pose/info',
+                           self._pose_cb)
+        self._err_n, self._err_bad = 0, 0
+        self._last_errlog = 0.0
+        self.create_timer(0.1, self._tick)  # 10 Hz
+        self.get_logger().info(
+            'PERCEPT 4 向深度感知层就绪 (订阅 /depth_*), 输出 /perception/proximity')
+
+    def _mk_cb(self, name):
+        def cb(msg):
+            h, w = msg.height, msg.width
+            if h < 10 or w < 10 or len(msg.data) < h * w * 4:
+                return
+            a = np.frombuffer(msg.data[:h * w * 4], dtype='<f4')
+            # P28: 按"仰角"取带, 不再用拍脑袋的行百分比。
+            # 原 10%~45% 行 = 仰角 +33.4°~+4.2°, 底边太高: 0.8m 立柱在
+            # 4m 处只到 8° 仰角, 几乎整个落在带外, 5% 分位数落到身后的墙
+            # (实测 right 中心扇区 5.10m / 真值 2.81m)。
+            # 下沿 +1.5°: 地面(相机高约 0.23m)回波在 8.8m, 不参与 5% 分位;
+            # 上沿 +18°: 覆盖近处障碍全高, 又不把天空算进来。
+            # 行号 = h/2 - elev/VFOV*h,  VFOV = 83.58°
+            r0 = int(h * (0.5 - 18.0 / 83.58))      # 上沿 +18.0°
+            r1 = int(h * (0.5 - 1.5 / 83.58)) + 1   # 下沿 +1.5°
+            r0, r1 = max(0, r0), min(h, r1)
+            a = a.reshape(h, w)[r0:r1, :]
+            ok = np.isfinite(a) & (a > 0.05) & (a < 11.5)
+            # RGBA 帧按 float32 解析会得到极小值, 有效点不足 → 判为非深度帧
+            if int(ok.sum()) < 60:
+                return
+            # P26: 逐扇区取分位数, 保留方位信息(原实现把中心 80% 列揉成
+            # 一块取 10% 分位数, 只占画面边缘的斜前方立柱会被背景稀释掉)
+            sec = []
+            for k in range(SECT_N):
+                c0, c1 = int(w * k / SECT_N), int(w * (k + 1) / SECT_N)
+                v = a[:, c0:c1][ok[:, c0:c1]]
+                sec.append(float(np.quantile(v, SECT_Q)) if v.size >= 15
+                           else -1.0)
+            with self._lock:
+                self.sect[name] = sec
+                self.depth[name] = min([x for x in sec if x > 0] or [-1.0])
+                self.stamp[name] = time.monotonic()
+        return cb
+
+    def _pose_cb(self, msg):
+        robot = person = None
+        for p in msg.pose:
+            if p.name == 'robot':
+                robot = p
+            elif p.name == 'person':
+                person = p
+        if robot is None:
+            return
+        q = robot.orientation
+        with self._lock:
+            self.rx = robot.position.x
+            self.ry = robot.position.y
+            self.ryaw = math.atan2(2.0 * (q.w * q.z + q.x * q.y),
+                                   1.0 - 2.0 * (q.y * q.y + q.z * q.z))
+            if person is not None:
+                self.px, self.py = person.position.x, person.position.y
+
+    def _tick(self):
+        now = time.monotonic()
+        with self._lock:
+            ages = {n: now - self.stamp[n] for n, _ in DIRS}
+            sec = {n: list(v) for n, v in self.sect.items()}
+
+        def g(name, idx):
+            if ages[name] >= 0.6:
+                return -1.0
+            v = sec.get(name) or []
+            return v[idx] if len(v) > idx and v[idx] > 0 else -1.0
+
+        def mn(*vals):
+            vs = [v for v in vals if v > 0]
+            return min(vs) if vs else -1.0
+
+        # 合成 8 个 45° 方位。各相机扇区中心方位 = 安装方位 + (+40,+20,0,-20,-40)
+        #   front(0°)  : [+40, +20,   0, -20, -40]
+        #   left (+90°): [+130,+110, +90, +70, +50]
+        #   right(-90°): [-50, -70, -90,-110,-130]
+        #   back (180°): [-140,-160, 180,+160,+140]
+        out = {
+            'front': mn(g('front', 1), g('front', 2), g('front', 3)),
+            'fl':    mn(g('front', 0), g('left', 4)),
+            'left':  mn(g('left', 1), g('left', 2), g('left', 3)),
+            'bl':    mn(g('left', 0), g('back', 4)),
+            'back':  mn(g('back', 1), g('back', 2), g('back', 3)),
+            'br':    mn(g('back', 0), g('right', 4)),
+            'right': mn(g('right', 1), g('right', 2), g('right', 3)),
+            'fr':    mn(g('right', 0), g('front', 4)),
+        }
+        # P25: 帧龄只回报 front(各向新鲜度已由 -1 单独表达)
+        out['age'] = round(ages.get('front', 99.0), 3)
+        msg = String()
+        msg.data = json.dumps(out)
+        self.pub.publish(msg)
+        # 真值对比(每 5s)
+        if now - self._last_errlog > 5.0:
+            self._last_errlog = now
+            with self._lock:
+                rx, ry, ryaw = self.rx, self.ry, self.ryaw
+                px, py = self.px, self.py
+            # P27: 逐扇区对齐比较。原来拿"5 扇区最小值"去比"单条中心射线
+            # 真值", 只要斜前方有立柱(ob5 常驻 -35°), 最小值就落在斜向,
+            # 必然假报 "front 0.7/真 2.7"。实测 ob5 表面理论 0.67m、感知
+            # 0.70m, 真实误差仅 0.03m。
+            extra = [(px, py, PERSON_R)]
+            parts, bad, worst_all = [], 0, 0.0
+            short = {'front': '前', 'left': '左', 'right': '右', 'back': '后'}
+            for n, rel in DIRS:
+                sec = self.sect.get(n) or []
+                worst, worst_k = -1.0, -1
+                for k in range(len(sec)):
+                    d = sec[k]
+                    if not (d and d > 0):
+                        continue
+                    # 扇区中心方位: section 0 在相机左侧 +40°, 依次 -20°
+                    a = ryaw + rel + math.radians((2 - k) * 20.0)
+                    truth = min(ray_min_dist(rx, ry, a, extra), 11.5)
+                    err = abs(d - min(truth, 11.5))
+                    self._err_n += 1
+                    if err > 0.3:
+                        bad += 1
+                        self._err_bad += 1
+                    if err > worst:
+                        worst, worst_k = err, k
+                if worst_k >= 0:
+                    off = (2 - worst_k) * 20
+                    parts.append(f'{short.get(n, n)}Δ{worst:.2f}({off:+d}°)')
+                    worst_all = max(worst_all, worst)
+            if parts:
+                self.get_logger().info(
+                    'PERCEPT 扇区精度 ' + ' '.join(parts) +
+                    f' | 最大Δ{worst_all:.2f}m'
+                    + (f' 超阈(>0.3m) {bad}扇区' if bad else ' 全部≤0.3m'))
+
+    def err_stats(self):
+        return self._err_n, self._err_bad
+
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = DepthPercept()
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        n, bad = node.err_stats()
+        print(f'感知误差样本 {n}, 超阈 {bad}')
+    finally:
+        node.destroy_node()
+        rclpy.try_shutdown()
+
+
+if __name__ == '__main__':
+    main()

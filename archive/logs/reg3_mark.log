@@ -1,0 +1,7 @@
+[00:23:17] 自检: POSE_OK 3s内收到 3 帧
+[00:23:17] set_pose robot=(-4.0,-4.0) → data: true
+[00:23:18] set_pose person=(-2.4,-4.0) → data: true
+[00:23:20] === 发 FOLLOW, 人正前 1.6m ===
+[00:23:36] === 人移到 (4.5,4.5), 应触发 丢失→GOTO→SCAN ===
+[00:23:36] set_pose person=(4.5,4.5) → data: true
+[00:24:17] === 结束 ===

@@ -1,0 +1,289 @@
+[band] 距离合格区间 = 0.50 ~ 1.50 m (来自 vla_demo/vision_config.json)
+[EVAL] 复位 robot=True person=True
+[EVAL] 等待 2s 稳定后下发 FOLLOW...
+[EVAL] FOLLOW 第1次 CLI 下发 rc=0 
+[EVAL] FOLLOW 第2次 CLI 下发 rc=0 
+[EVAL] FOLLOW 第3次 CLI 下发 rc=0 
+[EVAL] FOLLOW 已下发, 开始 120s 评测
+[EVAL  15.0s] d=0.95 cam=front trk=TRACK lost=0 gap=+2.40
+[EVAL  30.1s] d=1.01 cam=front trk=TRACK lost=0 gap=+1.84
+[EVAL  45.1s] d=1.01 cam=front trk=TRACK lost=0 gap=+1.01
+[EVAL  60.1s] d=1.10 cam=front trk=TRACK lost=0 gap=+1.03
+[EVAL  75.1s] d=0.70 cam=front trk=TRACK lost=0 gap=+2.32
+[EVAL  90.1s] d=0.43 cam=right trk=TRACK lost=0 gap=+1.94
+[EVAL 105.2s] d=0.42 cam=-     trk=SCAN  lost=1 gap=+1.89
+
+================ 评测结果 (120s) ================
+{
+ "dist": {
+  "n": 1950,
+  "mean": 0.822,
+  "median": 0.953,
+  "std": 0.288,
+  "min": 0.41,
+  "max": 1.356,
+  "band": [
+   0.5,
+   1.5
+  ],
+  "in_band_pct": 66.8,
+  "near_pct": 33.2,
+  "far_pct": 0.0,
+  "min_all": 0.41,
+  "max_streak_s": 65.15
+ },
+ "contact": {
+  "thr_m": 0.44,
+  "n": 589,
+  "events": 15,
+  "det_pct": 37.2,
+  "dmin": 0.41,
+  "detail": [
+   {
+    "t0": 77.5,
+    "dur": 2.6,
+    "det": 0,
+    "dmin": 0.41,
+    "mode": "ALIGN/MOVE",
+    "note": "原地扫描 | 对正-28° | 对正-29°"
+   },
+   {
+    "t0": 80.1,
+    "dur": 7.0,
+    "det": 60,
+    "dmin": 0.41,
+    "mode": "ALIGN/MOVE",
+    "note": "原地扫描 | 对正+105° | 对正+108°"
+   },
+   {
+    "t0": 87.7,
+    "dur": 0.55,
+    "det": 0,
+    "dmin": 0.433,
+    "mode": "MOVE",
+    "note": "原地扫描 | 对正+99°"
+   },
+   {
+    "t0": 88.3,
+    "dur": 2.8,
+    "det": 34,
+    "dmin": 0.426,
+    "mode": "ALIGN/MOVE",
+    "note": "原地扫描 | 后退缓退 后0.30 | 对正+16°"
+   },
+   {
+    "t0": 92.8,
+    "dur": 0.4,
+    "det": 0,
+    "dmin": 0.425,
+    "mode": "ALIGN",
+    "note": "对正+47° | 对正+66° | 对正+69°"
+   },
+   {
+    "t0": 93.3,
+    "dur": 0.7,
+    "det": 0,
+    "dmin": 0.427,
+    "mode": "ALIGN/MOVE",
+    "note": "原地扫描 | 对正+67° | 对正+70°"
+   },
+   {
+    "t0": 94.1,
+    "dur": 2.4,
+    "det": 24,
+    "dmin": 0.427,
+    "mode": "ALIGN/MOVE",
+    "note": "原地扫描 | 对正-56° | 对正-75°"
+   },
+   {
+    "t0": 100.5,
+    "dur": 2.6,
+    "det": 32,
+    "dmin": 0.432,
+    "mode": "ALIGN",
+    "note": "对正+61° | 对正+62° | 对正+64°"
+   },
+   {
+    "t0": 104.0,
+    "dur": 2.2,
+    "det": 0,
+    "dmin": 0.417,
+    "mode": "ALIGN/MOVE",
+    "note": "原地扫描 | 对正+21° | 对正+21°(边转边走)"
+   },
+   {
+    "t0": 106.3,
+    "dur": 1.0,
+    "det": 2,
+    "dmin": 0.421,
+    "mode": "ALIGN/MOVE",
+    "note": "侧翼限速 侧0.54 v<= | 原地扫描 | 对正+64°"
+   },
+   {
+    "t0": 107.4,
+    "dur": 2.1,
+    "det": 24,
+    "dmin": 0.432,
+    "mode": "ALIGN/MOVE",
+    "note": "原地扫描 | 对正+66° | 对正-23°(边转边走) 全"
+   },
+   {
+    "t0": 111.3,
+    "dur": 0.65,
+    "det": 1,
+    "dmin": 0.428,
+    "mode": "ALIGN",
+    "note": "对正+50° | 对正+77° | 对正+82°"
+   },
+   {
+    "t0": 112.0,
+    "dur": 0.8,
+    "det": 2,
+    "dmin": 0.428,
+    "mode": "ALIGN",
+    "note": "对正+75° | 对正+77° | 对正+83°"
+   },
+   {
+    "t0": 112.8,
+    "dur": 2.2,
+    "det": 24,
+    "dmin": 0.432,
+    "mode": "ALIGN/MOVE",
+    "note": "原地扫描 | 对正+72° | 对正+75°"
+   },
+   {
+    "t0": 118.6,
+    "dur": 1.45,
+    "det": 16,
+    "dmin": 0.432,
+    "mode": "ALIGN/MOVE",
+    "note": "原地扫描 | 对正+70° | 脱困中"
+   }
+  ]
+ },
+ "center": {
+  "n": 1288,
+  "within10_pct": 85.6,
+  "within15_pct": 91.0,
+  "median_deg": 3.4,
+  "p90_deg": 13.5,
+  "max_deg": 47.2
+ },
+ "avoid": {
+  "min_gap": 0.208,
+  "hit_n": 0,
+  "brush_n": 0
+ },
+ "switch": {
+  "n": 25,
+  "resp_mean": 0.97,
+  "resp_max": 1.9,
+  "resp_none": 21,
+  "cross_n": 8,
+  "cross_mean": null
+ },
+ "lost": {
+  "n": 11,
+  "goto_n": 0,
+  "reached_n": 0,
+  "dur_mean": 0.95,
+  "dur_max": 2.45,
+  "regen_mean": 0.95,
+  "events": [
+   {
+    "t0": 78.6,
+    "dur": 2.5,
+    "goto": 0,
+    "reached": 0,
+    "goto_pt": null
+   },
+   {
+    "t0": 83.8,
+    "dur": 1.6,
+    "goto": 0,
+    "reached": 0,
+    "goto_pt": null
+   },
+   {
+    "t0": 87.6,
+    "dur": 1.5,
+    "goto": 0,
+    "reached": 0,
+    "goto_pt": null
+   },
+   {
+    "t0": 91.9,
+    "dur": 0.2,
+    "goto": 0,
+    "reached": 0,
+    "goto_pt": null
+   },
+   {
+    "t0": 93.9,
+    "dur": 1.1,
+    "goto": 0,
+    "reached": 0,
+    "goto_pt": null
+   },
+   {
+    "t0": 97.3,
+    "dur": 0.2,
+    "goto": 0,
+    "reached": 0,
+    "goto_pt": null
+   },
+   {
+    "t0": 105.0,
+    "dur": 1.8,
+    "goto": 0,
+    "reached": 0,
+    "goto_pt": null
+   },
+   {
+    "t0": 107.9,
+    "dur": 0.2,
+    "goto": 0,
+    "reached": 0,
+    "goto_pt": null
+   },
+   {
+    "t0": 113.3,
+    "dur": 0.2,
+    "goto": 0,
+    "reached": 0,
+    "goto_pt": null
+   },
+   {
+    "t0": 115.8,
+    "dur": 0.5,
+    "goto": 0,
+    "reached": 0,
+    "goto_pt": null
+   },
+   {
+    "t0": 118.7,
+    "dur": 0.6,
+    "goto": 0,
+    "reached": 0,
+    "goto_pt": null
+   }
+  ]
+ },
+ "sanity": {
+  "samples": 2442,
+  "vis_pct": 78.1,
+  "front_pct": 64.2,
+  "cmd_v_mean": 0.1
+ },
+ "back": {
+  "pct": 3.6,
+  "events": 8,
+  "per_100s": 7.4,
+  "mean_dur_s": 0.44,
+  "max_dur_s": 1.15,
+  "total_s": 3.5
+ },
+ "dur": 120.0
+}
+轨迹图: /home/earl/workspace/VLA/shots/p81b_1_traj.png
+原始数据: /home/earl/workspace/VLA/p81b_1.json

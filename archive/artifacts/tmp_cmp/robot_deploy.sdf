@@ -1,0 +1,215 @@
+<model name="robot" canonical_link="chassis">
+      <pose>0 0 0 0 0 0</pose>
+      <self_collide>false</self_collide>
+      <link name="chassis">
+        <pose>0 0 0.13 0 0 0</pose>
+        <inertial>
+          <mass>4.0</mass>
+          <inertia><ixx>0.0167</ixx><iyy>0.0333</iyy><izz>0.0433</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia>
+        </inertial>
+        <collision name="c">
+          <geometry><box><size>0.30 0.20 0.10</size></box></geometry>
+        </collision>
+        <visual name="v">
+          <geometry><box><size>0.30 0.20 0.10</size></box></geometry>
+          <material><ambient>0.15 0.35 0.8 1</ambient><diffuse>0.15 0.35 0.8 1</diffuse></material>
+        </visual>
+        <!-- 雷达桅杆(外观) -->
+        <!-- P37: 原 0.12 0 0.045 / r0.015 / len0.06 的顶面 z=0.075 恰好
+             落在 4 台相机(z=0.10)的画面中心偏下, 成为一个 0.11m 的暗斑,
+             既被 person_vision 当成"很近的人", 又被深度避障当成"正前方
+             障碍"(日志 全向急停 前0.16 就是它)。下沉并后移到视锥之外。 -->
+        <visual name="mast_v">
+          <pose>-0.02 0 0.028 0 0 0</pose>
+          <geometry><cylinder><radius>0.013</radius><length>0.05</length></cylinder></geometry>
+          <material><ambient>0.2 0.2 0.2 1</ambient><diffuse>0.2 0.2 0.2 1</diffuse></material>
+        </visual>
+        <!-- 前置相机(第一视角) -->
+        <sensor name="front_camera" type="camera">
+          <pose>0.15 0 0.08 0 0 0</pose>
+          <topic>/camera</topic>
+          <update_rate>10</update_rate>
+          <gz_frame_id>robot_camera</gz_frame_id>
+          <camera name="front">
+            <horizontal_fov>1.6</horizontal_fov>
+            <image>
+              <width>480</width>
+              <height>360</height>
+              <format>R8G8B8</format>
+            </image>
+            <clip>
+              <near>0.1</near>
+              <far>30</far>
+            </clip>
+          </camera>
+          <always_on>1</always_on>
+          <visualize>true</visualize>
+        </sensor>
+        <!-- 4 向深度相机: 前/左/右/后, 量程 0.1~12m(满足10m), FOV 103°x4 覆盖360° -->
+        <sensor name="depth_front" type="rgbd_camera">
+          <pose>0 0 0.10 0 0 0</pose>
+          <topic>/depth_front</topic>
+          <update_rate>10</update_rate>
+          <camera name="d">
+            <horizontal_fov>1.7453293</horizontal_fov>
+            <image><width>320</width><height>240</height><format>R8G8B8</format></image>
+            <clip><near>0.1</near><far>12.0</far></clip>
+            <depth_camera><output>depths</output></depth_camera>
+          </camera>
+          <always_on>1</always_on>
+          <visualize>false</visualize>
+        </sensor>
+        <sensor name="depth_left" type="rgbd_camera">
+          <pose>0 0 0.10 0 0 1.5707963</pose>
+          <topic>/depth_left</topic>
+          <update_rate>10</update_rate>
+          <camera name="d">
+            <horizontal_fov>1.7453293</horizontal_fov>
+            <image><width>320</width><height>240</height><format>R8G8B8</format></image>
+            <clip><near>0.1</near><far>12.0</far></clip>
+            <depth_camera><output>depths</output></depth_camera>
+          </camera>
+          <always_on>1</always_on>
+          <visualize>false</visualize>
+        </sensor>
+        <sensor name="depth_right" type="rgbd_camera">
+          <pose>0 0 0.10 0 0 -1.5707963</pose>
+          <topic>/depth_right</topic>
+          <update_rate>10</update_rate>
+          <camera name="d">
+            <horizontal_fov>1.7453293</horizontal_fov>
+            <image><width>320</width><height>240</height><format>R8G8B8</format></image>
+            <clip><near>0.1</near><far>12.0</far></clip>
+            <depth_camera><output>depths</output></depth_camera>
+          </camera>
+          <always_on>1</always_on>
+          <visualize>false</visualize>
+        </sensor>
+        <sensor name="depth_back" type="rgbd_camera">
+          <pose>0 0 0.10 0 0 3.1415926</pose>
+          <topic>/depth_back</topic>
+          <update_rate>10</update_rate>
+          <camera name="d">
+            <horizontal_fov>1.7453293</horizontal_fov>
+            <image><width>320</width><height>240</height><format>R8G8B8</format></image>
+            <clip><near>0.1</near><far>12.0</far></clip>
+            <depth_camera><output>depths</output></depth_camera>
+          </camera>
+          <always_on>1</always_on>
+          <visualize>false</visualize>
+        </sensor>
+        <sensor name="gpu_lidar" type="gpu_lidar">
+          <pose>0 0 0.20 0 0 0</pose>
+          <topic>/lidar</topic>
+          <update_rate>10</update_rate>
+          <gz_frame_id>robot_lidar</gz_frame_id>
+          <lidar>
+            <scan>
+              <horizontal>
+                <samples>360</samples>
+                <resolution>1</resolution>
+                <min_angle>-3.14159</min_angle>
+                <max_angle>3.14159</max_angle>
+              </horizontal>
+              <vertical>
+                <samples>1</samples>
+                <resolution>1</resolution>
+                <min_angle>0</min_angle>
+                <max_angle>0</max_angle>
+              </vertical>
+            </scan>
+            <range>
+              <min>0.12</min>
+              <max>12.0</max>
+              <resolution>0.01</resolution>
+            </range>
+          </lidar>
+          <always_on>1</always_on>
+          <visualize>true</visualize>
+        </sensor>
+      </link>
+      <link name="left_wheel">
+        <pose relative_to="chassis">0.06 0.13 -0.07 1.5707 0 0</pose>
+        <inertial>
+          <mass>0.3</mass>
+          <inertia><ixx>0.000432</ixx><iyy>0.000432</iyy><izz>0.000432</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia>
+        </inertial>
+        <collision name="c">
+          <geometry><cylinder><radius>0.06</radius><length>0.04</length></cylinder></geometry>
+          <surface><friction><ode><mu>1.2</mu><mu2>1.0</mu2></ode></friction></surface>
+        </collision>
+        <visual name="v">
+          <geometry><cylinder><radius>0.06</radius><length>0.04</length></cylinder></geometry>
+          <material><ambient>0.12 0.12 0.12 1</ambient><diffuse>0.12 0.12 0.12 1</diffuse></material>
+        </visual>
+      </link>
+      <link name="right_wheel">
+        <pose relative_to="chassis">0.06 -0.13 -0.07 1.5707 0 0</pose>
+        <inertial>
+          <mass>0.3</mass>
+          <inertia><ixx>0.000432</ixx><iyy>0.000432</iyy><izz>0.000432</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia>
+        </inertial>
+        <collision name="c">
+          <geometry><cylinder><radius>0.06</radius><length>0.04</length></cylinder></geometry>
+          <surface><friction><ode><mu>1.2</mu><mu2>1.0</mu2></ode></friction></surface>
+        </collision>
+        <visual name="v">
+          <geometry><cylinder><radius>0.06</radius><length>0.04</length></cylinder></geometry>
+          <material><ambient>0.12 0.12 0.12 1</ambient><diffuse>0.12 0.12 0.12 1</diffuse></material>
+        </visual>
+      </link>
+      <link name="caster">
+        <pose relative_to="chassis">-0.12 0 -0.10 0 0 0</pose>
+        <inertial>
+          <mass>0.1</mass>
+          <inertia><ixx>0.000036</ixx><iyy>0.000036</iyy><izz>0.000036</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia>
+        </inertial>
+        <collision name="c">
+          <geometry><sphere><radius>0.03</radius></sphere></geometry>
+          <surface>
+            <friction><ode><mu>0.02</mu><mu2>0.02</mu2></ode></friction>
+          </surface>
+        </collision>
+        <visual name="v">
+          <geometry><sphere><radius>0.03</radius></sphere></geometry>
+          <material><ambient>0.3 0.3 0.3 1</ambient><diffuse>0.3 0.3 0.3 1</diffuse></material>
+        </visual>
+      </link>
+      <!-- 万向轮必须有关节: 否则只是游离刚体, 车尾无支撑, 车身会后仰 -->
+      <joint name="caster_joint" type="fixed">
+        <parent>chassis</parent>
+        <child>caster</child>
+      </joint>
+      <joint name="left_wheel_joint" type="revolute">
+        <parent>chassis</parent>
+        <child>left_wheel</child>
+        <axis>
+          <xyz resolved_frame="child">0 0 -1</xyz>
+          <limits><lower>-1e16</lower><upper>1e16</upper></limits>
+        </axis>
+      </joint>
+      <joint name="right_wheel_joint" type="revolute">
+        <parent>chassis</parent>
+        <child>right_wheel</child>
+        <axis>
+          <xyz resolved_frame="child">0 0 -1</xyz>
+          <limits><lower>-1e16</lower><upper>1e16</upper></limits>
+        </axis>
+      </joint>
+      <plugin filename="gz-sim-diff-drive-system" name="gz::sim::systems::DiffDrive">
+        <left_joint>left_wheel_joint</left_joint>
+        <right_joint>right_wheel_joint</right_joint>
+        <wheel_separation>0.26</wheel_separation>
+        <wheel_radius>0.06</wheel_radius>
+        <topic>/model/robot/cmd_vel</topic>
+        <odom_topic>/model/robot/odometry</odom_topic>
+        <odom_publish_frequency>30</odom_publish_frequency>
+        <max_linear_acceleration>1.2</max_linear_acceleration>
+        <min_linear_acceleration>-1.2</min_linear_acceleration>
+        <max_angular_acceleration>3.0</max_angular_acceleration>
+        <min_angular_acceleration>-3.0</min_angular_acceleration>
+      </plugin>
+    </model>
+
+    <!-- "人": 人形外观(裙摆/躯干/头部) + 隐藏轮组, 初始位于机器人前方 1m -->
+    

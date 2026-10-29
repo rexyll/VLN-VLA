@@ -1,0 +1,24 @@
+running develop
+running egg_info
+writing vla_follow.egg-info/PKG-INFO
+writing dependency_links to vla_follow.egg-info/dependency_links.txt
+writing entry points to vla_follow.egg-info/entry_points.txt
+writing requirements to vla_follow.egg-info/requires.txt
+writing top-level names to vla_follow.egg-info/top_level.txt
+reading manifest file 'vla_follow.egg-info/SOURCES.txt'
+writing manifest file 'vla_follow.egg-info/SOURCES.txt'
+running build_ext
+Creating /home/earl/workspace/VLA/vla_ws/install/vla_follow/lib/python3.12/site-packages/vla-follow.egg-link (link to .)
+Installing cmd_mux script to /home/earl/workspace/VLA/vla_ws/install/vla_follow/lib/vla_follow
+Installing depth_percept script to /home/earl/workspace/VLA/vla_ws/install/vla_follow/lib/vla_follow
+Installing drink_task script to /home/earl/workspace/VLA/vla_ws/install/vla_follow/lib/vla_follow
+Installing follower script to /home/earl/workspace/VLA/vla_ws/install/vla_follow/lib/vla_follow
+Installing gt_tf script to /home/earl/workspace/VLA/vla_ws/install/vla_follow/lib/vla_follow
+Installing gz_viz script to /home/earl/workspace/VLA/vla_ws/install/vla_follow/lib/vla_follow
+Installing person_vision script to /home/earl/workspace/VLA/vla_ws/install/vla_follow/lib/vla_follow
+Installing person_walk script to /home/earl/workspace/VLA/vla_ws/install/vla_follow/lib/vla_follow
+Installing voice_node script to /home/earl/workspace/VLA/vla_ws/install/vla_follow/lib/vla_follow
+Installing voice_trigger script to /home/earl/workspace/VLA/vla_ws/install/vla_follow/lib/vla_follow
+
+Installed /home/earl/workspace/VLA/vla_ws/build/vla_follow
+running symlink_data

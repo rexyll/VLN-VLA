@@ -1,0 +1,26 @@
+[1.490s] Invoking command in '/home/earl/workspace/VLA/vla_ws/build/vla_follow': PYTHONPATH=/home/earl/workspace/VLA/vla_ws/build/vla_follow/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/earl/workspace/VLA/vla_ws/install/vla_follow/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /home/earl/workspace/VLA/vla_ws/build/vla_follow/build --no-deps symlink_data
+[1.802s] running develop
+[1.992s] running egg_info
+[2.014s] writing vla_follow.egg-info/PKG-INFO
+[2.015s] writing dependency_links to vla_follow.egg-info/dependency_links.txt
+[2.015s] writing entry points to vla_follow.egg-info/entry_points.txt
+[2.015s] writing requirements to vla_follow.egg-info/requires.txt
+[2.016s] writing top-level names to vla_follow.egg-info/top_level.txt
+[2.059s] reading manifest file 'vla_follow.egg-info/SOURCES.txt'
+[2.064s] writing manifest file 'vla_follow.egg-info/SOURCES.txt'
+[2.085s] running build_ext
+[2.085s] Creating /home/earl/workspace/VLA/vla_ws/install/vla_follow/lib/python3.12/site-packages/vla-follow.egg-link (link to .)
+[2.086s] Installing cmd_mux script to /home/earl/workspace/VLA/vla_ws/install/vla_follow/lib/vla_follow
+[2.086s] Installing depth_percept script to /home/earl/workspace/VLA/vla_ws/install/vla_follow/lib/vla_follow
+[2.086s] Installing drink_task script to /home/earl/workspace/VLA/vla_ws/install/vla_follow/lib/vla_follow
+[2.086s] Installing follower script to /home/earl/workspace/VLA/vla_ws/install/vla_follow/lib/vla_follow
+[2.086s] Installing gt_tf script to /home/earl/workspace/VLA/vla_ws/install/vla_follow/lib/vla_follow
+[2.086s] Installing gz_viz script to /home/earl/workspace/VLA/vla_ws/install/vla_follow/lib/vla_follow
+[2.086s] Installing person_vision script to /home/earl/workspace/VLA/vla_ws/install/vla_follow/lib/vla_follow
+[2.086s] Installing person_walk script to /home/earl/workspace/VLA/vla_ws/install/vla_follow/lib/vla_follow
+[2.087s] Installing voice_node script to /home/earl/workspace/VLA/vla_ws/install/vla_follow/lib/vla_follow
+[2.087s] Installing voice_trigger script to /home/earl/workspace/VLA/vla_ws/install/vla_follow/lib/vla_follow
+[2.087s] 
+[2.087s] Installed /home/earl/workspace/VLA/vla_ws/build/vla_follow
+[2.087s] running symlink_data
+[2.114s] Invoked command in '/home/earl/workspace/VLA/vla_ws/build/vla_follow' returned '0': PYTHONPATH=/home/earl/workspace/VLA/vla_ws/build/vla_follow/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/earl/workspace/VLA/vla_ws/install/vla_follow/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /home/earl/workspace/VLA/vla_ws/build/vla_follow/build --no-deps symlink_data

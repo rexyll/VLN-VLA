@@ -1,0 +1,59 @@
+[0.000000] (-) TimerEvent: {}
+[0.000420] (vla_follow) JobQueued: {'identifier': 'vla_follow', 'dependencies': OrderedDict()}
+[0.000439] (vla_follow) JobStarted: {'identifier': 'vla_follow'}
+[0.099729] (-) TimerEvent: {}
+[0.199938] (-) TimerEvent: {}
+[0.300106] (-) TimerEvent: {}
+[0.400248] (-) TimerEvent: {}
+[0.500398] (-) TimerEvent: {}
+[0.506192] (vla_follow) Command: {'cmd': ['/usr/bin/python3', '-W', 'ignore:setup.py install is deprecated', '-W', 'ignore:easy_install command is deprecated', 'setup.py', 'egg_info', '--egg-base', '../../build/vla_follow', 'build', '--build-base', '/home/earl/vla_ws/build/vla_follow/build', 'install', '--record', '/home/earl/vla_ws/build/vla_follow/install.log', '--install-scripts', '$base/lib/vla_follow', '--single-version-externally-managed', 'install_data'], 'cwd': '/home/earl/vla_ws/src/vla_follow', 'env': OrderedDict({'GZ_SIM_RESOURCE_PATH': '/opt/ros/jazzy/share', 'LANGUAGE': 'en_US:en', 'USER': 'earl', 'SSH_CLIENT': '192.168.255.1 13884 22', 'LC_TIME': 'en_US.UTF-8', 'GZ_CONFIG_PATH': '/opt/ros/jazzy/opt/gz_sim_vendor/share/gz:/opt/ros/jazzy/opt/sdformat_vendor/share/gz:/opt/ros/jazzy/opt/gz_gui_vendor/share/gz:/opt/ros/jazzy/opt/gz_transport_vendor/share/gz:/opt/ros/jazzy/opt/gz_rendering_vendor/share/gz:/opt/ros/jazzy/opt/gz_plugin_vendor/share/gz:/opt/ros/jazzy/opt/gz_fuel_tools_vendor/share/gz:/opt/ros/jazzy/opt/gz_msgs_vendor/share/gz:/opt/ros/jazzy/opt/gz_common_vendor/share/gz', 'XDG_SESSION_TYPE': 'tty', 'SHLVL': '1', 'LD_LIBRARY_PATH': '/opt/ros/jazzy/opt/gz_sim_vendor/lib:/opt/ros/jazzy/opt/gz_sensors_vendor/lib:/opt/ros/jazzy/opt/gz_physics_vendor/lib:/opt/ros/jazzy/opt/sdformat_vendor/lib:/opt/ros/jazzy/opt/rviz_ogre_vendor/lib:/opt/ros/jazzy/lib/x86_64-linux-gnu:/opt/ros/jazzy/opt/gz_gui_vendor/lib:/opt/ros/jazzy/opt/gz_transport_vendor/lib:/opt/ros/jazzy/opt/gz_rendering_vendor/lib:/opt/ros/jazzy/opt/gz_plugin_vendor/lib:/opt/ros/jazzy/opt/gz_fuel_tools_vendor/lib:/opt/ros/jazzy/opt/gz_msgs_vendor/lib:/opt/ros/jazzy/opt/gz_common_vendor/lib:/opt/ros/jazzy/opt/gz_math_vendor/lib:/opt/ros/jazzy/opt/gz_utils_vendor/lib:/opt/ros/jazzy/opt/gz_tools_vendor/lib:/opt/ros/jazzy/opt/gz_ogre_next_vendor/lib:/opt/ros/jazzy/opt/gz_dartsim_vendor/lib:/opt/ros/jazzy/opt/gz_cmake_vendor/lib:/opt/ros/jazzy/lib', 'HOME': '/home/earl', 'OLDPWD': '/home/earl', 'ROS_PYTHON_VERSION': '3', 'LC_MONETARY': 'en_US.UTF-8', 'DBUS_SESSION_BUS_ADDRESS': 'unix:path=/run/user/1000/bus', 'ROS_DISTRO': 'jazzy', 'LOGNAME': 'earl', '_': '/usr/bin/colcon', 'ROS_VERSION': '2', 'XDG_SESSION_CLASS': 'user', 'XDG_SESSION_ID': '235', 'PATH': '/opt/ros/jazzy/opt/gz_msgs_vendor/bin:/opt/ros/jazzy/opt/gz_tools_vendor/bin:/opt/ros/jazzy/opt/gz_ogre_next_vendor/bin:/opt/ros/jazzy/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin', 'PAPERSIZE': 'letter', 'LC_ADDRESS': 'en_US.UTF-8', 'XDG_RUNTIME_DIR': '/run/user/1000', 'LANG': 'en_US.UTF-8', 'LC_TELEPHONE': 'en_US.UTF-8', 'AMENT_PREFIX_PATH': '/opt/ros/jazzy', 'SHELL': '/bin/bash', 'LC_NAME': 'en_US.UTF-8', 'LC_MEASUREMENT': 'en_US.UTF-8', 'LC_IDENTIFICATION': 'en_US.UTF-8', 'ROS_AUTOMATIC_DISCOVERY_RANGE': 'SUBNET', 'PWD': '/home/earl/vla_ws/build/vla_follow', 'LC_ALL': 'en_US.UTF-8', 'SSH_CONNECTION': '192.168.255.1 13884 192.168.255.128 22', 'PYTHONPATH': '/home/earl/vla_ws/build/vla_follow/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/earl/vla_ws/install/vla_follow/lib/python3.12/site-packages:/opt/ros/jazzy/opt/gz_sim_vendor/lib/python:/opt/ros/jazzy/opt/sdformat_vendor/lib/python:/opt/ros/jazzy/opt/gz_transport_vendor/lib/python:/opt/ros/jazzy/opt/gz_msgs_vendor/lib/python:/opt/ros/jazzy/opt/gz_math_vendor/lib/python:/opt/ros/jazzy/lib/python3.12/site-packages', 'LC_NUMERIC': 'en_US.UTF-8', 'LC_PAPER': 'en_US.UTF-8', 'COLCON': '1', 'CMAKE_PREFIX_PATH': '/opt/ros/jazzy/opt/gz_sim_vendor:/opt/ros/jazzy/opt/gz_sensors_vendor:/opt/ros/jazzy/opt/gz_physics_vendor:/opt/ros/jazzy/opt/sdformat_vendor:/opt/ros/jazzy/opt/gz_gui_vendor:/opt/ros/jazzy/opt/gz_transport_vendor:/opt/ros/jazzy/opt/gz_rendering_vendor:/opt/ros/jazzy/opt/gz_plugin_vendor:/opt/ros/jazzy/opt/gz_fuel_tools_vendor:/opt/ros/jazzy/opt/gz_msgs_vendor:/opt/ros/jazzy/opt/gz_common_vendor:/opt/ros/jazzy/opt/gz_math_vendor:/opt/ros/jazzy/opt/gz_utils_vendor:/opt/ros/jazzy/opt/gz_tools_vendor:/opt/ros/jazzy/opt/gz_ogre_next_vendor:/opt/ros/jazzy/opt/gz_dartsim_vendor:/opt/ros/jazzy/opt/gz_cmake_vendor'}), 'shell': False}
+[0.600568] (-) TimerEvent: {}
+[0.700648] (vla_follow) StdoutLine: {'line': b'running egg_info\n'}
+[0.700772] (-) TimerEvent: {}
+[0.712020] (vla_follow) StdoutLine: {'line': b'writing ../../build/vla_follow/vla_follow.egg-info/PKG-INFO\n'}
+[0.712579] (vla_follow) StdoutLine: {'line': b'writing dependency_links to ../../build/vla_follow/vla_follow.egg-info/dependency_links.txt\n'}
+[0.712845] (vla_follow) StdoutLine: {'line': b'writing entry points to ../../build/vla_follow/vla_follow.egg-info/entry_points.txt\n'}
+[0.713080] (vla_follow) StdoutLine: {'line': b'writing requirements to ../../build/vla_follow/vla_follow.egg-info/requires.txt\n'}
+[0.713306] (vla_follow) StdoutLine: {'line': b'writing top-level names to ../../build/vla_follow/vla_follow.egg-info/top_level.txt\n'}
+[0.737026] (vla_follow) StdoutLine: {'line': b"reading manifest file '../../build/vla_follow/vla_follow.egg-info/SOURCES.txt'\n"}
+[0.738031] (vla_follow) StdoutLine: {'line': b"writing manifest file '../../build/vla_follow/vla_follow.egg-info/SOURCES.txt'\n"}
+[0.739158] (vla_follow) StdoutLine: {'line': b'running build\n'}
+[0.739238] (vla_follow) StdoutLine: {'line': b'running build_py\n'}
+[0.739268] (vla_follow) StdoutLine: {'line': b'copying vla_follow/follower.py -> /home/earl/vla_ws/build/vla_follow/build/lib/vla_follow\n'}
+[0.739342] (vla_follow) StdoutLine: {'line': b'copying vla_follow/__init__.py -> /home/earl/vla_ws/build/vla_follow/build/lib/vla_follow\n'}
+[0.739369] (vla_follow) StdoutLine: {'line': b'copying vla_follow/voice_node.py -> /home/earl/vla_ws/build/vla_follow/build/lib/vla_follow\n'}
+[0.739393] (vla_follow) StdoutLine: {'line': b'copying vla_follow/voice_trigger.py -> /home/earl/vla_ws/build/vla_follow/build/lib/vla_follow\n'}
+[0.739416] (vla_follow) StdoutLine: {'line': b'copying vla_follow/person_walk.py -> /home/earl/vla_ws/build/vla_follow/build/lib/vla_follow\n'}
+[0.739439] (vla_follow) StdoutLine: {'line': b'running install\n'}
+[0.741977] (vla_follow) StdoutLine: {'line': b'running install_lib\n'}
+[0.754203] (vla_follow) StdoutLine: {'line': b'copying /home/earl/vla_ws/build/vla_follow/build/lib/vla_follow/follower.py -> /home/earl/vla_ws/install/vla_follow/lib/python3.12/site-packages/vla_follow\n'}
+[0.754538] (vla_follow) StdoutLine: {'line': b'copying /home/earl/vla_ws/build/vla_follow/build/lib/vla_follow/__init__.py -> /home/earl/vla_ws/install/vla_follow/lib/python3.12/site-packages/vla_follow\n'}
+[0.754643] (vla_follow) StdoutLine: {'line': b'copying /home/earl/vla_ws/build/vla_follow/build/lib/vla_follow/voice_node.py -> /home/earl/vla_ws/install/vla_follow/lib/python3.12/site-packages/vla_follow\n'}
+[0.754697] (vla_follow) StdoutLine: {'line': b'copying /home/earl/vla_ws/build/vla_follow/build/lib/vla_follow/voice_trigger.py -> /home/earl/vla_ws/install/vla_follow/lib/python3.12/site-packages/vla_follow\n'}
+[0.754764] (vla_follow) StdoutLine: {'line': b'copying /home/earl/vla_ws/build/vla_follow/build/lib/vla_follow/person_walk.py -> /home/earl/vla_ws/install/vla_follow/lib/python3.12/site-packages/vla_follow\n'}
+[0.754811] (vla_follow) StdoutLine: {'line': b'byte-compiling /home/earl/vla_ws/install/vla_follow/lib/python3.12/site-packages/vla_follow/follower.py to follower.cpython-312.pyc\n'}
+[0.757067] (vla_follow) StdoutLine: {'line': b'byte-compiling /home/earl/vla_ws/install/vla_follow/lib/python3.12/site-packages/vla_follow/__init__.py to __init__.cpython-312.pyc\n'}
+[0.757167] (vla_follow) StdoutLine: {'line': b'byte-compiling /home/earl/vla_ws/install/vla_follow/lib/python3.12/site-packages/vla_follow/voice_node.py to voice_node.cpython-312.pyc\n'}
+[0.758190] (vla_follow) StdoutLine: {'line': b'byte-compiling /home/earl/vla_ws/install/vla_follow/lib/python3.12/site-packages/vla_follow/voice_trigger.py to voice_trigger.cpython-312.pyc\n'}
+[0.758610] (vla_follow) StdoutLine: {'line': b'byte-compiling /home/earl/vla_ws/install/vla_follow/lib/python3.12/site-packages/vla_follow/person_walk.py to person_walk.cpython-312.pyc\n'}
+[0.760013] (vla_follow) StdoutLine: {'line': b'running install_data\n'}
+[0.760094] (vla_follow) StdoutLine: {'line': b'copying resource/vla_follow -> /home/earl/vla_ws/install/vla_follow/share/ament_index/resource_index/packages\n'}
+[0.760126] (vla_follow) StdoutLine: {'line': b'copying package.xml -> /home/earl/vla_ws/install/vla_follow/share/vla_follow\n'}
+[0.760192] (vla_follow) StdoutLine: {'line': b'copying launch/demo.launch.py -> /home/earl/vla_ws/install/vla_follow/share/vla_follow/launch\n'}
+[0.760233] (vla_follow) StdoutLine: {'line': b'copying config/bridge.yml -> /home/earl/vla_ws/install/vla_follow/share/vla_follow/config\n'}
+[0.760259] (vla_follow) StdoutLine: {'line': b'copying worlds/work_area.sdf -> /home/earl/vla_ws/install/vla_follow/share/vla_follow/worlds\n'}
+[0.760625] (vla_follow) StdoutLine: {'line': b'copying audio/follow_2m.wav -> /home/earl/vla_ws/install/vla_follow/share/vla_follow/audio\n'}
+[0.761132] (vla_follow) StdoutLine: {'line': b'copying audio/stop_follow.wav -> /home/earl/vla_ws/install/vla_follow/share/vla_follow/audio\n'}
+[0.761185] (vla_follow) StdoutLine: {'line': b'running install_egg_info\n'}
+[0.772315] (vla_follow) StdoutLine: {'line': b"removing '/home/earl/vla_ws/install/vla_follow/lib/python3.12/site-packages/vla_follow-0.1.0-py3.12.egg-info' (and everything under it)\n"}
+[0.772459] (vla_follow) StdoutLine: {'line': b'Copying ../../build/vla_follow/vla_follow.egg-info to /home/earl/vla_ws/install/vla_follow/lib/python3.12/site-packages/vla_follow-0.1.0-py3.12.egg-info\n'}
+[0.772593] (vla_follow) StdoutLine: {'line': b'running install_scripts\n'}
+[0.800877] (-) TimerEvent: {}
+[0.850118] (vla_follow) StdoutLine: {'line': b'Installing follower script to /home/earl/vla_ws/install/vla_follow/lib/vla_follow\n'}
+[0.850264] (vla_follow) StdoutLine: {'line': b'Installing person_walk script to /home/earl/vla_ws/install/vla_follow/lib/vla_follow\n'}
+[0.850303] (vla_follow) StdoutLine: {'line': b'Installing voice_node script to /home/earl/vla_ws/install/vla_follow/lib/vla_follow\n'}
+[0.850335] (vla_follow) StdoutLine: {'line': b'Installing voice_trigger script to /home/earl/vla_ws/install/vla_follow/lib/vla_follow\n'}
+[0.850438] (vla_follow) StdoutLine: {'line': b"writing list of installed files to '/home/earl/vla_ws/build/vla_follow/install.log'\n"}
+[0.869266] (vla_follow) CommandEnded: {'returncode': 0}
+[0.875371] (vla_follow) JobEnded: {'identifier': 'vla_follow', 'rc': 0}
+[0.875888] (-) EventReactorShutdown: {}

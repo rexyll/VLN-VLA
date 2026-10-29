@@ -1,0 +1,58 @@
+[EVAL] 复位 robot=True person=True
+[EVAL] 等待 2s 稳定后下发 FOLLOW...
+[EVAL] FOLLOW 第1次 CLI 下发 rc=0 
+[EVAL] FOLLOW 第2次 CLI 下发 rc=0 
+[EVAL] FOLLOW 第3次 CLI 下发 rc=0 
+[EVAL] FOLLOW 已下发, 开始 75s 评测
+[EVAL  15.0s] d=1.10 cam=front trk=TRACK lost=0 gap=+2.04
+[EVAL  30.1s] d=1.06 cam=front trk=TRACK lost=0 gap=+0.59
+[EVAL  45.1s] d=0.88 cam=front trk=TRACK lost=0 gap=+0.60
+[EVAL  60.1s] d=1.15 cam=front trk=TRACK lost=0 gap=+0.44
+
+================ 评测结果 (75s) ================
+{
+ "dist": {
+  "n": 1260,
+  "mean": 1.03,
+  "median": 1.075,
+  "std": 0.132,
+  "min": 0.557,
+  "max": 1.256,
+  "in_band_pct": 51.3,
+  "near_pct": 15.6,
+  "far_pct": 33.0,
+  "min_all": 0.557,
+  "max_streak_s": 13.25
+ },
+ "avoid": {
+  "min_gap": 0.339,
+  "hit_n": 0,
+  "brush_n": 0
+ },
+ "switch": {
+  "n": 5,
+  "resp_mean": 1.48,
+  "resp_max": 2.9,
+  "resp_none": 0,
+  "cross_n": 1,
+  "cross_mean": 1.5
+ },
+ "lost": {
+  "n": 0,
+  "goto_n": 0,
+  "reached_n": 0,
+  "dur_mean": 0,
+  "dur_max": 0,
+  "regen_mean": 0,
+  "events": []
+ },
+ "sanity": {
+  "samples": 1543,
+  "vis_pct": 98.1,
+  "front_pct": 96.6,
+  "cmd_v_mean": 0.147
+ },
+ "dur": 75.0
+}
+轨迹图: /home/earl/workspace/VLA/shots/t1_retest_traj.png
+原始数据: /home/earl/workspace/VLA/t1_retest.json

@@ -1,0 +1,50 @@
+[EVAL] 复位 robot=True person=True
+[EVAL] 等待 2s 稳定后下发 FOLLOW...
+[EVAL] FOLLOW 已下发, 开始 150s 评测
+[EVAL  15.1s] d=4.35 cam=left  trk=TRACK lost=0 gap=+2.66
+[EVAL  30.1s] d=4.78 cam=left  trk=TRACK lost=0 gap=+2.66
+[EVAL  45.1s] d=4.55 cam=left  trk=TRACK lost=0 gap=+2.66
+[EVAL  60.2s] d=4.44 cam=left  trk=TRACK lost=0 gap=+2.66
+[EVAL  75.2s] d=5.80 cam=left  trk=TRACK lost=0 gap=+2.66
+[EVAL  90.2s] d=4.41 cam=left  trk=TRACK lost=0 gap=+2.66
+[EVAL 105.2s] d=4.66 cam=left  trk=TRACK lost=0 gap=+2.66
+[EVAL 120.3s] d=6.33 cam=-     trk=TRACK lost=0 gap=+2.66
+[EVAL 135.3s] d=8.01 cam=left  trk=TRACK lost=0 gap=+2.66
+
+================ 评测结果 (150s) ================
+{
+ "dist": {
+  "max_streak_s": 0.0
+ },
+ "avoid": {
+  "min_gap": 2.659,
+  "hit_n": 0,
+  "brush_n": 0
+ },
+ "switch": {
+  "n": 11,
+  "resp_mean": null,
+  "resp_max": null,
+  "resp_none": 11,
+  "cross_n": 0,
+  "cross_mean": null
+ },
+ "lost": {
+  "n": 0,
+  "goto_n": 0,
+  "reached_n": 0,
+  "dur_mean": 0,
+  "dur_max": 0,
+  "regen_mean": 0,
+  "events": []
+ },
+ "sanity": {
+  "samples": 3054,
+  "vis_pct": 88.3,
+  "front_pct": 6.1,
+  "cmd_v_mean": 0.0
+ },
+ "dur": 150.0
+}
+轨迹图: /home/earl/workspace/VLA/shots/eval7_traj.png
+原始数据: /home/earl/workspace/VLA/eval7.json

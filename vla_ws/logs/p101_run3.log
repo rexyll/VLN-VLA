@@ -1,0 +1,84 @@
+[INFO] [1793157376.801922279] [drink_observer]: drink_task 已起: 39 路指令 @20Hz, 人体手高 1.00m, 服务位 (1.75, 0.35, 0.0)
+[INFO] [1793157378.058829082] [drink_observer]: ack: ok place robot
+[INFO] [1793157378.063535279] [drink_observer]: place robot 完成
+[INFO] [1793157379.586858422] [drink_observer]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793157379.765634430] [drink_observer]: ack: ok place person
+[INFO] [1793157379.766097643] [drink_observer]: place person 完成
+[INFO] [1793157380.669342655] [drink_observer]: DRINK ★ 收到喝水请求(来源=?, 内容=""), 排队执行
+[INFO] [1793157381.172640569] [drink_observer]: DRINK ★ 收到喝水请求(来源=?, 内容=""), 排队执行
+[INFO] [1793157381.672552420] [drink_observer]: DRINK ★ 收到喝水请求(来源=?, 内容=""), 排队执行
+[INFO] [1793157382.022944523] [drink_observer]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793157384.665172447] [drink_observer]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793157387.288530857] [drink_observer]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793157389.953292930] [drink_observer]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793157392.580668744] [drink_observer]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793157395.230011893] [drink_observer]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793157397.844680817] [drink_observer]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793157400.462545386] [drink_observer]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793157403.087949437] [drink_observer]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793157405.715098777] [drink_observer]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793157408.346090143] [drink_observer]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793157410.957132442] [drink_observer]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793157413.587773894] [drink_observer]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793157416.223726615] [drink_observer]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793157418.841278054] [drink_observer]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793157421.474189323] [drink_observer]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793157424.123422273] [drink_observer]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793157426.808890842] [drink_observer]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793157429.445618857] [drink_observer]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793157432.091593996] [drink_observer]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793157434.762923369] [drink_observer]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793157437.414271046] [drink_observer]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793157440.061587199] [drink_observer]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793157442.679833295] [drink_observer]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793157445.321258966] [drink_observer]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793157447.992164814] [drink_observer]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793157450.601135079] [drink_observer]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793157453.225707603] [drink_observer]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793157455.850637437] [drink_observer]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793157458.467071473] [drink_observer]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793157461.109646343] [drink_observer]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793157463.739546256] [drink_observer]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793157466.387788034] [drink_observer]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793157469.025012877] [drink_observer]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793157471.693164886] [drink_observer]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793157474.323231274] [drink_observer]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793157476.961066491] [drink_observer]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793157479.593117985] [drink_observer]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793157482.235516403] [drink_observer]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793157484.874824876] [drink_observer]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793157487.523016666] [drink_observer]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793157490.164172785] [drink_observer]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793157492.799849047] [drink_observer]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793157495.433085141] [drink_observer]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793157498.081059900] [drink_observer]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793157500.712361380] [drink_observer]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793157503.352423895] [drink_observer]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793157505.968943960] [drink_observer]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793157508.595222055] [drink_observer]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793157511.217050012] [drink_observer]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793157513.838413446] [drink_observer]: GT links_n=60 kettle=True cup=True disc=True
+================================================================================================
+P101 验收 —— 收尾悬垂 / 捧杯肘朝外 / 双手一起放回
+================================================================================================
+    [阶段] IDLE         t=0.3s
+    布景: 车(1.75,0.35,yaw63°) 人(2.14,1.12) 人手朝向误差 -0° 车→人手 0.561m(设计 0.62)
+    [阶段] PREPARE      t=6.1s
+    [阶段] PRESENT      t=39.0s
+    [阶段] HANDOVER     t=59.5s
+    [阶段] PERSON_DRINK t=63.4s
+    [阶段] TAKE_BACK    t=72.9s
+    [阶段] PUT_BACK     t=81.9s
+    [阶段] RETREAT      t=111.6s
+    [阶段] HANDBACK     t=132.2s
+    [阶段] DONE         t=133.8s
+    [阶段] IDLE         t=136.8s
+[OK] [1] 任务跑完(RETREAT → HANDBACK → DONE → IDLE)               OK  stages=10
+[OK] [2a] 捧杯(carry)肘外扩(线)  L 234.3 / R 235.3 mm (判据 ≥60)      OK  基础系 L 145.1 / R 127.2 mm, 垂 L -23.1 / R 30.6 mm
+[NG] [2b] 递杯(present)肘外扩(线)  L -3.5 / R 150.1 mm (判据 ≥60)     NG  基础系 L -139.3 / R 128.5 mm(仅供参考, 见下), 伸出 L 0.655 / R 0.568 m
+[NG] [3a] 落稳时两只手都在杯旁  到杯轴 L 119.1 / R 220.7 mm (判据 ≤160)      NG  到杯心3D L 117.1 / R 223.9 mm; 杯落稳 2.4mm
+[OK] [3b] 落稳残差 2.4 mm(判据 ≤5) 松钉后下坠 -0.0 mm(判据 |·|≤5)          OK
+[OK] [4] 收尾悬垂  节点报 L 0.0° / R 0.0° | 实测最大|q| L 0.0 / R 0.0 rad OK
+------------------------------------------------------------------------------------------------
+结论: FAIL   (/home/earl/workspace/VLA/tests/out/test_p101.json)
+失败项: [2b] 递杯(present)肘外扩(线)  L -3.5 / R 150.1 mm (判据 ≥60), [3a] 落稳时两只手都在杯旁  到杯轴 L 119.1 / R 220.7 mm (判据 ≤160)

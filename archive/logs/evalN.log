@@ -1,0 +1,128 @@
+[EVAL] 复位 robot=True person=True
+[EVAL] 等待 2s 稳定后下发 FOLLOW...
+[EVAL] FOLLOW 第1次 CLI 下发 rc=0 
+[EVAL] FOLLOW 第2次 CLI 下发 rc=0 
+[EVAL] FOLLOW 第3次 CLI 下发 rc=0 
+[EVAL] FOLLOW 已下发, 开始 150s 评测
+[EVAL  15.0s] d=0.41 cam=-     trk=GOTO  lost=1 gap=+1.69
+[EVAL  30.1s] d=0.86 cam=front trk=TRACK lost=0 gap=+0.69
+[EVAL  45.1s] d=1.84 cam=-     trk=GOTO  lost=1 gap=+0.18
+[EVAL  60.1s] d=2.13 cam=front trk=TRACK lost=0 gap=+0.07
+[EVAL  75.1s] d=5.06 cam=front trk=TRACK lost=0 gap=+0.07
+[EVAL  90.2s] d=7.44 cam=right trk=TRACK lost=0 gap=+0.06
+[EVAL 105.2s] d=4.62 cam=front trk=TRACK lost=0 gap=+0.07
+[EVAL 120.2s] d=1.86 cam=front trk=TRACK lost=0 gap=+0.08
+[EVAL 135.2s] d=2.05 cam=front trk=TRACK lost=0 gap=+0.19
+
+================ 评测结果 (150s) ================
+{
+ "dist": {
+  "n": 2305,
+  "mean": 3.095,
+  "median": 2.224,
+  "std": 2.136,
+  "min": 0.405,
+  "max": 7.497,
+  "in_band_pct": 5.9,
+  "near_pct": 11.3,
+  "far_pct": 82.7,
+  "min_all": 0.405,
+  "max_streak_s": 4.8
+ },
+ "avoid": {
+  "min_gap": 0.062,
+  "hit_n": 0,
+  "brush_n": 0
+ },
+ "switch": {
+  "n": 74,
+  "resp_mean": 8.22,
+  "resp_max": 35.4,
+  "resp_none": 0,
+  "cross_n": 0,
+  "cross_mean": null
+ },
+ "lost": {
+  "n": 7,
+  "goto_n": 5,
+  "reached_n": 3,
+  "dur_mean": 4.18,
+  "dur_max": 9.6,
+  "regen_mean": 4.18,
+  "events": [
+   {
+    "t0": 0.0,
+    "dur": 0.0,
+    "goto": 0,
+    "reached": 0,
+    "goto_pt": null
+   },
+   {
+    "t0": 5.5,
+    "dur": 8.1,
+    "goto": 1,
+    "reached": 0,
+    "goto_pt": [
+     -0.51,
+     -0.04
+    ]
+   },
+   {
+    "t0": 14.7,
+    "dur": 3.5,
+    "goto": 1,
+    "reached": 1,
+    "goto_pt": [
+     0.51,
+     -0.01
+    ]
+   },
+   {
+    "t0": 23.0,
+    "dur": 0.2,
+    "goto": 0,
+    "reached": 0,
+    "goto_pt": null
+   },
+   {
+    "t0": 43.1,
+    "dur": 9.6,
+    "goto": 1,
+    "reached": 1,
+    "goto_pt": [
+     4.66,
+     -3.67
+    ]
+   },
+   {
+    "t0": 87.5,
+    "dur": 0.2,
+    "goto": 1,
+    "reached": 0,
+    "goto_pt": [
+     2.19,
+     2.65
+    ]
+   },
+   {
+    "t0": 122.3,
+    "dur": 7.6,
+    "goto": 1,
+    "reached": 1,
+    "goto_pt": [
+     4.0,
+     -2.07
+    ]
+   }
+  ]
+ },
+ "sanity": {
+  "samples": 3042,
+  "vis_pct": 76.1,
+  "front_pct": 67.3,
+  "cmd_v_mean": 0.046
+ },
+ "dur": 150.0
+}
+轨迹图: /home/earl/workspace/VLA/shots/evalN_traj.png
+原始数据: /home/earl/workspace/VLA/evalN.json

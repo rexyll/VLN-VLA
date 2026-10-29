@@ -1,0 +1,22 @@
+[00:10:00] === 启动后自检 ===
+[00:10:01] POSE_OK 3s内收到 2 帧
+[00:10:01]   set_pose robot=(-4.0,-4.0,yaw=0°) → data: true
+[00:10:02]   set_pose person=(-2.0,-4.0,yaw=0°) → data: true
+[00:10:04] === 阶段A: FOLLOW (人正前 2m, person_walk 随机走) ===
+[00:10:52] === 阶段B: 受控四方位 ===
+[00:10:53]   set_pose robot=(-4.0,-4.0,yaw=0°) → data: true
+[00:10:53]   set_pose person=(-4.0,-2.4,yaw=0°) → data: true
+[00:10:54] --- B: 人置于[左] (-4.0,-2.4), 相对机器人 yaw=0 ---
+[00:11:03]   set_pose robot=(-4.0,-4.0,yaw=0°) → data: true
+[00:11:04]   set_pose person=(-5.6,-4.0,yaw=0°) → data: true
+[00:11:05] --- B: 人置于[后] (-5.6,-4.0), 相对机器人 yaw=0 ---
+[00:11:14]   set_pose robot=(-4.0,-4.0,yaw=0°) → data: true
+[00:11:15]   set_pose person=(-4.0,-5.6,yaw=0°) → data: true
+[00:11:16] --- B: 人置于[右] (-4.0,-5.6), 相对机器人 yaw=0 ---
+[00:11:25]   set_pose robot=(-4.0,-4.0,yaw=0°) → data: true
+[00:11:26]   set_pose person=(-2.4,-4.0,yaw=0°) → data: true
+[00:11:27] --- B: 人置于[前] (-2.4,-4.0), 相对机器人 yaw=0 ---
+[00:11:36]   set_pose robot=(-4.0,-4.0,yaw=0°) → data: true
+[00:11:37]   set_pose person=(5.0,5.0,yaw=0°) → data: true
+[00:11:37] === 阶段C: 人移到(5.0,5.0) 视野外, 观察 丢失→搜索→扫描 ===
+[00:12:07] === 结束 ===

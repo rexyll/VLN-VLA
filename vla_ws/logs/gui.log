@@ -1,0 +1,9 @@
+[GUI] 机位 = 1.00 -3.60 2.30 0 0.3547 1.4813
+[GUI] 本配置无 ImageDisplay 插件 —— 腕部画面看 python3 tools/wrist_view.py
+[GUI] 布局 = 3D 视图铺满 (Inspector / Entity tree 已收起)
+>>> GUI 进程数: 1   启动错误: 0
+0x02400008 -1 earl-VMware-Virtual-Platform Desktop Icons 1
+0x02c0001a  0 earl-VMware-Virtual-Platform Gazebo Sim
+>>> Gazebo: 1214x731+66+106
+>>> 没有腕部预览窗口(先跑 bash tools/wrist_view.sh)
+>>> 自由视角已就绪: 左键拖动=环绕旋转, 中键拖动=平移, 滚轮=缩放

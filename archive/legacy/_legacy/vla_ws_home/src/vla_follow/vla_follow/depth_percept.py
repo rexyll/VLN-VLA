@@ -1,0 +1,184 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""depth_percept.py —— 4 向深度相机感知层（方案 §4.2）
+
+输入: gz-transport /depth_front|left|right|back (gz.msgs.Image, 32FC1, 米)
+输出: ROS /perception/proimity (std_msgs/String, JSON)
+      {"front":d, "left":d, "right":d, "back":d, "age":s}
+      d=-1 表示该向帧过期(>0.6s)或无有效深度
+真值对比: 订阅 dynamic_pose/info, 用已知地图(墙+障碍+人)计算各向理论
+      最近距离, 每 5s 输出感知误差日志(M1/Gate-1 验收指标: 误差≤0.3m)
+"""
+import json
+import math
+import threading
+import time
+
+import numpy as np
+
+import rclpy
+from rclpy.node import Node
+from std_msgs.msg import String
+
+import gz.transport13 as gz_transport
+from gz.msgs10.image_pb2 import Image as GzImage
+from gz.msgs10.pose_v_pb2 import Pose_V as GzPose_V
+
+WALL = 6.0
+ROBOT_R = 0.18
+OBSTACLES = [  # (x, y, 半径) —— 与 world 一致
+    (3.5, 2.0, 0.57), (-3.0, 3.2, 0.67), (0.5, -3.2, 0.47),
+    (-4.2, -2.5, 0.57), (4.2, -3.0, 0.37), (-1.5, -4.5, 0.62),
+    (2.2, 4.6, 0.42),
+]
+PERSON_R = 0.30
+DIRS = (('front', 0.0), ('left', 1.5707963), ('right', -1.5707963),
+        ('back', 3.1415926))
+MAX_D = 12.0
+
+
+def ray_min_dist(x, y, ang, extra_circles=()):
+    """从 (x,y) 沿 ang 方向到地图(墙+障碍+附加圆)的最近距离"""
+    best = MAX_D
+    c, s = math.cos(ang), math.sin(ang)
+    if c > 1e-6:
+        best = min(best, (WALL - x) / c)
+    if c < -1e-6:
+        best = min(best, (-WALL - x) / c)
+    if s > 1e-6:
+        best = min(best, (WALL - y) / s)
+    if s < -1e-6:
+        best = min(best, (-WALL - y) / s)
+    for ox, oy, r in list(OBSTACLES) + list(extra_circles):
+        R = r + ROBOT_R
+        dx, dy = ox - x, oy - y
+        proj = dx * c + dy * s
+        if proj <= 0:
+            continue
+        perp2 = dx * dx + dy * dy - proj * proj
+        if perp2 < R * R:
+            d = proj - math.sqrt(max(R * R - perp2, 0.0))
+            best = min(best, d)
+    return max(best, 0.05)
+
+
+class DepthPercept(Node):
+
+    def __init__(self):
+        super().__init__('depth_percept')
+        self.pub = self.create_publisher(String, '/perception/proximity', 10)
+        self._gz = gz_transport.Node()
+        self._lock = threading.Lock()
+        self.depth = {n: -1.0 for n, _ in DIRS}
+        self.stamp = {n: 0.0 for n, _ in DIRS}
+        for name, _ in DIRS:
+            # rgbd_camera: RGB 在基础话题, 深度在 /depth_image;
+            # 回调内自动甄别 32FC1 深度帧(排除 RGB/RGBA)
+            self._gz.subscribe(GzImage, '/depth_' + name,
+                               self._mk_cb(name))
+            self._gz.subscribe(GzImage, '/depth_' + name + '/depth_image',
+                               self._mk_cb(name))
+        # 真值位姿(用于误差对比)
+        self.rx, self.ry, self.ryaw = 0.0, 0.0, 0.0
+        self.px, self.py = 1.0, 0.0
+        self._gz.subscribe(GzPose_V,
+                           '/world/follow_world/dynamic_pose/info',
+                           self._pose_cb)
+        self._err_n, self._err_bad = 0, 0
+        self._last_errlog = 0.0
+        self.create_timer(0.1, self._tick)  # 10 Hz
+        self.get_logger().info(
+            'PERCEPT 4 向深度感知层就绪 (订阅 /depth_*), 输出 /perception/proximity')
+
+    def _mk_cb(self, name):
+        def cb(msg):
+            h, w = msg.height, msg.width
+            if h < 10 or w < 10 or len(msg.data) < h * w * 4:
+                return
+            a = np.frombuffer(msg.data[:h * w * 4], dtype='<f4')
+            # 上带视场(行10%~45%): 该带射线均在水平线以上,
+            # 排除地面与机器人自身底盘的自遮挡; 列取中心 80%
+            r0, r1 = int(h * 0.10), int(h * 0.45)
+            c0, c1 = int(w * 0.10), int(w * 0.90)
+            a = a.reshape(h, w)[r0:r1, c0:c1].ravel()
+            valid = a[np.isfinite(a) & (a > 0.05) & (a < 11.5)]
+            # RGBA 帧按 float32 解析会得到极小值, 有效点不足 → 判为非深度帧
+            if valid.size < 30:
+                return
+            d = float(np.quantile(valid, 0.10))
+            with self._lock:
+                self.depth[name] = d
+                self.stamp[name] = time.monotonic()
+        return cb
+
+    def _pose_cb(self, msg):
+        robot = person = None
+        for p in msg.pose:
+            if p.name == 'robot':
+                robot = p
+            elif p.name == 'person':
+                person = p
+        if robot is None:
+            return
+        q = robot.orientation
+        with self._lock:
+            self.rx = robot.position.x
+            self.ry = robot.position.y
+            self.ryaw = math.atan2(2.0 * (q.w * q.z + q.x * q.y),
+                                   1.0 - 2.0 * (q.y * q.y + q.x * q.x))
+            if person is not None:
+                self.px, self.py = person.position.x, person.position.y
+
+    def _tick(self):
+        now = time.monotonic()
+        out, ages = {}, {}
+        with self._lock:
+            for n, _ in DIRS:
+                age = now - self.stamp[n]
+                ages[n] = age
+                out[n] = self.depth[n] if age < 0.6 else -1.0
+        out['age'] = round(max(ages.values()), 3)
+        msg = String()
+        msg.data = json.dumps(out)
+        self.pub.publish(msg)
+        # 真值对比(每 5s)
+        if now - self._last_errlog > 5.0:
+            self._last_errlog = now
+            with self._lock:
+                rx, ry, ryaw = self.rx, self.ry, self.ryaw
+                px, py = self.px, self.py
+            extra = [(px, py, PERSON_R)]
+            parts, bad = [], 0
+            for n, rel in DIRS:
+                if out[n] and out[n] > 0:
+                    truth = ray_min_dist(rx, ry, ryaw + rel, extra)
+                    err = abs(out[n] - min(truth, 11.5))
+                    parts.append(f'{n}:{out[n]:.1f}/真{truth:.1f}(Δ{err:.2f})')
+                    self._err_n += 1
+                    if err > 0.3:
+                        bad += 1
+                        self._err_bad += 1
+            if parts:
+                self.get_logger().info(
+                    'PERCEPT 误差对比 ' + ' '.join(parts) +
+                    (f' | 超阈(>0.3m): {bad}向' if bad else ' | 全部≤0.3m'))
+
+    def err_stats(self):
+        return self._err_n, self._err_bad
+
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = DepthPercept()
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        n, bad = node.err_stats()
+        print(f'感知误差样本 {n}, 超阈 {bad}')
+    finally:
+        node.destroy_node()
+        rclpy.try_shutdown()
+
+
+if __name__ == '__main__':
+    main()

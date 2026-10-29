@@ -1,0 +1,170 @@
+<?xml version="1.0"?>
+<!-- VLA 仿真竞技场（Gazebo Harmonic / gz-sim 8）
+     与 mini_vla 合成任务的像素约定对齐：1 像素 = 1 厘米，
+     顶视相机视场恰好覆盖 0.64m x 0.64m，图像 col=x、row=y。 -->
+<sdf version="1.8">
+  <world name="vla_arena">
+
+    <physics name="1ms" type="ode">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+    </physics>
+
+    <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands"/>
+    <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"/>
+    <plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+
+    <scene><ambient>0.5 0.5 0.5 1</ambient><shadows>false</shadows></scene>
+    <light name="top" type="directional">
+      <pose>0.32 0.32 2 0 0 0</pose>
+      <direction>0 0 -1</direction>
+      <diffuse>0.25 0.25 0.25 1</diffuse>
+      <specular>0 0 0 0</specular>
+    </light>
+
+    <!-- 地面：暗灰，对应合成渲染背景灰度 18~36 -->
+    <model name="ground">
+      <static>true</static>
+      <link name="link">
+        <collision name="col">
+          <geometry><plane><normal>0 0 1</normal><size>10 10</size></plane></geometry>
+          <surface><friction><ode><mu>1.0</mu><mu2>1.0</mu2></ode></friction></surface>
+        </collision>
+        <visual name="vis">
+          <geometry><plane><normal>0 0 1</normal><size>10 10</size></plane></geometry>
+          <material>
+            <ambient>0.10 0.10 0.10 1</ambient><diffuse>0.10 0.10 0.10 1</diffuse>
+            <emissive>0.04 0.04 0.04 1</emissive><specular>0 0 0 0</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- 蓝色智能体（静态模型：位移由 vla_bridge 插件按速度指令积分） -->
+    <model name="agent">
+      <static>true</static>
+      <pose>0.10 0.10 0.011 0 0 0</pose>
+      <link name="link">
+        <collision name="col">
+          <geometry><box><size>0.05 0.05 0.02</size></box></geometry>
+        </collision>
+        <visual name="vis">
+          <geometry><box><size>0.05 0.05 0.02</size></box></geometry>
+          <material>
+            <ambient>0.157 0.353 0.863 1</ambient><diffuse>0.157 0.353 0.863 1</diffuse>
+            <emissive>0.079 0.177 0.431 1</emissive><specular>0 0 0 0</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- 绿色箱子：push 任务操作对象（运动学模型，接触推动由插件实现，与训练域一致） -->
+    <model name="green_box">
+      <static>true</static>
+      <pose>0.30 0.30 0.016 0 0 0</pose>
+      <link name="link">
+        <collision name="col">
+          <geometry><box><size>0.09 0.09 0.03</size></box></geometry>
+          <surface><friction><ode><mu>0.35</mu><mu2>0.35</mu2></ode></friction></surface>
+        </collision>
+        <visual name="vis">
+          <geometry><box><size>0.09 0.09 0.03</size></box></geometry>
+          <material>
+            <ambient>0.157 0.667 0.275 1</ambient><diffuse>0.157 0.667 0.275 1</diffuse>
+            <emissive>0.078 0.333 0.137 1</emissive><specular>0 0 0 0</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- 红十字（reach 目标）与黄十字（push 目标）：静态视觉标记，位置可由桥接重设 -->
+    <model name="red_cross">
+      <static>true</static>
+      <pose>0.50 0.50 0 0 0 0</pose>
+      <link name="h"><pose>0 0 0.002 0 0 0</pose>
+        <visual name="v">
+          <geometry><box><size>0.07 0.01 0.004</size></box></geometry>
+          <material><ambient>0.843 0.176 0.176 1</ambient><diffuse>0.843 0.176 0.176 1</diffuse>
+                    <emissive>0.42 0.09 0.09 1</emissive><specular>0 0 0 0</specular></material>
+        </visual>
+      </link>
+      <link name="v"><pose>0 0 0.004 0 0 0</pose>
+        <visual name="v">
+          <geometry><box><size>0.01 0.07 0.004</size></box></geometry>
+          <material><ambient>0.843 0.176 0.176 1</ambient><diffuse>0.843 0.176 0.176 1</diffuse>
+                    <emissive>0.42 0.09 0.09 1</emissive><specular>0 0 0 0</specular></material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="yellow_cross">
+      <static>true</static>
+      <pose>0.20 0.45 0 0 0 0</pose>
+      <link name="h"><pose>0 0 0.002 0 0 0</pose>
+        <visual name="v">
+          <geometry><box><size>0.07 0.01 0.004</size></box></geometry>
+          <material><ambient>0.902 0.784 0.157 1</ambient><diffuse>0.902 0.784 0.157 1</diffuse>
+                    <emissive>0.45 0.39 0.08 1</emissive><specular>0 0 0 0</specular></material>
+        </visual>
+      </link>
+      <link name="v"><pose>0 0 0.004 0 0 0</pose>
+        <visual name="v">
+          <geometry><box><size>0.01 0.07 0.004</size></box></geometry>
+          <material><ambient>0.902 0.784 0.157 1</ambient><diffuse>0.902 0.784 0.157 1</diffuse>
+                    <emissive>0.45 0.39 0.08 1</emissive><specular>0 0 0 0</specular></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- 虚拟设备 1：顶视相机（策略观测源）—— 视场恰好覆盖 64cm x 64cm -->
+    <model name="overhead_cam">
+      <static>true</static>
+      <pose>0.32 0.32 1.0 0 1.5708 -1.5708</pose>
+      <link name="link">
+        <visual name="vis">
+          <geometry><box><size>0.05 0.05 0.02</size></box></geometry>
+          <material><ambient>0.2 0.2 0.2 1</ambient><diffuse>0.2 0.2 0.2 1</diffuse></material>
+        </visual>
+        <sensor name="cam" type="camera">
+          <always_on>1</always_on>
+          <update_rate>10</update_rate>
+          <visualize>false</visualize>
+          <topic>/vla_cam</topic>
+          <camera>
+            <horizontal_fov>0.6187</horizontal_fov>
+            <image><width>64</width><height>64</height><format>R8G8B8</format></image>
+            <clip><near>0.05</near><far>5</far></clip>
+          </camera>
+        </sensor>
+      </link>
+    </model>
+
+    <!-- 虚拟设备 2：侧视监控相机（人看仿真用，不进策略） -->
+    <model name="side_cam">
+      <static>true</static>
+      <pose>1.2 0.32 0.5 0 0 -1.5708</pose>
+      <link name="link">
+        <sensor name="side" type="camera">
+          <always_on>1</always_on>
+          <update_rate>1</update_rate>
+          <visualize>false</visualize>
+          <topic>/gz_side_cam</topic>
+          <camera>
+            <horizontal_fov>1.2</horizontal_fov>
+            <image><width>160</width><height>120</height><format>R8G8B8</format></image>
+            <clip><near>0.05</near><far>10</far></clip>
+          </camera>
+        </sensor>
+      </link>
+    </model>
+
+    <!-- VLA 仿真桥：TCP 行协议，见 vla_bridge.cpp -->
+    <plugin filename="vla_bridge" name="vla_bridge::VLABridge">
+      <port>9101</port>
+      <camera_topic>/vla_cam</camera_topic>
+    </plugin>
+  </world>
+</sdf>

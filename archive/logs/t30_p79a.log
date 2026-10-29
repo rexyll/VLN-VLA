@@ -1,0 +1,110 @@
+[band] 距离合格区间 = 0.50 ~ 1.50 m (来自 vla_demo/vision_config.json)
+[EVAL] 复位 robot=True person=True
+[EVAL] 等待 2s 稳定后下发 FOLLOW...
+[EVAL] FOLLOW 第1次 CLI 下发 rc=0 
+[EVAL] FOLLOW 第2次 CLI 下发 rc=0 
+[EVAL] FOLLOW 第3次 CLI 下发 rc=0 
+[EVAL] FOLLOW 已下发, 开始 120s 评测
+[EVAL  15.0s] d=1.09 cam=front trk=TRACK lost=0 gap=+2.34
+[EVAL  30.1s] d=1.11 cam=front trk=TRACK lost=0 gap=+2.36
+[EVAL  45.1s] d=1.21 cam=front trk=TRACK lost=0 gap=+0.45
+[EVAL  60.2s] d=1.37 cam=-     trk=TRACK lost=0 gap=+0.09
+[EVAL  75.2s] d=1.44 cam=-     trk=SCAN  lost=1 gap=+0.09
+[EVAL  90.3s] d=1.31 cam=front trk=TRACK lost=0 gap=+0.12
+[EVAL 105.3s] d=1.94 cam=front trk=TRACK lost=0 gap=+0.67
+
+================ 评测结果 (120s) ================
+{
+ "dist": {
+  "n": 1645,
+  "mean": 1.356,
+  "median": 1.269,
+  "std": 0.323,
+  "min": 0.832,
+  "max": 1.961,
+  "band": [
+   0.5,
+   1.5
+  ],
+  "in_band_pct": 72.0,
+  "near_pct": 0.0,
+  "far_pct": 28.0,
+  "min_all": 0.832,
+  "max_streak_s": 39.75
+ },
+ "center": {
+  "n": 1488,
+  "within10_pct": 86.3,
+  "within15_pct": 90.2,
+  "median_deg": 2.3,
+  "p90_deg": 13.9,
+  "max_deg": 45.6
+ },
+ "avoid": {
+  "min_gap": 0.072,
+  "hit_n": 0,
+  "brush_n": 0
+ },
+ "switch": {
+  "n": 10,
+  "resp_mean": 4.3,
+  "resp_max": 33.0,
+  "resp_none": 0,
+  "cross_n": 0,
+  "cross_mean": null
+ },
+ "lost": {
+  "n": 3,
+  "goto_n": 2,
+  "reached_n": 0,
+  "dur_mean": 10.06,
+  "dur_max": 18.5,
+  "regen_mean": 10.06,
+  "events": [
+   {
+    "t0": 0.0,
+    "dur": 4.4,
+    "goto": 1,
+    "reached": 0,
+    "goto_pt": [
+     1.63,
+     0.01
+    ]
+   },
+   {
+    "t0": 51.8,
+    "dur": 7.2,
+    "goto": 1,
+    "reached": 0,
+    "goto_pt": [
+     3.19,
+     2.8
+    ]
+   },
+   {
+    "t0": 60.8,
+    "dur": 18.5,
+    "goto": 0,
+    "reached": 0,
+    "goto_pt": null
+   }
+  ]
+ },
+ "sanity": {
+  "samples": 2436,
+  "vis_pct": 71.8,
+  "front_pct": 65.8,
+  "cmd_v_mean": 0.109
+ },
+ "back": {
+  "pct": 21.7,
+  "events": 25,
+  "per_100s": 23.2,
+  "mean_dur_s": 0.71,
+  "max_dur_s": 1.8,
+  "total_s": 17.9
+ },
+ "dur": 120.0
+}
+轨迹图: /home/earl/workspace/VLA/shots/t30_p79a_traj.png
+原始数据: /home/earl/workspace/VLA/t30_p79a.json

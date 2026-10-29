@@ -1,0 +1,36 @@
+[0.446s] Invoking command in '/home/earl/vla_ws/src/vla_follow': PYTHONPATH=/home/earl/vla_ws/build/vla_follow/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/earl/vla_ws/install/vla_follow/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/vla_follow build --build-base /home/earl/vla_ws/build/vla_follow/build install --record /home/earl/vla_ws/build/vla_follow/install.log --install-scripts $base/lib/vla_follow --single-version-externally-managed install_data
+[0.607s] running egg_info
+[0.620s] writing ../../build/vla_follow/vla_follow.egg-info/PKG-INFO
+[0.620s] writing dependency_links to ../../build/vla_follow/vla_follow.egg-info/dependency_links.txt
+[0.620s] writing entry points to ../../build/vla_follow/vla_follow.egg-info/entry_points.txt
+[0.621s] writing requirements to ../../build/vla_follow/vla_follow.egg-info/requires.txt
+[0.621s] writing top-level names to ../../build/vla_follow/vla_follow.egg-info/top_level.txt
+[0.646s] reading manifest file '../../build/vla_follow/vla_follow.egg-info/SOURCES.txt'
+[0.646s] writing manifest file '../../build/vla_follow/vla_follow.egg-info/SOURCES.txt'
+[0.646s] running build
+[0.647s] running build_py
+[0.647s] copying vla_follow/follower.py -> /home/earl/vla_ws/build/vla_follow/build/lib/vla_follow
+[0.647s] copying vla_follow/__init__.py -> /home/earl/vla_ws/build/vla_follow/build/lib/vla_follow
+[0.647s] copying vla_follow/voice_node.py -> /home/earl/vla_ws/build/vla_follow/build/lib/vla_follow
+[0.647s] copying vla_follow/voice_trigger.py -> /home/earl/vla_ws/build/vla_follow/build/lib/vla_follow
+[0.647s] copying vla_follow/person_walk.py -> /home/earl/vla_ws/build/vla_follow/build/lib/vla_follow
+[0.647s] running install
+[0.649s] running install_lib
+[0.662s] running install_data
+[0.662s] copying resource/vla_follow -> /home/earl/vla_ws/install/vla_follow/share/ament_index/resource_index/packages
+[0.662s] copying package.xml -> /home/earl/vla_ws/install/vla_follow/share/vla_follow
+[0.662s] copying launch/demo.launch.py -> /home/earl/vla_ws/install/vla_follow/share/vla_follow/launch
+[0.663s] copying config/bridge.yml -> /home/earl/vla_ws/install/vla_follow/share/vla_follow/config
+[0.663s] copying worlds/work_area.sdf -> /home/earl/vla_ws/install/vla_follow/share/vla_follow/worlds
+[0.663s] copying audio/follow_2m.wav -> /home/earl/vla_ws/install/vla_follow/share/vla_follow/audio
+[0.663s] copying audio/stop_follow.wav -> /home/earl/vla_ws/install/vla_follow/share/vla_follow/audio
+[0.663s] running install_egg_info
+[0.674s] removing '/home/earl/vla_ws/install/vla_follow/lib/python3.12/site-packages/vla_follow-0.1.0-py3.12.egg-info' (and everything under it)
+[0.674s] Copying ../../build/vla_follow/vla_follow.egg-info to /home/earl/vla_ws/install/vla_follow/lib/python3.12/site-packages/vla_follow-0.1.0-py3.12.egg-info
+[0.675s] running install_scripts
+[0.738s] Installing follower script to /home/earl/vla_ws/install/vla_follow/lib/vla_follow
+[0.739s] Installing person_walk script to /home/earl/vla_ws/install/vla_follow/lib/vla_follow
+[0.739s] Installing voice_node script to /home/earl/vla_ws/install/vla_follow/lib/vla_follow
+[0.739s] Installing voice_trigger script to /home/earl/vla_ws/install/vla_follow/lib/vla_follow
+[0.739s] writing list of installed files to '/home/earl/vla_ws/build/vla_follow/install.log'
+[0.755s] Invoked command in '/home/earl/vla_ws/src/vla_follow' returned '0': PYTHONPATH=/home/earl/vla_ws/build/vla_follow/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/earl/vla_ws/install/vla_follow/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/vla_follow build --build-base /home/earl/vla_ws/build/vla_follow/build install --record /home/earl/vla_ws/build/vla_follow/install.log --install-scripts $base/lib/vla_follow --single-version-externally-managed install_data

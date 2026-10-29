@@ -1,0 +1,63 @@
+[INFO] [1793180725.379807206] [voice_node]: VOICE 真人语音识别节点已启动 (Vosk 离线中文, 等待语音指令...)
+LOG (VoskAPI:ReadDataFiles():model.cc:213) Decoding params beam=12 max-active=5000 lattice-beam=4
+LOG (VoskAPI:ReadDataFiles():model.cc:216) Silence phones 1:2:3:4:5:6:7:8:9:10
+LOG (VoskAPI:RemoveOrphanNodes():nnet-nnet.cc:948) Removed 0 orphan nodes.
+LOG (VoskAPI:RemoveOrphanComponents():nnet-nnet.cc:847) Removing 0 orphan components.
+LOG (VoskAPI:ReadDataFiles():model.cc:248) Loading i-vector extractor from /home/earl/workspace/VLA/vla_demo/vosk-model-small-cn-0.22/ivector/final.ie
+LOG (VoskAPI:ComputeDerivedVars():ivector-extractor.cc:183) Computing derived variables for iVector extractor
+LOG (VoskAPI:ComputeDerivedVars():ivector-extractor.cc:204) Done.
+LOG (VoskAPI:ReadDataFiles():model.cc:282) Loading HCL and G from /home/earl/workspace/VLA/vla_demo/vosk-model-small-cn-0.22/graph/HCLr.fst /home/earl/workspace/VLA/vla_demo/vosk-model-small-cn-0.22/graph/Gr.fst
+LOG (VoskAPI:ReadDataFiles():model.cc:308) Loading winfo /home/earl/workspace/VLA/vla_demo/vosk-model-small-cn-0.22/graph/phones/word_boundary.int
+[INFO] [1793180726.056940524] [voice_node]: VOICE 中文声学模型加载完成: /home/earl/workspace/VLA/vla_demo/vosk-model-small-cn-0.22 (0.6s), 可以开始识别
+[INFO] [1793180809.412975858] [voice_node]: VOICE ★ 解析为机器指令: {"action": "DRINK", "text": "我要喝水", "source": "text"}
+[INFO] [1793181242.304455709] [voice_node]: VOICE ★ 解析为机器指令: {"action": "DRINK", "text": "我要喝水", "source": "text"}
+[INFO] [1793181543.552618482] [voice_node]: VOICE ★ 解析为机器指令: {"action": "DRINK", "text": "我要喝水", "source": "text"}
+[INFO] [1793182022.875638821] [voice_node]: VOICE ★ 解析为机器指令: {"action": "DRINK", "text": "我要喝水", "source": "text"}
+[INFO] [1793182530.304274878] [voice_node]: VOICE ★ 解析为机器指令: {"action": "DRINK", "text": "我要喝水", "source": "text"}
+[INFO] [1793183043.297860849] [voice_node]: VOICE ★ 解析为机器指令: {"action": "DRINK", "text": "我要喝水", "source": "text"}
+[INFO] [1793183560.258997563] [voice_node]: VOICE ★ 解析为机器指令: {"action": "DRINK", "text": "我要喝水", "source": "text"}
+[INFO] [1793184098.213567715] [voice_node]: VOICE ★ 解析为机器指令: {"action": "DRINK", "text": "我要喝水", "source": "text"}
+[INFO] [1793184583.584533820] [voice_node]: VOICE ★ 解析为机器指令: {"action": "DRINK", "text": "我要喝水", "source": "text"}
+[INFO] [1793185004.826121256] [voice_node]: VOICE ★ 解析为机器指令: {"action": "DRINK", "text": "我要喝水", "source": "text"}
+[INFO] [1793185415.494001057] [voice_node]: VOICE ★ 解析为机器指令: {"action": "DRINK", "text": "我要喝水", "source": "text"}
+[INFO] [1793185808.501097795] [voice_node]: VOICE ★ 解析为机器指令: {"action": "DRINK", "text": "我要喝水", "source": "text"}
+[INFO] [1793186208.344607486] [voice_node]: VOICE ★ 解析为机器指令: {"action": "DRINK", "text": "我要喝水", "source": "text"}
+[INFO] [1793186613.100632452] [voice_node]: VOICE ★ 解析为机器指令: {"action": "DRINK", "text": "我要喝水", "source": "text"}
+[INFO] [1793187004.877131540] [voice_node]: VOICE ★ 解析为机器指令: {"action": "DRINK", "text": "我要喝水", "source": "text"}
+[INFO] [1793187396.477247021] [voice_node]: VOICE ★ 解析为机器指令: {"action": "DRINK", "text": "我要喝水", "source": "text"}
+[INFO] [1793187787.801214889] [voice_node]: VOICE ★ 解析为机器指令: {"action": "DRINK", "text": "我要喝水", "source": "text"}
+[INFO] [1793188175.095038972] [voice_node]: VOICE ★ 解析为机器指令: {"action": "DRINK", "text": "我要喝水", "source": "text"}
+[INFO] [1793188608.483467212] [voice_node]: VOICE ★ 解析为机器指令: {"action": "DRINK", "text": "我要喝水", "source": "text"}
+[INFO] [1793189085.182103620] [voice_node]: VOICE ★ 解析为机器指令: {"action": "DRINK", "text": "我要喝水", "source": "text"}
+[INFO] [1793189533.375901328] [voice_node]: VOICE ★ 解析为机器指令: {"action": "DRINK", "text": "我要喝水", "source": "text"}
+[INFO] [1793190169.304327659] [voice_node]: VOICE ★ 解析为机器指令: {"action": "DRINK", "text": "我要喝水", "source": "text"}
+[INFO] [1793190620.493559232] [voice_node]: VOICE ★ 解析为机器指令: {"action": "DRINK", "text": "我要喝水", "source": "text"}
+[INFO] [1793191015.954162599] [voice_node]: VOICE ★ 解析为机器指令: {"action": "DRINK", "text": "我要喝水", "source": "text"}
+[INFO] [1793191399.148941161] [voice_node]: VOICE ★ 解析为机器指令: {"action": "DRINK", "text": "我要喝水", "source": "text"}
+[INFO] [1793191790.751346741] [voice_node]: VOICE ★ 解析为机器指令: {"action": "DRINK", "text": "我要喝水", "source": "text"}
+[INFO] [1793192263.723922314] [voice_node]: VOICE ★ 解析为机器指令: {"action": "DRINK", "text": "我要喝水", "source": "text"}
+[INFO] [1793192733.137409321] [voice_node]: VOICE ★ 解析为机器指令: {"action": "DRINK", "text": "我要喝水", "source": "text"}
+[INFO] [1793193246.907448878] [voice_node]: VOICE ★ 解析为机器指令: {"action": "DRINK", "text": "我要喝水", "source": "text"}
+[INFO] [1793193727.444782681] [voice_node]: VOICE ★ 解析为机器指令: {"action": "DRINK", "text": "我要喝水", "source": "text"}
+[INFO] [1793194166.538271963] [voice_node]: VOICE ★ 解析为机器指令: {"action": "DRINK", "text": "我要喝水", "source": "text"}
+[INFO] [1793194604.326772568] [voice_node]: VOICE ★ 解析为机器指令: {"action": "DRINK", "text": "我要喝水", "source": "text"}
+[INFO] [1793195158.267422605] [voice_node]: VOICE ★ 解析为机器指令: {"action": "DRINK", "text": "我要喝水", "source": "text"}
+[INFO] [1793195706.906734725] [voice_node]: VOICE ★ 解析为机器指令: {"action": "DRINK", "text": "我要喝水", "source": "text"}
+[INFO] [1793196374.703542035] [voice_node]: VOICE ★ 解析为机器指令: {"action": "DRINK", "text": "我要喝水", "source": "text"}
+[INFO] [1793197183.439155260] [voice_node]: VOICE ★ 解析为机器指令: {"action": "DRINK", "text": "我要喝水", "source": "text"}
+[INFO] [1793198133.481418067] [voice_node]: VOICE ★ 解析为机器指令: {"action": "DRINK", "text": "我要喝水", "source": "text"}
+[INFO] [1793198761.498019513] [voice_node]: VOICE ★ 解析为机器指令: {"action": "DRINK", "text": "我要喝水", "source": "text"}
+[INFO] [1793199313.480370933] [voice_node]: VOICE ★ 解析为机器指令: {"action": "DRINK", "text": "我要喝水", "source": "text"}
+[INFO] [1793199903.085952967] [voice_node]: VOICE ★ 解析为机器指令: {"action": "DRINK", "text": "我要喝水", "source": "text"}
+[INFO] [1793200386.121263210] [voice_node]: VOICE ★ 解析为机器指令: {"action": "DRINK", "text": "我要喝水", "source": "text"}
+[INFO] [1793200978.106880536] [voice_node]: VOICE ★ 解析为机器指令: {"action": "DRINK", "text": "我要喝水", "source": "text"}
+[INFO] [1793201550.415375525] [voice_node]: VOICE ★ 解析为机器指令: {"action": "DRINK", "text": "我要喝水", "source": "text"}
+[INFO] [1793202065.020131290] [voice_node]: VOICE ★ 解析为机器指令: {"action": "DRINK", "text": "我要喝水", "source": "text"}
+[INFO] [1793202457.487258927] [voice_node]: VOICE ★ 解析为机器指令: {"action": "DRINK", "text": "我要喝水", "source": "text"}
+[INFO] [1793202844.203121360] [voice_node]: VOICE ★ 解析为机器指令: {"action": "DRINK", "text": "我要喝水", "source": "text"}
+[INFO] [1793203255.481441468] [voice_node]: VOICE ★ 解析为机器指令: {"action": "DRINK", "text": "我要喝水", "source": "text"}
+[INFO] [1793203669.451849124] [voice_node]: VOICE ★ 解析为机器指令: {"action": "DRINK", "text": "我要喝水", "source": "text"}
+[INFO] [1793204083.519501893] [voice_node]: VOICE ★ 解析为机器指令: {"action": "DRINK", "text": "我要喝水", "source": "text"}
+[INFO] [1793204486.327613787] [voice_node]: VOICE ★ 解析为机器指令: {"action": "DRINK", "text": "我要喝水", "source": "text"}
+[INFO] [1793204879.852702428] [voice_node]: VOICE ★ 解析为机器指令: {"action": "DRINK", "text": "我要喝水", "source": "text"}
+[INFO] [1793205261.792226441] [voice_node]: VOICE ★ 解析为机器指令: {"action": "DRINK", "text": "我要喝水", "source": "text"}

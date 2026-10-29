@@ -1,0 +1,154 @@
+[INFO] [launch]: All log files can be found below /home/earl/.ros/log/2026-10-28-17-45-24-725683-earl-VMware-Virtual-Platform-203325
+[INFO] [launch]: Default logging verbosity is set to INFO
+[INFO] [map_server-1]: process started with pid [203371]
+[INFO] [planner_server-2]: process started with pid [203372]
+[INFO] [controller_server-3]: process started with pid [203373]
+[INFO] [behavior_server-4]: process started with pid [203374]
+[INFO] [bt_navigator-5]: process started with pid [203375]
+[INFO] [velocity_smoother-6]: process started with pid [203376]
+[INFO] [lifecycle_manager-7]: process started with pid [203377]
+[velocity_smoother-6] [INFO] [1793180725.062782555] [velocity_smoother]: 
+[velocity_smoother-6] 	velocity_smoother lifecycle node launched. 
+[velocity_smoother-6] 	Waiting on external lifecycle transitions to activate
+[velocity_smoother-6] 	See https://design.ros2.org/articles/node_lifecycle.html for more information.
+[controller_server-3] [INFO] [1793180725.075435244] [controller_server]: 
+[controller_server-3] 	controller_server lifecycle node launched. 
+[controller_server-3] 	Waiting on external lifecycle transitions to activate
+[controller_server-3] 	See https://design.ros2.org/articles/node_lifecycle.html for more information.
+[planner_server-2] [INFO] [1793180725.080261506] [planner_server]: 
+[planner_server-2] 	planner_server lifecycle node launched. 
+[planner_server-2] 	Waiting on external lifecycle transitions to activate
+[planner_server-2] 	See https://design.ros2.org/articles/node_lifecycle.html for more information.
+[planner_server-2] [INFO] [1793180725.081234127] [planner_server]: Creating
+[controller_server-3] [INFO] [1793180725.088311882] [controller_server]: Creating controller server
+[behavior_server-4] [INFO] [1793180725.092404551] [behavior_server]: 
+[behavior_server-4] 	behavior_server lifecycle node launched. 
+[behavior_server-4] 	Waiting on external lifecycle transitions to activate
+[behavior_server-4] 	See https://design.ros2.org/articles/node_lifecycle.html for more information.
+[planner_server-2] [INFO] [1793180725.104595175] [global_costmap.global_costmap]: 
+[planner_server-2] 	global_costmap lifecycle node launched. 
+[planner_server-2] 	Waiting on external lifecycle transitions to activate
+[planner_server-2] 	See https://design.ros2.org/articles/node_lifecycle.html for more information.
+[planner_server-2] [INFO] [1793180725.104869510] [global_costmap.global_costmap]: Creating Costmap
+[controller_server-3] [INFO] [1793180725.132519276] [local_costmap.local_costmap]: 
+[controller_server-3] 	local_costmap lifecycle node launched. 
+[controller_server-3] 	Waiting on external lifecycle transitions to activate
+[controller_server-3] 	See https://design.ros2.org/articles/node_lifecycle.html for more information.
+[controller_server-3] [INFO] [1793180725.132767801] [local_costmap.local_costmap]: Creating Costmap
+[lifecycle_manager-7] [INFO] [1793180725.175654564] [lifecycle_manager_navigation]: Creating
+[lifecycle_manager-7] [INFO] [1793180725.186476313] [lifecycle_manager_navigation]: [34m[1mCreating and initializing lifecycle service clients[0m[0m
+[map_server-1] [INFO] [1793180725.232350778] [map_server]: 
+[map_server-1] 	map_server lifecycle node launched. 
+[map_server-1] 	Waiting on external lifecycle transitions to activate
+[map_server-1] 	See https://design.ros2.org/articles/node_lifecycle.html for more information.
+[map_server-1] [INFO] [1793180725.232411825] [map_server]: Creating
+[bt_navigator-5] [INFO] [1793180725.235028758] [bt_navigator]: 
+[bt_navigator-5] 	bt_navigator lifecycle node launched. 
+[bt_navigator-5] 	Waiting on external lifecycle transitions to activate
+[bt_navigator-5] 	See https://design.ros2.org/articles/node_lifecycle.html for more information.
+[bt_navigator-5] [INFO] [1793180725.238407340] [bt_navigator]: Creating
+[lifecycle_manager-7] [INFO] [1793180725.468118907] [lifecycle_manager_navigation]: [34m[1mStarting managed nodes bringup...[0m[0m
+[lifecycle_manager-7] [INFO] [1793180725.468153798] [lifecycle_manager_navigation]: [34m[1mConfiguring map_server[0m[0m
+[map_server-1] [INFO] [1793180725.468795268] [map_server]: Configuring
+[map_server-1] [INFO] [1793180725.468852138] [map_io]: Loading yaml file: /home/earl/workspace/VLA/vla_demo/maps/arena.yaml
+[map_server-1] [INFO] [1793180725.468996839] [map_io]: resolution: 0.05
+[map_server-1] [INFO] [1793180725.469001398] [map_io]: origin[0]: -6.15
+[map_server-1] [INFO] [1793180725.469003692] [map_io]: origin[1]: -6.15
+[map_server-1] [INFO] [1793180725.469005612] [map_io]: origin[2]: 0
+[map_server-1] [INFO] [1793180725.469007661] [map_io]: free_thresh: 0.196
+[map_server-1] [INFO] [1793180725.469009453] [map_io]: occupied_thresh: 0.65
+[map_server-1] [INFO] [1793180725.469011800] [map_io]: mode: trinary
+[map_server-1] [INFO] [1793180725.469014140] [map_io]: negate: 0
+[map_server-1] [INFO] [1793180725.469143251] [map_io]: Loading image_file: /home/earl/workspace/VLA/vla_demo/maps/arena.pgm
+[map_server-1] [INFO] [1793180725.469785756] [map_io]: Read map /home/earl/workspace/VLA/vla_demo/maps/arena.pgm: 246 X 246 map @ 0.05 m/cell
+[lifecycle_manager-7] [INFO] [1793180725.492848121] [lifecycle_manager_navigation]: [34m[1mConfiguring controller_server[0m[0m
+[controller_server-3] [INFO] [1793180725.497517501] [controller_server]: Configuring controller interface
+[controller_server-3] [INFO] [1793180725.497539764] [controller_server]: getting progress checker plugins..
+[controller_server-3] [INFO] [1793180725.497607994] [controller_server]: getting goal checker plugins..
+[controller_server-3] [INFO] [1793180725.497630457] [controller_server]: Controller frequency set to 10.0000Hz
+[controller_server-3] [INFO] [1793180725.497644696] [local_costmap.local_costmap]: Configuring
+[controller_server-3] [INFO] [1793180725.517655695] [local_costmap.local_costmap]: Using plugin "static_layer"
+[controller_server-3] [INFO] [1793180725.533934948] [local_costmap.local_costmap]: Subscribing to the map topic (/map) with transient local durability
+[controller_server-3] [INFO] [1793180725.541958447] [local_costmap.local_costmap]: Initialized plugin "static_layer"
+[controller_server-3] [INFO] [1793180725.541980728] [local_costmap.local_costmap]: Using plugin "inflation_layer"
+[controller_server-3] [INFO] [1793180725.542136472] [local_costmap.local_costmap]: Initialized plugin "inflation_layer"
+[controller_server-3] [INFO] [1793180725.576360894] [controller_server]: Created progress_checker : progress_checker of type nav2_controller::SimpleProgressChecker
+[controller_server-3] [INFO] [1793180725.577942095] [controller_server]: Controller Server has progress_checker  progress checkers available.
+[controller_server-3] [INFO] [1793180725.578275208] [controller_server]: Created goal checker : goal_checker of type nav2_controller::SimpleGoalChecker
+[controller_server-3] [INFO] [1793180725.578363758] [controller_server]: Controller Server has goal_checker  goal checkers available.
+[controller_server-3] [INFO] [1793180725.580132291] [controller_server]: Created controller : FollowPath of type nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController
+[controller_server-3] [INFO] [1793180725.587299291] [controller_server]: Controller Server has FollowPath  controllers available.
+[lifecycle_manager-7] [INFO] [1793180725.690562259] [lifecycle_manager_navigation]: [34m[1mConfiguring planner_server[0m[0m
+[planner_server-2] [INFO] [1793180725.690999978] [planner_server]: Configuring
+[planner_server-2] [INFO] [1793180725.691036643] [global_costmap.global_costmap]: Configuring
+[planner_server-2] [INFO] [1793180725.716709275] [global_costmap.global_costmap]: Using plugin "static_layer"
+[planner_server-2] [INFO] [1793180725.733057841] [global_costmap.global_costmap]: Subscribing to the map topic (/map) with transient local durability
+[planner_server-2] [INFO] [1793180725.734241014] [global_costmap.global_costmap]: Initialized plugin "static_layer"
+[planner_server-2] [INFO] [1793180725.734258650] [global_costmap.global_costmap]: Using plugin "inflation_layer"
+[planner_server-2] [INFO] [1793180725.734379554] [global_costmap.global_costmap]: Initialized plugin "inflation_layer"
+[planner_server-2] [INFO] [1793180725.776266294] [planner_server]: Created global planner plugin GridBased of type nav2_navfn_planner::NavfnPlanner
+[planner_server-2] [INFO] [1793180725.776292858] [planner_server]: Configuring plugin GridBased of type NavfnPlanner
+[planner_server-2] [INFO] [1793180725.776944924] [planner_server]: Planner Server has GridBased  planners available.
+[lifecycle_manager-7] [INFO] [1793180725.806155016] [lifecycle_manager_navigation]: [34m[1mConfiguring behavior_server[0m[0m
+[behavior_server-4] [INFO] [1793180725.807376087] [behavior_server]: Configuring
+[behavior_server-4] [INFO] [1793180725.826205960] [behavior_server]: Creating behavior plugin spin of type nav2_behaviors::Spin
+[behavior_server-4] [INFO] [1793180725.830183761] [behavior_server]: Creating behavior plugin backup of type nav2_behaviors::BackUp
+[behavior_server-4] [INFO] [1793180725.832954380] [behavior_server]: Creating behavior plugin drive_on_heading of type nav2_behaviors::DriveOnHeading
+[behavior_server-4] [INFO] [1793180725.834082100] [behavior_server]: Creating behavior plugin wait of type nav2_behaviors::Wait
+[behavior_server-4] [INFO] [1793180725.858803276] [behavior_server]: Configuring spin
+[behavior_server-4] [INFO] [1793180725.879631928] [behavior_server]: Configuring backup
+[behavior_server-4] [INFO] [1793180725.897882667] [behavior_server]: Configuring drive_on_heading
+[behavior_server-4] [INFO] [1793180725.911828577] [behavior_server]: Configuring wait
+[lifecycle_manager-7] [INFO] [1793180725.926019416] [lifecycle_manager_navigation]: [34m[1mConfiguring bt_navigator[0m[0m
+[bt_navigator-5] [INFO] [1793180725.926242258] [bt_navigator]: Configuring
+[bt_navigator-5] [INFO] [1793180725.945171823] [bt_navigator]: Creating navigator id navigate_to_pose of type nav2_bt_navigator::NavigateToPoseNavigator
+[bt_navigator-5] [INFO] [1793180726.071373208] [bt_navigator]: Creating navigator id navigate_through_poses of type nav2_bt_navigator::NavigateThroughPosesNavigator
+[lifecycle_manager-7] [INFO] [1793180726.109902989] [lifecycle_manager_navigation]: [34m[1mConfiguring velocity_smoother[0m[0m
+[velocity_smoother-6] [INFO] [1793180726.110173101] [velocity_smoother]: Configuring velocity smoother
+[lifecycle_manager-7] [INFO] [1793180726.118830177] [lifecycle_manager_navigation]: [34m[1mActivating map_server[0m[0m
+[map_server-1] [INFO] [1793180726.119127896] [map_server]: Activating
+[map_server-1] [INFO] [1793180726.119399437] [map_server]: Creating bond (map_server) to lifecycle manager.
+[planner_server-2] [INFO] [1793180726.119579279] [global_costmap.global_costmap]: StaticLayer: Resizing costmap to 246 X 246 at 0.050000 m/pix
+[controller_server-3] [INFO] [1793180726.119887547] [local_costmap.local_costmap]: StaticLayer: Resizing static layer to 246 X 246 at 0.050000 m/pix
+[lifecycle_manager-7] [INFO] [1793180726.230384627] [lifecycle_manager_navigation]: Server map_server connected with bond.
+[lifecycle_manager-7] [INFO] [1793180726.230415122] [lifecycle_manager_navigation]: [34m[1mActivating controller_server[0m[0m
+[controller_server-3] [INFO] [1793180726.230717303] [controller_server]: Activating
+[controller_server-3] [INFO] [1793180726.230742380] [local_costmap.local_costmap]: Activating
+[controller_server-3] [INFO] [1793180726.230747307] [local_costmap.local_costmap]: Checking transform
+[controller_server-3] [INFO] [1793180726.230775036] [local_costmap.local_costmap]: Timed out waiting for transform from base_link to odom to become available, tf error: Invalid frame ID "odom" passed to canTransform argument target_frame - frame does not exist
+[controller_server-3] [INFO] [1793180726.730878383] [local_costmap.local_costmap]: Timed out waiting for transform from base_link to odom to become available, tf error: Invalid frame ID "odom" passed to canTransform argument target_frame - frame does not exist
+[controller_server-3] [INFO] [1793180727.230842092] [local_costmap.local_costmap]: Timed out waiting for transform from base_link to odom to become available, tf error: Invalid frame ID "odom" passed to canTransform argument target_frame - frame does not exist
+[controller_server-3] [INFO] [1793180727.731749008] [local_costmap.local_costmap]: Timed out waiting for transform from base_link to odom to become available, tf error: Invalid frame ID "odom" passed to canTransform argument target_frame - frame does not exist
+[controller_server-3] [INFO] [1793180728.230832850] [local_costmap.local_costmap]: Timed out waiting for transform from base_link to odom to become available, tf error: Invalid frame ID "odom" passed to canTransform argument target_frame - frame does not exist
+[controller_server-3] [INFO] [1793180728.730979387] [local_costmap.local_costmap]: Timed out waiting for transform from base_link to odom to become available, tf error: Invalid frame ID "odom" passed to canTransform argument target_frame - frame does not exist
+[controller_server-3] [INFO] [1793180729.230862577] [local_costmap.local_costmap]: Timed out waiting for transform from base_link to odom to become available, tf error: Invalid frame ID "odom" passed to canTransform argument target_frame - frame does not exist
+[controller_server-3] [INFO] [1793180729.730981812] [local_costmap.local_costmap]: start
+[controller_server-3] [INFO] [1793180729.781109186] [controller_server]: Activating controller: FollowPath of type regulated_pure_pursuit_controller::RegulatedPurePursuitController
+[controller_server-3] [INFO] [1793180729.781144591] [controller_server]: Creating bond (controller_server) to lifecycle manager.
+[lifecycle_manager-7] [INFO] [1793180729.888833758] [lifecycle_manager_navigation]: Server controller_server connected with bond.
+[lifecycle_manager-7] [INFO] [1793180729.888876368] [lifecycle_manager_navigation]: [34m[1mActivating planner_server[0m[0m
+[planner_server-2] [INFO] [1793180729.890042734] [planner_server]: Activating
+[planner_server-2] [INFO] [1793180729.890071056] [global_costmap.global_costmap]: Activating
+[planner_server-2] [INFO] [1793180729.890076912] [global_costmap.global_costmap]: Checking transform
+[planner_server-2] [INFO] [1793180729.890196260] [global_costmap.global_costmap]: start
+[planner_server-2] [INFO] [1793180729.940361429] [planner_server]: Activating plugin GridBased of type NavfnPlanner
+[planner_server-2] [INFO] [1793180729.945063901] [planner_server]: Creating bond (planner_server) to lifecycle manager.
+[lifecycle_manager-7] [INFO] [1793180730.058069553] [lifecycle_manager_navigation]: Server planner_server connected with bond.
+[lifecycle_manager-7] [INFO] [1793180730.058097829] [lifecycle_manager_navigation]: [34m[1mActivating behavior_server[0m[0m
+[behavior_server-4] [INFO] [1793180730.060306837] [behavior_server]: Activating
+[behavior_server-4] [INFO] [1793180730.060328952] [behavior_server]: Activating spin
+[behavior_server-4] [INFO] [1793180730.060337109] [behavior_server]: Activating backup
+[behavior_server-4] [INFO] [1793180730.060342842] [behavior_server]: Activating drive_on_heading
+[behavior_server-4] [INFO] [1793180730.060348537] [behavior_server]: Activating wait
+[behavior_server-4] [INFO] [1793180730.060356795] [behavior_server]: Creating bond (behavior_server) to lifecycle manager.
+[lifecycle_manager-7] [INFO] [1793180730.170813550] [lifecycle_manager_navigation]: Server behavior_server connected with bond.
+[lifecycle_manager-7] [INFO] [1793180730.170845013] [lifecycle_manager_navigation]: [34m[1mActivating bt_navigator[0m[0m
+[bt_navigator-5] [INFO] [1793180730.171399705] [bt_navigator]: Activating
+[bt_navigator-5] [INFO] [1793180730.262968685] [bt_navigator]: Creating bond (bt_navigator) to lifecycle manager.
+[lifecycle_manager-7] [INFO] [1793180730.371836182] [lifecycle_manager_navigation]: Server bt_navigator connected with bond.
+[lifecycle_manager-7] [INFO] [1793180730.371865618] [lifecycle_manager_navigation]: [34m[1mActivating velocity_smoother[0m[0m
+[velocity_smoother-6] [INFO] [1793180730.372192902] [velocity_smoother]: Activating
+[velocity_smoother-6] [INFO] [1793180730.372235131] [velocity_smoother]: Creating bond (velocity_smoother) to lifecycle manager.
+[lifecycle_manager-7] [INFO] [1793180730.486773596] [lifecycle_manager_navigation]: Server velocity_smoother connected with bond.
+[lifecycle_manager-7] [INFO] [1793180730.486811633] [lifecycle_manager_navigation]: [34m[1mManaged nodes are active[0m[0m
+[lifecycle_manager-7] [INFO] [1793180730.486817515] [lifecycle_manager_navigation]: [34m[1mCreating bond timer...[0m[0m

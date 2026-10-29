@@ -1,0 +1,76 @@
+[EVAL] 复位 robot=True person=True
+[EVAL] 等待 2s 稳定后下发 FOLLOW...
+[EVAL] FOLLOW 第1次 CLI 下发 rc=0 
+[EVAL] FOLLOW 第2次 CLI 下发 rc=0 
+[EVAL] FOLLOW 第3次 CLI 下发 rc=0 
+[EVAL] FOLLOW 已下发, 开始 120s 评测
+[EVAL  15.0s] d=1.09 cam=front trk=TRACK lost=0 gap=+2.55
+[EVAL  30.1s] d=1.32 cam=front trk=TRACK lost=0 gap=+1.48
+[EVAL  45.1s] d=1.04 cam=front trk=TRACK lost=0 gap=+0.48
+[EVAL  60.1s] d=1.07 cam=front trk=TRACK lost=0 gap=+2.19
+[EVAL  75.2s] d=1.10 cam=front trk=TRACK lost=0 gap=+1.57
+[EVAL  90.2s] d=1.10 cam=front trk=TRACK lost=0 gap=+2.06
+[EVAL 105.2s] d=1.11 cam=front trk=TRACK lost=0 gap=+1.89
+
+================ 评测结果 (120s) ================
+{
+ "dist": {
+  "n": 2056,
+  "mean": 1.199,
+  "median": 1.096,
+  "std": 0.251,
+  "min": 0.909,
+  "max": 2.097,
+  "in_band_pct": 53.6,
+  "near_pct": 0.0,
+  "far_pct": 46.4,
+  "min_all": 0.909,
+  "max_streak_s": 33.1
+ },
+ "avoid": {
+  "min_gap": 0.416,
+  "hit_n": 0,
+  "brush_n": 0
+ },
+ "switch": {
+  "n": 3,
+  "resp_mean": 2.33,
+  "resp_max": 5.5,
+  "resp_none": 0,
+  "cross_n": 1,
+  "cross_mean": 5.5
+ },
+ "lost": {
+  "n": 2,
+  "goto_n": 0,
+  "reached_n": 0,
+  "dur_mean": 2.6,
+  "dur_max": 2.7,
+  "regen_mean": 2.6,
+  "events": [
+   {
+    "t0": 80.0,
+    "dur": 2.5,
+    "goto": 0,
+    "reached": 0,
+    "goto_pt": null
+   },
+   {
+    "t0": 83.7,
+    "dur": 2.7,
+    "goto": 0,
+    "reached": 0,
+    "goto_pt": null
+   }
+  ]
+ },
+ "sanity": {
+  "samples": 2442,
+  "vis_pct": 93.2,
+  "front_pct": 92.4,
+  "cmd_v_mean": 0.123
+ },
+ "dur": 120.0
+}
+轨迹图: /home/earl/workspace/VLA/shots/t4_p72_traj.png
+原始数据: /home/earl/workspace/VLA/t4_p72.json

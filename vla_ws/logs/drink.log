@@ -1,0 +1,1608 @@
+[INFO] [1793180725.721164424] [drink_task]: drink_task 已起: 39 路指令 @20Hz, 人体手高 1.00m, 服务位 (1.75, 0.35, 0.0)
+[INFO] [1793180727.703182384] [drink_task]: R 侧 home: 臂 到位 (最大残差 0.0°)  手 到位 (0.5°)
+[INFO] [1793180728.406695889] [drink_task]: L 侧 home: 臂 到位 (最大残差 0.0°)  手 到位 (3.0°)
+[INFO] [1793180729.885981964] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180730.092465879] [drink_task]: HANG R侧悬垂就位: 臂最大|Δ|=0.00°
+[INFO] [1793180730.092716788] [drink_task]: HANG L侧悬垂就位: 臂最大|Δ|=0.00°
+==========================================================================
+P85 自检 —— 关节通道 / 静态姿态
+==========================================================================
+底盘 base = (-0.008, 0.002, yaw -1.8°)
+R 侧
+   指令-实测(°)    +0.0   +0.0   -0.0   -0.0   -0.0   +0.0   -0.0   最大 0.0°
+   掌心 FK(世界)  (+0.0062 -0.1888 +0.2950)
+   掌心 真值      (+0.0200 -0.1900 +0.2950)
+   FK-真值       位置 13.9 mm  姿态 1.83°
+L 侧
+   指令-实测(°)    +0.0   +0.0   +0.0   -0.0   +0.0   -0.0   +0.0   最大 0.0°
+   掌心 FK(世界)  (+0.0183 +0.1910 +0.2950)
+   掌心 真值      (+0.0200 +0.1900 +0.2950)
+   FK-真值       位置 2.0 mm  姿态 1.83°
+--------------------------------------------------------------------------
+指令节拍 8.3 Hz (目标 20 Hz), 已发 41 帧
+结论: 不通过
+==========================================================================
+DRINK 待命: /robot/command {"action":"DRINK"} 触发整套任务
+[INFO] [1793180732.543600922] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180735.174539967] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180737.791117891] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180740.429664060] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180743.081797727] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180745.746282576] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180748.387781439] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180751.027651823] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180753.691479009] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180756.332268411] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180759.005838385] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180761.658140951] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180764.299541554] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180766.946105844] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180769.580873439] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180772.233328269] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180774.881996399] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180777.541137883] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180780.210425078] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180782.862981720] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180785.516362640] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180788.178716373] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180790.798269281] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180793.453551882] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180796.119140778] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180798.788053516] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180801.463428841] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180804.107141720] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180806.762179710] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180809.415389178] [drink_task]: DRINK ★ 收到喝水请求(来源=text, 内容="我要喝水"), 排队执行
+[INFO] [1793180809.427718063] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180809.599487618] [drink_task]: ack: ok joint water_joint
+[INFO] [1793180809.832134051] [drink_task]: ack: ok joint water_joint
+[INFO] [1793180810.055547320] [drink_task]: ack: ok joint water_joint
+[INFO] [1793180810.282979759] [drink_task]: ack: ok joint water_joint
+[INFO] [1793180810.510510180] [drink_task]: ack: ok joint water_joint
+[INFO] [1793180810.737489491] [drink_task]: ack: ok joint water_joint
+[INFO] [1793180810.962543184] [drink_task]: ack: ok joint water_joint
+[INFO] [1793180811.193425708] [drink_task]: ack: ok joint water_joint
+[INFO] [1793180811.420995205] [drink_task]: ack: ok place robot
+[INFO] [1793180811.421240127] [drink_task]: place robot 完成
+[INFO] [1793180812.056782035] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180812.577761916] [drink_task]: R 侧 home: 臂 到位 (最大残差 0.3°)  手 到位 (3.7°)
+[INFO] [1793180813.329532860] [drink_task]: L 侧 home: 臂 到位 (最大残差 0.0°)  手 到位 (0.0°)
+[INFO] [1793180814.697727709] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180816.641341794] [drink_task]: LIFT[R] 抬臂预备位: 掌心高 0.82m 前伸 0.38m 残差 0.9mm (kdl-lma/nat) q=[ 0.4  -0.3  -0.18 -1.9   0.39  0.65  1.31] 应力 0.55
+[INFO] [1793180817.348962991] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180819.991383072] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180821.637316309] [drink_task]: LIFT[L] 抬臂预备位: 掌心高 0.82m 前伸 0.37m 残差 2.6mm (kdl-lma/nat) q=[-1.01 -0.44  0.95 -1.91 -0.06  0.59  1.26] 应力 0.55
+[INFO] [1793180821.638122738] [drink_task]: POUR 入场: 车→桌沿 0.81m(臂+手 0.72m, 余量 +90mm) 双手抬到 0.82m
+[INFO] [1793180822.645472452] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180825.301899344] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180827.952763511] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180830.535168454] [drink_task]: DRIVE 驶入桌边 -> (1.75,0.35)  残差 24mm
+[INFO] [1793180830.609118771] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180830.714401236] [drink_task]: ack: ok place robot
+[INFO] [1793180830.715353819] [drink_task]: place robot 完成
+[INFO] [1793180833.267043910] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180835.905878826] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180838.564105861] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180841.204905848] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180841.332614148] [drink_task]: ack: ok grab cup
+[INFO] [1793180841.333191880] [drink_task]: grab cup -> L_palm  偏移 0.092 m
+[INFO] [1793180841.333759867] [drink_task]: grasp cup (L): 到位 1.6mm (IK=kdl-lma)  attach ok  掌心倾斜 90.0°
+[INFO] [1793180841.336354868] [drink_task]: ARM[抓杯] L q=[0.563, -1.264, -1.835, -1.508, -0.477, 1.009, -1.249] 肘y=+353 掌y=+104 外扩线=+195 droop=+8 twist=-1.73 up_roll=-1.84 
+[INFO] [1793180843.861708673] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180844.524159114] [drink_task]: ARM[举杯] L q=[0.564, -1.436, -1.741, -1.649, -0.241, 1.047, -1.388] 肘y=+360 掌y=+92 外扩线=+220 droop=-2 twist=-1.63 up_roll=-1.74 
+[INFO] [1793180846.510080069] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180848.958509529] [drink_task]: ack: ok grab kettle
+[INFO] [1793180848.958832581] [drink_task]: grab kettle -> R_palm  偏移 0.127 m
+[INFO] [1793180848.960299362] [drink_task]: grasp kettle (R): 到位 5.0mm (IK=kdl-lma)  attach ok  掌心倾斜 90.0°
+[INFO] [1793180849.164547772] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180851.844899531] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180852.979065237] [drink_task]: ARM[倒水] L q=[0.564, -1.436, -1.741, -1.649, -0.241, 1.047, -1.388] 肘y=+360 掌y=+92 外扩线=+220 droop=-2 twist=-1.63 up_roll=-1.74 
+[INFO] [1793180852.979589712] [drink_task]: ARM[倒水] R q=[-0.408, -2.02, 1.256, -1.417, -0.595, 1.186, 0.002] 肘y=-304 掌y=-46 外扩线=+171 droop=-17 twist=-0.59 up_roll=+1.26 
+[INFO] [1793180852.979984456] [drink_task]: LIQUID ★ 倒水开始: 目标 63.5 mL (水位 15.6 mm)
+[INFO] [1793180853.156948562] [drink_task]: ack: ok joint jet_joint
+[INFO] [1793180853.385487507] [drink_task]: ack: ok joint jet_joint
+[INFO] [1793180853.615421546] [drink_task]: ack: ok joint jet_joint
+[INFO] [1793180853.839133099] [drink_task]: ack: ok joint jet_joint
+[INFO] [1793180854.065295259] [drink_task]: ack: ok joint jet_joint
+[INFO] [1793180854.296445387] [drink_task]: ack: ok joint jet_joint
+[INFO] [1793180854.482634619] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180854.520403876] [drink_task]: ack: ok joint jet_joint
+[INFO] [1793180854.745713724] [drink_task]: ack: ok joint jet_joint
+[INFO] [1793180854.975567551] [drink_task]: ack: ok joint jet_joint
+[INFO] [1793180855.204483146] [drink_task]: ack: ok joint jet_joint
+[INFO] [1793180856.116264309] [drink_task]: ack: ok joint jet_joint
+[INFO] [1793180856.345008118] [drink_task]: ack: ok joint jet_joint
+[INFO] [1793180856.571759870] [drink_task]: ack: ok joint jet_joint
+[INFO] [1793180856.797567528] [drink_task]: ack: ok joint jet_joint
+[INFO] [1793180857.025508196] [drink_task]: ack: ok joint jet_joint
+[INFO] [1793180857.140986034] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180857.252114895] [drink_task]: ack: ok joint jet_joint
+[INFO] [1793180857.477590201] [drink_task]: ack: ok joint jet_joint
+[INFO] [1793180857.705246508] [drink_task]: ack: ok joint jet_joint
+[INFO] [1793180857.930800236] [drink_task]: ack: ok joint jet_joint
+[INFO] [1793180858.159052717] [drink_task]: ack: ok joint jet_joint
+[INFO] [1793180859.792087167] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180862.456255496] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180863.390984341] [drink_task]: ack: ok release kettle
+[INFO] [1793180863.391716484] [drink_task]: release kettle
+[INFO] [1793180865.120699701] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180867.236810921] [drink_task]: ack: ok place robot
+[INFO] [1793180867.237067358] [drink_task]: place robot 完成
+[INFO] [1793180867.761164915] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180870.429331293] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180873.100530740] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180875.767767144] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180878.425216002] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180881.086464343] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180883.768151515] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180883.889360862] [drink_task]: ack: ok place robot
+[INFO] [1793180883.889582214] [drink_task]: place robot 完成
+[INFO] [1793180884.325581198] [drink_task]: DRINK 肘部[捧杯]: L 外扩线 +242mm/基础 +190mm 垂 -19mm up_roll -1.50 | R 外扩线 +178mm/基础 +56mm 垂 +149mm up_roll +0.98  伸出 0.391/0.427 m
+[INFO] [1793180884.326439660] [drink_task]: ARMCHK[捧杯] OK(无违反人体规则)
+[INFO] [1793180884.328395982] [drink_task]: ARMCHK[前伸前] OK(无违反人体规则)
+[INFO] [1793180884.330833451] [drink_task]: DRINK 递杯几何: 车(1.75,0.35) 人(2.14,1.25) 手(2.06,0.96) 手到人 0.300m(名义 0.30) 车→手 0.685m
+[INFO] [1793180884.332220563] [drink_task]: DRINK 递杯间距: 车→人手 0.685m, 不用补位 (在臂可及范围内)
+[INFO] [1793180885.396414153] [drink_task]: 双手张开迎杯: 幅度 0.420 rad (左 +0.420 / 右 -0.420)
+[INFO] [1793180886.447173831] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180889.130057301] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180891.800357201] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180892.236755293] [drink_task]: 双手合拢捧杯: 幅度 0.035 rad (左 +0.035 / 右 -0.035)
+[INFO] [1793180892.237305378] [drink_task]: hand_to: cup 交给 person/person_arms
+[INFO] [1793180892.237674471] [drink_task]: DRINK 双手捧杯: 手心间距 张开 345 → 合拢 184mm  交接前手到杯轴 左 45.4 / 右 140.3 mm  交接后 45.4 / 140.3 mm(相切 92.0)  高差 0.0mm
+[INFO] [1793180892.239687885] [drink_task]: DRINK 肘部[递杯]: L 外扩线 +139mm/基础 +40mm 垂 -8mm up_roll -1.57 | R 外扩线 +132mm/基础 +78mm 垂 +116mm up_roll +0.90  伸出 0.581/0.538 m
+[INFO] [1793180894.478177663] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180897.174914270] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180899.826746652] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180902.490897941] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180905.150779122] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180907.803858709] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180910.385245485] [drink_task]: TAKE_BACK reach: R 2.2mm / L 3.1mm  cup=[2.105 0.957 1.   ]
+[INFO] [1793180910.447187412] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180910.860999062] [drink_task]: ack: ok grab cup
+[INFO] [1793180910.862952725] [drink_task]: grab cup -> L_palm  偏移 0.107 m
+[INFO] [1793180911.937345744] [drink_task]: 双手张开交还: 幅度 0.420 rad (左 +0.420 / 右 -0.420)
+[INFO] [1793180911.942438895] [drink_task]: DRINK 双手交还: 手到杯轴 左 129.5 / 右 218.4 mm (松开前 45.4 / 140.3)
+[INFO] [1793180913.102265428] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180913.718654659] [drink_task]: 双手交还后收手: 幅度 0.035 rad (左 +0.035 / 右 -0.035)
+[INFO] [1793180915.778104873] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180918.434195408] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180921.083766560] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180922.591890160] [drink_task]: PUT_BACK 目标=[2.3   0.44  0.773] 当前=[2.369 0.422 1.   ] (base=[1.787 0.457 0.024])
+[INFO] [1793180923.725218234] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180926.382079494] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180929.068006634] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180931.738307781] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180934.405759618] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180936.633558198] [drink_task]: ack: ok release cup
+[INFO] [1793180936.633751103] [drink_task]: release cup
+[INFO] [1793180937.041928711] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180939.362835621] [drink_task]: ARMCHK[撤手] OK(无违反人体规则)
+[INFO] [1793180939.719153101] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180942.366028323] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180945.045281397] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180947.710686368] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180950.376967688] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180953.024616387] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180955.707483382] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180958.357448692] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180961.001055565] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180963.519537805] [drink_task]: DRIVE 撤离桌边 -> (0.60,0.35)  残差 74mm
+[INFO] [1793180963.521057092] [drink_task]: DRINK 退到位: 车→桌沿 1.29m (臂+手全长 0.72m, 余量 +572mm)
+[INFO] [1793180963.669839918] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180966.329927805] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180967.633961466] [drink_task]: HANG[R] 自然收臂: q0=[-0.91 -0.86  1.15 -1.9   0.08  0.84 -0.82] 掌[-0.387, 0.239, 0.893] → 折肘 0°(肘点漂移 0.0mm) 腕总摆 100°/单步 16° 掌心轨迹 z≥0.29 x≤-0.01  14 段
+[INFO] [1793180968.986190478] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180971.634913668] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180972.810533406] [drink_task]: HANG[L] 自然收臂: q0=[ 1.02 -1.49 -1.72 -1.99 -0.19  1.08 -1.45] 掌[-0.362, -0.198, 0.893] → 折肘 0°(肘点漂移 0.0mm) 腕总摆 156°/单步 17° 掌心轨迹 z≥0.29 x≤-0.02  18 段
+[INFO] [1793180973.299722337] [drink_task]: ARMCHK[悬垂] OK(无违反人体规则)
+[INFO] [1793180973.300894233] [drink_task]: DRINK 悬垂复位: 臂最大偏差 L 0.00° / R 0.00°
+[INFO] [1793180974.312227562] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180976.974246780] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180977.911296803] [drink_task]: DRINK ★ 完成: 接回=True 放回=True(1.4mm) 撤离74mm 交权=True 用时 168s
+[INFO] [1793180979.624190344] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180982.294471688] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180984.974072251] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180987.633283518] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180990.318592377] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180992.974960727] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180995.632058778] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793180998.312309692] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181001.004172502] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181003.639409981] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181006.291812512] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181008.972726929] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181011.634693278] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181014.298616474] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181016.969391505] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181019.630124754] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181022.264635656] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181024.922100196] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181027.579112732] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181030.245618066] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181032.903759900] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181035.555149202] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181038.195536934] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181040.871843286] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181043.553953674] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181046.195427647] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181048.837846479] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181051.496706760] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181054.161656202] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181056.804506906] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181059.461563980] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181062.116940100] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181064.761714514] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181067.425893954] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181070.064179712] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181072.706019257] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181075.361205228] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181078.014417372] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181080.693687081] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181083.363961176] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181086.036454914] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181088.707095668] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181091.384639603] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181094.082399786] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181096.762400450] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181099.441811835] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181102.120696467] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181104.809377895] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181107.506040762] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181110.189427007] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181112.849074194] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181115.494266809] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181118.141144417] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181120.790181236] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181123.435781057] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181126.063508014] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181128.716572160] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181131.382248467] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181134.032705043] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181136.688455373] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181139.336095592] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181141.993606378] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181144.657771418] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181147.300600255] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181149.945527745] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181152.634707602] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181155.277620959] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181157.955410008] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181160.645137265] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181163.312557949] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181165.979574016] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181168.646264878] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181171.316339282] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181173.971489115] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181176.637862160] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181179.296092759] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181181.949080293] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181184.563650273] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181187.191997550] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181189.843878447] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181192.487138900] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181195.117065871] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181197.751251093] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181200.395694678] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181203.033501652] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181205.685443836] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181208.313504222] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181210.941212164] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181213.576863032] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181216.181921200] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181218.783841881] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181221.404784102] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181224.035212569] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181226.671035808] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181229.296884689] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181231.920784540] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181234.531674083] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181237.152977162] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181239.780213027] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181242.306651453] [drink_task]: DRINK ★ 收到喝水请求(来源=text, 内容="我要喝水"), 排队执行
+[INFO] [1793181242.387743880] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181242.478790734] [drink_task]: ack: ok joint water_joint
+[INFO] [1793181242.706155851] [drink_task]: ack: ok joint water_joint
+[INFO] [1793181242.931491220] [drink_task]: ack: ok joint water_joint
+[INFO] [1793181243.159091306] [drink_task]: ack: ok joint water_joint
+[INFO] [1793181243.384444692] [drink_task]: ack: ok joint water_joint
+[INFO] [1793181243.608084709] [drink_task]: ack: ok joint water_joint
+[INFO] [1793181243.831513130] [drink_task]: ack: ok joint water_joint
+[INFO] [1793181244.058298564] [drink_task]: ack: ok joint water_joint
+[INFO] [1793181244.287599668] [drink_task]: ack: ok place robot
+[INFO] [1793181244.287774308] [drink_task]: place robot 完成
+[INFO] [1793181244.994636992] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181245.263944297] [drink_task]: R 侧 home: 臂 到位 (最大残差 0.0°)  手 到位 (2.3°)
+[INFO] [1793181245.939115558] [drink_task]: L 侧 home: 臂 到位 (最大残差 0.1°)  手 到位 (3.7°)
+[INFO] [1793181247.633925165] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181249.022568414] [drink_task]: LIFT[R] 抬臂预备位: 掌心高 0.82m 前伸 0.37m 残差 3.3mm (kdl-lma/nat) q=[ 0.42 -0.3  -0.19 -1.9   0.41  0.65  1.29] 应力 0.55
+[INFO] [1793181250.261412271] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181252.869618420] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181254.111423162] [drink_task]: LIFT[L] 抬臂预备位: 掌心高 0.82m 前伸 0.37m 残差 1.5mm (kdl-lma/nat) q=[-1.06 -0.47  1.02 -1.9  -0.09  0.58  1.24] 应力 0.55
+[INFO] [1793181254.111640909] [drink_task]: POUR 入场: 车→桌沿 0.81m(臂+手 0.72m, 余量 +93mm) 双手抬到 0.82m
+[INFO] [1793181255.489748055] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181258.107528399] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181260.725634127] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181260.997494109] [drink_task]: DRIVE 驶入桌边 -> (1.75,0.35)  残差 24mm
+[INFO] [1793181261.171183296] [drink_task]: ack: ok place robot
+[INFO] [1793181261.171515003] [drink_task]: place robot 完成
+[INFO] [1793181263.332844822] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181265.940270445] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181268.554353356] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181269.493735236] [drink_task]: ack: ok grab cup
+[INFO] [1793181269.494003401] [drink_task]: grab cup -> L_palm  偏移 0.096 m
+[INFO] [1793181269.494298300] [drink_task]: grasp cup (L): 到位 1.3mm (IK=kdl-lma)  attach ok  掌心倾斜 90.0°
+[INFO] [1793181269.494731455] [drink_task]: ARM[抓杯] L q=[0.561, -1.265, -1.837, -1.509, -0.477, 1.009, -1.247] 肘y=+352 掌y=+103 外扩线=+195 droop=+8 twist=-1.72 up_roll=-1.84 
+[INFO] [1793181271.157022437] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181271.598865254] [drink_task]: ARM[举杯] L q=[0.563, -1.422, -1.729, -1.66, -0.246, 1.051, -1.407] 肘y=+359 掌y=+89 外扩线=+221 droop=+2 twist=-1.65 up_roll=-1.73 
+[INFO] [1793181273.772495714] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181274.983586180] [drink_task]: ack: ok grab kettle
+[INFO] [1793181274.983835177] [drink_task]: grab kettle -> R_palm  偏移 0.108 m
+[INFO] [1793181274.987065188] [drink_task]: grasp kettle (R): 到位 1.2mm (IK=kdl-lma)  attach ok  掌心倾斜 90.0°
+[INFO] [1793181276.375691376] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181277.546254543] [drink_task]: ARM[倒水] L q=[0.563, -1.422, -1.729, -1.66, -0.246, 1.051, -1.407] 肘y=+359 掌y=+89 外扩线=+221 droop=+2 twist=-1.65 up_roll=-1.73 
+[INFO] [1793181277.546916938] [drink_task]: ARM[倒水] R q=[-0.456, -1.962, 1.255, -1.356, -0.565, 1.165, 0.044] 肘y=-320 掌y=-84 外扩线=+168 droop=-6 twist=-0.52 up_roll=+1.25 
+[INFO] [1793181277.547099932] [drink_task]: LIQUID ★ 倒水开始: 目标 63.5 mL (水位 15.6 mm)
+[INFO] [1793181277.722499411] [drink_task]: ack: ok joint jet_joint
+[INFO] [1793181277.950750026] [drink_task]: ack: ok joint jet_joint
+[INFO] [1793181278.180226792] [drink_task]: ack: ok joint jet_joint
+[INFO] [1793181278.405787653] [drink_task]: ack: ok joint jet_joint
+[INFO] [1793181278.630167941] [drink_task]: ack: ok joint jet_joint
+[INFO] [1793181278.857212432] [drink_task]: ack: ok joint jet_joint
+[INFO] [1793181278.989984802] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181279.086084655] [drink_task]: ack: ok joint jet_joint
+[INFO] [1793181279.310170736] [drink_task]: ack: ok joint jet_joint
+[INFO] [1793181279.536559111] [drink_task]: ack: ok joint jet_joint
+[INFO] [1793181279.761406243] [drink_task]: ack: ok joint jet_joint
+[INFO] [1793181280.587209341] [drink_task]: ack: ok joint jet_joint
+[INFO] [1793181280.810436899] [drink_task]: ack: ok joint jet_joint
+[INFO] [1793181281.035402041] [drink_task]: ack: ok joint jet_joint
+[INFO] [1793181281.266263266] [drink_task]: ack: ok joint jet_joint
+[INFO] [1793181281.491625816] [drink_task]: ack: ok joint jet_joint
+[INFO] [1793181281.603093507] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181281.717287492] [drink_task]: ack: ok joint jet_joint
+[INFO] [1793181282.026879689] [drink_task]: ack: ok joint jet_joint
+[INFO] [1793181282.251280589] [drink_task]: ack: ok joint jet_joint
+[INFO] [1793181282.479776133] [drink_task]: ack: ok joint jet_joint
+[INFO] [1793181282.705714754] [drink_task]: ack: ok joint jet_joint
+[INFO] [1793181284.227028005] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181286.610021894] [drink_task]: ack: ok release kettle
+[INFO] [1793181286.610199891] [drink_task]: release kettle
+[INFO] [1793181286.826250898] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181289.453989548] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181290.184582116] [drink_task]: ack: ok place robot
+[INFO] [1793181290.184746517] [drink_task]: place robot 完成
+[INFO] [1793181292.068033844] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181294.695474518] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181297.315401937] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181299.940246623] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181302.560785048] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181302.618256955] [drink_task]: ack: ok place robot
+[INFO] [1793181302.618453595] [drink_task]: place robot 完成
+[INFO] [1793181302.938412249] [drink_task]: DRINK 肘部[捧杯]: L 外扩线 +244mm/基础 +195mm 垂 -13mm up_roll -1.49 | R 外扩线 +180mm/基础 +64mm 垂 +150mm up_roll +0.98  伸出 0.387/0.421 m
+[INFO] [1793181302.940129423] [drink_task]: ARMCHK[捧杯] OK(无违反人体规则)
+[INFO] [1793181302.941430023] [drink_task]: ARMCHK[前伸前] OK(无违反人体规则)
+[INFO] [1793181302.941663219] [drink_task]: DRINK 递杯几何: 车(1.75,0.35) 人(2.17,1.24) 手(2.10,0.95) 手到人 0.300m(名义 0.30) 车→手 0.689m
+[INFO] [1793181302.941845059] [drink_task]: DRINK 递杯间距: 车→人手 0.689m, 不用补位 (在臂可及范围内)
+[INFO] [1793181304.005236968] [drink_task]: 双手张开迎杯: 幅度 0.420 rad (左 +0.420 / 右 -0.420)
+[INFO] [1793181305.198327829] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181307.802169857] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181308.778160470] [drink_task]: 双手合拢捧杯: 幅度 0.035 rad (左 +0.035 / 右 -0.035)
+[INFO] [1793181308.780261668] [drink_task]: hand_to: cup 交给 person/person_arms
+[INFO] [1793181308.780609998] [drink_task]: DRINK 双手捧杯: 手心间距 张开 345 → 合拢 184mm  交接前手到杯轴 左 99.4 / 右 94.6 mm  交接后 99.4 / 94.6 mm(相切 92.0)  高差 0.0mm
+[INFO] [1793181308.781024662] [drink_task]: DRINK 肘部[递杯]: L 外扩线 +127mm/基础 +4mm 垂 +0mm up_roll -1.52 | R 外扩线 +141mm/基础 +123mm 垂 +130mm up_roll +0.89  伸出 0.594/0.513 m
+[INFO] [1793181310.422668334] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181313.041783011] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181315.665692989] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181318.285578626] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181320.911351934] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181323.536652618] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181326.067218802] [drink_task]: TAKE_BACK reach: R 1.3mm / L 1.5mm  cup=[2.1   0.974 1.   ]
+[INFO] [1793181326.165689801] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181326.545291652] [drink_task]: ack: ok grab cup
+[INFO] [1793181326.545528721] [drink_task]: grab cup -> L_palm  偏移 0.107 m
+[INFO] [1793181327.607376941] [drink_task]: 双手张开交还: 幅度 0.420 rad (左 +0.420 / 右 -0.420)
+[INFO] [1793181327.607942541] [drink_task]: DRINK 双手交还: 手到杯轴 左 179.5 / 右 174.6 mm (松开前 99.4 / 94.6)
+[INFO] [1793181328.794607659] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181329.211299764] [drink_task]: 双手交还后收手: 幅度 0.035 rad (左 +0.035 / 右 -0.035)
+[INFO] [1793181331.413112244] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181334.027477681] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181336.520460208] [drink_task]: PUT_BACK 目标=[2.3   0.44  0.773] 当前=[2.365 0.343 1.   ] (base=[1.782 0.463 0.024])
+[INFO] [1793181336.650017463] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181339.265161302] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181341.867220371] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181344.488014551] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181347.109895120] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181349.723818406] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181352.349738749] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[ERROR] [1793181354.283436163] [drink_task]: DRINK 异常:
+Traceback (most recent call last):
+  File "/home/earl/workspace/VLA/vla_ws/build/vla_follow/vla_follow/drink_task.py", line 738, in run_drink
+    ok_d, res_d = M.put_down_two(self, 'cup', Tcup_home, info=_pb)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/earl/workspace/VLA/vla_ws/build/vla_follow/vla_follow/drink_motion.py", line 642, in put_down_two
+    settle_sim(node, 0.25)
+  File "/home/earl/workspace/VLA/vla_ws/build/vla_follow/vla_follow/drink_motion.py", line 242, in settle_sim
+    fn(s)
+  File "/home/earl/workspace/VLA/vla_ws/build/vla_follow/vla_follow/drink_task.py", line 324, in spin_sim
+    rclpy.spin_once(self, timeout_sec=0.005)
+  File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/__init__.py", line 226, in spin_once
+    executor.spin_once(timeout_sec=timeout_sec)
+  File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/executors.py", line 926, in spin_once
+    self._spin_once_impl(timeout_sec)
+  File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/executors.py", line 907, in _spin_once_impl
+    handler, entity, node = self.wait_for_ready_callbacks(
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/executors.py", line 877, in wait_for_ready_callbacks
+    return next(self._cb_iter)
+           ^^^^^^^^^^^^^^^^^^^
+  File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/executors.py", line 685, in _wait_for_ready_callbacks
+    services.extend(filter(self.can_execute, node.services))
+  File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/executors.py", line 621, in can_execute
+    return not entity._executor_event and entity.callback_group.can_execute(entity)
+                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/callback_groups.py", line 102, in can_execute
+    with self._lock:
+SystemError: attempting to create PyCMethod with a METH_METHOD flag but no class
+
+[INFO] [1793181354.968587425] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181357.576080418] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181360.186545645] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181362.798488070] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181365.422714992] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181368.014292258] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181370.647992965] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181373.270874584] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181375.899066745] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181378.520331899] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181381.144673310] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181383.765942804] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181386.395221817] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181389.005805176] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181391.613271421] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181394.225666535] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181396.862587685] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181399.579547595] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181402.210730396] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181404.817376602] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181407.435268102] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181410.041913409] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181412.643833532] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181415.254188018] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181417.869614089] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181420.492668092] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181423.121418799] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181425.741871473] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181428.345597764] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181430.965707709] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181433.588555440] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181436.205832787] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181438.829415467] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181441.462318659] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181444.156738501] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181446.801382757] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181449.446739615] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181452.080332745] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181454.704937401] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181457.322579883] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181459.941094920] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181462.555505698] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181465.189337117] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181467.797863880] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181470.400153398] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181473.013898802] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181475.638457201] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181478.255590108] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181480.886472653] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181483.499395885] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181486.117683212] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181488.731051138] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181491.369909820] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181493.976650139] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181496.593227564] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181499.230249892] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181501.831460742] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181504.435196394] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181507.043815743] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181509.668119528] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181512.301178465] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181514.936573045] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181517.602719870] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181520.232829454] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181522.876941864] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181525.493106084] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181528.134152871] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181530.753386746] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181533.377069157] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181535.974388849] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181538.592926514] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181541.209169783] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181543.553647055] [drink_task]: DRINK ★ 收到喝水请求(来源=text, 内容="我要喝水"), 排队执行
+[INFO] [1793181543.727090950] [drink_task]: ack: ok place robot
+[INFO] [1793181543.727274333] [drink_task]: place robot 完成
+[INFO] [1793181543.830688597] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181544.238996830] [drink_task]: ack: ok release all
+[INFO] [1793181544.239826389] [drink_task]: release all
+[INFO] [1793181545.015755665] [drink_task]: R 侧 home: 臂 到位 (最大残差 1.1°)  手 到位 (0.0°)
+[INFO] [1793181546.145384479] [drink_task]: L 侧 home: 臂 到位 (最大残差 0.9°)  手 到位 (0.0°)
+[INFO] [1793181546.455911262] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181549.062458075] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181549.113606783] [drink_task]: LIFT[R] 抬臂预备位: 掌心高 0.82m 前伸 0.38m 残差 3.2mm (kdl-lma/nat) q=[ 0.4  -0.3  -0.17 -1.9   0.37  0.65  1.32] 应力 0.55
+[INFO] [1793181551.696530328] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181553.394980191] [drink_task]: LIFT[L] 抬臂预备位: 掌心高 0.82m 前伸 0.37m 残差 2.5mm (kdl-lma/nat) q=[-1.04 -0.46  0.99 -1.9  -0.07  0.58  1.25] 应力 0.55
+[INFO] [1793181553.395200190] [drink_task]: POUR 入场: 车→桌沿 0.78m(臂+手 0.72m, 余量 +61mm) 双手抬到 0.82m
+[INFO] [1793181554.305632424] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181556.935150144] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181559.547744123] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181560.135107242] [drink_task]: DRIVE 驶入桌边 -> (1.75,0.35)  残差 24mm
+[INFO] [1793181560.307150084] [drink_task]: ack: ok place robot
+[INFO] [1793181560.307325492] [drink_task]: place robot 完成
+[INFO] [1793181562.171043702] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181564.810812694] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181567.429219310] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181570.061279894] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181572.693817948] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181575.317184335] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181577.970490932] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181580.568751997] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181583.204656970] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181585.820015100] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181588.459607712] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181591.088851827] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181593.715698471] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181596.364476628] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181598.985039828] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181601.615177762] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[WARN] [1793181602.227438904] [drink_task]: grasp cup (L): reach 未到位 37.9mm (IK=dls), 跳过 attach
+[INFO] [1793181602.228179886] [drink_task]: ARM[抓杯] L q=[-0.52, 0.9, -1.273, -1.957, 0.594, -1.5, 1.599] 肘y=+314 掌y=+11 外扩线=-195 droop=+96 twist=+2.19 up_roll=-1.27 ★R5前臂扭转
+[ERROR] [1793181602.228721517] [drink_task]: DRINK 失败: 倒水/捧杯阶段
+[INFO] [1793181604.211431848] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181606.840229844] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181609.465683443] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181612.076124664] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181614.730152491] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181617.348788916] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181619.977178752] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181622.601564843] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181625.216940090] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181627.846879892] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181630.465780136] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181633.089642568] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181635.711786416] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181638.351694201] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181640.981133775] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181643.598653254] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181646.217617499] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181648.854244396] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181651.469428439] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181654.099261856] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181656.725316570] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181659.351635988] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181661.982097455] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181664.602313138] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181667.227290167] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181669.852984783] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181672.489693502] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181675.124636546] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181677.759270545] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181680.382314670] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181683.013330407] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181685.642223058] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181688.257179231] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181690.883931611] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181693.498952901] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181696.130324580] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181698.741408597] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181701.363655850] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181703.977279605] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181706.605715123] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181709.239411785] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181711.865918540] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181714.465532517] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181717.067337698] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181719.681852417] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181722.297171521] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181724.904081271] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181727.528354462] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181730.148141523] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181732.777319739] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181735.394434098] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181738.003447506] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181740.636781519] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181743.266609173] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181745.859328313] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181748.476959483] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181751.085701044] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181753.715957477] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181756.341458902] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181758.952133937] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181761.567844813] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181764.202604244] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181766.826298128] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181769.453235001] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181772.069779609] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181774.686107958] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181777.289296983] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181779.908676964] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181782.517050227] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181785.127841591] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181787.745794714] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181790.354155674] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181792.994232828] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181795.619643530] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181798.244529469] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181800.869642949] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181803.491365716] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181806.128408596] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181808.747056969] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181811.379695698] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181814.008992705] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181816.628870645] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181819.255643984] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181821.882564352] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181824.502837402] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181827.115959269] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181829.750549904] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181832.382681402] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181835.013954409] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181837.655952333] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181840.282085283] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181842.913532663] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181845.524603922] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181848.153664598] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181850.811805811] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181853.469685029] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181856.138979339] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181858.794511729] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181861.475437461] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181864.119934846] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181866.757747449] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181869.476032780] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181872.224121640] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181874.899821666] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181877.582894773] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181880.263945796] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181882.926553789] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181885.598535834] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181888.269570079] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181890.905399545] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181893.579534551] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181896.251669431] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181898.896778214] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181901.544941466] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181904.194077111] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181906.832586539] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181909.466427985] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181912.102354843] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181914.832728004] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181917.549556891] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181920.295868610] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181923.005833615] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181925.716594281] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181928.461588417] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181931.140363457] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181933.800367046] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181936.440664848] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181939.091462837] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181941.797377583] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181944.454975271] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181947.099777405] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181949.731746666] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181952.379085362] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181955.007441840] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181957.663119960] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181960.291185926] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181962.947393625] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181965.585309019] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181968.206534153] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181970.854744917] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181973.476036288] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181976.121745475] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181978.764902959] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181981.388230078] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181984.012462843] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181986.648701701] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181989.270468153] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181991.899061661] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181994.541279719] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181997.181613735] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793181999.801127643] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182002.443968692] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182005.076242772] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182007.705273263] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182010.324159524] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182012.948242960] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182015.580482410] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182018.201090183] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182020.824204558] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182022.881722850] [drink_task]: DRINK ★ 收到喝水请求(来源=text, 内容="我要喝水"), 排队执行
+[INFO] [1793182023.056660349] [drink_task]: ack: ok joint water_joint
+[INFO] [1793182023.282496569] [drink_task]: ack: ok joint water_joint
+[INFO] [1793182023.466602787] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182023.506837251] [drink_task]: ack: ok joint water_joint
+[INFO] [1793182023.733516374] [drink_task]: ack: ok joint water_joint
+[INFO] [1793182023.958660928] [drink_task]: ack: ok joint water_joint
+[INFO] [1793182024.187185147] [drink_task]: ack: ok joint water_joint
+[INFO] [1793182024.414253826] [drink_task]: ack: ok joint water_joint
+[INFO] [1793182024.643273621] [drink_task]: ack: ok joint water_joint
+[INFO] [1793182024.866899288] [drink_task]: ack: ok place robot
+[INFO] [1793182024.867118682] [drink_task]: place robot 完成
+[INFO] [1793182026.066532635] [drink_task]: R 侧 home: 臂 到位 (最大残差 0.0°)  手 到位 (0.0°)
+[INFO] [1793182026.102376652] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182027.246968316] [drink_task]: L 侧 home: 臂 到位 (最大残差 0.0°)  手 到位 (0.0°)
+[INFO] [1793182028.728847584] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182031.031948547] [drink_task]: LIFT[R] 抬臂预备位: 掌心高 0.82m 前伸 0.38m 残差 3.8mm (kdl-lma/nat) q=[ 0.38 -0.3  -0.15 -1.9   0.35  0.65  1.34] 应力 0.55
+[INFO] [1793182031.370159383] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182033.993654287] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182036.643411888] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182037.318286335] [drink_task]: LIFT[L] 抬臂预备位: 掌心高 0.82m 前伸 0.37m 残差 1.6mm (kdl-lma/nat) q=[-0.98 -0.42  0.9  -1.9  -0.32  0.57  1.51] 应力 0.55
+[INFO] [1793182037.318552135] [drink_task]: POUR 入场: 车→桌沿 0.80m(臂+手 0.72m, 余量 +83mm) 双手抬到 0.82m
+[INFO] [1793182039.277687168] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182041.909475053] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182044.532372642] [drink_task]: DRIVE 驶入桌边 -> (1.75,0.35)  残差 24mm
+[INFO] [1793182044.540307916] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182044.714154018] [drink_task]: ack: ok place robot
+[INFO] [1793182044.714334882] [drink_task]: place robot 完成
+[INFO] [1793182047.204561315] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182049.835951306] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182052.487784388] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182055.132740727] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182057.765564310] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182060.410986346] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182063.071067476] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182065.730450290] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182068.371167381] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182070.995235253] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182073.638262775] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182076.283469011] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182078.920517887] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182081.562700916] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182084.164769594] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182086.797520283] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[WARN] [1793182087.969944922] [drink_task]: grasp cup (L): reach 未到位 37.7mm (IK=dls), 跳过 attach
+[INFO] [1793182087.970439542] [drink_task]: ARM[抓杯] L q=[-0.512, 0.899, -1.277, -1.951, 0.591, -1.5, 1.6] 肘y=+313 掌y=+9 外扩线=-194 droop=+96 twist=+2.19 up_roll=-1.28 ★R5前臂扭转 R6腕反折
+[ERROR] [1793182087.970645259] [drink_task]: DRINK 失败: 倒水/捧杯阶段
+[INFO] [1793182089.434960071] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182092.087994490] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182094.734262409] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182097.403388065] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182100.054036223] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182102.690789821] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182105.349121257] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182107.980027793] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182110.641244141] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182113.286177275] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182115.927478682] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182118.564683340] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182121.200042443] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182123.827151935] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182126.473986358] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182129.109631862] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182131.729798528] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182134.369956212] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182137.023739713] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182139.666206513] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182142.312619295] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182144.931051277] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182147.568517304] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182150.220933118] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182152.871318079] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182155.537670703] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182158.189362116] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182160.820192835] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182163.466886363] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182166.120631519] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182168.751617719] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182171.393105845] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182174.031832501] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182176.662025772] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182179.273220887] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182181.892211551] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182184.534204497] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182187.175611859] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182189.817507994] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182192.464093785] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182195.096378515] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182197.727613357] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182200.362127227] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182203.017242426] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182205.640205639] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182208.266436538] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182210.912308557] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182213.527510492] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182216.169303266] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182218.801035202] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182221.468310869] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182224.119811064] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182226.784659647] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182229.434924223] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182232.074174559] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182234.737759919] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182237.371938755] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182240.003468220] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182242.639569421] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182245.264478556] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182247.875748063] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182250.506008507] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182253.134992023] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182255.759594751] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182258.367514788] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182261.000249982] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182263.619372487] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182266.264228270] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182268.900270658] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182271.541318836] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182274.171674529] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182276.813856792] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182279.461146852] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182282.105787486] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182284.751427130] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182287.414339715] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182290.031195491] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182292.679939839] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182295.352968507] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182298.018029813] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182300.653165261] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182303.280790780] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182305.921960487] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182308.556563673] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182311.183645933] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182313.805521183] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182316.425244748] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182319.061669428] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182321.697392234] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182324.335983103] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182326.958738110] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182329.596892186] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182332.216622838] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182334.862449418] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182337.477932332] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182340.100694703] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182342.730824090] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182345.381973405] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182348.062776541] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182350.700625151] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182353.355708344] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182356.007453015] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182358.646320789] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182361.282748624] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182363.947072408] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182366.604102395] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182369.252195146] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182371.888206890] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182374.522711411] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182377.193390689] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182379.841750177] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182382.494122360] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182385.170362581] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182387.808263812] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182390.448288131] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182393.089120411] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182395.730270988] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182398.377233494] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182401.015522982] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182403.672329343] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182406.330720204] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182408.976432371] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182411.632458567] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182414.295058225] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182416.971401169] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182419.625140383] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182422.282415315] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182424.934557631] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182427.562227959] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182430.201256574] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182432.917152874] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182435.613273820] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182438.269014266] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182440.912559701] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182443.574030900] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182446.197677541] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182448.863510871] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182451.524957730] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182454.171364749] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182456.831128856] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182459.491363811] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182462.172230813] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182464.813489511] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182467.449870454] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182470.114373383] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182472.763393172] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182475.410149439] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182478.073996841] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182480.713025795] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182483.362975468] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182486.011986236] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182488.645714284] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182491.295043312] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182493.931009725] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182496.563970295] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182499.227775280] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182501.958934768] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182504.636381926] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182507.298658990] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182509.932911963] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182512.588343197] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182515.234567462] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182517.875705854] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182520.523687649] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182523.198015670] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182525.859181376] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182528.521251508] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182530.306484480] [drink_task]: DRINK ★ 收到喝水请求(来源=text, 内容="我要喝水"), 排队执行
+[INFO] [1793182530.483260362] [drink_task]: ack: ok joint water_joint
+[INFO] [1793182530.714825495] [drink_task]: ack: ok joint water_joint
+[INFO] [1793182530.944781352] [drink_task]: ack: ok joint water_joint
+[INFO] [1793182531.175141973] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182531.178450503] [drink_task]: ack: ok joint water_joint
+[INFO] [1793182531.404123000] [drink_task]: ack: ok joint water_joint
+[INFO] [1793182531.632397281] [drink_task]: ack: ok joint water_joint
+[INFO] [1793182531.858969601] [drink_task]: ack: ok joint water_joint
+[INFO] [1793182532.086256373] [drink_task]: ack: ok joint water_joint
+[INFO] [1793182532.313160818] [drink_task]: ack: ok place robot
+[INFO] [1793182532.313383660] [drink_task]: place robot 完成
+[INFO] [1793182533.528549623] [drink_task]: R 侧 home: 臂 到位 (最大残差 0.0°)  手 到位 (0.0°)
+[INFO] [1793182533.810354930] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182534.888446543] [drink_task]: L 侧 home: 臂 到位 (最大残差 0.0°)  手 到位 (0.0°)
+[INFO] [1793182536.519268789] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182538.129298630] [drink_task]: LIFT[R] 抬臂预备位: 掌心高 0.82m 前伸 0.38m 残差 3.9mm (kdl-lma/nat) q=[ 0.36 -0.3  -0.13 -1.9   0.31  0.64  1.36] 应力 0.55
+[INFO] [1793182539.151170806] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182541.788300249] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182544.009275948] [drink_task]: LIFT[L] 抬臂预备位: 掌心高 0.82m 前伸 0.37m 残差 2.5mm (kdl-lma/nat) q=[-1.01 -0.44  0.94 -1.9  -0.22  0.57  1.4 ] 应力 0.55
+[INFO] [1793182544.009548976] [drink_task]: POUR 入场: 车→桌沿 0.79m(臂+手 0.72m, 余量 +77mm) 双手抬到 0.82m
+[INFO] [1793182544.433165858] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182547.098526985] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182549.780785809] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182552.451498770] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182552.998371391] [drink_task]: DRIVE 驶入桌边 -> (1.75,0.35)  残差 24mm
+[INFO] [1793182553.174410356] [drink_task]: ack: ok place robot
+[INFO] [1793182553.175015275] [drink_task]: place robot 完成
+[INFO] [1793182555.116034051] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182557.755699579] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182560.408148782] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182563.078993966] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182565.742126950] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182568.443126343] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182571.100542666] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182573.778864882] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182576.410408774] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182579.073260380] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182581.721128174] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182584.409771429] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182587.039156220] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182589.665574185] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182592.321441300] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182595.011298873] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[WARN] [1793182597.420594360] [drink_task]: grasp cup (L): reach 未到位 37.5mm (IK=dls), 跳过 attach
+[INFO] [1793182597.421148610] [drink_task]: ARM[抓杯] L q=[-0.521, 0.9, -1.274, -1.956, 0.594, -1.5, 1.599] 肘y=+315 掌y=+11 外扩线=-195 droop=+96 twist=+2.19 up_roll=-1.27 ★R5前臂扭转
+[ERROR] [1793182597.421357938] [drink_task]: DRINK 失败: 倒水/捧杯阶段
+[INFO] [1793182597.643568614] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182600.305832923] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182602.971701969] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182605.632222949] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182608.294189168] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182610.923703142] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182613.584636871] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182616.243948657] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182618.870067518] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182621.514684584] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182624.184606496] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182626.820071779] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182629.471191242] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182632.089305427] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182634.743503122] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182637.403462379] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182640.041624022] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182642.701553300] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182645.345637618] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182647.989099363] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182650.617699103] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182653.256991529] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182655.915763042] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182658.559384120] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182661.199892584] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182663.845944198] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182666.491757824] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182669.139307479] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182671.786976943] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182674.422118534] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182677.047554599] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182679.680561031] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182682.322233077] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182684.970941833] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182687.650323978] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182690.289545435] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182692.934649476] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182695.557533008] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182698.200589036] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182700.835380728] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182703.472160659] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182706.121352318] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182708.800439376] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182711.437975820] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182714.076212759] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182716.744700037] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182719.427980772] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182722.081379619] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182724.738335054] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182727.371412519] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182730.016055179] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182732.659608701] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182735.304937241] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182737.948369419] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182740.580651120] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182743.221405273] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182745.865693121] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182748.523879716] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182751.159957569] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182753.783594795] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182756.445238879] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182759.057158309] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182761.720791651] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182764.363633767] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182767.007719502] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182769.688420523] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182772.348337924] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182774.981148102] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182777.610119766] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182780.274166013] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182782.926691177] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182785.594190970] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182788.258038420] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182790.897906586] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182793.534685040] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182796.183733734] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182798.806365949] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182801.440819259] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182804.098272826] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182806.740661078] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182809.378992116] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182812.025264281] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182814.639793258] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182817.297696311] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182819.954469437] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182822.595740523] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182825.247311499] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182827.893496572] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182830.550282416] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182833.212734766] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182835.863532590] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182838.499735881] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182841.134420939] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182843.785168507] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182846.421703670] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182849.063830024] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182851.714127223] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182854.358936648] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182856.985235991] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182859.646886991] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182862.297344575] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182864.938382257] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182867.571205809] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182870.203305866] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182872.863269072] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182875.489793588] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182878.139631040] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182880.785039513] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182883.436711748] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182886.084191255] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182888.715660937] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182891.348111292] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182893.989085785] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182896.632906698] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182899.266176732] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182901.912113065] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182904.550533144] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182907.193655204] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182909.825033660] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182912.446165808] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182915.079223730] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182917.713993067] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182920.341741631] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182922.977764963] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182925.613320389] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182928.253178126] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182930.907399829] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182933.542206868] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182936.171724496] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182938.828230129] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182941.464458965] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182944.096910457] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182946.714659973] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182949.339007880] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182951.970447003] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182954.607455930] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182957.228710227] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182959.848128547] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182962.478693734] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182965.085900850] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182967.728735663] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182970.363668585] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182973.003189604] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182975.627213522] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182978.260967175] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182980.887031991] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182983.531813165] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182986.156642150] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182988.780037368] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182991.419528761] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182994.048652482] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182996.673701233] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793182999.319415417] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183001.935598700] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183004.550495296] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183007.182946047] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183009.804915720] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183012.438064620] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183015.082402302] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183017.725587789] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183020.375697128] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183023.000636536] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183025.636089091] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183028.292711864] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183030.926094322] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183033.550666264] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183036.179782744] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183038.840845346] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183041.479573783] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183043.300104804] [drink_task]: DRINK ★ 收到喝水请求(来源=text, 内容="我要喝水"), 排队执行
+[INFO] [1793183043.476032972] [drink_task]: ack: ok joint water_joint
+[INFO] [1793183043.698969922] [drink_task]: ack: ok joint water_joint
+[INFO] [1793183043.926630235] [drink_task]: ack: ok joint water_joint
+[INFO] [1793183044.130012809] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183044.151028147] [drink_task]: ack: ok joint water_joint
+[INFO] [1793183044.376158413] [drink_task]: ack: ok joint water_joint
+[INFO] [1793183044.601498901] [drink_task]: ack: ok joint water_joint
+[INFO] [1793183044.827181810] [drink_task]: ack: ok joint water_joint
+[INFO] [1793183045.049382606] [drink_task]: ack: ok joint water_joint
+[INFO] [1793183045.278675339] [drink_task]: ack: ok place robot
+[INFO] [1793183045.278880937] [drink_task]: place robot 完成
+[INFO] [1793183046.684292514] [drink_task]: R 侧 home: 臂 到位 (最大残差 0.0°)  手 到位 (0.0°)
+[INFO] [1793183046.757557065] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183047.993209882] [drink_task]: L 侧 home: 臂 到位 (最大残差 0.0°)  手 到位 (0.0°)
+[INFO] [1793183049.408266868] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183051.736368418] [drink_task]: LIFT[R] 抬臂预备位: 掌心高 0.82m 前伸 0.38m 残差 0.9mm (kdl-lma/nat) q=[ 0.39 -0.3  -0.17 -1.9   0.37  0.65  1.32] 应力 0.55
+[INFO] [1793183052.036462964] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183054.692291035] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183057.300602826] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183058.059476751] [drink_task]: LIFT[L] 抬臂预备位: 掌心高 0.82m 前伸 0.36m 残差 1.2mm (kdl-lma/nat) q=[-0.96 -0.42  0.87 -1.9  -0.32  0.57  1.52] 应力 0.55
+[INFO] [1793183058.059689292] [drink_task]: POUR 入场: 车→桌沿 0.80m(臂+手 0.72m, 余量 +82mm) 双手抬到 0.82m
+[INFO] [1793183059.935632321] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183062.550503011] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183065.185791795] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183065.551599816] [drink_task]: DRIVE 驶入桌边 -> (1.75,0.35)  残差 23mm
+[INFO] [1793183065.726691550] [drink_task]: ack: ok place robot
+[INFO] [1793183065.726896532] [drink_task]: place robot 完成
+[INFO] [1793183067.831021635] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183070.469106226] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183073.114716387] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183075.761131572] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183078.426317951] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183081.091985818] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183083.723674255] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183086.388708755] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183089.053386468] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183091.684089941] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183094.325419259] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183096.967477121] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183099.594793792] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183102.228092356] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183104.898089780] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183107.517564365] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[WARN] [1793183109.860697761] [drink_task]: grasp cup (L): reach 未到位 36.3mm (IK=dls), 跳过 attach
+[INFO] [1793183109.861446526] [drink_task]: ARM[抓杯] L q=[-0.532, 0.9, -1.27, -1.963, 0.598, -1.5, 1.597] 肘y=+317 掌y=+14 外扩线=-195 droop=+96 twist=+2.20 up_roll=-1.27 ★R5前臂扭转 R6腕反折
+[ERROR] [1793183109.862034174] [drink_task]: DRINK 失败: 倒水/捧杯阶段
+[INFO] [1793183110.174581337] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183112.807100929] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183115.456281428] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183118.115502730] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183120.741367202] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183123.373955071] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183125.993213990] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183128.631495796] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183131.258134930] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183133.902781734] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183136.551550740] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183139.202954291] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183141.822207094] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183144.451066600] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183147.091359972] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183149.741580075] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183152.373479943] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183155.011551917] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183157.629839082] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183160.270257447] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183162.903972439] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183165.536117909] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183168.197579730] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183170.853284257] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183173.475530610] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183176.108536548] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183178.727374398] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183181.392450807] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183184.030908922] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183186.678105465] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183189.316463829] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183191.958341771] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183194.604296969] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183197.307694212] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183199.961215711] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183202.591914861] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183205.226972696] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183207.856643862] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183210.498812900] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183213.128583037] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183215.756038716] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183218.382351365] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183221.003438502] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183223.667054989] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183226.311395768] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183228.945849134] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183231.564121320] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183234.226101326] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183236.857207930] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183239.495836420] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183242.141255722] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183244.785162282] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183247.443858456] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183250.082384867] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183252.727261107] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183255.368538461] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183258.139684055] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183260.799054142] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183263.443391116] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183266.068291015] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183268.731908641] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183271.371000065] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183273.996457362] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183276.612227908] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183279.254346731] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183281.874393191] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183284.511945277] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183287.127299113] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183289.760089572] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183292.413894104] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183295.041848153] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183297.671215183] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183300.314940647] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183302.966416616] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183305.600410035] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183308.246699257] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183310.883595649] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183313.509219496] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183316.132260429] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183318.764197511] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183321.384122380] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183324.054117223] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183326.685562706] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183329.326962970] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183331.958138285] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183334.609882613] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183337.219405916] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183339.841994423] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183342.491475227] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183345.115840243] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183347.764075626] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183350.402557428] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183353.065959705] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183355.720816453] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183358.373441522] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183361.008554326] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183363.643173489] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183366.284546320] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183368.951786770] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183371.571044777] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183374.226355372] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183376.885938103] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183379.526502482] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183382.172680234] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183384.817084550] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183387.489280874] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183390.140274951] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183392.792439576] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183395.483390530] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183398.195469255] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183400.931983435] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183403.606051855] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183406.331698737] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183408.976909723] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183411.628843039] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183414.269946804] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183416.929604941] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183419.592192989] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183422.231829874] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183424.858402660] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183427.511314451] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183430.142785017] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183432.788902983] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183435.427871241] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183438.075327977] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183440.718659697] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183443.353056232] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183445.990600969] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183448.636997338] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183451.285634999] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183453.931237682] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183456.600435429] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183459.267269970] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183461.943392755] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183464.573797576] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183467.224948255] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183469.873684755] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183472.525429417] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183475.162209088] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183477.811248432] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183480.461913733] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183483.084072125] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183485.820554698] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183488.492518794] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183491.151102183] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183493.801210876] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183496.461350357] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183499.096342717] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183501.746561875] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183504.401686157] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183507.057808643] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183509.742928902] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183512.420628406] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183515.110854341] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183517.766815795] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183520.414338894] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183523.067433769] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183525.713436517] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183528.431720148] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183531.084058121] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183533.780689620] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183536.452691061] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183539.105856516] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183541.729104960] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183544.378295963] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183547.016744667] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183549.648917114] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183552.302248710] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183554.938529574] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183557.610976302] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183560.258853255] [drink_task]: DRINK ★ 收到喝水请求(来源=text, 内容="我要喝水"), 排队执行
+[INFO] [1793183560.350662273] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183560.436012440] [drink_task]: ack: ok joint water_joint
+[INFO] [1793183560.664230445] [drink_task]: ack: ok joint water_joint
+[INFO] [1793183560.892724886] [drink_task]: ack: ok joint water_joint
+[INFO] [1793183561.122180637] [drink_task]: ack: ok joint water_joint
+[INFO] [1793183561.348434355] [drink_task]: ack: ok joint water_joint
+[INFO] [1793183561.576315953] [drink_task]: ack: ok joint water_joint
+[INFO] [1793183561.808613320] [drink_task]: ack: ok joint water_joint
+[INFO] [1793183562.040571499] [drink_task]: ack: ok joint water_joint
+[INFO] [1793183562.269991311] [drink_task]: ack: ok place robot
+[INFO] [1793183562.270241689] [drink_task]: place robot 完成
+[INFO] [1793183563.033279905] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183564.026228049] [drink_task]: R 侧 home: 臂 到位 (最大残差 0.0°)  手 到位 (0.0°)
+[INFO] [1793183565.574396127] [drink_task]: L 侧 home: 臂 到位 (最大残差 0.1°)  手 到位 (0.0°)
+[INFO] [1793183565.732516289] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183568.397910745] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183569.137329101] [drink_task]: LIFT[R] 抬臂预备位: 掌心高 0.82m 前伸 0.37m 残差 2.0mm (kdl-lma/nat) q=[ 0.36 -0.3  -0.13 -1.9   0.31  0.64  1.35] 应力 0.55
+[INFO] [1793183571.050149653] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183573.692604823] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183576.051195454] [drink_task]: LIFT[L] 抬臂预备位: 掌心高 0.82m 前伸 0.37m 残差 1.4mm (kdl-lma/nat) q=[-1.03 -0.45  0.98 -1.9  -0.23  0.56  1.39] 应力 0.55
+[INFO] [1793183576.051475078] [drink_task]: POUR 入场: 车→桌沿 0.79m(臂+手 0.72m, 余量 +79mm) 双手抬到 0.82m
+[INFO] [1793183576.318541157] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183578.960273316] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183581.655237000] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183584.322685708] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183584.734363459] [drink_task]: DRIVE 驶入桌边 -> (1.75,0.35)  残差 24mm
+[INFO] [1793183584.911124493] [drink_task]: ack: ok place robot
+[INFO] [1793183584.911308727] [drink_task]: place robot 完成
+[INFO] [1793183587.037637368] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183589.758194375] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183592.409277135] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183595.079579203] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183597.755041335] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183600.425312107] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183603.079420021] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183605.708216842] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183608.343988190] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183610.969150709] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183613.629104720] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183616.261877076] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183618.915917195] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183621.558027012] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183624.200163341] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183626.817014339] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[WARN] [1793183627.985572515] [drink_task]: grasp cup (L): reach 未到位 38.2mm (IK=dls), 跳过 attach
+[INFO] [1793183627.986657224] [drink_task]: ARM[抓杯] L q=[-0.535, 0.9, -1.275, -1.953, 0.592, -1.5, 1.599] 肘y=+318 掌y=+14 外扩线=-195 droop=+96 twist=+2.19 up_roll=-1.28 ★R5前臂扭转 R6腕反折
+[ERROR] [1793183627.987127006] [drink_task]: DRINK 失败: 倒水/捧杯阶段
+[INFO] [1793183629.445044393] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183632.069649126] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183634.699090926] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183637.313343087] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183639.947547271] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183642.577113516] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183645.208340412] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183647.833712247] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183650.455394465] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183653.076360322] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183655.699614536] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183658.318765747] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183660.963604452] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183663.621896802] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183666.277663623] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183668.921229169] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183671.562369906] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183674.201698790] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183676.832888333] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183679.477988875] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183682.112084339] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183684.765707618] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183687.405129085] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183690.055105807] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183692.703166006] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183695.346282541] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183697.983614797] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183700.617772671] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183703.266439897] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183705.896796289] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183708.513768883] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183711.144492619] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183713.789377606] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183716.429062536] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183719.092115766] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183721.734475723] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183724.355836980] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183726.982832581] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183729.606321189] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183732.223618862] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183734.864646513] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183737.506183692] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183740.138149602] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183742.763302935] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183745.394138623] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183748.027056705] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183750.674476427] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183753.297312468] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183755.932606992] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183758.565279988] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183761.197964880] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183763.821150063] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183766.463843985] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183769.084728524] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183771.729282179] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183774.348143270] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183776.977855371] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183779.605634148] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183782.245425372] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183784.923756040] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183787.634569363] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183790.311663418] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183793.025617397] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183795.723427755] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183798.396191219] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183801.078010747] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183803.761831898] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183806.461223885] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183809.127045651] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183811.786496732] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183814.454591433] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183817.100414792] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183819.734394936] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183822.366867121] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183825.028188441] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183827.669714742] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183830.294696528] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183832.943248518] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183835.593273444] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183838.239384090] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183840.885328060] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183843.541253716] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183846.173434608] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183848.794911876] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183851.432047255] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183854.081994094] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183856.743576694] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183859.391949403] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183862.019295740] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183864.671347637] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183867.303551613] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183869.948350350] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183872.606553283] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183875.272871604] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183877.953824228] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183880.615112422] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183883.260080232] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183885.883870805] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183888.540951791] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183891.163364998] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183893.810126533] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183896.446581805] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183899.092311033] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183901.734390425] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183904.383291558] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183907.032503087] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183909.677251450] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183912.311815744] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183914.944577225] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183917.597420004] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183920.218344880] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183922.871060194] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183925.505725018] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183928.132184701] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183930.756834489] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183933.385114613] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183936.032774801] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183938.661435376] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183941.294982660] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183943.931532707] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183946.575752929] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183949.212747161] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183951.846439965] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183954.500409318] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183957.151656597] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183959.786466038] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183962.419300687] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183965.121146852] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183967.839291498] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183970.468794499] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183973.135775176] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183975.845480446] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183978.562665481] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183981.258517311] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183983.942279378] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183986.655465821] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183989.328433748] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183992.052541953] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183994.766519734] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793183997.491037921] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793184000.212095099] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793184002.946454757] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793184005.681905948] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793184008.382519572] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793184011.101883440] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793184013.840898267] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793184016.540990438] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793184019.227550322] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793184021.895050117] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793184024.553912876] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793184027.205357341] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793184029.890740883] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793184032.579201848] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793184035.240082837] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793184037.878807949] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793184040.521787802] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793184043.198076930] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793184045.839591095] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793184048.495472054] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793184051.127212581] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793184053.774383104] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793184056.430573894] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793184059.087341714] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793184061.729091298] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793184064.402503628] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793184067.053953379] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793184069.723898517] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793184072.398158670] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793184075.056289581] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793184077.706243842] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793184080.369976302] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793184083.010673497] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793184085.664913184] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793184088.314083872] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793184090.986522649] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793184093.641477739] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793184096.320412613] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793184098.214433019] [drink_task]: DRINK ★ 收到喝水请求(来源=text, 内容="我要喝水"), 排队执行
+[INFO] [1793184098.393226245] [drink_task]: ack: ok joint water_joint
+[INFO] [1793184098.616485584] [drink_task]: ack: ok joint water_joint
+[INFO] [1793184098.844681957] [drink_task]: ack: ok joint water_joint
+[INFO] [1793184099.040819103] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793184099.070633420] [drink_task]: ack: ok joint water_joint
+[INFO] [1793184099.301344805] [drink_task]: ack: ok joint water_joint
+[INFO] [1793184099.527902125] [drink_task]: ack: ok joint water_joint
+[INFO] [1793184099.751740563] [drink_task]: ack: ok joint water_joint
+[INFO] [1793184099.975133608] [drink_task]: ack: ok joint water_joint
+[INFO] [1793184100.203604422] [drink_task]: ack: ok place robot
+[INFO] [1793184100.204728141] [drink_task]: place robot 完成
+[INFO] [1793184101.659192592] [drink_task]: R 侧 home: 臂 到位 (最大残差 0.7°)  手 到位 (0.0°)
+[INFO] [1793184101.692839300] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793184103.121227688] [drink_task]: L 侧 home: 臂 到位 (最大残差 0.4°)  手 到位 (0.0°)
+[INFO] [1793184104.347580809] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1793184106.662999421] [drink_task]: LIFT[R] 抬臂预备位: 掌心高 0.82m 前伸 0.38m 残差 1.9mm (kdl-lma/nat) q=[ 0.38 -0.3  -0.15 -1.9   0.35  0.65  1.33] 应力 0.55
+[INFO] [1793184107.012197298] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+free(): invalid pointer
+[ros2run]: Aborted

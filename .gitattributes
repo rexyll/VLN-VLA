@@ -1,0 +1,22 @@
+# 行尾统一: 仓库内一律 LF。
+# 原因: 在 Windows 上编辑的 .sh 一旦带 CRLF 部署到 Linux, bash 读到
+#       `KEEP_GZ=0\r` / `/dev/null\r` 会从第一行静默失效 ——
+#       killall_demo.sh 里的 pkill 一条都跑不到, 每次启动都多留一个 gz 世界,
+#       叠加多个世界后所有 dynamic_pose/info 都是交错的多份位姿,
+#       表现为"水壶被掀飞 6m / 关节偏 160°"。CR 肉眼不可见, 这个坑复发过。
+* text=auto eol=lf
+*.sh   text eol=lf
+*.py   text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf
+*.sdf  text eol=lf
+*.urdf text eol=lf
+*.xacro text eol=lf
+*.json text eol=lf
+*.md   text eol=lf
+# 二进制/媒体
+*.png  binary
+*.jpg  binary
+*.pdf  binary
+*.zip  binary
+*.npy  binary

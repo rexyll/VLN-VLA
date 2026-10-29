@@ -1,0 +1,92 @@
+[EVAL] 复位 robot=True person=True
+[37;1m2026-10-25 12:37:07.009 [31;1m[[37;1mRTPS_TRANSPORT_SHM[31;1m Error] [37mFailed init_port fastrtps_port7033: open_and_lock_file failed[34;1m -> Function [36mopen_port_internal[m
+[EVAL] 等待 2s 稳定后下发 FOLLOW...
+[EVAL] FOLLOW 第1次 CLI 下发 rc=0 
+[EVAL] FOLLOW 第2次 CLI 下发 rc=0 
+[EVAL] FOLLOW 第3次 CLI 下发 rc=0 
+[EVAL] FOLLOW 已下发, 开始 150s 评测
+[EVAL  15.0s] d=1.08 cam=front trk=TRACK lost=0 gap=+1.02
+[EVAL  30.0s] d=1.54 cam=front trk=TRACK lost=0 gap=+0.52
+[EVAL  45.1s] d=3.82 cam=left  trk=TRACK lost=0 gap=+0.70
+[EVAL  60.1s] d=2.36 cam=-     trk=GOTO  lost=1 gap=+0.52
+[EVAL  75.1s] d=3.41 cam=front trk=TRACK lost=0 gap=+0.42
+[EVAL  90.2s] d=4.33 cam=right trk=TRACK lost=0 gap=+0.38
+[EVAL 105.2s] d=3.08 cam=front trk=TRACK lost=0 gap=+0.38
+[EVAL 120.2s] d=1.64 cam=front trk=TRACK lost=0 gap=+0.38
+[EVAL 135.3s] d=0.73 cam=right trk=TRACK lost=0 gap=+2.13
+
+================ 评测结果 (150s) ================
+{
+ "dist": {
+  "n": 2500,
+  "mean": 2.403,
+  "median": 2.413,
+  "std": 1.331,
+  "min": 0.405,
+  "max": 4.465,
+  "in_band_pct": 9.5,
+  "near_pct": 17.5,
+  "far_pct": 73.0,
+  "min_all": 0.405,
+  "max_streak_s": 5.65
+ },
+ "avoid": {
+  "min_gap": 0.377,
+  "hit_n": 0,
+  "brush_n": 0
+ },
+ "switch": {
+  "n": 50,
+  "resp_mean": 1.11,
+  "resp_max": 9.0,
+  "resp_none": 0,
+  "cross_n": 0,
+  "cross_mean": null
+ },
+ "lost": {
+  "n": 3,
+  "goto_n": 2,
+  "reached_n": 0,
+  "dur_mean": 4.32,
+  "dur_max": 11.1,
+  "regen_mean": 4.32,
+  "events": [
+   {
+    "t0": 53.6,
+    "dur": 11.1,
+    "goto": 1,
+    "reached": 0,
+    "goto_pt": [
+     -5.3,
+     -4.57
+    ]
+   },
+   {
+    "t0": 126.2,
+    "dur": 1.2,
+    "goto": 0,
+    "reached": 0,
+    "goto_pt": null
+   },
+   {
+    "t0": 130.3,
+    "dur": 0.7,
+    "goto": 1,
+    "reached": 0,
+    "goto_pt": [
+     -5.3,
+     0.77
+    ]
+   }
+  ]
+ },
+ "sanity": {
+  "samples": 3041,
+  "vis_pct": 82.9,
+  "front_pct": 77.7,
+  "cmd_v_mean": 0.081
+ },
+ "dur": 150.0
+}
+轨迹图: /home/earl/workspace/VLA/shots/eval12_traj.png
+原始数据: /home/earl/workspace/VLA/eval12.json

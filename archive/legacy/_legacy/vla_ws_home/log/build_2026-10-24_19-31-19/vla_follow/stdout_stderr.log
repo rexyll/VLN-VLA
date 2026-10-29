@@ -1,0 +1,48 @@
+running egg_info
+writing ../../build/vla_follow/vla_follow.egg-info/PKG-INFO
+writing dependency_links to ../../build/vla_follow/vla_follow.egg-info/dependency_links.txt
+writing entry points to ../../build/vla_follow/vla_follow.egg-info/entry_points.txt
+writing requirements to ../../build/vla_follow/vla_follow.egg-info/requires.txt
+writing top-level names to ../../build/vla_follow/vla_follow.egg-info/top_level.txt
+reading manifest file '../../build/vla_follow/vla_follow.egg-info/SOURCES.txt'
+writing manifest file '../../build/vla_follow/vla_follow.egg-info/SOURCES.txt'
+running build
+running build_py
+copying vla_follow/follower.py -> /home/earl/vla_ws/build/vla_follow/build/lib/vla_follow
+copying vla_follow/__init__.py -> /home/earl/vla_ws/build/vla_follow/build/lib/vla_follow
+copying vla_follow/depth_percept.py -> /home/earl/vla_ws/build/vla_follow/build/lib/vla_follow
+copying vla_follow/voice_node.py -> /home/earl/vla_ws/build/vla_follow/build/lib/vla_follow
+copying vla_follow/voice_trigger.py -> /home/earl/vla_ws/build/vla_follow/build/lib/vla_follow
+copying vla_follow/person_walk.py -> /home/earl/vla_ws/build/vla_follow/build/lib/vla_follow
+running install
+running install_lib
+copying /home/earl/vla_ws/build/vla_follow/build/lib/vla_follow/follower.py -> /home/earl/vla_ws/install/vla_follow/lib/python3.12/site-packages/vla_follow
+copying /home/earl/vla_ws/build/vla_follow/build/lib/vla_follow/__init__.py -> /home/earl/vla_ws/install/vla_follow/lib/python3.12/site-packages/vla_follow
+copying /home/earl/vla_ws/build/vla_follow/build/lib/vla_follow/depth_percept.py -> /home/earl/vla_ws/install/vla_follow/lib/python3.12/site-packages/vla_follow
+copying /home/earl/vla_ws/build/vla_follow/build/lib/vla_follow/voice_node.py -> /home/earl/vla_ws/install/vla_follow/lib/python3.12/site-packages/vla_follow
+copying /home/earl/vla_ws/build/vla_follow/build/lib/vla_follow/voice_trigger.py -> /home/earl/vla_ws/install/vla_follow/lib/python3.12/site-packages/vla_follow
+copying /home/earl/vla_ws/build/vla_follow/build/lib/vla_follow/person_walk.py -> /home/earl/vla_ws/install/vla_follow/lib/python3.12/site-packages/vla_follow
+byte-compiling /home/earl/vla_ws/install/vla_follow/lib/python3.12/site-packages/vla_follow/follower.py to follower.cpython-312.pyc
+byte-compiling /home/earl/vla_ws/install/vla_follow/lib/python3.12/site-packages/vla_follow/__init__.py to __init__.cpython-312.pyc
+byte-compiling /home/earl/vla_ws/install/vla_follow/lib/python3.12/site-packages/vla_follow/depth_percept.py to depth_percept.cpython-312.pyc
+byte-compiling /home/earl/vla_ws/install/vla_follow/lib/python3.12/site-packages/vla_follow/voice_node.py to voice_node.cpython-312.pyc
+byte-compiling /home/earl/vla_ws/install/vla_follow/lib/python3.12/site-packages/vla_follow/voice_trigger.py to voice_trigger.cpython-312.pyc
+byte-compiling /home/earl/vla_ws/install/vla_follow/lib/python3.12/site-packages/vla_follow/person_walk.py to person_walk.cpython-312.pyc
+running install_data
+copying resource/vla_follow -> /home/earl/vla_ws/install/vla_follow/share/ament_index/resource_index/packages
+copying package.xml -> /home/earl/vla_ws/install/vla_follow/share/vla_follow
+copying launch/demo.launch.py -> /home/earl/vla_ws/install/vla_follow/share/vla_follow/launch
+copying config/bridge.yml -> /home/earl/vla_ws/install/vla_follow/share/vla_follow/config
+copying worlds/work_area.sdf -> /home/earl/vla_ws/install/vla_follow/share/vla_follow/worlds
+copying audio/follow_2m.wav -> /home/earl/vla_ws/install/vla_follow/share/vla_follow/audio
+copying audio/stop_follow.wav -> /home/earl/vla_ws/install/vla_follow/share/vla_follow/audio
+running install_egg_info
+removing '/home/earl/vla_ws/install/vla_follow/lib/python3.12/site-packages/vla_follow-0.1.0-py3.12.egg-info' (and everything under it)
+Copying ../../build/vla_follow/vla_follow.egg-info to /home/earl/vla_ws/install/vla_follow/lib/python3.12/site-packages/vla_follow-0.1.0-py3.12.egg-info
+running install_scripts
+Installing depth_percept script to /home/earl/vla_ws/install/vla_follow/lib/vla_follow
+Installing follower script to /home/earl/vla_ws/install/vla_follow/lib/vla_follow
+Installing person_walk script to /home/earl/vla_ws/install/vla_follow/lib/vla_follow
+Installing voice_node script to /home/earl/vla_ws/install/vla_follow/lib/vla_follow
+Installing voice_trigger script to /home/earl/vla_ws/install/vla_follow/lib/vla_follow
+writing list of installed files to '/home/earl/vla_ws/build/vla_follow/install.log'

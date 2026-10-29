@@ -1,0 +1,22 @@
+{
+ "<pad>": 0,
+ "move": 1,
+ "the": 2,
+ "blue": 3,
+ "square": 4,
+ "to": 5,
+ "red": 6,
+ "cross": 7,
+ "put": 8,
+ "at": 9,
+ "target": 10,
+ "bring": 11,
+ "block": 12,
+ "onto": 13,
+ "green": 14,
+ "box": 15,
+ "yellow": 16,
+ "slide": 17,
+ "push": 18,
+ "<unk>": 19
+}

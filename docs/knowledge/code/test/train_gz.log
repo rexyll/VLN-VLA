@@ -1,0 +1,23 @@
+train=873  val=157  device=cpu
+init from pretrained_v3/ckpt.pt (epoch 38, val 0.18859018519223397)
+epoch 001  train 0.2784  val 0.1945  (8.4s)  *best*
+epoch 002  train 0.2425  val 0.2059  (7.2s)
+epoch 003  train 0.2411  val 0.2173  (6.5s)
+epoch 004  train 0.2312  val 0.2081  (7.2s)
+epoch 005  train 0.2215  val 0.1969  (6.4s)
+epoch 006  train 0.2225  val 0.1965  (6.3s)
+epoch 007  train 0.2196  val 0.1982  (8.0s)
+epoch 008  train 0.2119  val 0.1988  (6.6s)
+epoch 009  train 0.2119  val 0.2013  (7.0s)
+epoch 010  train 0.2100  val 0.2003  (6.5s)
+epoch 011  train 0.2017  val 0.2002  (7.3s)
+epoch 012  train 0.2038  val 0.2011  (6.1s)
+epoch 013  train 0.2037  val 0.2022  (6.4s)
+epoch 014  train 0.1984  val 0.2034  (6.7s)
+epoch 015  train 0.1983  val 0.2029  (6.8s)
+epoch 016  train 0.1905  val 0.2037  (6.5s)
+epoch 017  train 0.1857  val 0.2042  (6.7s)
+epoch 018  train 0.1939  val 0.2040  (6.5s)
+epoch 019  train 0.1872  val 0.2037  (7.0s)
+epoch 020  train 0.1879  val 0.2037  (6.8s)
+done. best val=0.1945 -> runs/gz_model/ckpt.pt

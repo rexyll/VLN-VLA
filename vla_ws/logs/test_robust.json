@@ -1,0 +1,398 @@
+{
+  "ok": true,
+  "n_pass": 7,
+  "n_case": 7,
+  "criteria_mm": 45.0,
+  "results": [
+    {
+      "case": "base",
+      "jitter": {
+        "d": 0.0,
+        "a": 0.0,
+        "yaw": 0.0
+      },
+      "target": [
+        2.169,
+        1.169
+      ],
+      "person_start": [
+        1.803,
+        0.034
+      ],
+      "start_dist_m": 1.19,
+      "shots": [
+        "/home/earl/workspace/VLA/vla_ws/logs/p94_base_present.png",
+        "/home/earl/workspace/VLA/vla_ws/logs/p94_base_drink.png"
+      ],
+      "elapsed_s": 112.0,
+      "stages": [
+        "PREPARE",
+        "PRESENT",
+        "HANDOVER",
+        "PERSON_DRINK",
+        "TAKE_BACK",
+        "PUT_BACK",
+        "RETREAT",
+        "HANDBACK",
+        "DONE"
+      ],
+      "spoken": true,
+      "arrive": {
+        "to_target_mm": 91.41587140889487,
+        "off_nominal_mm": 91.41587140889487,
+        "face_deg": 8.483646152565314,
+        "pos": [
+          2.104,
+          1.234
+        ]
+      },
+      "d_hand_mm": 2.1,
+      "d_hand_end_mm": 10.6,
+      "n_samples": 34,
+      "approach": {
+        "moved": false,
+        "d_hb": 0.656
+      },
+      "to_target_mm": 91.4,
+      "off_nominal_mm": 91.4,
+      "face_deg": 8.5,
+      "miss_stages": [],
+      "cup_home_mm": 1.5,
+      "cup_tilt_deg": 0.02,
+      "ok": true,
+      "fails": []
+    },
+    {
+      "case": "far",
+      "jitter": {
+        "d": 0.15,
+        "a": 62.9,
+        "yaw": 0.0
+      },
+      "target": [
+        2.237,
+        1.303
+      ],
+      "person_start": [
+        0.408,
+        1.686
+      ],
+      "start_dist_m": 1.87,
+      "elapsed_s": 111.3,
+      "stages": [
+        "PREPARE",
+        "PRESENT",
+        "HANDOVER",
+        "PERSON_DRINK",
+        "TAKE_BACK",
+        "PUT_BACK",
+        "RETREAT",
+        "HANDBACK",
+        "DONE"
+      ],
+      "spoken": true,
+      "arrive": {
+        "to_target_mm": 86.80361162374292,
+        "off_nominal_mm": 217.97156981125036,
+        "face_deg": 7.552979794592276,
+        "pos": [
+          2.207,
+          1.384
+        ]
+      },
+      "d_hand_mm": 1.0,
+      "d_hand_end_mm": 20.4,
+      "n_samples": 68,
+      "approach": {
+        "moved": true,
+        "d_hb": 0.834,
+        "d_after": 0.701,
+        "step_m": 0.144,
+        "drive_ok": true,
+        "drive_res_mm": 132.7
+      },
+      "to_target_mm": 86.8,
+      "off_nominal_mm": 218.0,
+      "face_deg": 7.6,
+      "miss_stages": [],
+      "cup_home_mm": 0.1,
+      "cup_tilt_deg": 0.02,
+      "ok": true,
+      "fails": []
+    },
+    {
+      "case": "near",
+      "jitter": {
+        "d": 0.15,
+        "a": 242.9,
+        "yaw": 0.0
+      },
+      "target": [
+        2.101,
+        1.035
+      ],
+      "person_start": [
+        -0.584,
+        1.692
+      ],
+      "start_dist_m": 2.76,
+      "elapsed_s": 113.1,
+      "stages": [
+        "PREPARE",
+        "PRESENT",
+        "HANDOVER",
+        "PERSON_DRINK",
+        "TAKE_BACK",
+        "PUT_BACK",
+        "RETREAT",
+        "HANDBACK",
+        "DONE"
+      ],
+      "spoken": true,
+      "arrive": {
+        "to_target_mm": 90.05985696188522,
+        "off_nominal_mm": 121.87140667196573,
+        "face_deg": 8.01852583255056,
+        "pos": [
+          2.06,
+          1.116
+        ]
+      },
+      "d_hand_mm": 2.5,
+      "d_hand_end_mm": 9.0,
+      "n_samples": 28,
+      "approach": {
+        "moved": false,
+        "d_hb": 0.53
+      },
+      "to_target_mm": 90.1,
+      "off_nominal_mm": 121.9,
+      "face_deg": 8.0,
+      "miss_stages": [],
+      "cup_home_mm": 1.5,
+      "cup_tilt_deg": 0.02,
+      "ok": true,
+      "fails": []
+    },
+    {
+      "case": "side+",
+      "jitter": {
+        "d": 0.15,
+        "a": 152.9,
+        "yaw": 0.0
+      },
+      "target": [
+        2.036,
+        1.237
+      ],
+      "person_start": [
+        0.574,
+        2.394
+      ],
+      "start_dist_m": 1.86,
+      "elapsed_s": 106.9,
+      "stages": [
+        "PREPARE",
+        "PRESENT",
+        "HANDOVER",
+        "PERSON_DRINK",
+        "TAKE_BACK",
+        "PUT_BACK",
+        "RETREAT",
+        "HANDBACK",
+        "DONE"
+      ],
+      "spoken": true,
+      "arrive": {
+        "to_target_mm": 101.79289235881537,
+        "off_nominal_mm": 250.77253583772364,
+        "face_deg": 7.732232073045482,
+        "pos": [
+          1.938,
+          1.266
+        ]
+      },
+      "d_hand_mm": 2.3,
+      "d_hand_end_mm": 38.8,
+      "n_samples": 28,
+      "approach": {
+        "moved": false,
+        "d_hb": 0.639
+      },
+      "to_target_mm": 101.8,
+      "off_nominal_mm": 250.8,
+      "face_deg": 7.7,
+      "miss_stages": [],
+      "cup_home_mm": 1.7,
+      "cup_tilt_deg": 0.02,
+      "ok": true,
+      "fails": []
+    },
+    {
+      "case": "side-",
+      "jitter": {
+        "d": 0.15,
+        "a": -27.1,
+        "yaw": 0.0
+      },
+      "target": [
+        2.303,
+        1.101
+      ],
+      "person_start": [
+        -0.01,
+        2.696
+      ],
+      "start_dist_m": 2.81,
+      "elapsed_s": 115.7,
+      "stages": [
+        "PREPARE",
+        "PRESENT",
+        "HANDOVER",
+        "PERSON_DRINK",
+        "TAKE_BACK",
+        "PUT_BACK",
+        "RETREAT",
+        "HANDBACK",
+        "DONE"
+      ],
+      "spoken": true,
+      "arrive": {
+        "to_target_mm": 84.34568335359262,
+        "off_nominal_mm": 101.67867738237913,
+        "face_deg": 8.361005074215845,
+        "pos": [
+          2.27,
+          1.179
+        ]
+      },
+      "d_hand_mm": 1.4,
+      "d_hand_end_mm": 6.5,
+      "n_samples": 37,
+      "approach": {
+        "moved": false,
+        "d_hb": 0.683
+      },
+      "to_target_mm": 84.3,
+      "off_nominal_mm": 101.7,
+      "face_deg": 8.4,
+      "miss_stages": [],
+      "cup_home_mm": 0.7,
+      "cup_tilt_deg": 0.03,
+      "ok": true,
+      "fails": []
+    },
+    {
+      "case": "yaw-",
+      "jitter": {
+        "d": 0.0,
+        "a": 0.0,
+        "yaw": -20.0
+      },
+      "target": [
+        2.169,
+        1.169
+      ],
+      "person_start": [
+        0.169,
+        1.306
+      ],
+      "start_dist_m": 2.0,
+      "elapsed_s": 128.1,
+      "stages": [
+        "PREPARE",
+        "PRESENT",
+        "HANDOVER",
+        "PERSON_DRINK",
+        "TAKE_BACK",
+        "PUT_BACK",
+        "RETREAT",
+        "HANDBACK",
+        "DONE"
+      ],
+      "spoken": true,
+      "arrive": {
+        "to_target_mm": 92.47265888895369,
+        "off_nominal_mm": 92.47265888895369,
+        "face_deg": 12.250375581984036,
+        "pos": [
+          2.126,
+          1.251
+        ]
+      },
+      "d_hand_mm": 0.6,
+      "d_hand_end_mm": 19.4,
+      "n_samples": 34,
+      "approach": {
+        "moved": false,
+        "d_hb": 0.687
+      },
+      "to_target_mm": 92.5,
+      "off_nominal_mm": 92.5,
+      "face_deg": 12.3,
+      "miss_stages": [],
+      "cup_home_mm": 5.1,
+      "cup_tilt_deg": 0.06,
+      "ok": true,
+      "fails": []
+    },
+    {
+      "case": "yaw+",
+      "jitter": {
+        "d": 0.0,
+        "a": 0.0,
+        "yaw": 20.0
+      },
+      "target": [
+        2.169,
+        1.169
+      ],
+      "person_start": [
+        0.257,
+        2.495
+      ],
+      "start_dist_m": 2.33,
+      "elapsed_s": 123.8,
+      "stages": [
+        "PREPARE",
+        "PRESENT",
+        "HANDOVER",
+        "PERSON_DRINK",
+        "TAKE_BACK",
+        "PUT_BACK",
+        "RETREAT",
+        "HANDBACK",
+        "DONE"
+      ],
+      "spoken": true,
+      "arrive": {
+        "to_target_mm": 88.10010467098786,
+        "off_nominal_mm": 88.10010467098786,
+        "face_deg": 27.77892577384287,
+        "pos": [
+          2.145,
+          1.254
+        ]
+      },
+      "d_hand_mm": 0.3,
+      "d_hand_end_mm": 14.5,
+      "n_samples": 59,
+      "approach": {
+        "moved": true,
+        "d_hb": 0.734,
+        "d_after": 0.701,
+        "step_m": 0.044,
+        "drive_ok": true,
+        "drive_res_mm": 32.9
+      },
+      "to_target_mm": 88.1,
+      "off_nominal_mm": 88.1,
+      "face_deg": 27.8,
+      "miss_stages": [],
+      "cup_home_mm": 1.7,
+      "cup_tilt_deg": 0.03,
+      "ok": true,
+      "fails": []
+    }
+  ]
+}

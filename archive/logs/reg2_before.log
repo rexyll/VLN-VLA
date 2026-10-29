@@ -1,0 +1,993 @@
+[INFO] [launch]: All log files can be found below /home/earl/.ros/log/2026-10-25-00-09-35-109404-earl-VMware-Virtual-Platform-308917
+[INFO] [launch]: Default logging verbosity is set to INFO
+[INFO] [gz-1]: process started with pid [308921]
+[INFO] [parameter_bridge-2]: process started with pid [308922]
+[INFO] [person_walk-3]: process started with pid [308923]
+[INFO] [depth_percept-4]: process started with pid [308924]
+[INFO] [person_vision-5]: process started with pid [308925]
+[INFO] [voice_node-6]: process started with pid [308926]
+[INFO] [follower-7]: process started with pid [308927]
+[depth_percept-4] [INFO] [1792858175.394495610] [depth_percept]: PERCEPT 4 向深度感知层就绪 (订阅 /depth_*), 输出 /perception/proximity
+[voice_node-6] [INFO] [1792858175.528521875] [voice_node]: VOICE 真人语音识别节点已启动 (Vosk 离线中文, 等待语音指令...)
+[voice_node-6] LOG (VoskAPI:ReadDataFiles():model.cc:213) Decoding params beam=12 max-active=5000 lattice-beam=4
+[voice_node-6] LOG (VoskAPI:ReadDataFiles():model.cc:216) Silence phones 1:2:3:4:5:6:7:8:9:10
+[gz-1] [1;32m[Msg] [0m[1;32mReceived world [[0m[1;32m/home/earl/workspace/VLA/vla_ws/install/vla_follow/share/vla_follow/worlds/work_area.sdf[0m[1;32m] from the GUI.[0m[1;32m[0m
+[gz-1] [1;32m[Msg] [0m[1;32mGazebo Sim Server v[0m[1;32m8.15.0[0m[1;32m[0m
+[gz-1] [1;32m[Msg] [0m[1;32mLoading SDF world file[[0m[1;32m/home/earl/workspace/VLA/vla_ws/install/vla_follow/share/vla_follow/worlds/work_area.sdf[0m[1;32m].[0m
+[gz-1] [1;33mWarning [Utils.cc:132][0m [/sdf/world[@name="follow_world"]/model[@name="robot"]/link[@name="chassis"]/sensor[@name="front_camera"]/gz_frame_id:/home/earl/workspace/VLA/vla_ws/install/vla_follow/share/vla_follow/worlds/work_area.sdf:L201]: XML Element[gz_frame_id], child of element[sensor], not defined in SDF. Copying[gz_frame_id] as children of [sensor].
+[gz-1] [1;33mWarning [Utils.cc:132][0m [/sdf/world[@name="follow_world"]/model[@name="robot"]/link[@name="chassis"]/sensor[@name="gpu_lidar"]/gz_frame_id:/home/earl/workspace/VLA/vla_ws/install/vla_follow/share/vla_follow/worlds/work_area.sdf:L274]: XML Element[gz_frame_id], child of element[sensor], not defined in SDF. Copying[gz_frame_id] as children of [sensor].
+[gz-1] [1;33mWarning [Utils.cc:132][0m [/sdf/world[@name="follow_world"]/model[@name="robot"]/joint[@name="left_wheel_joint"]/axis/xyz[@resolved_frame="child"]:/home/earl/workspace/VLA/vla_ws/install/vla_follow/share/vla_follow/worlds/work_area.sdf:L350]: XML Attribute[resolved_frame] in element[xyz] not defined in SDF.
+[gz-1] [1;33mWarning [Utils.cc:132][0m [/sdf/world[@name="follow_world"]/model[@name="robot"]/joint[@name="left_wheel_joint"]/axis/limits:/home/earl/workspace/VLA/vla_ws/install/vla_follow/share/vla_follow/worlds/work_area.sdf:L351]: XML Element[limits], child of element[axis], not defined in SDF. Copying[limits] as children of [axis].
+[gz-1] [1;33mWarning [Utils.cc:132][0m [/sdf/world[@name="follow_world"]/model[@name="robot"]/joint[@name="right_wheel_joint"]/axis/xyz[@resolved_frame="child"]:/home/earl/workspace/VLA/vla_ws/install/vla_follow/share/vla_follow/worlds/work_area.sdf:L358]: XML Attribute[resolved_frame] in element[xyz] not defined in SDF.
+[gz-1] [1;33mWarning [Utils.cc:132][0m [/sdf/world[@name="follow_world"]/model[@name="robot"]/joint[@name="right_wheel_joint"]/axis/limits:/home/earl/workspace/VLA/vla_ws/install/vla_follow/share/vla_follow/worlds/work_area.sdf:L359]: XML Element[limits], child of element[axis], not defined in SDF. Copying[limits] as children of [axis].
+[voice_node-6] LOG (VoskAPI:RemoveOrphanNodes():nnet-nnet.cc:948) Removed 0 orphan nodes.
+[voice_node-6] LOG (VoskAPI:RemoveOrphanComponents():nnet-nnet.cc:847) Removing 0 orphan components.
+[person_walk-3] [INFO] [1792858175.585519522] [person_walk]: PERSON "人"节点就绪, 3 秒后开始在工作区内随机行走
+[gz-1] [1;33mWarning [Utils.cc:132][0m [/sdf/world[@name="follow_world"]/model[@name="person"]/joint[@name="left_wheel_joint"]/axis/xyz[@resolved_frame="child"]:/home/earl/workspace/VLA/vla_ws/install/vla_follow/share/vla_follow/worlds/work_area.sdf:L461]: XML Attribute[resolved_frame] in element[xyz] not defined in SDF.
+[gz-1] [1;33mWarning [Utils.cc:132][0m [/sdf/world[@name="follow_world"]/model[@name="person"]/joint[@name="left_wheel_joint"]/axis/limits:/home/earl/workspace/VLA/vla_ws/install/vla_follow/share/vla_follow/worlds/work_area.sdf:L462]: XML Element[limits], child of element[axis], not defined in SDF. Copying[limits] as children of [axis].
+[gz-1] [1;33mWarning [Utils.cc:132][0m [/sdf/world[@name="follow_world"]/model[@name="person"]/joint[@name="right_wheel_joint"]/axis/xyz[@resolved_frame="child"]:/home/earl/workspace/VLA/vla_ws/install/vla_follow/share/vla_follow/worlds/work_area.sdf:L469]: XML Attribute[resolved_frame] in element[xyz] not defined in SDF.
+[gz-1] [1;33mWarning [Utils.cc:132][0m [/sdf/world[@name="follow_world"]/model[@name="person"]/joint[@name="right_wheel_joint"]/axis/limits:/home/earl/workspace/VLA/vla_ws/install/vla_follow/share/vla_follow/worlds/work_area.sdf:L470]: XML Element[limits], child of element[axis], not defined in SDF. Copying[limits] as children of [axis].
+[voice_node-6] LOG (VoskAPI:ReadDataFiles():model.cc:248) Loading i-vector extractor from /home/earl/workspace/VLA/vla_demo/vosk-model-small-cn-0.22/ivector/final.ie
+[person_vision-5] [INFO] [1792858175.626791120] [person_vision]: VISION 快照配置: 保留10张 @ 2.0Hz (配置: /home/earl/workspace/VLA/vla_demo/vision_config.json)
+[voice_node-6] LOG (VoskAPI:ComputeDerivedVars():ivector-extractor.cc:183) Computing derived variables for iVector extractor
+[person_vision-5] [INFO] [1792858175.631747327] [person_vision]: VISION 4 向识人+快照管线就绪, 输出 /perception/person[_history]
+[follower-7] [INFO] [1792858175.653219649] [follower]: FOLLOWER 跟随控制器v4就绪(对正带±15° / 距离PID / 真值地图绕障)
+[voice_node-6] LOG (VoskAPI:ComputeDerivedVars():ivector-extractor.cc:204) Done.
+[voice_node-6] LOG (VoskAPI:ReadDataFiles():model.cc:282) Loading HCL and G from /home/earl/workspace/VLA/vla_demo/vosk-model-small-cn-0.22/graph/HCLr.fst /home/earl/workspace/VLA/vla_demo/vosk-model-small-cn-0.22/graph/Gr.fst
+[follower-7] [INFO] [1792858175.692794575] [follower]: FOLLOWER 待命: 等待语音指令...
+[person_vision-5] [INFO] [1792858175.732243747] [person_vision]: VISION 四相机视野内均无人 (检出率 0/1)
+[gz-1] [1;33m[Wrn] [Conversions.cc:735] [0m[1;33m<gui><camera> can't be converted yet[0m[1;33m[0m
+[gz-1] [1;33m[Wrn] [Conversions.cc:735] [0m[1;33m<gui><camera> can't be converted yet[0m[1;33m[0m
+[gz-1] [1;32m[Msg] [0m[1;32mServing entity system service on [[0m[1;32m/[0m[1;32mentity/system/add[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[Msg] [0m[1;32mCreate[0m[1;32m service on [[0m[1;32m/world/follow_world/create_multiple[0m[1;32m] (async)[0m[1;32m[0m
+[gz-1] [1;32m[Msg] [0m[1;32mCreate[0m[1;32m service on [[0m[1;32m/world/follow_world/create_multiple/blocking[0m[1;32m] (blocking)[0m[1;32m[0m
+[gz-1] [1;32m[Msg] [0m[1;32mRemove[0m[1;32m service on [[0m[1;32m/world/follow_world/remove[0m[1;32m] (async)[0m[1;32m[0m
+[gz-1] [1;32m[Msg] [0m[1;32mRemove[0m[1;32m service on [[0m[1;32m/world/follow_world/remove/blocking[0m[1;32m] (blocking)[0m[1;32m[0m
+[gz-1] [1;32m[Msg] [0m[1;32mPose[0m[1;32m service on [[0m[1;32m/world/follow_world/set_pose[0m[1;32m] (async)[0m[1;32m[0m
+[gz-1] [1;32m[Msg] [0m[1;32mPose[0m[1;32m service on [[0m[1;32m/world/follow_world/set_pose/blocking[0m[1;32m] (blocking)[0m[1;32m[0m
+[gz-1] [1;32m[Msg] [0m[1;32mPose[0m[1;32m service on [[0m[1;32m/world/follow_world/set_pose_vector[0m[1;32m] (async)[0m[1;32m[0m
+[gz-1] [1;32m[Msg] [0m[1;32mPose[0m[1;32m service on [[0m[1;32m/world/follow_world/set_pose_vector/blocking[0m[1;32m] (blocking)[0m[1;32m[0m
+[gz-1] [1;32m[Msg] [0m[1;32mLight configuration[0m[1;32m service on [[0m[1;32m/world/follow_world/light_config[0m[1;32m] (async)[0m[1;32m[0m
+[gz-1] [1;32m[Msg] [0m[1;32mLight configuration[0m[1;32m service on [[0m[1;32m/world/follow_world/light_config/blocking[0m[1;32m] (blocking)[0m[1;32m[0m
+[gz-1] [1;32m[Msg] [0m[1;32mPhysics[0m[1;32m service on [[0m[1;32m/world/follow_world/set_physics[0m[1;32m] (async)[0m[1;32m[0m
+[gz-1] [1;32m[Msg] [0m[1;32mPhysics[0m[1;32m service on [[0m[1;32m/world/follow_world/set_physics/blocking[0m[1;32m] (blocking)[0m[1;32m[0m
+[gz-1] [1;32m[Msg] [0m[1;32mSphericalCoordinates[0m[1;32m service on [[0m[1;32m/world/follow_world/set_spherical_coordinates[0m[1;32m] (async)[0m[1;32m[0m
+[gz-1] [1;32m[Msg] [0m[1;32mSphericalCoordinates[0m[1;32m service on [[0m[1;32m/world/follow_world/set_spherical_coordinates/blocking[0m[1;32m] (blocking)[0m[1;32m[0m
+[gz-1] [1;32m[Msg] [0m[1;32mEnable collision[0m[1;32m service on [[0m[1;32m/world/follow_world/enable_collision[0m[1;32m] (async)[0m[1;32m[0m
+[gz-1] [1;32m[Msg] [0m[1;32mEnable collision[0m[1;32m service on [[0m[1;32m/world/follow_world/enable_collision/blocking[0m[1;32m] (blocking)[0m[1;32m[0m
+[gz-1] [1;32m[Msg] [0m[1;32mDisable collision[0m[1;32m service on [[0m[1;32m/world/follow_world/disable_collision[0m[1;32m] (async)[0m[1;32m[0m
+[gz-1] [1;32m[Msg] [0m[1;32mDisable collision[0m[1;32m service on [[0m[1;32m/world/follow_world/disable_collision/blocking[0m[1;32m] (blocking)[0m[1;32m[0m
+[gz-1] [1;32m[Msg] [0m[1;32mMaterial[0m[1;32m service on [[0m[1;32m/world/follow_world/visual_config[0m[1;32m] (async)[0m[1;32m[0m
+[gz-1] [1;32m[Msg] [0m[1;32mMaterial[0m[1;32m service on [[0m[1;32m/world/follow_world/visual_config/blocking[0m[1;32m] (blocking)[0m[1;32m[0m
+[gz-1] [1;32m[Msg] [0m[1;32mMaterial[0m[1;32m service on [[0m[1;32m/world/follow_world/wheel_slip[0m[1;32m] (async)[0m[1;32m[0m
+[gz-1] [1;32m[Msg] [0m[1;32mMaterial[0m[1;32m service on [[0m[1;32m/world/follow_world/wheel_slip/blocking[0m[1;32m] (blocking)[0m[1;32m[0m
+[gz-1] [1;32m[Msg] [0m[1;32mDiffDrive subscribing to twist messages on [[0m[1;32m/model/robot/cmd_vel[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[Msg] [0m[1;32mDiffDrive subscribing to twist messages on [[0m[1;32m/model/person/cmd_vel[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[Msg] [0m[1;32mLoaded level [[0m[1;32mdefault[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[Msg] [0m[1;32mServing world controls on [[0m[1;32m/world/follow_world[0m[1;32m/control], [[0m[1;32m/world/follow_world[0m[1;32m/control/state] and [[0m[1;32m/world/follow_world[0m[1;32m/playback/control][0m[1;32m[0m
+[gz-1] [1;32m[Msg] [0m[1;32mServing GUI information on [[0m[1;32m/world/follow_world[0m[1;32m/[0m[1;32mgui/info[0m[1;32m][0m[1;32m[0m
+[voice_node-6] LOG (VoskAPI:ReadDataFiles():model.cc:308) Loading winfo /home/earl/workspace/VLA/vla_demo/vosk-model-small-cn-0.22/graph/phones/word_boundary.int
+[voice_node-6] [INFO] [1792858175.757638044] [voice_node]: VOICE 中文声学模型加载完成: /home/earl/workspace/VLA/vla_demo/vosk-model-small-cn-0.22 (0.2s), 可以开始识别
+[gz-1] [1;33m[GUI] [Wrn] [Application.cc:908] [0m[1;33m[QT] file::/ImageDisplay/ImageDisplay.qml:91:5: QML Image: Invalid image provider: image://plugin61435imagedisplay/unomf[0m[1;33m[0m
+[parameter_bridge-2] [INFO] [1792858176.230017024] [ros_gz_bridge]: Creating ROS->GZ Bridge: [/robot/cmd_vel (geometry_msgs/msg/Twist) -> /model/robot/cmd_vel (gz.msgs.Twist)] (Lazy 0)
+[parameter_bridge-2] [INFO] [1792858176.279529766] [ros_gz_bridge]: Creating GZ->ROS Bridge: [/model/robot/odometry (gz.msgs.Odometry) -> /robot/odom (nav_msgs/msg/Odometry)] (Lazy 0)
+[parameter_bridge-2] [INFO] [1792858176.283995491] [ros_gz_bridge]: Creating ROS->GZ Bridge: [/person/cmd_vel (geometry_msgs/msg/Twist) -> /model/person/cmd_vel (gz.msgs.Twist)] (Lazy 0)
+[parameter_bridge-2] [INFO] [1792858176.286763875] [ros_gz_bridge]: Creating GZ->ROS Bridge: [/model/person/odometry (gz.msgs.Odometry) -> /person/odom (nav_msgs/msg/Odometry)] (Lazy 0)
+[parameter_bridge-2] [INFO] [1792858176.290338454] [ros_gz_bridge]: Creating GZ->ROS Bridge: [/lidar (gz.msgs.LaserScan) -> /scan (sensor_msgs/msg/LaserScan)] (Lazy 0)
+[parameter_bridge-2] [INFO] [1792858176.293163676] [ros_gz_bridge]: Passing message from ROS geometry_msgs/msg/Twist to Gazebo gz.msgs.Twist (showing msg only once per type)
+[gz-1] [1;32m[Msg] [0m[1;32mWorld [[0m[1;32mfollow_world[0m[1[1;32m[Msg] [0m[1;32mGazebo Sim GUI    v[0m[1;32m8.15.0[0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mLoading config [[0m[1;32m/home/earl/.gz/sim/8/gui.config[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mAdded plugin [[0m[1;32m3D View[0m[1;32m] to main window[0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mLoaded plugin [[0m[1;32mMinimalScene[0m[1;32m] from path [[0m[1;32m/opt/ros/jazzy/opt/gz_gui_vendor/lib/gz-gui-8/plugins/libMinimalScene.so[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mAdded plugin [[0m[1;32mImage display[0m[1;32m] to main window[0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mLoaded plugin [[0m[1;32mImageDisplay[0m[1;32m] from path [[0m[1;32m/opt/ros/jazzy/opt/gz_gui_vendor/lib/gz-gui-8/plugins/libImageDisplay.so[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mCurrently tracking topic on [[0m[1;32m/gui/currently_tracked[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mAdded plugin [[0m[1;32mEntity Context Menu[0m[1;32m] to main window[0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mLoaded plugin [[0m[1;32mEntityContextMenuPlugin[0m[1;32m] from path [[0m[1;32m/opt/ros/jazzy/opt/gz_sim_vendor/lib/gz-sim-8/plugins/gui/libEntityContextMenuPlugin.so[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mAdded plugin [[0m[1;32mScene Manager[0m[1;32m] to main window[0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mLoaded plugin [[0m[1;32mGzSceneManager[0m[1;32m] from path [[0m[1;32m/opt/ros/jazzy/opt/gz_sim_vendor/lib/gz-sim-8/plugins/gui/libGzSceneManager.so[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mCamera view controller topic advertised on [[0m[1;32m/gui/camera/view_control[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mCamera reference visual topic advertised on [[0m[1;32m/gui/camera/view_control/reference_visual[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mCamera view control sensitivity advertised on [[0m[1;32m/gui/camera/view_control/sensitivity[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mAdded plugin [[0m[1;32mInteractive view control[0m[1;32m] to main window[0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mLoaded plugin [[0m[1;32mInteractiveViewControl[0m[1;32m] from path [[0m[1;32m/opt/ros/jazzy/opt/gz_gui_vendor/lib/gz-gui-8/plugins/libInteractiveViewControl.so[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mAdded plugin [[0m[1;32mCamera tracking[0m[1;32m] to main window[0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mLoaded plugin [[0m[1;32mCameraTracking[0m[1;32m] from path [[0m[1;32m/opt/ros/jazzy/opt/gz_gui_vendor/lib/gz-gui-8/plugins/libCameraTracking.so[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mListening to stats on [[0m[1;32m/world/follow_world/stats[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mAdded plugin [[0m[1;32mMarker Manager[0m[1;32m] to main window[0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mLoaded plugin [[0m[1;32mMarkerManager[0m[1;32m] from path [[0m[1;32m/opt/ros/jazzy/opt/gz_gui_vendor/lib/gz-gui-8/plugins/libMarkerManager.so[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mAdded plugin [[0m[1;32mSelect entities[0m[1;32m] to main window[0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mLoaded plugin [[0m[1;32mSelectEntities[0m[1;32m] from path [[0m[1;32m/opt/ros/jazzy/opt/gz_sim_vendor/lib/gz-sim-8/plugins/gui/libSelectEntities.so[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mAdded plugin [[0m[1;32mSpawn[0m[1;32m] to main window[0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mLoaded plugin [[0m[1;32mSpawn[0m[1;32m] from path [[0m[1;32m/opt/ros/jazzy/opt/gz_sim_vendor/lib/gz-sim-8/plugins/gui/libSpawn.so[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mView as transparent service on [[0m[1;32m/gui/view/transparent[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mView as wireframes service on [[0m[1;32m/gui/view/wireframes[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mView center of mass service on [[0m[1;32m/gui/view/com[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mView inertia service on [[0m[1;32m/gui/view/inertia[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mView collisions service on [[0m[1;32m/gui/view/collisions[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mView joints service on [[0m[1;32m/gui/view/joints[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mView frames service on [[0m[1;32m/gui/view/frames[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mAdded plugin [[0m[1;32mVisualization capabilities[0m[1;32m] to main window[0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mLoaded plugin [[0m[1;32mVisualizationCapabilities[0m[1;32m] from path [[0m[1;32m/opt/ros/jazzy/opt/gz_sim_vendor/lib/gz-sim-8/plugins/gui/libVisualizationCapabilities.so[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mUsing world control service [[0m[1;32m/world/follow_world/control[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mListening to stats on [[0m[1;32m/world/follow_world/stats[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mAdded plugin [[0m[1;32mWorld control[0m[1;32m] to main window[0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mLoaded plugin [[0m[1;32mWorldControl[0m[1;32m] from path [[0m[1;32m/opt/ros/jazzy/opt/gz_gui_vendor/lib/gz-gui-8/plugins/libWorldControl.so[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mListening to stats on [[0m[1;32m/world/follow_world/stats[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mAdded plugin [[0m[1;32mWorld stats[0m[1;32m] to main window[0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mLoaded plugin [[0m[1;32mWorldStats[0m[1;32m] from path [[0m[1;32m/opt/ros/jazzy/opt/gz_gui_vendor/lib/gz-gui-8/plugins/libWorldStats.so[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mAdded plugin [[0m[1;32mShapes[0m[1;32m] to main window[0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mLoaded plugin [[0m[1;32mShapes[0m[1;32m] from path [[0m[1;32m/opt/ros/jazzy/opt/gz_sim_vendor/lib/gz-sim-8/plugins/gui/libShapes.so[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mAdded plugin [[0m[1;32mLights[0m[1;32m] to main window[0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mLoaded plugin [[0m[1;32mLights[0m[1;32m] from path [[0m[1;32m/opt/ros/jazzy/opt/gz_sim_vendor/lib/gz-sim-8/plugins/gui/libLights.so[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mAdded plugin [[0m[1;32mTransform control[0m[1;32m] to main window[0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mLoaded plugin [[0m[1;32mTransformControl[0m[1;32m] from path [[0m[1;32m/opt/ros/jazzy/opt/gz_sim_vendor/lib/gz-sim-8/plugins/gui/libTransformControl.so[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mScreenshot service on [[0m[1;32m/gui/screenshot[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mAdded plugin [[0m[1;32mScreenshot[0m[1;32m] to main window[0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mLoaded plugin [[0m[1;32mScreenshot[0m[1;32m] from path [[0m[1;32m/opt/ros/jazzy/opt/gz_gui_vendor/lib/gz-gui-8/plugins/libScreenshot.so[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mAdded plugin [[0m[1;32mCopy/Paste[0m[1;32m] to main window[0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mLoaded plugin [[0m[1;32mCopyPaste[0m[1;32m] from path [[0m[1;32m/opt/ros/jazzy/opt/gz_sim_vendor/lib/gz-sim-8/plugins/gui/libCopyPaste.so[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;33m[GUI] [Wrn] [Application.cc:908] [0m[1;33m[QT] file::/WorldStats/WorldStats.qml:53:3: QML RowLayout: Binding loop detected for property "x"[0m[1;33m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mAdded plugin [[0m[1;32mComponent inspector[0m[1;32m] to main window[0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mLoaded plugin [[0m[1;32mComponentInspector[0m[1;32m] from path [[0m[1;32m/opt/ros/jazzy/opt/gz_sim_vendor/lib/gz-sim-8/plugins/gui/libComponentInspector.so[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mCurrently tracking topic on [[0m[1;32m/gui/currently_tracked[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mAdded plugin [[0m[1;32mEntity tree[0m[1;32m] to main window[0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mLoaded plugin [[0m[1;32mEntityTree[0m[1;32m] from path [[0m[1;32m/opt/ros/jazzy/opt/gz_sim_vendor/lib/gz-sim-8/plugins/gui/libEntityTree.so[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mUsing server control service [[0m[1;32m/server_control[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mLoading plugin [[0m[1;32mgz-rendering-ogre[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mMove to service on [[0m[1;32m/gui/move_to[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mFollow service on [[0m[1;32m/gui/follow[0m[1;32m] (deprecated)[0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mTracking topic on [[0m[1;32m/gui/track[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mTracking status topic on [[0m[1;32m/gui/currently_tracked[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mMove to pose service on [[0m[1;32m/gui/move_to/pose[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mCamera pose topic advertised on [[0m[1;32m/gui/camera/pose[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mFollow offset service on [[0m[1;32m/gui/follow/offset[0m[1;32m] (deprecated)[0m[1;32m[0m
+[gz-1] [1;33mWarning [Utils.cc:132][0m [/sdf/model[@name="person"]/joint[@name="left_wheel_joint"]/axis/limits:<data-string>:L223]: XML Element[limits], child of element[axis], not defined in SDF. Copying[limits] as children of [axis].
+[gz-1] [1;33mWarning [Utils.cc:132][0m [/sdf/model[@name="person"]/joint[@name="right_wheel_joint"]/axis/limits:<data-string>:L238]: XML Element[limits], child of element[axis], not defined in SDF. Copying[limits] as children of [axis].
+[gz-1] [1;33mWarning [Utils.cc:132][0m [/sdf/model[@name="robot"]/link[@name="chassis"]/sensor[@name="front_camera"]/gz_frame_id:<data-string>:L73]: XML Element[gz_frame_id], child of element[sensor], not defined in SDF. Copying[gz_frame_id] as children of [sensor].
+[gz-1] [1;33mWarning [Utils.cc:132][0m [/sdf/model[@name="robot"]/link[@name="chassis"]/sensor[@name="gpu_lidar"]/gz_frame_id:<data-string>:L184]: XML Element[gz_frame_id], child of element[sensor], not defined in SDF. Copying[gz_frame_id] as children of [sensor].
+[gz-1] [1;33mWarning [Utils.cc:132][0m [/sdf/model[@name="robot"]/joint[@name="left_wheel_joint"]/axis/limits:<data-string>:L326]: XML Element[limits], child of element[axis], not defined in SDF. Copying[limits] as children of [axis].
+[gz-1] [1;33mWarning [Utils.cc:132][0m [/sdf/model[@name="robot"]/joint[@name="right_wheel_joint"]/axis/limits:<data-string>:L341]: XML Element[limits], child of element[axis], not defined in SDF. Copying[limits] as children of [axis].
+[person_vision-5] [INFO] [1792858177.935045323] [person_vision]: VISION 📷 快照保存 1 张: 000937_front_d0.6m_b+0deg.jpg
+[person_vision-5] [INFO] [1792858178.433877569] [person_vision]: VISION 📷 快照保存 1 张: 000938_front_d0.6m_b+0deg.jpg
+[person_walk-3] [INFO] [1792858178.577457361] [person_walk]: PERSON 行走中 v=0.22m/s
+[person_walk-3] [INFO] [1792858178.627451573] [person_walk]: PERSON 离机器人过近, 绕开
+[person_walk-3] [INFO] [1792858178.627924416] [person_walk]: PERSON 位置=(+0.00, +0.00) v=0.00 状态=ESCAPE
+[person_vision-5] [INFO] [1792858178.832839151] [person_vision]: VISION ★ 人位于[前]相机视野 偏离中线+0.0° 距离=0.65m 面积=6103px
+[person_vision-5] [INFO] [1792858179.033305124] [person_vision]: VISION 📷 快照保存 1 张: 000939_front_d0.6m_b+0deg.jpg
+[person_vision-5] [INFO] [1792858179.634674299] [person_vision]: VISION 📷 快照保存 1 张: 000939_front_d0.7m_b+0deg.jpg
+[person_vision-5] [INFO] [1792858180.234112216] [person_vision]: VISION 📷 快照保存 1 张: 000940_front_d1.0m_b-8deg.jpg
+[depth_percept-4] [INFO] [1792858180.588118510] [depth_percept]: PERCEPT 误差对比 front:0.7/真0.9(Δ0.20) left:3.0/真6.0(Δ3.01) right:2.8/真2.8(Δ0.02) back:3.1/真6.0(Δ2.94) | 超阈(>0.3m): 2向
+[person_walk-3] [INFO] [1792858180.679000417] [person_walk]: PERSON 位置=(+0.43, -0.00) v=0.25 状态=ESCAPE
+[follower-7] [INFO] [1792858180.693353312] [follower]: FOLLOWER 待命: 等待语音指令...
+[person_vision-5] [INFO] [1792858181.832988403] [person_vision]: VISION 四相机视野内均无人 (检出率 24/62)
+[person_walk-3] [INFO] [1792858182.727684544] [person_walk]: PERSON 位置=(+0.95, -0.01) v=0.25 状态=ESCAPE
+[person_walk-3] [INFO] [1792858184.727984172] [person_walk]: PERSON 位置=(+1.45, -0.01) v=0.25 状态=ESCAPE
+[person_vision-5] [INFO] [1792858184.932813938] [person_vision]: VISION 四相机视野内均无人 (检出率 24/93)
+[depth_percept-4] [INFO] [1792858185.688809326] [depth_percept]: PERCEPT 误差对比 front:0.7/真2.2(Δ1.48) left:3.0/真6.0(Δ3.01) right:2.8/真2.8(Δ0.02) back:3.1/真6.0(Δ2.94) | 超阈(>0.3m): 3向
+[follower-7] [INFO] [1792858185.742920789] [follower]: FOLLOWER 待命: 等待语音指令...
+[person_walk-3] [INFO] [1792858185.777978954] [person_walk]: PERSON 行走中 v=0.42m/s
+[person_walk-3] [INFO] [1792858186.728156316] [person_walk]: PERSON 位置=(+2.05, -0.01) 朝向=-0° v=0.42 状态=WALK
+[person_vision-5] [INFO] [1792858187.933183745] [person_vision]: VISION 四相机视野内均无人 (检出率 24/123)
+[person_walk-3] [INFO] [1792858188.777926751] [person_walk]: PERSON 位置=(+2.92, -0.02) 朝向=-0° v=0.42 状态=WALK
+[follower-7] [INFO] [1792858190.743037276] [follower]: FOLLOWER 待命: 等待语音指令...
+[person_walk-3] [INFO] [1792858190.778177650] [person_walk]: PERSON 位置=(+3.77, -0.02) 朝向=-0° v=0.42 状态=WALK
+[depth_percept-4] [INFO] [1792858190.788723228] [depth_percept]: PERCEPT 误差对比 front:0.7/真4.3(Δ3.56) left:3.0/真6.0(Δ3.01) right:2.8/真2.8(Δ0.02) back:3.1/真6.0(Δ2.94) | 超阈(>0.3m): 3向
+[person_vision-5] [INFO] [1792858191.032795733] [person_vision]: VISION 四相机视野内均无人 (检出率 24/154)
+[person_walk-3] [INFO] [1792858192.778128336] [person_walk]: PERSON 位置=(+4.59, -0.03) 朝向=-1° v=0.27 状态=WALK
+[person_walk-3] [INFO] [1792858193.627664619] [person_walk]: PERSON 明显减速(慢走)
+[person_vision-5] [INFO] [1792858194.032870037] [person_vision]: VISION 四相机视野内均无人 (检出率 24/184)
+[person_walk-3] [INFO] [1792858194.828132289] [person_walk]: PERSON 位置=(+4.93, -0.03) 朝向=-2° v=0.08 状态=SLOW
+[follower-7] [INFO] [1792858195.743019658] [follower]: FOLLOWER 待命: 等待语音指令...
+[depth_percept-4] [INFO] [1792858195.888182457] [depth_percept]: PERCEPT 误差对比 front:0.7/真5.3(Δ4.53) left:3.0/真6.0(Δ3.01) right:2.8/真2.8(Δ0.02) back:3.1/真6.0(Δ2.94) | 超阈(>0.3m): 3向
+[person_walk-3] [INFO] [1792858196.877744924] [person_walk]: PERSON 位置=(+5.03, -0.14) 朝向=-67° v=0.08 状态=SLOW
+[person_vision-5] [INFO] [1792858197.034871719] [person_vision]: VISION 四相机视野内均无人 (检出率 24/214)
+[person_walk-3] [INFO] [1792858197.377495891] [person_walk]: PERSON 行走中 v=0.45m/s
+[person_walk-3] [INFO] [1792858197.427405422] [person_walk]: PERSON 靠近边界/障碍, 返回场地中心
+[person_walk-3] [INFO] [1792858198.678013704] [person_walk]: PERSON 行走中 v=0.29m/s
+[person_walk-3] [INFO] [1792858198.727207659] [person_walk]: PERSON 靠近边界/障碍, 返回场地中心
+[person_walk-3] [INFO] [1792858198.877826419] [person_walk]: PERSON 位置=(+5.06, -0.19) v=0.03 状态=ESCAPE
+[person_walk-3] [INFO] [1792858199.928187713] [person_walk]: PERSON 行走中 v=0.32m/s
+[person_vision-5] [INFO] [1792858200.133513088] [person_vision]: VISION 四相机视野内均无人 (检出率 24/245)
+[follower-7] [INFO] [1792858200.793512511] [follower]: FOLLOWER 待命: 等待语音指令...
+[person_walk-3] [INFO] [1792858200.879251955] [person_walk]: PERSON 位置=(+4.57, -0.21) 朝向=-180° v=0.32 状态=WALK
+[depth_percept-4] [INFO] [1792858200.988130889] [depth_percept]: PERCEPT 误差对比 front:0.7/真4.8(Δ4.09) left:3.0/真6.0(Δ3.01) right:2.8/真2.8(Δ0.02) back:3.1/真6.0(Δ2.94) | 超阈(>0.3m): 3向
+[person_vision-5] [INFO] [1792858202.733921279] [person_vision]: VISION 📷 快照保存 1 张: 001002_front_d1.6m_b+0deg.jpg
+[person_walk-3] [INFO] [1792858202.879386030] [person_walk]: PERSON 位置=(+4.00, -0.21) 朝向=-180° v=0.32 状态=WALK
+[person_vision-5] [INFO] [1792858203.234076542] [person_vision]: VISION 📷 快照保存 1 张: 001003_front_d1.6m_b+0deg.jpg
+[person_vision-5] [INFO] [1792858203.234759936] [person_vision]: VISION ★ 人位于[前]相机视野 偏离中线+0.3° 距离=1.63m 面积=1081px
+[person_vision-5] [INFO] [1792858203.734207782] [person_vision]: VISION 📷 快照保存 1 张: 001003_front_d1.6m_b+0deg.jpg
+[person_vision-5] [INFO] [1792858204.334943209] [person_vision]: VISION 📷 快照保存 1 张: 001004_front_d1.6m_b-0deg.jpg
+[person_walk-3] [INFO] [1792858204.927742465] [person_walk]: PERSON 位置=(+3.35, -0.21) 朝向=-180° v=0.32 状态=WALK
+[person_vision-5] [INFO] [1792858204.933976950] [person_vision]: VISION 📷 快照保存 1 张: 001004_front_d1.6m_b-0deg.jpg
+[person_vision-5] [INFO] [1792858205.533708386] [person_vision]: VISION 📷 快照保存 1 张: 001005_front_d1.6m_b-1deg.jpg
+[follower-7] [INFO] [1792858205.843489159] [follower]: FOLLOWER 待命: 等待语音指令...
+[depth_percept-4] [INFO] [1792858205.988784158] [depth_percept]: PERCEPT 误差对比 front:1.7/真1.5(Δ0.23) left:1.0/真0.8(Δ0.23) right:2.0/真2.0(Δ0.00) back:2.1/真2.0(Δ0.10) | 全部≤0.3m
+[person_vision-5] [INFO] [1792858206.033210755] [person_vision]: VISION 📷 快照保存 1 张: 001006_front_d1.6m_b-1deg.jpg
+[person_vision-5] [INFO] [1792858206.233178390] [person_vision]: VISION ★ 人位于[前]相机视野 偏离中线-1.0° 距离=1.60m 面积=1119px
+[follower-7] [INFO] [1792858206.555394641] [follower]: FOLLOWER ★ 收到跟随指令(来自语音: "请跟随我"), 目标距离 = 1.00m — 开始跟随
+[follower-7] [INFO] [1792858206.592929235] [follower]: FOLLOWER 感知源切换 → 视觉
+[follower-7] [INFO] [1792858206.593264462] [follower]: FOLLOWER [跟踪|视觉] 距离=1.60m(目标1.00m) 目标方位=-1° 人速=0.00 指令v=+0.20 实际v=0.00 w=-1.3 绕障5左
+[follower-7] [INFO] [1792858206.593418765] [follower]: FOLLOWER 诊断 雷达帧=1134 机器人=(-4.00,-4.00,+0°) 人=(-2.40,-4.03)
+[person_vision-5] [INFO] [1792858206.634281114] [person_vision]: VISION 📷 快照保存 1 张: 001006_front_d1.6m_b-1deg.jpg
+[person_walk-3] [INFO] [1792858206.928620803] [person_walk]: PERSON 位置=(+2.72, -0.22) 朝向=-180° v=0.32 状态=WALK
+[follower-7] [INFO] [1792858207.094486542] [follower]: FOLLOWER [跟踪|视觉] 距离=1.52m(目标1.00m) 目标方位=+5° 人速=0.11 指令v=+0.60 实际v=0.53 w=-0.7 绕障5左
+[person_vision-5] [INFO] [1792858207.233372544] [person_vision]: VISION 📷 快照保存 1 张: 001007_front_d1.4m_b+15deg.jpg
+[follower-7] [INFO] [1792858207.343250628] [follower]: FOLLOWER ⟳ 目标偏离中线 +22.2° > 15°, 先原地对正
+[follower-7] [INFO] [1792858207.593167143] [follower]: FOLLOWER [对正|视觉] 距离=1.01m(目标1.00m) 目标方位=+27° 人速=0.66 指令v=+0.00 实际v=0.35 w=+0.7 对正+27°
+[person_vision-5] [INFO] [1792858207.733466616] [person_vision]: VISION 📷 快照保存 1 张: 001007_front_d1.0m_b+25deg.jpg
+[follower-7] [INFO] [1792858208.093268790] [follower]: FOLLOWER [对正|视觉] 距离=1.07m(目标1.00m) 目标方位=+18° 人速=0.23 指令v=+0.00 实际v=0.02 w=+0.4 对正+18°
+[person_vision-5] [INFO] [1792858208.333564718] [person_vision]: VISION 📷 快照保存 1 张: 001008_front_d1.1m_b+10deg.jpg
+[follower-7] [INFO] [1792858208.542998855] [follower]: FOLLOWER ✓ 已对正目标(偏差 +6.6° ≤ 15°), 转入距离跟踪
+[follower-7] [INFO] [1792858208.643814139] [follower]: FOLLOWER [跟踪|视觉] 距离=1.15m(目标1.00m) 目标方位=+7° 人速=0.08 指令v=+0.32 实际v=0.08 w=-2.4 绕障5左
+[person_walk-3] [INFO] [1792858208.727425356] [person_walk]: PERSON 转向 39°
+[person_vision-5] [INFO] [1792858208.833196462] [person_vision]: VISION 📷 快照保存 1 张: 001008_front_d1.1m_b+5deg.jpg
+[person_walk-3] [INFO] [1792858208.978115469] [person_walk]: PERSON 位置=(+2.11, -0.21) 朝向=176° v=0.15 状态=TURN
+[follower-7] [INFO] [1792858209.142955633] [follower]: FOLLOWER ⟳ 目标偏离中线 +22.2° > 15°, 先原地对正
+[follower-7] [INFO] [1792858209.192866698] [follower]: FOLLOWER [对正|视觉] 距离=0.85m(目标1.00m) 目标方位=+22° 人速=0.18 指令v=+0.20 实际v=0.56 w=+0.5 对正+22°
+[person_vision-5] [INFO] [1792858209.334989638] [person_vision]: VISION 📷 快照保存 1 张: 001009_front_d0.6m_b+38deg.jpg
+[person_vision-5] [INFO] [1792858209.335630431] [person_vision]: VISION ★ 人位于[前]相机视野 偏离中线+38.0° 距离=0.62m 面积=6675px
+[person_walk-3] [INFO] [1792858209.527424512] [person_walk]: PERSON 离机器人过近, 绕开
+[follower-7] [INFO] [1792858209.693137324] [follower]: FOLLOWER [对正|视觉] 距离=0.58m(目标1.00m) 目标方位=+43° 人速=0.50 指令v=+0.00 实际v=0.02 w=+1.2 对正+43°
+[person_vision-5] [INFO] [1792858209.835729354] [person_vision]: VISION 📷 快照保存 2 张: 001009_front_d0.6m_b+43deg.jpg, 001009_left_d0.7m_b+57deg.jpg
+[follower-7] [INFO] [1792858210.193613380] [follower]: FOLLOWER [对正|视觉] 距离=0.65m(目标1.00m) 目标方位=+32° 人速=0.17 指令v=+0.00 实际v=0.07 w=+0.9 对正+32°
+[person_vision-5] [INFO] [1792858210.433237324] [person_vision]: VISION 📷 快照保存 1 张: 001010_front_d0.7m_b+20deg.jpg
+[follower-7] [INFO] [1792858210.593083420] [follower]: FOLLOWER 诊断 雷达帧=1294 机器人=(-3.26,-4.28,-5°) 人=(-2.48,-4.16)
+[follower-7] [INFO] [1792858210.693312856] [follower]: FOLLOWER [对正|视觉] 距离=0.79m(目标1.00m) 目标方位=+14° 人速=0.06 指令v=+0.00 实际v=0.02 w=+0.3 对正+14°
+[person_vision-5] [INFO] [1792858210.934538558] [person_vision]: VISION 📷 快照保存 1 张: 001010_front_d0.8m_b+8deg.jpg
+[follower-7] [INFO] [1792858210.943156294] [follower]: FOLLOWER ✓ 已对正目标(偏差 +8.4° ≤ 15°), 转入距离跟踪
+[follower-7] [WARN] [1792858210.943780357] [follower]: FOLLOWER 卡死脱困(平移0.80m/旋转2°倒车)
+[person_walk-3] [INFO] [1792858211.028129813] [person_walk]: PERSON 位置=(+2.00, -0.20) v=0.00 状态=ESCAPE
+[depth_percept-4] [INFO] [1792858211.088692789] [depth_percept]: PERCEPT 误差对比 front:0.8/真0.7(Δ0.09) left:1.3/真10.3(Δ9.01) right:1.7/真1.7(Δ0.04) back:1.8/真2.8(Δ0.91) | 超阈(>0.3m): 2向
+[follower-7] [INFO] [1792858211.243195197] [follower]: FOLLOWER [跟踪|视觉] 距离=0.83m(目标1.00m) 目标方位=+6° 人速=0.02 指令v=+0.30 实际v=0.18 w=-3.0 绕障5左
+[person_vision-5] [INFO] [1792858211.433201094] [person_vision]: VISION 📷 快照保存 1 张: 001011_front_d0.8m_b+8deg.jpg
+[follower-7] [INFO] [1792858211.542975536] [follower]: FOLLOWER ⟳ 目标偏离中线 +18.5° > 15°, 先原地对正
+[follower-7] [INFO] [1792858211.743083409] [follower]: FOLLOWER [对正|视觉] 距离=0.53m(目标1.00m) 目标方位=+33° 人速=0.24 指令v=+0.00 实际v=0.22 w=+0.9 对正+33°
+[person_vision-5] [INFO] [1792858211.936086318] [person_vision]: VISION 📷 快照保存 1 张: 001011_front_d0.5m_b+33deg.jpg
+[follower-7] [INFO] [1792858212.243344680] [follower]: FOLLOWER [对正|视觉] 距离=0.50m(目标1.00m) 目标方位=+34° 人速=0.22 指令v=+0.00 实际v=0.05 w=+0.9 对正+34°
+[person_vision-5] [INFO] [1792858212.433127550] [person_vision]: VISION ★ 人位于[前]相机视野 偏离中线+23.5° 距离=0.57m 面积=8481px
+[person_vision-5] [INFO] [1792858212.535298027] [person_vision]: VISION 📷 快照保存 1 张: 001012_front_d0.6m_b+14deg.jpg
+[follower-7] [INFO] [1792858212.743120792] [follower]: FOLLOWER ✓ 已对正目标(偏差 +7.9° ≤ 15°), 转入距离跟踪
+[follower-7] [INFO] [1792858212.793518541] [follower]: FOLLOWER [跟踪|视觉] 距离=0.58m(目标1.00m) 目标方位=+8° 人速=0.08 指令v=-0.25 实际v=0.03 w=-3.2 绕障5左
+[person_walk-3] [INFO] [1792858213.078011867] [person_walk]: PERSON 位置=(+2.26, -0.14) v=0.25 状态=ESCAPE
+[person_vision-5] [INFO] [1792858213.135284485] [person_vision]: VISION 📷 快照保存 1 张: 001013_front_d0.6m_b+7deg.jpg
+[follower-7] [INFO] [1792858213.343017067] [follower]: FOLLOWER ⟳ 目标偏离中线 +15.6° > 15°, 先原地对正
+[follower-7] [INFO] [1792858213.343472309] [follower]: FOLLOWER [对正|视觉] 距离=0.56m(目标1.00m) 目标方位=+16° 人速=0.06 指令v=-0.05 实际v=0.29 w=+0.3 对正+16°
+[person_vision-5] [INFO] [1792858213.633836971] [person_vision]: VISION 📷 快照保存 1 张: 001013_front_d0.5m_b+27deg.jpg
+[follower-7] [INFO] [1792858213.892815980] [follower]: FOLLOWER [对正|视觉] 距离=0.48m(目标1.00m) 目标方位=+32° 人速=0.12 指令v=+0.00 实际v=0.01 w=+0.8 对正+32°
+[person_vision-5] [INFO] [1792858214.234357948] [person_vision]: VISION 📷 快照保存 1 张: 001014_front_d0.5m_b+21deg.jpg
+[person_walk-3] [INFO] [1792858214.428291050] [person_walk]: PERSON 行走中 v=0.30m/s
+[follower-7] [INFO] [1792858214.443903485] [follower]: FOLLOWER [对正|视觉] 距离=0.46m(目标1.00m) 目标方位=+11° 人速=0.06 指令v=+0.00 实际v=0.02 w=+0.3 对正+11°
+[follower-7] [INFO] [1792858214.542948908] [follower]: FOLLOWER ✓ 已对正目标(偏差 +4.2° ≤ 15°), 转入距离跟踪
+[follower-7] [INFO] [1792858214.642982859] [follower]: FOLLOWER 诊断 雷达帧=1458 机器人=(-3.21,-4.28,-12°) 人=(-2.75,-4.35)
+[person_vision-5] [INFO] [1792858214.833685156] [person_vision]: VISION 📷 快照保存 1 张: 001014_front_d0.5m_b-1deg.jpg
+[follower-7] [INFO] [1792858214.992912841] [follower]: FOLLOWER [跟踪|视觉] 距离=0.47m(目标1.00m) 目标方位=-5° 人速=0.03 指令v=-0.35 实际v=0.35 w=-0.1 
+[person_walk-3] [INFO] [1792858215.127733247] [person_walk]: PERSON 位置=(+2.80, -0.08) 朝向=6° v=0.30 状态=WALK
+[person_vision-5] [INFO] [1792858215.334044650] [person_vision]: VISION 📷 快照保存 1 张: 001015_front_d0.6m_b-8deg.jpg
+[person_vision-5] [INFO] [1792858215.533834770] [person_vision]: VISION ★ 人位于[前]相机视野 偏离中线-8.1° 距离=0.61m 面积=6895px
+[follower-7] [INFO] [1792858215.542936094] [follower]: FOLLOWER [跟踪|视觉] 距离=0.61m(目标1.00m) 目标方位=-8° 人速=0.01 指令v=-0.33 实际v=0.35 w=-0.2 
+[person_vision-5] [INFO] [1792858215.933214359] [person_vision]: VISION 📷 快照保存 1 张: 001015_front_d0.7m_b-8deg.jpg
+[follower-7] [INFO] [1792858216.094224881] [follower]: FOLLOWER [跟踪|视觉] 距离=0.72m(目标1.00m) 目标方位=-8° 人速=0.00 指令v=-0.35 实际v=0.34 w=-0.2 
+[depth_percept-4] [INFO] [1792858216.188417596] [depth_percept]: PERCEPT 误差对比 front:0.8/真0.7(Δ0.07) left:0.9/真11.2(Δ10.32) right:1.4/真2.1(Δ0.66) back:0.9/真2.6(Δ1.62) | 超阈(>0.3m): 3向
+[person_vision-5] [INFO] [1792858216.434768408] [person_vision]: VISION 📷 快照保存 1 张: 001016_front_d0.8m_b-8deg.jpg
+[follower-7] [INFO] [1792858216.642923743] [follower]: FOLLOWER [跟踪|视觉] 距离=0.91m(目标1.00m) 目标方位=-8° 人速=0.00 指令v=+0.00 实际v=0.26 w=-0.2 
+[person_vision-5] [INFO] [1792858216.933902683] [person_vision]: VISION 📷 快照保存 1 张: 001016_front_d1.0m_b-8deg.jpg
+[follower-7] [INFO] [1792858217.142914101] [follower]: FOLLOWER [跟踪|视觉] 距离=0.97m(目标1.00m) 目标方位=-8° 人速=0.00 指令v=+0.00 实际v=0.01 w=-0.2 
+[person_walk-3] [INFO] [1792858217.177808039] [person_walk]: PERSON 位置=(+3.40, -0.01) 朝向=6° v=0.30 状态=WALK
+[person_vision-5] [INFO] [1792858217.533475523] [person_vision]: VISION 📷 快照保存 1 张: 001017_front_d1.0m_b-8deg.jpg
+[follower-7] [INFO] [1792858217.643019263] [follower]: FOLLOWER [跟踪|视觉] 距离=0.99m(目标1.00m) 目标方位=-8° 人速=0.00 指令v=+0.00 实际v=0.01 w=-0.2 
+[person_vision-5] [INFO] [1792858218.133440813] [person_vision]: VISION 📷 快照保存 1 张: 001018_front_d1.0m_b-8deg.jpg
+[follower-7] [INFO] [1792858218.193020740] [follower]: FOLLOWER [跟踪|视觉] 距离=1.05m(目标1.00m) 目标方位=-8° 人速=0.00 指令v=+0.00 实际v=0.01 w=-0.2 
+[person_vision-5] [INFO] [1792858218.633273939] [person_vision]: VISION 📷 快照保存 1 张: 001018_front_d1.1m_b-8deg.jpg
+[person_vision-5] [INFO] [1792858218.634051993] [person_vision]: VISION ★ 人位于[前]相机视野 偏离中线-7.6° 距离=1.09m 面积=2404px
+[follower-7] [INFO] [1792858218.642887843] [follower]: FOLLOWER 诊断 雷达帧=1618 机器人=(-3.82,-4.01,-56°) 人=(-3.34,-5.00)
+[follower-7] [INFO] [1792858218.693005552] [follower]: FOLLOWER [跟踪|视觉] 距离=1.09m(目标1.00m) 目标方位=-8° 人速=0.00 指令v=+0.00 实际v=0.01 w=-0.2 
+[person_vision-5] [INFO] [1792858219.137201274] [person_vision]: VISION 📷 快照保存 1 张: 001019_front_d1.2m_b+0deg.jpg
+[person_walk-3] [INFO] [1792858219.227713153] [person_walk]: PERSON 位置=(+4.01, +0.06) 朝向=6° v=0.30 状态=WALK
+[follower-7] [INFO] [1792858219.242971916] [follower]: FOLLOWER [跟踪|视觉] 距离=1.17m(目标1.00m) 目标方位=+0° 人速=0.00 指令v=+0.12 实际v=0.13 w=+0.0 
+[person_vision-5] [INFO] [1792858219.633224717] [person_vision]: VISION 📷 快照保存 1 张: 001019_front_d1.2m_b+0deg.jpg
+[follower-7] [INFO] [1792858219.794267955] [follower]: FOLLOWER [跟踪|视觉] 距离=1.20m(目标1.00m) 目标方位=-2° 人速=0.00 指令v=+0.15 实际v=0.16 w=+0.0 
+[person_vision-5] [INFO] [1792858220.235439363] [person_vision]: VISION 📷 快照保存 1 张: 001020_front_d1.2m_b-4deg.jpg
+[follower-7] [INFO] [1792858220.343070046] [follower]: FOLLOWER [跟踪|视觉] 距离=1.19m(目标1.00m) 目标方位=-5° 人速=0.02 指令v=+0.15 实际v=0.17 w=-0.1 
+[person_walk-3] [INFO] [1792858220.727458052] [person_walk]: PERSON 转向 29°
+[person_vision-5] [INFO] [1792858220.733843137] [person_vision]: VISION 📷 快照保存 1 张: 001020_front_d1.1m_b-5deg.jpg
+[follower-7] [INFO] [1792858220.893017075] [follower]: FOLLOWER [跟踪|视觉] 距离=1.11m(目标1.00m) 目标方位=-5° 人速=0.09 指令v=+0.14 实际v=0.13 w=-0.1 
+[person_walk-3] [INFO] [1792858221.227920490] [person_walk]: PERSON 位置=(+4.57, +0.13) 朝向=19° v=0.15 状态=TURN
+[depth_percept-4] [INFO] [1792858221.288163498] [depth_percept]: PERCEPT 误差对比 front:1.4/真1.0(Δ0.45) left:1.7/真1.5(Δ0.21) right:1.6/���2.3(Δ0.71) back:1.4/真1.1(Δ0.31) | 超阈(>0.3m): 3向
+[person_vision-5] [INFO] [1792858221.333339113] [person_vision]: VISION 📷 快照保存 1 张: 001021_front_d1.1m_b-4deg.jpg
+[follower-7] [INFO] [1792858221.392969198] [follower]: FOLLOWER [跟踪|视觉] 距离=1.07m(目标1.00m) 目标方位=-4° 人速=0.10 指令v=+0.00 实际v=0.01 w=-0.1 
+[person_walk-3] [INFO] [1792858221.577270531] [person_walk]: PERSON 行走中 v=0.44m/s
+[person_vision-5] [INFO] [1792858221.633047102] [person_vision]: VISION ★ 人位于[前]相机视野 偏离中线-3.4° 距离=1.07m 面积=2424px
+[person_vision-5] [INFO] [1792858221.835102258] [person_vision]: VISION 📷 快照保存 1 张: 001021_front_d1.1m_b-3deg.jpg
+[follower-7] [INFO] [1792858221.893304590] [follower]: FOLLOWER [跟踪|视觉] 距离=1.07m(目标1.00m) 目标方位=-3° 人速=0.03 指令v=+0.00 实际v=0.00 w=+0.0 
+[person_vision-5] [INFO] [1792858222.433388951] [person_vision]: VISION 📷 快照保存 1 张: 001022_front_d1.1m_b-3deg.jpg
+[follower-7] [INFO] [1792858222.442963954] [follower]: FOLLOWER [跟踪|视觉] 距离=1.07m(目标1.00m) 目标方位=-3° 人速=0.01 指令v=+0.00 实际v=0.00 w=-0.1 
+[follower-7] [INFO] [1792858222.643101390] [follower]: FOLLOWER 诊断 雷达帧=1778 机器人=(-3.71,-4.29,-88°) 人=(-3.74,-5.37)
+[follower-7] [INFO] [1792858222.992848497] [follower]: FOLLOWER [跟踪|视觉] 距离=1.08m(目标1.00m) 目标方位=-3° 人速=0.00 指令v=+0.00 实际v=0.00 w=+0.0 
+[person_vision-5] [INFO] [1792858223.033367051] [person_vision]: VISION 📷 快照保存 1 张: 001023_front_d1.1m_b-3deg.jpg
+[person_walk-3] [INFO] [1792858223.227915063] [person_walk]: PERSON 位置=(+4.94, +0.39) 朝向=42° v=0.20 状态=WALK
+[follower-7] [INFO] [1792858223.493376478] [follower]: FOLLOWER [跟踪|视觉] 距离=1.08m(目标1.00m) 目标方位=-3° 人速=0.00 指令v=+0.00 实际v=0.00 w=+0.0 
+[person_vision-5] [INFO] [1792858223.633154710] [person_vision]: VISION 📷 快照保存 1 张: 001023_front_d1.1m_b-2deg.jpg
+[follower-7] [INFO] [1792858224.042914224] [follower]: FOLLOWER [跟踪|视觉] 距离=1.08m(目标1.00m) 目标方位=-1° 人速=0.00 指令v=+0.00 实际v=0.00 w=+0.0 
+[person_vision-5] [INFO] [1792858224.133520860] [person_vision]: VISION 📷 快照保存 1 张: 001024_front_d1.1m_b-0deg.jpg
+[follower-7] [INFO] [1792858224.543322093] [follower]: FOLLOWER [跟踪|视觉] 距离=1.08m(目标1.00m) 目标方位=+1° 人速=0.00 指令v=+0.00 实际v=0.00 w=+0.0 
+[person_vision-5] [INFO] [1792858224.733769842] [person_vision]: VISION 📷 快照保存 1 张: 001024_front_d1.1m_b+5deg.jpg
+[person_vision-5] [INFO] [1792858224.734179723] [person_vision]: VISION ★ 人位于[前]相机视野 偏离中线+4.5° 距离=1.08m 面积=2422px
+[person_walk-3] [INFO] [1792858224.777340381] [person_walk]: PERSON 靠近边界/障碍, 返回场地中心
+[follower-7] [INFO] [1792858225.093028133] [follower]: FOLLOWER [跟踪|视觉] 距离=1.08m(目标1.00m) 目标方位=+5° 人速=0.00 指令v=+0.00 实际v=0.01 w=+0.1 
+[person_walk-3] [INFO] [1792858225.278482626] [person_walk]: PERSON 位置=(+5.06, +1.02) v=0.16 状态=ESCAPE
+[person_vision-5] [INFO] [1792858225.333199474] [person_vision]: VISION 📷 快照保存 1 张: 001025_front_d1.1m_b+5deg.jpg
+[follower-7] [INFO] [1792858225.593267712] [follower]: FOLLOWER [跟踪|视觉] 距离=1.11m(目标1.00m) 目标方位=+4° 人速=0.00 指令v=+0.07 实际v=0.07 w=+0.1 
+[person_vision-5] [INFO] [1792858225.833213092] [person_vision]: VISION 📷 快照保存 1 张: 001025_front_d1.1m_b+4deg.jpg
+[person_walk-3] [INFO] [1792858225.977515362] [person_walk]: PERSON 行走中 v=0.36m/s
+[person_walk-3] [INFO] [1792858226.027388793] [person_walk]: PERSON 靠近边界/障碍, 返回场地中心
+[follower-7] [INFO] [1792858226.143083952] [follower]: FOLLOWER [跟踪|视觉] 距离=1.08m(目标1.00m) 目标方位=+2° 人速=0.04 指令v=+0.00 实际v=0.02 w=+0.0 
+[depth_percept-4] [INFO] [1792858226.288397413] [depth_percept]: PERCEPT 误差对比 front:1.4/真1.0(Δ0.41) left:1.7/真1.6(Δ0.16) right:1.5/真2.3(Δ0.83) back:1.5/真1.2(Δ0.33) | 超阈(>0.3m): 3向
+[person_vision-5] [INFO] [1792858226.334044080] [person_vision]: VISION 📷 快照保存 1 张: 001026_front_d1.1m_b+2deg.jpg
+[follower-7] [INFO] [1792858226.693068063] [follower]: FOLLOWER [跟踪|视觉] 距离=1.07m(目标1.00m) 目标方位=+3° 人速=0.02 指令v=+0.00 实际v=0.00 w=+0.0 
+[follower-7] [INFO] [1792858226.693417346] [follower]: FOLLOWER 诊断 雷达帧=1938 机器人=(-3.71,-4.34,-80°) 人=(-3.48,-5.39)
+[person_vision-5] [INFO] [1792858226.936840933] [person_vision]: VISION 📷 快照保存 1 张: 001026_front_d1.1m_b+4deg.jpg
+[follower-7] [INFO] [1792858227.243058571] [follower]: FOLLOWER [跟踪|视觉] 距离=1.03m(目标1.00m) 目标方位=+5° 人速=0.05 指令v=+0.00 实际v=0.01 w=+0.2 
+[person_walk-3] [INFO] [1792858227.277575677] [person_walk]: PERSON 行走中 v=0.35m/s
+[person_walk-3] [INFO] [1792858227.327717213] [person_walk]: PERSON 位置=(+4.83, +1.04) 朝向=-170° v=0.27 状态=WALK
+[person_vision-5] [INFO] [1792858227.534427445] [person_vision]: VISION 📷 快照保存 1 张: 001027_front_d1.0m_b+6deg.jpg
+[follower-7] [INFO] [1792858227.743056944] [follower]: FOLLOWER [跟踪|视觉] 距离=0.96m(目标1.00m) 目标方位=+7° 人速=0.11 指令v=+0.00 实际v=0.01 w=+0.2 
+[person_vision-5] [INFO] [1792858227.832954623] [person_vision]: VISION ★ 人位于[前]相机视野 偏离中线+7.3° 距离=0.96m 面积=3059px
+[person_vision-5] [INFO] [1792858228.033241489] [person_vision]: VISION 📷 快照保存 1 张: 001028_front_d0.9m_b+8deg.jpg
+[follower-7] [INFO] [1792858228.292868594] [follower]: FOLLOWER [跟踪|视觉] 距离=0.93m(目标1.00m) 目标方位=+8° 人速=0.08 指令v=+0.00 实际v=0.01 w=+0.2 
+[person_vision-5] [INFO] [1792858228.533711902] [person_vision]: VISION 📷 快照保存 1 张: 001028_front_d0.9m_b+9deg.jpg
+[follower-7] [INFO] [1792858228.793059997] [follower]: FOLLOWER [跟踪|视觉] 距离=0.91m(目标1.00m) 目标方位=+10° 人速=0.05 指令v=+0.00 实际v=0.02 w=+0.3 
+[person_vision-5] [INFO] [1792858229.134074717] [person_vision]: VISION 📷 快照保存 1 张: 001029_front_d0.9m_b+10deg.jpg
+[follower-7] [INFO] [1792858229.293238819] [follower]: FOLLOWER [跟踪|视觉] 距离=0.92m(目标1.00m) 目标方位=+10° 人速=0.02 指令v=+0.00 实际v=0.02 w=+0.3 
+[person_walk-3] [INFO] [1792858229.328290552] [person_walk]: PERSON 位置=(+4.15, +0.92) 朝向=-170° v=0.35 状态=WALK
+[person_vision-5] [INFO] [1792858229.634108176] [person_vision]: VISION 📷 快照保存 1 张: 001029_front_d0.9m_b+10deg.jpg
+[follower-7] [INFO] [1792858229.842889153] [follower]: FOLLOWER [跟踪|视觉] 距离=0.97m(目标1.00m) 目标方位=+10° 人速=0.01 指令v=+0.00 实际v=0.02 w=+0.3 
+[person_vision-5] [INFO] [1792858230.233232144] [person_vision]: VISION 📷 快照保存 1 张: 001030_front_d1.0m_b+9deg.jpg
+[follower-7] [INFO] [1792858230.342992123] [follower]: FOLLOWER [跟踪|视觉] 距离=1.04m(目标1.00m) 目标方位=+9° 人速=0.00 指令v=+0.00 实际v=0.02 w=+0.3 
+[follower-7] [INFO] [1792858230.692926504] [follower]: FOLLOWER 诊断 雷达帧=2098 机器人=(-3.75,-4.38,-30°) 人=(-2.74,-4.77)
+[person_vision-5] [INFO] [1792858230.833714641] [person_vision]: VISION 📷 快照保存 1 张: 001030_front_d1.1m_b+9deg.jpg
+[follower-7] [INFO] [1792858230.843058942] [follower]: FOLLOWER [跟踪|视觉] 距离=1.12m(目标1.00m) 目标方位=+9° 人速=0.00 指令v=+0.07 实际v=0.06 w=-0.8 
+[person_vision-5] [INFO] [1792858230.933289354] [person_vision]: VISION ★ 人位于[前]相机视野 偏离中线+10.3° 距离=1.13m 面积=2258px
+[follower-7] [INFO] [1792858231.142921302] [follower]: FOLLOWER ⟳ 目标偏离中线 +17.9° > 15°, 先原地对正
+[depth_percept-4] [INFO] [1792858231.289058270] [depth_percept]: PERCEPT 误差对比 front:1.1/真2.5(Δ1.36) left:1.1/真12.0(Δ10.36) right:1.2/真2.1(Δ0.95) back:1.1/真3.0(Δ1.86) | 超阈(>0.3m): 4向
+[follower-7] [INFO] [1792858231.343317305] [follower]: FOLLOWER [对正|视觉] 距离=1.07m(目标1.00m) 目标方位=+23° 人速=0.08 指令v=+0.00 实际v=0.02 w=+0.5 对正+23°
+[person_walk-3] [INFO] [1792858231.377845933] [person_walk]: PERSON 位置=(+3.43, +0.79) 朝向=-170° v=0.35 状态=WALK
+[person_vision-5] [INFO] [1792858231.433209854] [person_vision]: VISION 📷 快照保存 1 张: 001031_front_d1.1m_b+23deg.jpg
+[follower-7] [INFO] [1792858231.893257776] [follower]: FOLLOWER [对正|视觉] 距离=1.25m(目标1.00m) 目标方位=+16° 人速=0.04 指令v=+0.00 实际v=0.02 w=+0.3 对正+16°
+[person_vision-5] [INFO] [1792858232.034094260] [person_vision]: VISION 📷 快照保存 1 张: 001032_front_d1.3m_b+12deg.jpg
+[follower-7] [INFO] [1792858232.142923982] [follower]: FOLLOWER ✓ 已对正目标(偏差 +8.4° ≤ 15°), 转入距离跟踪
+[follower-7] [INFO] [1792858232.392953397] [follower]: FOLLOWER [跟踪|视觉] 距离=1.49m(目标1.00m) 目标方位=+3° 人速=0.01 指��v=+0.50 实际v=0.26 w=+1.8 绕障5右
+[person_vision-5] [INFO] [1792858232.634196721] [person_vision]: VISION 📷 快照保存 1 张: 001032_front_d1.5m_b-8deg.jpg
+[follower-7] [INFO] [1792858232.842983464] [follower]: FOLLOWER ⟳ 目标偏离中线 -21.6° > 15°, 先原地对正
+[follower-7] [INFO] [1792858232.893165807] [follower]: FOLLOWER [对正|视觉] 距离=1.25m(目标1.00m) 目标方位=-22° 人速=0.05 指令v=+0.20 实际v=0.60 w=-0.5 对正-22°
+[person_vision-5] [INFO] [1792858233.234741006] [person_vision]: VISION 📷 快照保存 1 张: 001033_right_d0.9m_b-49deg.jpg
+[person_walk-3] [INFO] [1792858233.378365320] [person_walk]: PERSON 位置=(+2.74, +0.67) 朝向=-170° v=0.35 状态=WALK
+[follower-7] [INFO] [1792858233.443103675] [follower]: FOLLOWER [对正|视觉] 距离=1.01m(目标1.00m) 目标方位=-39° 人速=0.18 指令v=+0.00 实际v=0.06 w=-1.1 对正-39°
+[person_vision-5] [INFO] [1792858233.738930893] [person_vision]: VISION 📷 快照保存 2 张: 001033_front_d1.2m_b-26deg.jpg, 001033_right_d1.0m_b-40deg.jpg
+[follower-7] [INFO] [1792858233.943089569] [follower]: FOLLOWER [对正|视觉] 距离=1.43m(目标1.00m) 目标方位=-16° 人速=0.06 指令v=+0.00 实际v=0.03 w=-0.3 对正-16°
+[person_vision-5] [INFO] [1792858234.033868868] [person_vision]: VISION ★ 人位于[前]相机视野 偏离中线-11.0° 距离=1.55m 面积=1254px
+[person_vision-5] [INFO] [1792858234.236214809] [person_vision]: VISION 📷 快照保存 1 张: 001034_front_d1.6m_b-8deg.jpg
+[follower-7] [INFO] [1792858234.243574302] [follower]: FOLLOWER ✓ 已对正目标(偏差 -7.7° ≤ 15°), 转入距离跟踪
+[follower-7] [INFO] [1792858234.443126426] [follower]: FOLLOWER [跟踪|视觉] 距离=1.71m(目标1.00m) 目标方位=-5° 人速=0.02 指令v=+0.44 实际v=0.18 w=+1.0 绕障5右
+[follower-7] [INFO] [1792858234.693145604] [follower]: FOLLOWER 诊断 雷达帧=2258 机器人=(-3.20,-4.39,-6°) 人=(-1.53,-4.78)
+[person_vision-5] [INFO] [1792858234.833380276] [person_vision]: VISION 📷 快照保存 1 张: 001034_front_d1.6m_b-14deg.jpg
+[follower-7] [INFO] [1792858234.943841672] [follower]: FOLLOWER [跟踪|视觉] 距离=1.61m(目标1.00m) 目标方位=-14° 人速=0.22 指令v=+0.60 实际v=0.61 w=+0.6 绕障5右
+[follower-7] [INFO] [1792858235.043638076] [follower]: FOLLOWER ⟳ 目标偏离中线 -22.7° > 15°, 先原地对正
+[person_walk-3] [INFO] [1792858235.428615117] [person_walk]: PERSON 位置=(+2.11, +0.56) 朝向=-167° v=0.20 状态=WALK
+[person_vision-5] [INFO] [1792858235.435541136] [person_vision]: VISION 📷 快照保存 2 张: 001035_front_d1.2m_b-33deg.jpg, 001035_right_d1.0m_b-45deg.jpg
+[follower-7] [INFO] [1792858235.492790378] [follower]: FOLLOWER [对正|视觉] 距离=1.18m(目标1.00m) 目标方位=-33° 人速=0.32 指令v=+0.00 实际v=0.07 w=-0.9 对正-33°
+[person_walk-3] [INFO] [1792858235.727544246] [person_walk]: PERSON 离机器人过近, 绕开
+[follower-7] [INFO] [1792858235.992966096] [follower]: FOLLOWER [对正|视觉] 距离=1.47m(目标1.00m) 目标方位=-17° 人速=0.15 指令v=+0.00 实际v=0.02 w=-0.3 对正-17°
+[person_vision-5] [INFO] [1792858236.033599655] [person_vision]: VISION 📷 快照保存 1 张: 001036_front_d1.6m_b-11deg.jpg
+[follower-7] [INFO] [1792858236.243340953] [follower]: FOLLOWER ✓ 已对正目标(偏差 -7.4° ≤ 15°), 转入距离跟踪
+[depth_percept-4] [INFO] [1792858236.388179464] [depth_percept]: PERCEPT 误差对比 front:0.7/真0.6(Δ0.13) left:1.5/真11.0(Δ9.46) right:1.3/真1.7(Δ0.44) back:1.5/真3.3(Δ1.85) | 超阈(>0.3m): 3向
+[follower-7] [INFO] [1792858236.543366034] [follower]: FOLLOWER [跟踪|视觉] 距离=1.59m(目标1.00m) 目标方位=-5° 人速=0.05 指令v=+0.17 实际v=0.32 w=+3.2 绕障5右
+[person_vision-5] [INFO] [1792858236.633370496] [person_vision]: VISION 📷 快照保存 1 张: 001036_front_d1.5m_b-7deg.jpg
+[follower-7] [INFO] [1792858236.942838950] [follower]: FOLLOWER ⟳ 目标偏离中线 -27.6° > 15°, 先原地对正
+[follower-7] [INFO] [1792858237.043146465] [follower]: FOLLOWER [对正|视觉] 距离=1.19m(目标1.00m) 目标方位=-28° 人速=0.36 指令v=+0.00 实际v=0.07 w=-0.7 对正-28°
+[person_vision-5] [INFO] [1792858237.135960054] [person_vision]: VISION 📷 快照保存 2 张: 001037_front_d1.2m_b-28deg.jpg, 001037_right_d1.0m_b-41deg.jpg
+[person_vision-5] [INFO] [1792858237.137019884] [person_vision]: VISION ★ 人位于[前]相机视野 偏离中线-27.6° 距离=1.19m 面积=2328px
+[person_walk-3] [INFO] [1792858237.477550621] [person_walk]: PERSON 位置=(+2.01, +0.54) v=0.00 状态=ESCAPE
+[follower-7] [INFO] [1792858237.592922835] [follower]: FOLLOWER [对正|视觉] 距离=0.96m(目标1.00m) 目标方位=-43° 人速=0.37 指令v=+0.00 实际v=0.04 w=-1.2 对正-43°
+[person_vision-5] [INFO] [1792858237.734098907] [person_vision]: VISION 📷 快照保存 1 张: 001037_right_d1.0m_b-50deg.jpg
+[follower-7] [INFO] [1792858238.142935437] [follower]: FOLLOWER [对正|视觉] 距离=1.34m(目标1.00m) 目标方位=-18° 人速=0.09 指令v=+0.00 实际v=0.04 w=-0.4 对正-18°
+[person_vision-5] [INFO] [1792858238.233689646] [person_vision]: VISION 📷 快照保存 1 张: 001038_front_d1.4m_b-11deg.jpg
+[follower-7] [INFO] [1792858238.443030218] [follower]: FOLLOWER ✓ 已对正目标(偏差 -8.4° ≤ 15°), 转入距离跟踪
+[follower-7] [WARN] [1792858238.443840378] [follower]: FOLLOWER 卡死脱困(平移0.46m/旋转12°倒车)
+[follower-7] [INFO] [1792858238.692939222] [follower]: FOLLOWER [跟踪|视觉] 距离=1.56m(目标1.00m) 目标方位=-6° 人速=0.03 指令v=+0.00 实际v=0.02 w=+3.2 绕障5右
+[follower-7] [INFO] [1792858238.743140403] [follower]: FOLLOWER 诊断 雷达帧=2418 机器人=(-2.77,-4.38,-19°) 人=(-1.36,-5.06)
+[person_vision-5] [INFO] [1792858238.833591550] [person_vision]: VISION 📷 快照保存 1 张: 001038_front_d1.6m_b-9deg.jpg
+[follower-7] [INFO] [1792858239.043104665] [follower]: FOLLOWER ⟳ 目标偏离中线 -17.4° > 15°, 先原地对正
+[follower-7] [INFO] [1792858239.243101900] [follower]: FOLLOWER [对正|视觉] 距离=1.27m(目标1.00m) 目标方位=-34° 人速=0.11 指令v=+0.00 实际v=0.06 w=-0.9 对正-34°
+[person_vision-5] [INFO] [1792858239.435362510] [person_vision]: VISION 📷 快照保存 1 张: 001039_right_d1.3m_b-55deg.jpg
+[person_walk-3] [INFO] [1792858239.477958222] [person_walk]: PERSON 位置=(+2.23, +0.87) v=0.25 状态=ESCAPE
+[follower-7] [INFO] [1792858239.743163431] [follower]: FOLLOWER [对正|视觉] 距离=1.16m(目标1.00m) 目标方位=-48° 人速=0.34 指令v=+0.00 实际v=0.03 w=-1.4 对正-48°
+[person_walk-3] [INFO] [1792858239.877600767] [person_walk]: PERSON 行走中 v=0.41m/s
+[person_vision-5] [INFO] [1792858240.034255606] [person_vision]: VISION 📷 快照保存 2 张: 001040_front_d1.3m_b-39deg.jpg, 001040_right_d1.2m_b-47deg.jpg
+[person_vision-5] [INFO] [1792858240.232930628] [person_vision]: VISION ★ 人位于[前]相机视野 偏离中线-22.7° 距离=1.62m 面积=1297px
+[follower-7] [INFO] [1792858240.243038235] [follower]: FOLLOWER [对正|视觉] 距离=1.62m(目标1.00m) 目标方位=-23° 人速=0.12 指令v=+0.00 实际v=0.07 w=-0.5 对正-23°
+[person_vision-5] [INFO] [1792858240.533432830] [person_vision]: VISION 📷 快照保存 1 张: 001040_front_d1.8m_b-12deg.jpg
+[follower-7] [INFO] [1792858240.642920352] [follower]: FOLLOWER ✓ 已对正目标(偏差 -6.8° ≤ 15°), 转入距离跟踪
+[follower-7] [INFO] [1792858240.793872490] [follower]: FOLLOWER [跟踪|视觉] 距离=1.86m(目标1.00m) 目标方位=-7° 人速=0.04 指令v=+0.00 实际v=0.00 w=+1.2 绕障5右
+[follower-7] [WARN] [1792858240.943247650] [follower]: FOLLOWER 卡死脱困(平移0.01m/旋转9°倒车)
+[person_vision-5] [INFO] [1792858241.133230081] [person_vision]: VISION 📷 快照保存 1 张: 001041_front_d1.9m_b-5deg.jpg
+[follower-7] [INFO] [1792858241.342999979] [follower]: FOLLOWER [跟踪|视觉] 距离=1.82m(目标1.00m) 目标方位=-12° 人速=0.02 指令v=+0.00 实际v=0.10 w=+3.2 绕障5右
+[depth_percept-4] [INFO] [1792858241.388255412] [depth_percept]: PERCEPT 误差对比 front:0.6/真0.5(Δ0.17) left:1.4/真6.8(Δ5.38) right:1.5/真1.6(Δ0.11) back:1.4/真3.2(Δ1.80) | 超阈(>0.3m): 2向
+[follower-7] [INFO] [1792858241.443018606] [follower]: FOLLOWER ⟳ 目标偏离中线 -26.1° > 15°, 先原地对正
+[person_walk-3] [INFO] [1792858241.477934836] [person_walk]: PERSON 位置=(+2.54, +1.27) 朝向=59° v=0.20 状态=WALK
+[person_vision-5] [INFO] [1792858241.634679048] [person_vision]: VISION 📷 快照保存 1 张: 001041_right_d1.5m_b-56deg.jpg
+[follower-7] [INFO] [1792858241.743021812] [follower]: FOLLOWER 感知源切换 → 真值
+[person_vision-5] [INFO] [1792858241.832668522] [person_vision]: VISION ★ 人位于[右]相机视野 偏离中线+20.8° (相对机器人-69.2°) 距离=1.73m
+[follower-7] [INFO] [1792858241.842976210] [follower]: FOLLOWER 感知源切换 → 视觉-right
+[follower-7] [INFO] [1792858241.843337692] [follower]: FOLLOWER [对正|视觉-right] 距离=1.73m(目标1.00m) 目标方位=-69° 人速=0.00 指令v=+0.00 实际v=0.04 w=-1.5 对正-69°
+[person_vision-5] [INFO] [1792858241.932798798] [person_vision]: VISION ★ 人位于[右]相机视野 偏离中线+20.8° (相对机器人-69.2°) 距离=1.73m
+[person_vision-5] [INFO] [1792858242.032658272] [person_vision]: VISION ★ 人位于[右]相机视野 偏离中线+16.0° (相对机器人-74.0°) 距离=1.84m
+[person_vision-5] [INFO] [1792858242.132811026] [person_vision]: VISION ★ 人位于[右]相机视野 偏离中线+16.0° (相对机器人-74.0°) 距离=1.84m
+[person_vision-5] [INFO] [1792858242.133629887] [person_vision]: VISION 📷 快照保存 1 张: 001042_right_d1.8m_b-74deg.jpg
+[person_vision-5] [INFO] [1792858242.233031398] [person_vision]: VISION ★ 人位于[右]相机视野 偏离中线+17.2° (相对机器人-72.8°) 距离=1.85m
+[person_vision-5] [INFO] [1792858242.332817281] [person_vision]: VISION ★ 人位于[右]相机视野 偏离中线+17.2° (相对机器人-72.8°) 距离=1.85m
+[follower-7] [INFO] [1792858242.393056070] [follower]: FOLLOWER [对正|视觉-right] 距离=1.85m(目标1.00m) 目标方位=-73° 人速=0.00 指令v=+0.00 实际v=0.07 w=-1.5 对正-73°
+[person_vision-5] [INFO] [1792858242.433033074] [person_vision]: VISION ★ 人位于[右]相机视野 偏离中线+25.5° (相对机器人-64.5°) 距离=1.73m
+[person_vision-5] [INFO] [1792858242.533201411] [person_vision]: VISION ★ 人位于[右]相机视野 偏离中线+25.5° (相对机器人-64.5°) 距离=1.73m
+[follower-7] [INFO] [1792858242.642977433] [follower]: FOLLOWER 感知源切换 → 视觉
+[person_vision-5] [INFO] [1792858242.733990681] [person_vision]: VISION 📷 快照保存 2 张: 001042_front_d1.5m_b-38deg.jpg, 001042_right_d1.4m_b-46deg.jpg
+[follower-7] [INFO] [1792858242.792882161] [follower]: FOLLOWER 诊断 雷达帧=2582 机器人=(-2.77,-4.39,-13°) 人=(-1.83,-5.55)
+[follower-7] [INFO] [1792858242.943201396] [follower]: FOLLOWER ✓ 已对正目标(偏差 -8.4° ≤ 15°), 转入距离跟踪
+[follower-7] [INFO] [1792858242.943540308] [follower]: FOLLOWER 绕障5换边左
+[follower-7] [INFO] [1792858242.943881567] [follower]: FOLLOWER [跟踪|视觉] 距离=2.19m(目标1.00m) 目标方位=-8° 人速=0.00 指令v=+0.00 实际v=0.06 w=-3.0 绕障5左
+[person_vision-5] [INFO] [1792858243.233199426] [person_vision]: VISION 📷 快照保存 1 张: 001043_front_d2.3m_b-0deg.jpg
+[person_vision-5] [INFO] [1792858243.333263472] [person_vision]: VISION ★ 人位于[前]相机视野 偏离中线-0.5° 距离=2.30m 面积=589px
+[follower-7] [INFO] [1792858243.443240657] [follower]: FOLLOWER [跟踪|视觉] 距离=2.33m(目标1.00m) 目标方位=+7° 人速=0.00 指令v=+0.00 实际v=0.08 w=-2.1 绕障5左
+[person_walk-3] [INFO] [1792858243.527758215] [person_walk]: PERSON 位置=(+2.45, +1.94) 朝向=102° v=0.41 状态=WALK
+[follower-7] [INFO] [1792858243.643043813] [follower]: FOLLOWER ⟳ 目标偏离中线 +20.1° > 15°, 先原地对正
+[person_vision-5] [INFO] [1792858243.734473650] [person_vision]: VISION 📷 快照保存 1 张: 001043_front_d2.2m_b+20deg.jpg
+[follower-7] [INFO] [1792858243.942919180] [follower]: FOLLOWER [对正|视觉] 距离=1.68m(目标1.00m) 目标方位=+43° 人速=0.24 指令v=+0.00 实际v=0.05 w=+1.2 对正+43°
+[follower-7] [INFO] [1792858244.042922991] [follower]: FOLLOWER 感知源切换 → 真值
+[follower-7] [INFO] [1792858244.143022265] [follower]: FOLLOWER 感知源切换 → 视觉-left
+[person_vision-5] [INFO] [1792858244.332826184] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线-19.0° (相对机器人+71.0°) 距离=2.39m
+[person_vision-5] [INFO] [1792858244.335142899] [person_vision]: VISION 📷 快照保存 1 张: 001044_left_d2.4m_b+71deg.jpg
+[person_vision-5] [INFO] [1792858244.432688387] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线-19.5° (相对机器人+70.5°) 距离=2.43m
+[follower-7] [INFO] [1792858244.443322212] [follower]: FOLLOWER [对正|视觉-left] 距离=2.43m(目标1.00m) 目标方位=+71° 人速=0.00 指令v=+0.00 实际v=0.04 w=+1.5 对正+71°
+[person_vision-5] [INFO] [1792858244.533125006] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线-19.5° (相对机器人+70.5°) 距离=2.43m
+[person_vision-5] [INFO] [1792858244.632775594] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线-26.6° (相对机器人+63.4°) 距离=2.29m
+[person_vision-5] [INFO] [1792858244.732955654] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线-26.6° (相对机器人+63.4°) 距离=2.29m
+[follower-7] [INFO] [1792858244.843705516] [follower]: FOLLOWER 感知源切换 → 视觉
+[person_vision-5] [INFO] [1792858244.934798224] [person_vision]: VISION 📷 快照保存 1 张: 001044_front_d2.0m_b+39deg.jpg
+[follower-7] [INFO] [1792858244.943105242] [follower]: FOLLOWER [对正|视觉] 距离=2.00m(目标1.00m) 目标方位=+39° 人速=0.00 指令v=+0.00 实际v=0.08 w=+1.1 对正+39°
+[follower-7] [INFO] [1792858245.342735365] [follower]: FOLLOWER ✓ 已对正目标(偏差 +6.6° ≤ 15°), 转入距离跟踪
+[follower-7] [INFO] [1792858245.443223130] [follower]: FOLLOWER [跟踪|视觉] 距离=2.96m(目标1.00m) 目标方位=+7° 人速=0.00 指令v=+0.00 实际v=0.01 w=-2.6 绕障5左
+[person_vision-5] [INFO] [1792858245.533146650] [person_vision]: VISION 📷 快照保存 1 张: 001045_front_d3.0m_b+6deg.jpg
+[person_walk-3] [INFO] [1792858245.577911340] [person_walk]: PERSON 位置=(+2.28, +2.76) 朝向=102° v=0.41 状态=WALK
+[follower-7] [WARN] [1792858245.693385907] [follower]: FOLLOWER 卡死脱困(平移0.01m/旋转3°倒车)
+[follower-7] [INFO] [1792858245.943384743] [follower]: FOLLOWER [跟踪|视觉] 距离=3.02m(目标1.00m) 目标方位=+11° 人速=0.01 指令v=+0.00 实际v=0.06 w=-2.1 绕障5左
+[follower-7] [INFO] [1792858246.043404999] [follower]: FOLLOWER ⟳ 目标偏离中线 +18.5° > 15°, 先原地对正
+[person_vision-5] [INFO] [1792858246.133383159] [person_vision]: VISION 📷 快照保存 1 张: 001046_front_d2.9m_b+19deg.jpg
+[person_vision-5] [INFO] [1792858246.334484520] [person_vision]: VISION ★ 人位于[前]相机视野 偏离中线+34.5° 距离=2.47m 面积=636px
+[depth_percept-4] [INFO] [1792858246.488212499] [depth_percept]: PERCEPT 误差对比 front:1.3/真1.7(Δ0.43) left:0.6/真0.5(Δ0.10) right:1.3/真3.4(Δ2.06) back:1.8/真10.7(Δ8.88) | 超阈(>0.3m): 3向
+[follower-7] [INFO] [1792858246.493791923] [follower]: FOLLOWER [对正|视觉] 距离=2.14m(目标1.00m) 目标方位=+48° 人速=0.43 指令v=+0.00 实际v=0.02 w=+1.4 对正+48°
+[person_vision-5] [INFO] [1792858246.633608999] [person_vision]: VISION 📷 快照保存 1 张: 001046_left_d2.8m_b+61deg.jpg
+[follower-7] [INFO] [1792858246.642939970] [follower]: FOLLOWER 感知源切换 → 视觉-left
+[follower-7] [INFO] [1792858246.843469279] [follower]: FOLLOWER 诊断 雷达帧=2746 机器人=(-2.74,-4.34,-68°) 人=(-0.09,-4.86)
+[follower-7] [INFO] [1792858247.043060424] [follower]: FOLLOWER 感知源切换 → 视觉
+[follower-7] [INFO] [1792858247.043433890] [follower]: FOLLOWER [对正|视觉] 距离=2.60m(目标1.00m) 目标方位=+36° 人速=0.60 指令v=+0.00 实际v=0.09 w=+1.0 对正+36°
+[person_vision-5] [INFO] [1792858247.133319978] [person_vision]: VISION 📷 快照保存 1 张: 001047_front_d0.5m_b+36deg.jpg
+[follower-7] [INFO] [1792858247.543149621] [follower]: FOLLOWER [对正|视觉] 距离=3.48m(目标1.00m) 目标方位=+10° 人速=0.30 指令v=+0.00 实际v=0.02 w=+0.3 对正+10°
+[person_walk-3] [INFO] [1792858247.627822633] [person_walk]: PERSON 位置=(+2.13, +3.47) 朝向=103° v=0.22 状态=WALK
+[follower-7] [INFO] [1792858247.643088032] [follower]: FOLLOWER ✓ 已对正目标(偏差 +6.1° ≤ 15°), 转入距离跟踪
+[person_vision-5] [INFO] [1792858247.733850869] [person_vision]: VISION 📷 快照保存 1 张: 001047_front_d3.6m_b+6deg.jpg
+[person_walk-3] [INFO] [1792858247.827876483] [person_walk]: PERSON 明显减速(慢走)
+[follower-7] [INFO] [1792858248.043284315] [follower]: FOLLOWER [跟踪|视觉] 距离=3.68m(目标1.00m) 目标方位=+5° 人速=0.10 指令v=+0.00 实际v=0.04 w=-2.6 绕障5左
+[follower-7] [WARN] [1792858248.243600447] [follower]: FOLLOWER 卡死脱困(平移0.01m/旋转9°倒车)
+[person_vision-5] [INFO] [1792858248.333262933] [person_vision]: VISION 📷 快照保存 1 张: 001048_front_d3.6m_b+12deg.jpg
+[follower-7] [INFO] [1792858248.442997697] [follower]: FOLLOWER ⟳ 目标偏离中线 +25.6° > 15°, 先原地对正
+[follower-7] [INFO] [1792858248.545423188] [follower]: FOLLOWER [对正|视觉] 距离=3.16m(目标1.00m) 目标方位=+26° 人速=0.50 指令v=+0.00 实际v=0.10 w=+0.6 对正+26°
+[person_vision-5] [INFO] [1792858248.832750617] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线-20.1° (相对机器人+69.9°) 距离=3.44m
+[person_vision-5] [INFO] [1792858248.833551607] [person_vision]: VISION 📷 快照保存 1 张: 001048_left_d3.4m_b+70deg.jpg
+[follower-7] [INFO] [1792858248.842955610] [follower]: FOLLOWER 感知源切换 → 视觉-left
+[person_vision-5] [INFO] [1792858248.933550041] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线-20.1° (相对机器人+69.9°) 距离=3.44m
+[person_vision-5] [INFO] [1792858249.034112101] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线-14.8° (相对机器人+75.2°) 距离=3.63m
+[follower-7] [INFO] [1792858249.093930463] [follower]: FOLLOWER [对正|视觉-left] 距离=3.63m(目标1.00m) 目标方位=+75° 人速=0.45 指令v=+0.00 实际v=0.01 w=+1.5 对正+75°
+[person_vision-5] [INFO] [1792858249.133102427] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线-14.8° (相对机器人+75.2°) 距离=3.63m
+[person_vision-5] [INFO] [1792858249.232964401] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线-15.1° (相对机器人+74.9°) 距离=3.64m
+[person_vision-5] [INFO] [1792858249.333316259] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线-15.1° (相对机器人+74.9°) 距离=3.64m
+[person_vision-5] [INFO] [1792858249.335844756] [person_vision]: VISION 📷 快照保存 1 张: 001049_left_d3.6m_b+75deg.jpg
+[follower-7] [INFO] [1792858249.643374452] [follower]: FOLLOWER [对正|视觉-left] 距离=2.90m(目标1.00m) 目标方位=+54° 人速=0.45 指令v=+0.00 实际v=0.09 w=+1.5 对正+54°
+[person_walk-3] [INFO] [1792858249.678803233] [person_walk]: PERSON 位置=(+2.06, +3.66) 朝向=138° v=0.08 状态=SLOW
+[follower-7] [INFO] [1792858249.742868678] [follower]: FOLLOWER 感知源切换 → 视觉
+[person_vision-5] [INFO] [1792858249.933249973] [person_vision]: VISION 📷 快照保存 1 张: 001049_front_d3.3m_b+25deg.jpg
+[follower-7] [INFO] [1792858250.143129954] [follower]: FOLLOWER [对正|视觉] 距离=0.71m(目标1.00m) 目标方位=+12° 人速=0.22 指令v=+0.00 实际v=0.03 w=+0.3 对正+12°
+[follower-7] [INFO] [1792858250.243421178] [follower]: FOLLOWER ✓ 已对正目标(偏差 +6.6° ≤ 15°), 转入距离跟踪
+[person_vision-5] [INFO] [1792858250.433141600] [person_vision]: VISION 📷 快照保存 1 张: 001050_front_d3.9m_b+4deg.jpg
+[follower-7] [INFO] [1792858250.643461507] [follower]: FOLLOWER [跟踪|视觉] 距离=3.85m(目标1.00m) 目标方位=+6° 人速=0.08 指令v=+0.00 实际v=0.05 w=-2.6 绕障5左
+[follower-7] [WARN] [1792858250.793279567] [follower]: FOLLOWER 卡死脱困(平移0.01m/旋转3°倒车)
+[follower-7] [INFO] [1792858250.894071211] [follower]: FOLLOWER 诊断 雷达帧=2906 机器人=(-2.76,-4.36,-47°) 人=(+0.31,-6.48)
+[person_walk-3] [INFO] [1792858251.027415690] [person_walk]: PERSON 行走中 v=0.43m/s
+[person_vision-5] [INFO] [1792858251.033203908] [person_vision]: VISION 📷 快照保存 1 张: 001051_front_d3.3m_b+25deg.jpg
+[follower-7] [INFO] [1792858251.043004599] [follower]: FOLLOWER ⟳ 目标偏离中线 +25.3° > 15°, 先原地对正
+[follower-7] [INFO] [1792858251.143461968] [follower]: FOLLOWER [对正|视觉] 距离=3.33m(目标1.00m) 目标方位=+25° 人速=0.51 指令v=+0.00 实际v=0.10 w=+0.6 对正+25°
+[person_vision-5] [INFO] [1792858251.333832584] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线-33.8° (相对机器人+56.2°) 距离=3.08m
+[follower-7] [INFO] [1792858251.342999478] [follower]: FOLLOWER 感知源切换 → 视觉-left
+[person_vision-5] [INFO] [1792858251.432751597] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线-19.5° (相对机器人+70.5°) 距离=3.65m
+[depth_percept-4] [INFO] [1792858251.488260365] [depth_percept]: PERCEPT 误差对比 front:1.4/真1.7(Δ0.23) left:0.7/真0.4(Δ0.23) right:1.5/真3.3(Δ1.77) back:1.6/真6.7(Δ5.14) | 超阈(>0.3m): 2向
+[person_vision-5] [INFO] [1792858251.532660187] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线-19.5° (相对机器人+70.5°) 距离=3.65m
+[person_vision-5] [INFO] [1792858251.632819591] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线-13.5° (相对机器人+76.5°) 距离=3.88m
+[person_vision-5] [INFO] [1792858251.634441281] [person_vision]: VISION 📷 快照保存 1 张: 001051_left_d3.9m_b+76deg.jpg
+[follower-7] [INFO] [1792858251.692968928] [follower]: FOLLOWER [对正|视觉-left] 距离=3.88m(目标1.00m) 目标方位=+76° 人速=0.51 指令v=+0.00 实际v=0.01 w=+1.5 对正+76°
+[person_walk-3] [INFO] [1792858251.728467915] [person_walk]: PERSON 位置=(+1.88, +3.82) 朝向=142° v=0.31 状态=WALK
+[person_vision-5] [INFO] [1792858251.733067922] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线-13.5° (相对机器人+76.5°) 距离=3.88m
+[person_vision-5] [INFO] [1792858251.832825197] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线-13.2° (相对机器人+76.8°) 距离=3.93m
+[person_walk-3] Traceback (most recent call last):
+[person_walk-3]   File "/home/earl/workspace/VLA/vla_ws/install/vla_follow/lib/vla_follow/person_walk", line 33, in <module>
+[person_walk-3]     sys.exit(load_entry_point('vla-follow==0.1.0', 'console_scripts', 'person_walk')())
+[person_walk-3]              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[person_walk-3]   File "/home/earl/workspace/VLA/vla_ws/install/vla_follow/lib/python3.12/site-packages/vla_follow/person_walk.py", line 258, in main
+[person_walk-3]     rclpy.spin(node)
+[person_walk-3]   File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/__init__.py", line 247, in spin
+[person_walk-3]     executor.spin_once()
+[person_walk-3]   File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/executors.py", line 926, in spin_once
+[person_walk-3]     self._spin_once_impl(timeout_sec)
+[person_walk-3]   File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/executors.py", line 907, in _spin_once_impl
+[person_walk-3]     handler, entity, node = self.wait_for_ready_callbacks(
+[person_walk-3]                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[person_walk-3]   File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/executors.py", line 877, in wait_for_ready_callbacks
+[person_walk-3]     return next(self._cb_iter)
+[person_walk-3]            ^^^^^^^^^^^^^^^^^^^
+[person_walk-3]   File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/executors.py", line 785, in _wait_for_ready_callbacks
+[person_walk-3]     raise ExternalShutdownException()
+[person_walk-3] rclpy.executors.ExternalShutdownException
+[person_vision-5] [INFO] [1792858251.934403050] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线-13.2° (相对机器人+76.8°) 距离=3.93m
+[ERROR] [person_walk-3]: process has died [pid 308923, exit code 1, cmd '/home/earl/workspace/VLA/vla_ws/install/vla_follow/lib/vla_follow/person_walk --ros-args'].
+[person_vision-5] [INFO] [1792858252.033323117] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线-18.5° (相对机器人+71.5°) 距离=3.83m
+[person_vision-5] [INFO] [1792858252.135678945] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线-18.5° (相对机器人+71.5°) 距离=3.83m
+[person_vision-5] [INFO] [1792858252.136690296] [person_vision]: VISION 📷 快照保存 1 张: 001052_left_d3.8m_b+71deg.jpg
+[follower-7] [INFO] [1792858252.192939408] [follower]: FOLLOWER [对正|视觉-left] 距离=3.83m(目标1.00m) 目标方位=+71° 人速=0.51 指令v=+0.00 实际v=0.09 w=+1.5 对正+71°
+[person_vision-5] [INFO] [1792858252.233080706] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线-31.6° (相对机器人+58.4°) 距离=3.37m
+[person_vision-5] [INFO] [1792858252.333225446] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线-31.6° (相对机器人+58.4°) 距离=3.37m
+[person_vision-5] [INFO] [1792858252.433667475] [person_vision]: VISION ★ 人位于[前]相机视野 偏离中线+28.7° 距离=3.49m 面积=90px
+[follower-7] [INFO] [1792858252.442968048] [follower]: FOLLOWER 感知源切换 → 视觉
+[follower-7] [INFO] [1792858252.643466944] [follower]: FOLLOWER 感知源切换 → 真值
+[follower-7] [INFO] [1792858252.693146104] [follower]: FOLLOWER [对正|真值] 距离=4.72m(目标1.00m) 目标方位=+12° 人速=0.32 指令v=+0.00 实际v=0.06 w=+0.3 对正+12°
+[follower-7] [INFO] [1792858252.792987446] [follower]: FOLLOWER ✓ 已对正目标(偏差 +8.4° ≤ 15°), 转入距离跟踪
+[follower-7] [INFO] [1792858252.992828366] [follower]: FOLLOWER 绕障5换边右
+[follower-7] [INFO] [1792858253.092860370] [follower]: FOLLOWER ⟳ 目标偏离中线 -16.1° > 15°, 先原地对正
+[follower-7] [INFO] [1792858253.193237245] [follower]: FOLLOWER [对正|真值] 距离=6.14m(目标1.00m) 目标方位=-15° 人速=0.32 指令v=+0.00 实际v=0.07 w=-0.3 对正-15°
+[follower-7] [INFO] [1792858253.492965712] [follower]: FOLLOWER ✓ 已对正目标(偏差 -9.2° ≤ 15°), 转入距离跟踪
+[follower-7] [INFO] [1792858253.693216332] [follower]: FOLLOWER [跟踪|真值] 距离=6.28m(目标1.00m) 目标方位=-8° 人速=0.32 指令v=+0.44 实际v=0.18 w=+0.9 绕障5右
+[follower-7] [INFO] [1792858254.043378222] [follower]: FOLLOWER ⟳ 目标偏离中线 +93.1° > 15°, 先原地对正
+[follower-7] [INFO] [1792858254.193339752] [follower]: FOLLOWER [对正|真值] 距离=1.62m(目标1.00m) 目标方位=+85° 人速=0.30 指令v=+0.00 实际v=0.43 w=+1.5 对正+85°
+[follower-7] [INFO] [1792858254.742924659] [follower]: FOLLOWER [对正|真值] 距离=1.60m(目标1.00m) 目标方位=+39° 人速=0.31 指令v=+0.00 实际v=0.09 w=+1.1 对正+39°
+[follower-7] [INFO] [1792858254.942927381] [follower]: FOLLOWER 诊断 雷达帧=3062 机器人=(-3.70,-4.03,+65°) 人=(-3.73,-2.45)
+[follower-7] [INFO] [1792858255.242998297] [follower]: FOLLOWER 感知源切换 → 视觉
+[follower-7] [INFO] [1792858255.243361782] [follower]: FOLLOWER [对正|视觉] 距离=1.13m(目标1.00m) 目标方位=+15° 人速=0.00 指令v=+0.00 实际v=0.02 w=+0.3 对正+15°
+[person_vision-5] [INFO] [1792858255.433728891] [person_vision]: VISION 📷 快照保存 1 张: 001055_front_d1.2m_b+10deg.jpg
+[person_vision-5] [INFO] [1792858255.534047186] [person_vision]: VISION ★ 人位于[前]相机视野 偏离中线+5.8° 距离=1.16m 面积=1104px
+[follower-7] [INFO] [1792858255.543592064] [follower]: FOLLOWER ✓ 已对正目标(偏差 +5.8° ≤ 15°), 转入距离跟踪
+[follower-7] [INFO] [1792858255.793085685] [follower]: FOLLOWER [跟踪|视觉] 距离=1.13m(目标1.00m) 目标方位=-1° 人速=0.04 指令v=+0.50 实际v=0.26 w=+3.2 绕障3右
+[person_vision-5] [INFO] [1792858255.934422087] [person_vision]: VISION 📷 快照保存 1 张: 001055_front_d1.1m_b-1deg.jpg
+[follower-7] [INFO] [1792858256.243005502] [follower]: FOLLOWER ⟳ 目标偏离中线 -39.8° > 15°, 先原地对正
+[follower-7] [INFO] [1792858256.342810035] [follower]: FOLLOWER 感知源切换 → 视觉-right
+[follower-7] [INFO] [1792858256.343823350] [follower]: FOLLOWER [对正|视觉-right] 距离=0.66m(目标1.00m) 目标方位=-50° 人速=0.48 指令v=+0.00 实际v=0.47 w=-1.5 对正-50°
+[person_vision-5] [INFO] [1792858256.533939415] [person_vision]: VISION 📷 快照保存 1 张: 001056_right_d0.9m_b-81deg.jpg
+[depth_percept-4] [INFO] [1792858256.588255754] [depth_percept]: PERCEPT 误差对比 front:0.6/真2.3(Δ1.70) left:1.9/真2.4(Δ0.48) right:0.5/真0.7(Δ0.15) back:2.0/真1.7(Δ0.30) | 超阈(>0.3m): 2向
+[person_vision-5] [INFO] [1792858256.633173869] [person_vision]: VISION ★ 人位于[右]相机视野 偏离中线-10.3° (相对机器人-100.3°) 距离=0.91m
+[person_vision-5] [INFO] [1792858256.737720067] [person_vision]: VISION ★ 人位于[右]相机视野 偏离中线-10.3° (相对机器人-100.3°) 距离=0.91m
+[person_vision-5] [INFO] [1792858256.832730973] [person_vision]: VISION ★ 人位于[右]相机视野 偏离中线-24.5° (相对机器人-114.5°) 距离=0.81m
+[follower-7] [INFO] [1792858256.843086447] [follower]: FOLLOWER [对正|视觉-right] 距离=0.81m(目标1.00m) 目标方位=-114° 人速=0.48 指令v=+0.00 实际v=0.03 w=-1.5 对正-114°
+[person_vision-5] [INFO] [1792858256.932930491] [person_vision]: VISION ★ 人位于[右]相机视野 偏离中线-24.5° (相对机器人-114.5°) 距离=0.81m
+[person_vision-5] [INFO] [1792858257.033262734] [person_vision]: VISION ★ 人位于[右]相机视野 偏离中线-33.8° (相对机器人-123.8°) 距离=0.73m
+[person_vision-5] [INFO] [1792858257.134027572] [person_vision]: VISION ★ 人位于[右]相机视野 偏离中线-33.8° (相对机器人-123.8°) 距离=0.73m
+[person_vision-5] [INFO] [1792858257.136102331] [person_vision]: VISION 📷 快照保存 2 张: 001057_right_d0.7m_b-124deg.jpg, 001057_back_d0.7m_b-137deg.jpg
+[person_vision-5] [INFO] [1792858257.233080346] [person_vision]: VISION ★ 人位于[右]相机视野 偏离中线-35.6° (相对机器人-125.6��) 距离=0.73m
+[person_vision-5] [INFO] [1792858257.334238903] [person_vision]: VISION ★ 人位于[右]相机视野 偏离中线-35.6° (相对机器人-125.6°) 距离=0.73m
+[follower-7] [INFO] [1792858257.343178892] [follower]: FOLLOWER [对正|视觉-right] 距离=0.73m(目标1.00m) 目标方位=-126° 人速=0.48 指令v=+0.00 实际v=0.06 w=-1.5 对正-126°(方向锁定)
+[person_vision-5] [INFO] [1792858257.433714114] [person_vision]: VISION ★ 人位于[右]相机视野 偏离中线-28.7° (相对机器人-118.7°) 距离=0.82m
+[person_vision-5] [INFO] [1792858257.533196362] [person_vision]: VISION ★ 人位于[右]相机视野 偏离中线-28.7° (相对机器人-118.7°) 距离=0.82m
+[person_vision-5] [INFO] [1792858257.633736852] [person_vision]: VISION ★ 人位于[右]相机视野 偏离中线-16.8° (相对机器人-106.8°) 距离=0.96m
+[person_vision-5] [INFO] [1792858257.733023175] [person_vision]: VISION ★ 人位于[右]相机视野 偏离中线-4.8° (相对机器人-94.8°) 距离=1.06m
+[person_vision-5] [INFO] [1792858257.733942453] [person_vision]: VISION 📷 快照保存 1 张: 001057_right_d1.1m_b-95deg.jpg
+[person_vision-5] [INFO] [1792858257.833575353] [person_vision]: VISION ★ 人位于[右]相机视野 偏离中线-4.8° (相对机器人-94.8°) 距离=1.06m
+[follower-7] [INFO] [1792858257.843739768] [follower]: FOLLOWER [对正|视觉-right] 距离=1.06m(目标1.00m) 目标方位=-95° 人速=0.48 指令v=+0.00 实际v=0.09 w=-1.5 对正-95°(方向锁定)
+[person_vision-5] [INFO] [1792858257.932974469] [person_vision]: VISION ★ 人位于[右]相机视野 偏离中线-4.8° (相对机器人-94.8°) 距离=1.06m
+[person_vision-5] [INFO] [1792858258.033068674] [person_vision]: VISION ★ 人位于[右]相机视野 偏离中线+6.4° (相对机器人-83.6°) 距离=1.07m
+[person_vision-5] [INFO] [1792858258.133139409] [person_vision]: VISION ★ 人位于[右]相机视野 偏离中线+6.4° (相对机器人-83.6°) 距离=1.07m
+[person_vision-5] [INFO] [1792858258.233423229] [person_vision]: VISION ★ 人位于[右]相机视野 偏离中线+18.7° (相对机器人-71.3°) 距离=1.00m
+[person_vision-5] [INFO] [1792858258.234612178] [person_vision]: VISION 📷 快照保存 1 张: 001058_right_d1.0m_b-71deg.jpg
+[person_vision-5] [INFO] [1792858258.333214525] [person_vision]: VISION ★ 人位于[右]相机视野 偏离中线+18.7° (相对机器人-71.3°) 距离=1.00m
+[follower-7] [INFO] [1792858258.392839298] [follower]: FOLLOWER [对正|视觉-right] 距离=1.00m(目标1.00m) 目标方位=-71° 人速=0.48 指令v=+0.00 实际v=0.09 w=-1.5 对正-71°(方向锁定)
+[follower-7] [INFO] [1792858258.443166709] [follower]: FOLLOWER 感知源切换 → 视觉
+[person_vision-5] [INFO] [1792858258.534968864] [person_vision]: VISION ★ 人位于[前]相机视野 偏离中线-43.0° 距离=0.75m 面积=3437px
+[person_vision-5] [INFO] [1792858258.835687162] [person_vision]: VISION 📷 快照保存 1 张: 001058_front_d1.1m_b-19deg.jpg
+[follower-7] [INFO] [1792858258.893256642] [follower]: FOLLOWER [对正|视觉] 距离=1.08m(目标1.00m) 目标方位=-19° 人速=0.23 指令v=+0.00 实际v=0.04 w=-0.4 对正-19°
+[follower-7] [INFO] [1792858258.992904732] [follower]: FOLLOWER 诊断 雷达帧=3222 机器人=(-3.88,-3.74,+49°) 人=(-2.92,-3.08)
+[person_vision-5] [INFO] [1792858259.433727430] [person_vision]: VISION 📷 快照保存 1 张: 001059_front_d1.3m_b-10deg.jpg
+[follower-7] [INFO] [1792858259.442923734] [follower]: FOLLOWER [对正|视觉] 距离=1.28m(目标1.00m) 目标方位=-10° 人速=0.06 指令v=+0.00 实际v=0.02 w=-0.3 对正-10°
+[follower-7] [INFO] [1792858259.642916926] [follower]: FOLLOWER ✓ 已对正目标(偏差 -8.2° ≤ 15°), 转入距离跟踪
+[follower-7] [INFO] [1792858259.942935835] [follower]: FOLLOWER [跟踪|视觉] 距离=1.40m(目标1.00m) 目标方位=-6° 人速=0.03 指令v=+0.25 实际v=0.24 w=-0.2 
+[person_vision-5] [INFO] [1792858260.034446413] [person_vision]: VISION 📷 快照保存 1 张: 001100_front_d1.4m_b-6deg.jpg
+[follower-7] [INFO] [1792858260.442966680] [follower]: FOLLOWER [跟踪|视觉] 距离=1.41m(目标1.00m) 目标方位=-6° 人速=0.01 指令v=+0.25 实际v=0.25 w=-0.2 
+[person_vision-5] [INFO] [1792858260.537916868] [person_vision]: VISION 📷 快照保存 1 张: 001100_front_d1.4m_b-6deg.jpg
+[follower-7] [INFO] [1792858260.992796251] [follower]: FOLLOWER [跟踪|视觉] 距离=1.41m(目标1.00m) 目标方位=-5° 人速=0.00 指令v=+0.25 实际v=0.25 w=-0.1 
+[person_vision-5] [INFO] [1792858261.133358275] [person_vision]: VISION 📷 快照保存 1 张: 001101_front_d1.4m_b-5deg.jpg
+[follower-7] [INFO] [1792858261.492837137] [follower]: FOLLOWER [跟踪|视觉] 距离=1.42m(目标1.00m) 目标方位=-5° 人速=0.00 指��v=+0.25 实际v=0.25 w=-0.1 
+[depth_percept-4] [INFO] [1792858261.588181431] [depth_percept]: PERCEPT 误差对比 front:1.2/真1.4(Δ0.17) left:0.7/真0.5(Δ0.16) right:1.3/真2.6(Δ1.27) back:2.1/真2.6(Δ0.54) | 超阈(>0.3m): 2向
+[person_vision-5] [INFO] [1792858261.635203446] [person_vision]: VISION 📷 快照保存 1 张: 001101_front_d1.4m_b-5deg.jpg
+[person_vision-5] [INFO] [1792858261.636372623] [person_vision]: VISION ★ 人位于[前]相机视野 偏离中线-4.5° 距离=1.43m 面积=1403px
+[follower-7] [INFO] [1792858261.992980084] [follower]: FOLLOWER [跟踪|视觉] 距离=1.44m(目标1.00m) 目标方位=-3° 人速=0.00 指令v=+0.25 实际v=0.24 w=-1.1 
+[person_vision-5] [INFO] [1792858262.233131832] [person_vision]: VISION 📷 快照保存 1 张: 001102_front_d1.4m_b+12deg.jpg
+[follower-7] [INFO] [1792858262.342933110] [follower]: FOLLOWER ⟳ 目标偏离中线 +23.5° > 15°, 先原地对正
+[follower-7] [INFO] [1792858262.542879673] [follower]: FOLLOWER [对正|视觉] 距离=1.25m(目标1.00m) 目标方位=+24° 人速=0.21 指令v=+0.00 实际v=0.30 w=+0.6 对正+24°
+[person_vision-5] [INFO] [1792858262.733510326] [person_vision]: VISION 📷 快照保存 1 张: 001102_front_d1.0m_b+40deg.jpg
+[follower-7] [INFO] [1792858263.042970584] [follower]: FOLLOWER [对正|视觉] 距离=1.02m(目标1.00m) 目标方位=+45° 人速=0.33 指令v=+0.00 实际v=0.03 w=+1.3 对正+45°
+[follower-7] [INFO] [1792858263.043172765] [follower]: FOLLOWER 诊断 雷达帧=3386 机器人=(-3.20,-3.52,-41°) 人=(-2.19,-3.44)
+[person_vision-5] [INFO] [1792858263.233405994] [person_vision]: VISION 📷 快照保存 1 张: 001103_front_d1.1m_b+41deg.jpg
+[follower-7] [INFO] [1792858263.544411687] [follower]: FOLLOWER [对正|视觉] 距离=1.40m(目标1.00m) 目标方位=+25° 人速=0.08 指令v=+0.00 实际v=0.06 w=+0.6 对正+25°
+[person_vision-5] [INFO] [1792858263.833871328] [person_vision]: VISION 📷 快照保存 1 张: 001103_front_d1.8m_b+7deg.jpg
+[follower-7] [INFO] [1792858263.842874732] [follower]: FOLLOWER ✓ 已对正目标(偏差 +6.8° ≤ 15°), 转入距离跟踪
+[follower-7] [INFO] [1792858264.093476791] [follower]: FOLLOWER [跟踪|视觉] 距离=1.75m(目标1.00m) 目标方位=+7° 人速=0.03 指令v=+0.50 实际v=0.14 w=-1.4 绕障5左
+[person_vision-5] [INFO] [1792858264.335276806] [person_vision]: VISION 📷 快照保存 1 张: 001104_front_d2.6m_b+8deg.jpg
+[follower-7] [INFO] [1792858264.542982818] [follower]: FOLLOWER ⟳ 目标偏离中线 +16.9° > 15°, 先原地对正
+[follower-7] [INFO] [1792858264.643227572] [follower]: FOLLOWER [对正|视觉] 距离=2.43m(目标1.00m) 目标方位=+17° 人速=0.31 指令v=+0.00 实际v=0.52 w=+0.3 对正+17°
+[person_vision-5] [INFO] [1792858264.736243724] [person_vision]: VISION ★ 人位于[前]相机视野 偏离中线+26.9° 距离=2.15m 面积=756px
+[person_vision-5] [INFO] [1792858264.936394442] [person_vision]: VISION 📷 快照保存 1 张: 001104_front_d2.1m_b+27deg.jpg
+[follower-7] [INFO] [1792858265.042935191] [follower]: FOLLOWER 感知源切换 → 真值
+[follower-7] [INFO] [1792858265.143165415] [follower]: FOLLOWER 感知源切换 → 视觉-back
+[follower-7] [INFO] [1792858265.193284514] [follower]: FOLLOWER [对正|视觉-back] 距离=1.62m(目标1.00m) 目标方位=-166° 人速=0.00 指令v=+0.00 实际v=0.02 w=-1.5 对正-166°(方向锁定)
+[person_vision-5] [INFO] [1792858265.534629306] [person_vision]: VISION 📷 快照保存 1 张: 001105_back_d1.5m_b-166deg.jpg
+[follower-7] [INFO] [1792858265.692995339] [follower]: FOLLOWER [对正|视觉-back] 距离=1.36m(目标1.00m) 目标方位=-158° 人速=0.00 指令v=+0.00 实际v=0.09 w=-1.5 对正-158°(方向锁定)
+[person_vision-5] [INFO] [1792858265.832726015] [person_vision]: VISION ★ 人位于[后]相机视野 偏离中线+38.7° (相对机器人-141.3°) 距离=1.05m
+[person_vision-5] [INFO] [1792858265.933900723] [person_vision]: VISION ★ 人位于[后]相机视野 偏离中线+38.7° (相对机器人-141.3°) 距离=1.05m
+[person_vision-5] [INFO] [1792858266.034025984] [person_vision]: VISION ★ 人位于[右]相机视野 偏离中线-24.0° (相对机器人-114.0°) 距离=1.24m
+[person_vision-5] [INFO] [1792858266.035740892] [person_vision]: VISION 📷 快照保存 1 张: 001106_right_d1.2m_b-114deg.jpg
+[person_vision-5] [INFO] [1792858266.133233549] [person_vision]: VISION ★ 人位于[右]相机视野 偏离中线-24.0° (相对机器人-114.0°) 距离=1.24m
+[person_vision-5] [INFO] [1792858266.233733293] [person_vision]: VISION ★ 人位于[右]相机视野 偏离中线-10.3° (相对机器人-100.3°) 距离=1.32m
+[follower-7] [INFO] [1792858266.243223419] [follower]: FOLLOWER [对正|视觉-right] 距离=1.32m(目标1.00m) 目标方位=-100° 人速=0.00 指令v=+0.00 实际v=0.09 w=-1.5 对正-100°(方向锁定)
+[person_vision-5] [INFO] [1792858266.333821007] [person_vision]: VISION ★ 人位于[右]相机视野 偏离中线-10.3° (相对机器人-100.3°) 距离=1.32m
+[person_vision-5] [INFO] [1792858266.432759340] [person_vision]: VISION ★ 人位于[右]相机视野 偏离中线+2.1° (相对机器人-87.9°) 距离=1.28m
+[person_vision-5] [INFO] [1792858266.534016561] [person_vision]: VISION ★ 人位于[右]相机视野 偏离中线+2.1° (相对机器人-87.9°) 距离=1.28m
+[person_vision-5] [INFO] [1792858266.632767452] [person_vision]: VISION ★ 人位于[右]相机视野 偏离中线+15.1° (相对机器人-74.9°) 距离=1.12m
+[person_vision-5] [INFO] [1792858266.633482882] [person_vision]: VISION 📷 快照保存 1 张: 001106_right_d1.1m_b-75deg.jpg
+[depth_percept-4] [INFO] [1792858266.688484228] [depth_percept]: PERCEPT 误差对比 front:1.5/真2.7(Δ1.26) left:1.5/真2.9(Δ1.45) right:0.9/���1.1(Δ0.26) back:0.9/真12.0(Δ10.63) | 超阈(>0.3m): 3向
+[person_vision-5] [INFO] [1792858266.733746981] [person_vision]: VISION ★ 人位于[右]相机视野 偏离中线+15.1° (相对机器人-74.9°) 距离=1.12m
+[follower-7] [INFO] [1792858266.793072689] [follower]: FOLLOWER [对正|视觉-right] 距离=1.12m(目标1.00m) 目标方位=-75° 人速=0.00 指令v=+0.00 实际v=0.09 w=-1.5 对正-75°(方向锁定)
+[person_vision-5] [INFO] [1792858266.833003238] [person_vision]: VISION ★ 人位于[右]相机视野 偏离中线+31.3° (相对机器人-58.7°) 距离=0.88m
+[person_vision-5] [INFO] [1792858266.934603107] [person_vision]: VISION ★ 人位于[右]相机视野 偏离中线+31.3° (相对机器人-58.7°) 距离=0.88m
+[follower-7] [INFO] [1792858267.043592661] [follower]: FOLLOWER 感知源切换 → 视觉
+[follower-7] [INFO] [1792858267.044355258] [follower]: FOLLOWER 诊断 雷达帧=3538 机器人=(-3.53,-4.03,-164°) 人=(-4.40,-3.82)
+[person_vision-5] [INFO] [1792858267.133846247] [person_vision]: VISION 📷 快照保存 1 张: 001107_front_d0.9m_b-29deg.jpg
+[follower-7] [INFO] [1792858267.294028325] [follower]: FOLLOWER [对正|视觉] 距离=0.96m(目标1.00m) 目标方位=-14° 人速=0.00 指令v=+0.00 实际v=0.06 w=-0.3 对正-14°
+[follower-7] [INFO] [1792858267.443017020] [follower]: FOLLOWER ✓ 已对正目标(偏差 -5.8° ≤ 15°), 转入距离跟踪
+[person_vision-5] [INFO] [1792858267.734112962] [person_vision]: VISION 📷 快照保存 1 张: 001107_front_d0.9m_b-3deg.jpg
+[person_vision-5] [INFO] [1792858267.833808517] [person_vision]: VISION ★ 人位于[前]相机视野 偏离中线-2.4° 距离=0.82m 面积=1468px
+[follower-7] [INFO] [1792858267.843008115] [follower]: FOLLOWER [跟踪|视觉] 距离=0.82m(目标1.00m) 目标方位=-2° 人速=0.11 指令v=-0.14 实际v=0.08 w=+0.0 
+[person_vision-5] [INFO] [1792858268.334335774] [person_vision]: VISION 📷 快照保存 1 张: 001108_front_d0.7m_b-4deg.jpg
+[follower-7] [INFO] [1792858268.393712141] [follower]: FOLLOWER [跟踪|视觉] 距离=0.74m(目标1.00m) 目标方位=-4° 人速=0.18 指令v=-0.19 实际v=0.19 w=-0.1 
+[follower-7] [INFO] [1792858268.893457119] [follower]: FOLLOWER [跟踪|视觉] 距离=0.67m(目标1.00m) 目标方位=-3° 人速=0.14 指令v=-0.26 实际v=0.27 w=-0.1 
+[person_vision-5] [INFO] [1792858268.935348355] [person_vision]: VISION 📷 快照保存 1 张: 001108_front_d0.7m_b-3deg.jpg
+[follower-7] [INFO] [1792858269.443062197] [follower]: FOLLOWER [跟踪|视觉] 距离=0.65m(目标1.00m) 目标方位=-3° 人速=0.07 指令v=-0.32 实际v=0.31 w=-0.1 
+[person_vision-5] [INFO] [1792858269.533719046] [person_vision]: VISION 📷 快照保存 1 张: 001109_front_d0.6m_b-3deg.jpg
+[follower-7] [INFO] [1792858269.992848280] [follower]: FOLLOWER [跟踪|视觉] 距离=0.65m(目标1.00m) 目标方位=-4° 人速=0.02 指令v=-0.35 实际v=0.35 w=-0.1 
+[person_vision-5] [INFO] [1792858270.134774070] [person_vision]: VISION 📷 快照保存 1 张: 001110_front_d0.7m_b-4deg.jpg
+[follower-7] [INFO] [1792858270.492950931] [follower]: FOLLOWER [跟踪|视觉] 距离=0.67m(目标1.00m) 目标方位=-4° 人速=0.01 指令v=-0.35 实际v=0.35 w=-0.1 
+[person_vision-5] [INFO] [1792858270.733506114] [person_vision]: VISION 📷 快照保存 1 张: 001110_front_d0.7m_b-4deg.jpg
+[person_vision-5] [INFO] [1792858270.833831781] [person_vision]: VISION ★ 人位于[前]相机视野 偏离中线-4.5° 距离=0.70m 面积=1140px
+[follower-7] [INFO] [1792858270.993142567] [follower]: FOLLOWER [跟踪|视觉] 距离=0.71m(目标1.00m) 目标方位=-5° 人速=0.00 指令v=-0.35 实际v=0.35 w=-0.1 
+[follower-7] [INFO] [1792858271.094039334] [follower]: FOLLOWER 诊断 雷达帧=3698 机器人=(-2.63,-4.32,+155°) 人=(-3.24,-3.98)
+[person_vision-5] [INFO] [1792858271.335722115] [person_vision]: VISION 📷 快照保存 1 张: 001111_front_d0.7m_b-5deg.jpg
+[follower-7] [INFO] [1792858271.543072646] [follower]: FOLLOWER 感知源切换 → 真值
+[follower-7] [INFO] [1792858271.543418031] [follower]: FOLLOWER [跟踪|真值] 距离=1.01m(目标1.00m) 目标方位=+4° 人速=0.32 指令v=+0.00 实际v=0.28 w=+1.8 绕障5左
+[depth_percept-4] [INFO] [1792858271.788164280] [depth_percept]: PERCEPT 误差对比 front:0.6/真0.5(Δ0.16) left:1.3/真1.7(Δ0.41) right:2.1/真11.1(Δ9.04) back:0.5/真0.2(Δ0.35) | 超阈(>0.3m): 3向
+[follower-7] [INFO] [1792858271.993171102] [follower]: FOLLOWER ⟳ 目标偏离中线 -19.3° > 15°, 先原地对正
+[follower-7] [INFO] [1792858272.092869073] [follower]: FOLLOWER [对正|真值] 距离=0.86m(目标1.00m) 目标方位=-27° 人速=0.32 指令v=+0.00 实际v=0.09 w=-0.7 对正-27°
+[follower-7] [INFO] [1792858272.593220818] [follower]: FOLLOWER [对正|真值] 距离=0.70m(目标1.00m) 目标方位=-47° 人速=0.32 指令v=+0.00 实际v=0.01 w=-1.4 对正-47°
+[follower-7] [INFO] [1792858273.143361784] [follower]: FOLLOWER [对正|真值] 距离=0.58m(目标1.00m) 目标方位=-31° 人速=0.32 指令v=+0.00 实际v=0.06 w=-0.8 对正-31°
+[follower-7] [INFO] [1792858273.693106445] [follower]: FOLLOWER [对正|真值] 距离=0.49m(目标1.00m) 目标方位=-25° 人速=0.32 指���v=+0.00 实际v=0.04 w=-0.6 对正-25°
+[follower-7] [INFO] [1792858273.843402260] [follower]: FOLLOWER 感知源切换 → 视觉
+[follower-7] [INFO] [1792858273.844312655] [follower]: FOLLOWER ✓ 已对正目标(偏差 +0.3° ≤ 15°), 转入距离跟踪
+[person_vision-5] [INFO] [1792858273.934376274] [person_vision]: VISION ★ 人位于[前]相机视野 偏离中线+0.3° 距离=2.16m 面积=10310px
+[follower-7] [INFO] [1792858274.242950857] [follower]: FOLLOWER [跟踪|视觉] 距离=2.34m(目标1.00m) 目标方位=-4° 人速=0.00 指令v=+0.00 实际v=0.04 w=-0.1 绕障3左
+[follower-7] [INFO] [1792858274.642964161] [follower]: FOLLOWER ⟳ 目标偏离中线 -15.8° > 15°, 先原地对正
+[follower-7] [INFO] [1792858274.794767716] [follower]: FOLLOWER [对正|视觉] 距离=2.03m(目标1.00m) 目标方位=-16° 人速=0.15 指令v=+0.00 实际v=0.08 w=-0.3 对正-16°
+[person_vision-5] [INFO] [1792858274.833318536] [person_vision]: VISION 📷 快照保存 1 张: 001114_front_d1.2m_b+0deg.jpg
+[follower-7] [INFO] [1792858274.842880271] [follower]: FOLLOWER ✓ 已对正目标(偏差 +0.5° ≤ 15°), 转入距离跟踪
+[follower-7] [INFO] [1792858275.143047764] [follower]: FOLLOWER 诊断 雷达帧=3858 机器人=(-3.98,-4.00,-2°) 人=(-2.68,-4.00)
+[person_vision-5] [INFO] [1792858275.333642984] [person_vision]: VISION 📷 快照保存 1 张: 001115_front_d1.3m_b+1deg.jpg
+[follower-7] [INFO] [1792858275.342943273] [follower]: FOLLOWER [跟踪|视觉] 距离=1.32m(目标1.00m) 目标方位=+1° 人速=0.28 指令v=+0.25 实际v=0.25 w=+0.0 
+[follower-7] [INFO] [1792858275.743235819] [follower]: FOLLOWER 感知源切换 → 真值
+[follower-7] [INFO] [1792858275.744268017] [follower]: FOLLOWER ⟳ 目标偏离中线 -92.2° > 15°, 先原地对正
+[person_vision-5] [INFO] [1792858275.833998707] [person_vision]: VISION ★ 人位于[右]相机视野 偏离中线-4.4° (相对机器人-94.4°) 距离=1.35m
+[follower-7] [INFO] [1792858275.843294417] [follower]: FOLLOWER 感知源切换 → 视觉-right
+[follower-7] [INFO] [1792858275.844217776] [follower]: FOLLOWER [对正|视觉-right] 距离=1.35m(目标1.00m) 目标方位=-94° 人速=0.00 指令v=+0.00 实际v=0.19 w=-1.5 对正-94°
+[person_vision-5] [INFO] [1792858275.933734884] [person_vision]: VISION ★ 人位于[右]相机视野 偏离中线-4.4° (相对机器人-94.4°) 距离=1.35m
+[person_vision-5] [INFO] [1792858275.935453515] [person_vision]: VISION 📷 快照保存 1 张: 001115_right_d1.4m_b-94deg.jpg
+[person_vision-5] [INFO] [1792858276.032903094] [person_vision]: VISION ★ 人位于[右]相机视野 偏离中线-1.6° (相对机器人-91.6°) 距离=1.35m
+[person_vision-5] [INFO] [1792858276.134886285] [person_vision]: VISION ★ 人位于[右]相机视野 偏离中线-1.6° (相对机器人-91.6°) 距离=1.35m
+[person_vision-5] [INFO] [1792858276.232810302] [person_vision]: VISION ★ 人位于[右]相机视野 偏离中线+7.3° (相对机器人-82.7°) 距离=1.32m
+[person_vision-5] [INFO] [1792858276.334401933] [person_vision]: VISION ★ 人位于[右]相机视野 偏离中线+7.3° (相对机器人-82.7°) 距离=1.32m
+[follower-7] [INFO] [1792858276.343252762] [follower]: FOLLOWER [对正|视觉-right] 距离=1.32m(目标1.00m) 目标方位=-83° 人速=0.00 指令v=+0.00 实际v=0.09 w=-1.5 对正-83°
+[person_vision-5] [INFO] [1792858276.433740481] [person_vision]: VISION ★ 人位于[右]相机视野 偏离中线+22.7° (相对机器人-67.3°) 距离=1.14m
+[person_vision-5] [INFO] [1792858276.435313125] [person_vision]: VISION 📷 快照保存 1 张: 001116_right_d1.1m_b-67deg.jpg
+[follower-7] [INFO] [1792858276.543044100] [follower]: FOLLOWER 感知源切换 → 视觉
+[depth_percept-4] [INFO] [1792858276.788190395] [depth_percept]: PERCEPT 误差对比 front:1.3/真2.3(Δ0.99) left:1.3/真10.8(Δ9.52) right:1.6/真2.4(Δ0.84) back:1.1/真0.8(Δ0.29) | 超阈(>0.3m): 3向
+[follower-7] [INFO] [1792858276.893220539] [follower]: FOLLOWER [对正|视觉] 距离=1.19m(目标1.00m) 目标方位=-19° 人速=0.00 指令v=+0.00 实际v=0.05 w=-0.4 对正-19°
+[follower-7] [INFO] [1792858276.942894921] [follower]: FOLLOWER ✓ 已对正目标(偏差 -9.2° ≤ 15°), 转入距离跟踪
+[person_vision-5] [INFO] [1792858277.034482473] [person_vision]: VISION 📷 快照保存 1 张: 001117_front_d1.3m_b-9deg.jpg
+[person_vision-5] [INFO] [1792858277.035314148] [person_vision]: VISION ★ 人位于[前]相机视野 偏离中线-9.2° 距离=1.30m 面积=1754px
+[follower-7] [INFO] [1792858277.443015435] [follower]: FOLLOWER [跟踪|视觉] 距离=1.28m(目标1.00m) 目标方位=-2° 人速=0.00 指令v=+0.25 实际v=0.25 w=+0.0 
+[person_vision-5] [INFO] [1792858277.633765437] [person_vision]: VISION 📷 快照保存 1 张: 001117_front_d1.2m_b+0deg.jpg
+[follower-7] [INFO] [1792858277.993511260] [follower]: FOLLOWER [跟踪|视觉] 距离=1.18m(目标1.00m) 目标方位=+4° 人速=0.16 指令v=+0.25 实际v=0.25 w=+0.1 
+[person_vision-5] [INFO] [1792858278.234549150] [person_vision]: VISION 📷 快照保存 1 张: 001118_front_d1.1m_b+5deg.jpg
+[follower-7] [INFO] [1792858278.543485992] [follower]: FOLLOWER [跟踪|视觉] 距离=1.12m(目标1.00m) 目标方位=+6° 人速=0.11 指令v=+0.25 实际v=0.25 w=+0.2 
+[person_vision-5] [INFO] [1792858278.833501998] [person_vision]: VISION 📷 快照保存 1 张: 001118_front_d1.1m_b+7deg.jpg
+[follower-7] [INFO] [1792858279.093756267] [follower]: FOLLOWER [跟踪|视觉] 距离=1.09m(目标1.00m) 目标方位=+7° 人速=0.07 指令v=+0.00 实际v=0.01 w=+0.2 
+[follower-7] [INFO] [1792858279.193161616] [follower]: FOLLOWER 诊断 雷达帧=4014 机器人=(-3.70,-4.35,-65°) 人=(-3.12,-5.27)
+[person_vision-5] [INFO] [1792858279.433544693] [person_vision]: VISION 📷 快照保存 1 张: 001119_front_d1.2m_b+6deg.jpg
+[follower-7] [INFO] [1792858279.642882903] [follower]: FOLLOWER [跟踪|视觉] 距离=1.19m(目标1.00m) 目标方位=+1° 人速=0.02 指令v=+0.17 实际v=0.15 w=+1.0 
+[person_vision-5] [INFO] [1792858279.935404714] [person_vision]: VISION 📷 快照保存 1 张: 001119_front_d1.2m_b-7deg.jpg
+[person_vision-5] [INFO] [1792858280.133110550] [person_vision]: VISION ★ 人位于[前]相机视野 偏离中线-14.7° 距离=1.14m 面积=2303px
+[follower-7] [INFO] [1792858280.142905367] [follower]: FOLLOWER [跟踪|视觉] 距离=1.14m(目标1.00m) 目标方位=-15° 人速=0.08 指令v=+0.12 实际v=0.12 w=-1.4 
+[follower-7] [INFO] [1792858280.243067601] [follower]: FOLLOWER ⟳ 目标偏离中线 -20.1° > 15°, 先原地对正
+[person_vision-5] [INFO] [1792858280.535397672] [person_vision]: VISION 📷 快照保存 1 张: 001120_front_d1.1m_b-20deg.jpg
+[follower-7] [INFO] [1792858280.692866006] [follower]: FOLLOWER [对正|视觉] 距离=1.23m(目标1.00m) 目标方位=-14° 人速=0.06 指令v=+0.00 实际v=0.02 w=-0.3 对正-14°
+[follower-7] [INFO] [1792858280.843390702] [follower]: FOLLOWER ✓ 已对正目标(偏差 -9.2° ≤ 15°), 转入距离跟踪
+[person_vision-5] [INFO] [1792858281.134166917] [person_vision]: VISION 📷 快照保存 1 张: 001121_front_d1.4m_b-5deg.jpg
+[follower-7] [INFO] [1792858281.193061658] [follower]: FOLLOWER [跟踪|视觉] 距离=1.39m(目标1.00m) 目标方位=-5° 人速=0.02 指令v=+0.25 实际v=0.26 w=+0.9 
+[follower-7] [INFO] [1792858281.643176257] [follower]: FOLLOWER ⟳ 目标偏离中线 -21.3° > 15°, 先原地对正
+[follower-7] [INFO] [1792858281.692905248] [follower]: FOLLOWER [对正|视觉] 距离=1.23m(目标1.00m) 目标方位=-21° 人速=0.25 指令v=+0.15 实际v=0.55 w=-0.5 对正-21°
+[person_vision-5] [INFO] [1792858281.733291988] [person_vision]: VISION 📷 快照保存 1 张: 001121_front_d1.2m_b-21deg.jpg
+[depth_percept-4] [INFO] [1792858281.788618001] [depth_percept]: PERCEPT 误差对比 front:1.0/真1.1(Δ0.05) left:1.6/真1.6(Δ0.03) right:1.4/真1.4(Δ0.08) back:1.5/真2.7(Δ1.17) | 超阈(>0.3m): 1向
+[follower-7] [INFO] [1792858282.193428328] [follower]: FOLLOWER [对正|视觉] 距离=0.91m(目标1.00m) 目标方位=-48° 人速=0.53 指令v=+0.00 实际v=0.01 w=-1.4 对正-48°
+[person_vision-5] [INFO] [1792858282.233478173] [person_vision]: VISION ★ 人位于[右]相机视野 偏离中线+24.3° (相对机器人-65.7°) 距离=1.21m
+[person_vision-5] [INFO] [1792858282.234468221] [person_vision]: VISION 📷 快照保存 1 张: 001122_right_d1.2m_b-66deg.jpg
+[follower-7] [INFO] [1792858282.243183593] [follower]: FOLLOWER 感知源切换 → 视觉-right
+[person_vision-5] [INFO] [1792858282.332804653] [person_vision]: VISION ★ 人位于[右]相机视野 偏离中线+24.3° (相对机器人-65.7°) 距离=1.21m
+[person_vision-5] [INFO] [1792858282.434435194] [person_vision]: VISION ★ 人位于[右]相机视野 偏离中线+27.9° (相对机器人-62.1°) 距离=1.19m
+[person_vision-5] [INFO] [1792858282.536611780] [person_vision]: VISION ★ 人位于[右]相机视野 偏离中线+27.9° (相对机器人-62.1°) 距离=1.19m
+[follower-7] [INFO] [1792858282.643023366] [follower]: FOLLOWER 感知源切换 → 视觉
+[person_vision-5] [INFO] [1792858282.734445684] [person_vision]: VISION 📷 快照保存 1 张: 001122_right_d1.0m_b-50deg.jpg
+[follower-7] [INFO] [1792858282.743178342] [follower]: FOLLOWER [对正|视觉] 距离=1.01m(目标1.00m) 目标方位=-42° 人速=0.53 指令v=+0.00 实际v=0.08 w=-1.2 对正-42°
+[person_vision-5] [INFO] [1792858283.234740621] [person_vision]: VISION 📷 快照保存 1 张: 001123_front_d1.7m_b-5deg.jpg
+[person_vision-5] [INFO] [1792858283.235492448] [person_vision]: VISION ★ 人位于[前]相机视野 偏离中线-5.2° 距离=1.67m 面积=1072px
+[follower-7] [INFO] [1792858283.243187300] [follower]: FOLLOWER ✓ 已对正目标(偏差 -5.2° ≤ 15°), 转入距离跟踪
+[follower-7] [INFO] [1792858283.243990865] [follower]: FOLLOWER 诊断 雷达帧=4178 机器人=(-3.32,-4.51,-28°) 人=(-1.92,-5.42)
+[follower-7] [INFO] [1792858283.293608036] [follower]: FOLLOWER [跟踪|视觉] 距离=1.67m(目标1.00m) 目标方位=-5° 人速=0.18 指令v=+0.26 实际v=0.02 w=+3.2 绕障5右
+[follower-7] [WARN] [1792858283.393416265] [follower]: FOLLOWER 卡死脱困(平移0.33m/旋转5°倒车)
+[person_vision-5] [INFO] [1792858283.833888080] [person_vision]: VISION 📷 快照保存 1 张: 001123_front_d1.7m_b-9deg.jpg
+[follower-7] [INFO] [1792858283.843159229] [follower]: FOLLOWER [跟踪|视觉] 距离=1.69m(目标1.00m) 目标方位=-9° 人速=0.06 指令v=+0.60 实际v=0.58 w=+3.2 绕障5右
+[follower-7] [INFO] [1792858284.043241619] [follower]: FOLLOWER ⟳ 目标偏离中线 -23.0° > 15°, 先原地对正
+[person_vision-5] [INFO] [1792858284.334007137] [person_vision]: VISION 📷 快照保存 1 张: 001124_right_d1.2m_b-56deg.jpg
+[follower-7] [INFO] [1792858284.393937911] [follower]: FOLLOWER [对正|视觉] 距离=1.08m(目标1.00m) 目标方位=-45° 人速=0.41 指令v=+0.00 实际v=0.27 w=-1.3 对正-45°
+[person_vision-5] [INFO] [1792858284.434781386] [person_vision]: VISION ★ 人位于[右]相机视野 偏离中线+17.1° (相对机器人-72.9°) 距离=1.54m
+[follower-7] [INFO] [1792858284.442970257] [follower]: FOLLOWER 感知源切换 → 视觉-right
+[person_vision-5] [INFO] [1792858284.533024839] [person_vision]: VISION ★ 人位于[右]相机视野 偏离中线+17.1° (相对机器人-72.9°) 距离=1.54m
+[person_vision-5] [INFO] [1792858284.633717513] [person_vision]: VISION ★ 人位于[右]相机视野 偏离中线+10.0° (相对机器人-80.0°) 距离=1.68m
+[person_vision-5] [INFO] [1792858284.732729426] [person_vision]: VISION ★ 人位于[右]相机视野 偏离中线+10.0° (相对机器人-80.0°) 距离=1.68m
+[person_vision-5] [INFO] [1792858284.833360683] [person_vision]: VISION ★ 人位于[右]相机视野 偏离中线+9.2° (相对机器人-80.8°) 距离=1.74m
+[person_vision-5] [INFO] [1792858284.933797621] [person_vision]: VISION ★ 人位于[右]相机视野 偏离中线+9.2° (相对机器人-80.8°) 距离=1.74m
+[person_vision-5] [INFO] [1792858284.935849962] [person_vision]: VISION 📷 快照保存 1 张: 001124_right_d1.7m_b-81deg.jpg
+[follower-7] [INFO] [1792858284.943170435] [follower]: FOLLOWER [对正|视觉-right] 距离=1.74m(目标1.00m) 目标方位=-81° 人速=0.41 指令v=+0.00 实际v=0.04 w=-1.5 对正-81°
+[person_vision-5] [INFO] [1792858285.033055277] [person_vision]: VISION ★ 人位于[右]相机视野 偏离中线+13.7° (相对机器人-76.3°) 距离=1.74m
+[person_vision-5] [INFO] [1792858285.132747573] [person_vision]: VISION ★ 人位于[右]相机视野 偏离中线+13.7° (相对机器人-76.3°) 距离=1.74m
+[person_vision-5] [INFO] [1792858285.233316686] [person_vision]: VISION ★ 人位于[右]相机视野 偏离中线+25.1° (相对机器人-64.9°) 距离=1.59m
+[person_vision-5] [INFO] [1792858285.333112622] [person_vision]: VISION ★ 人位于[右]相机视野 偏离中线+25.1° (相对机器人-64.9°) 距离=1.59m
+[follower-7] [INFO] [1792858285.442936224] [follower]: FOLLOWER 感知源切换 → 视觉
+[follower-7] [INFO] [1792858285.493919694] [follower]: FOLLOWER [对正|视觉] 距离=1.42m(目标1.00m) 目标方位=-36° 人速=0.41 指令v=+0.00 实际v=0.09 w=-1.0 对正-36°
+[person_vision-5] [INFO] [1792858285.534369129] [person_vision]: VISION 📷 快照保存 2 张: 001125_front_d1.4m_b-36deg.jpg, 001125_right_d1.3m_b-46deg.jpg
+[follower-7] [INFO] [1792858285.943116366] [follower]: FOLLOWER ✓ 已对正目标(偏差 -1.4° ≤ 15°), 转入距离跟踪
+[follower-7] [WARN] [1792858285.944718165] [follower]: FOLLOWER 卡死脱困(平移0.88m/旋转0°倒车)
+[follower-7] [INFO] [1792858286.042911283] [follower]: FOLLOWER [跟踪|视觉] 距离=3.27m(目标1.00m) 目标方位=-1° 人速=0.14 指令v=+0.06 实际v=0.04 w=+1.8 绕障5右
+[person_vision-5] [INFO] [1792858286.134269861] [person_vision]: VISION 📷 快照保存 1 张: 001126_front_d3.3m_b+3deg.jpg
+[person_vision-5] [INFO] [1792858286.234075611] [person_vision]: VISION ★ 人位于[前]相机视野 偏离中线+3.1° 距离=3.33m 面积=266px
+[follower-7] [INFO] [1792858286.543086684] [follower]: FOLLOWER [跟踪|视觉] 距离=3.37m(目标1.00m) 目标方位=+2° 人速=0.05 指令v=+0.60 实际v=0.45 w=+1.4 绕障5右
+[person_vision-5] [INFO] [1792858286.634385291] [person_vision]: VISION 📷 快照保存 1 张: 001126_front_d1.1m_b+17deg.jpg
+[follower-7] [INFO] [1792858286.642913884] [follower]: FOLLOWER ⟳ 目标偏离中线 +17.2° > 15°, 先原地对正
+[follower-7] [INFO] [1792858286.843097063] [follower]: FOLLOWER ✓ 已对正目标(偏差 +7.9° ≤ 15°), 转入距离跟踪
+[depth_percept-4] [INFO] [1792858286.888899263] [depth_percept]: PERCEPT 误差对比 front:1.2/真1.0(Δ0.11) left:1.0/真1.0(Δ0.01) right:1.7/真1.9(Δ0.19) back:2.1/真2.2(Δ0.18) | 全部≤0.3m
+[follower-7] [INFO] [1792858287.094285645] [follower]: FOLLOWER [跟踪|视觉] 距离=1.15m(目标1.00m) 目标方位=+3° 人速=0.16 指令v=+0.24 实际v=0.15 w=-0.9 
+[person_vision-5] [INFO] [1792858287.233479594] [person_vision]: VISION 📷 快照保存 1 张: 001127_front_d1.2m_b+4deg.jpg
+[follower-7] [INFO] [1792858287.242840171] [follower]: FOLLOWER 诊断 雷达帧=4330 机器人=(-3.68,-4.07,-6°) 人=(-2.50,-4.10)
+[follower-7] [INFO] [1792858287.642929826] [follower]: FOLLOWER ⟳ 目标偏离中线 +18.0° > 15°, 先原地对正
+[follower-7] [INFO] [1792858287.643670732] [follower]: FOLLOWER [对正|视觉] 距离=1.02m(目标1.00m) 目标方位=+18° 人速=0.29 指令v=+0.35 实际v=0.49 w=+0.4 对正+18°
+[person_vision-5] [INFO] [1792858287.733661753] [person_vision]: VISION 📷 快照保存 1 张: 001127_front_d1.0m_b+18deg.jpg
+[follower-7] [INFO] [1792858288.143425251] [follower]: FOLLOWER [对正|视觉] 距离=0.87m(目标1.00m) 目标方位=+19° 人速=0.31 指令v=+0.00 实际v=0.04 w=+0.4 对正+19°
+[person_vision-5] [INFO] [1792858288.336545054] [person_vision]: VISION 📷 快照保存 1 张: 001128_front_d0.9m_b+15deg.jpg
+[follower-7] [INFO] [1792858288.642956158] [follower]: FOLLOWER ✓ 已对正目标(偏差 +8.1° ≤ 15°), 转入距离跟踪
+[follower-7] [INFO] [1792858288.693189775] [follower]: FOLLOWER [跟踪|视觉] 距离=0.94m(目标1.00m) 目标方位=+8° 人速=0.11 指令v=+0.26 实际v=0.03 w=+0.0 绕障5右
+[person_vision-5] [INFO] [1792858288.936013060] [person_vision]: VISION 📷 快照保存 1 张: 001128_front_d0.9m_b+6deg.jpg
+[follower-7] [INFO] [1792858289.242860679] [follower]: FOLLOWER [跟踪|视觉] 距离=0.81m(目标1.00m) 目标方位=+6° 人速=0.12 指令v=+0.44 实际v=0.50 w=+0.1 绕障5右
+[person_vision-5] [INFO] [1792858289.333607735] [person_vision]: VISION ★ 人位于[前]相机视野 偏离中线+6.1° 距离=0.81m 面积=4027px
+[person_vision-5] [INFO] [1792858289.534576879] [person_vision]: VISION 📷 快照保存 1 张: 001129_front_d0.7m_b+6deg.jpg
+[follower-7] [INFO] [1792858289.743314861] [follower]: FOLLOWER [跟踪|视觉] 距离=0.64m(目标1.00m) 目标方位=+5° 人速=0.32 指令v=-0.17 实际v=0.25 w=+0.1 绕障5右
+[person_vision-5] [INFO] [1792858290.136216175] [person_vision]: VISION 📷 快照保存 1 张: 001130_front_d0.6m_b+4deg.jpg
+[follower-7] [INFO] [1792858290.243268876] [follower]: FOLLOWER [跟踪|视觉] 距离=0.61m(目标1.00m) 目标方位=+3° 人速=0.18 指令v=-0.23 实际v=0.25 w=+0.0 绕障5右
+[person_vision-5] [INFO] [1792858290.733159429] [person_vision]: VISION 📷 快照保存 1 张: 001130_front_d0.7m_b+3deg.jpg
+[follower-7] [INFO] [1792858290.793084968] [follower]: FOLLOWER [跟踪|视觉] 距离=0.70m(目标1.00m) 目标方位=+3° 人速=0.06 指令v=+0.35 实际v=0.14 w=-0.0 绕障5右
+[person_vision-5] [INFO] [1792858291.233929570] [person_vision]: VISION 📷 快照保存 1 张: 001131_front_d0.6m_b+4deg.jpg
+[follower-7] [INFO] [1792858291.243895297] [follower]: FOLLOWER 诊断 雷达帧=4486 机器人=(-3.01,-4.14,+8°) 人=(-2.42,-4.01)
+[follower-7] [INFO] [1792858291.293735757] [follower]: FOLLOWER [跟踪|视觉] 距离=0.60m(目标1.00m) 目标方位=+4° 人速=0.16 指令v=-0.15 实际v=0.25 w=+0.1 绕障5右
+[follower-7] [INFO] [1792858291.793271853] [follower]: FOLLOWER [跟踪|视觉] 距离=0.55m(目标1.00m) 目标方位=+3° 人速=0.09 指令v=-0.27 实际v=0.27 w=-0.0 绕障5右
+[person_vision-5] [INFO] [1792858291.833483420] [person_vision]: VISION 📷 快照保存 1 张: 001131_front_d0.6m_b+3deg.jpg
+[depth_percept-4] [INFO] [1792858291.988068288] [depth_percept]: PERCEPT 误差对比 front:0.6/真0.6(Δ0.08) left:1.3/真10.3(Δ8.98) right:1.6/真1.9(Δ0.22) back:1.7/真3.0(Δ1.21) | 超阈(>0.3m): 2向
+[follower-7] [INFO] [1792858292.343762014] [follower]: FOLLOWER [跟踪|视觉] 距离=0.70m(目标1.00m) 目标方位=+3° 人速=0.03 指令v=+0.26 实际v=0.13 w=-0.1 绕障5右
+[person_vision-5] [INFO] [1792858292.433200754] [person_vision]: VISION 📷 快照保存 1 张: 001132_front_d0.7m_b+4deg.jpg
+[person_vision-5] [INFO] [1792858292.433591521] [person_vision]: VISION ★ 人位于[前]相机视野 偏离中线+3.9° 距离=0.73m 面积=4847px
+[follower-7] [INFO] [1792858292.893043790] [follower]: FOLLOWER [跟踪|视觉] 距离=0.68m(目标1.00m) 目标方位=+5° 人速=0.02 指令v=+0.32 实际v=0.33 w=+0.1 绕障5右
+[person_vision-5] [INFO] [1792858293.036378083] [person_vision]: VISION 📷 快照保存 1 张: 001133_front_d0.6m_b+5deg.jpg
+[follower-7] [INFO] [1792858293.392910856] [follower]: FOLLOWER [跟踪|视觉] 距离=0.57m(目标1.00m) 目标方位=+5° 人速=0.20 指令v=-0.26 实际v=0.10 w=+0.1 绕障5右
+[person_vision-5] [INFO] [1792858293.633964653] [person_vision]: VISION 📷 快照保存 1 张: 001133_front_d0.6m_b+4deg.jpg
+[follower-7] [INFO] [1792858293.943094427] [follower]: FOLLOWER [跟踪|视觉] 距离=0.69m(目标1.00m) 目标方位=+5° 人速=0.07 指令v=+0.24 实际v=0.15 w=-0.1 绕障5右
+[person_vision-5] [INFO] [1792858294.237666944] [person_vision]: VISION 📷 快照保存 1 张: 001134_front_d0.8m_b+6deg.jpg
+[follower-7] [INFO] [1792858294.443350117] [follower]: FOLLOWER [跟踪|视觉] 距离=0.86m(目标1.00m) 目标方位=+6° 人速=0.02 指令v=+0.48 实际v=0.44 w=+0.1 绕障5右
+[person_vision-5] [INFO] [1792858294.835457286] [person_vision]: VISION 📷 快照保存 1 张: 001134_front_d0.8m_b+5deg.jpg
+[follower-7] [INFO] [1792858294.992954531] [follower]: FOLLOWER [跟踪|视觉] 距离=0.82m(目标1.00m) 目标方位=+5° 人速=0.06 指令v=+0.23 实际v=0.30 w=+0.2 绕障5右
+[follower-7] [INFO] [1792858295.293529633] [follower]: FOLLOWER 诊断 雷达帧=4650 机器人=(-2.74,-4.11,+18°) 人=(-1.95,-3.83)
+[person_vision-5] [INFO] [1792858295.333307511] [person_vision]: VISION 📷 快照保存 1 张: 001135_front_d0.8m_b+2deg.jpg
+[person_vision-5] [INFO] [1792858295.433270247] [person_vision]: VISION ★ 人位于[前]相机视野 偏离中线-1.1° 距离=0.89m 面积=3375px
+[follower-7] [INFO] [1792858295.493145602] [follower]: FOLLOWER [跟踪|视觉] 距离=0.89m(目标1.00m) 目标方位=-1° 人速=0.02 指令v=+0.00 实际v=0.06 w=+1.8 绕障5右
+[person_vision-5] [INFO] [1792858295.837640940] [person_vision]: VISION 📷 快照保存 2 张: 001135_front_d0.8m_b-25deg.jpg, 001135_right_d0.7m_b-41deg.jpg
+[follower-7] [INFO] [1792858295.843358478] [follower]: FOLLOWER ⟳ 目标偏离中线 -25.0° > 15°, 先原地对正
+[follower-7] [INFO] [1792858296.042963977] [follower]: FOLLOWER [对正|视觉] 距离=0.70m(目标1.00m) 目标方位=-39° 人速=0.15 指令v=+0.00 实际v=0.09 w=-1.1 对正-39°
+[person_vision-5] [INFO] [1792858296.436607283] [person_vision]: VISION 📷 快照保存 1 张: 001136_right_d0.8m_b-54deg.jpg
+[follower-7] [INFO] [1792858296.542851699] [follower]: FOLLOWER ✓ 已对正目标(偏差 +5.3° ≤ 15°), 转入距离跟踪
+[follower-7] [INFO] [1792858296.592999394] [follower]: FOLLOWER [跟踪|视觉] 距离=2.40m(目标1.00m) 目标方位=+5° 人速=0.18 指令v=+0.26 实际v=0.04 w=+0.7 绕障5右
+[depth_percept-4] [INFO] [1792858296.988509922] [depth_percept]: PERCEPT 误差对比 front:1.9/真1.7(Δ0.16) left:1.0/真0.8(Δ0.12) right:1.8/真2.0(Δ0.16) back:2.0/真2.1(Δ0.14) | 全部≤0.3m
+[person_vision-5] [INFO] [1792858297.033283677] [person_vision]: VISION 📷 快照保存 1 张: 001137_front_d2.4m_b+11deg.jpg
+[follower-7] [INFO] [1792858297.093212368] [follower]: FOLLOWER [跟踪|视觉] 距离=2.42m(目标1.00m) 目标方位=+11° 人速=0.07 指令v=+0.60 实际v=0.60 w=+0.6 绕障5右
+[person_vision-5] [INFO] [1792858297.432965068] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线-49.0° (相对机器人+41.0°) 距离=7.79m
+[follower-7] [INFO] [1792858297.442933161] [follower]: FOLLOWER 感知源切换 → 视觉-left
+[follower-7] [INFO] [1792858297.443951302] [follower]: FOLLOWER ⟳ 目标偏离中线 +41.0° > 15°, 先原地对正
+[person_vision-5] [INFO] [1792858297.532813157] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线-49.0° (相对机器人+41.0°) 距离=7.79m
+[person_vision-5] [INFO] [1792858297.533547166] [person_vision]: VISION 📷 快照保存 1 张: 001137_left_d7.8m_b+41deg.jpg
+[follower-7] [INFO] [1792858297.643849293] [follower]: FOLLOWER 感知源切换 → 真值
+[follower-7] [INFO] [1792858297.644482809] [follower]: FOLLOWER [对正|真值] 距离=12.52m(目标1.00m) 目标方位=+29° 人速=0.32 指令v=+0.00 实际v=0.45 w=+0.8 对正+29°
+[follower-7] [INFO] [1792858298.143121454] [follower]: FOLLOWER [对正|真值] 距离=12.58m(目标1.00m) 目标方位=+13° 人速=0.32 指令v=+0.00 实际v=0.02 w=+0.3 对正+13°
+[follower-7] [INFO] [1792858298.343006940] [follower]: FOLLOWER ✓ 已对正目标(偏差 +9.1° ≤ 15°), 转入距离跟踪
+[person_vision-5] [INFO] [1792858298.434004783] [person_vision]: VISION 四相机视野内均无人 (检出率 924/1228)
+[follower-7] [INFO] [1792858298.693075346] [follower]: FOLLOWER [跟踪|真值] 距离=12.64m(目标1.00m) 目标方位=+12° 人速=0.32 指令v=+0.60 实际v=0.36 w=-1.0 绕障0左
+[follower-7] [INFO] [1792858298.793012728] [follower]: FOLLOWER ⟳ 目标偏离中线 +16.1° > 15°, 先原地对正
+[follower-7] [INFO] [1792858299.242950165] [follower]: FOLLOWER [对正|真值] 距离=12.60m(目标1.00m) 目标方位=+23° 人速=0.32 指令v=+0.00 实际v=0.07 w=+0.6 对正+23°
+[follower-7] [INFO] [1792858299.342997086] [follower]: FOLLOWER 诊断 雷达帧=4802 机器人=(-3.30,-3.86,+24°) 人=(+5.69,+5.00)
+[follower-7] [INFO] [1792858299.743252361] [follower]: FOLLOWER [对正|真值] 距离=12.66m(目标1.00m) 目标方位=+12° 人速=0.00 指令v=+0.00 实际v=0.02 w=+0.3 对正+12°
+[follower-7] [INFO] [1792858299.892947611] [follower]: FOLLOWER ✓ 已对正目标(偏差 +8.7° ≤ 15°), 转入距离跟踪
+[follower-7] [INFO] [1792858300.292915067] [follower]: FOLLOWER [跟踪|真值] 距离=12.57m(目标1.00m) 目标方位=+2° 人速=0.00 指令v=+0.60 实际v=0.41 w=-0.3 绕障0左
+[follower-7] [INFO] [1792858300.793498572] [follower]: FOLLOWER [跟踪|真值] 距离=12.28m(目标1.00m) 目标方位=+8° 人速=0.00 指令v=+0.60 实际v=0.60 w=-0.1 绕障0左
+[follower-7] [INFO] [1792858301.343113852] [follower]: FOLLOWER [跟踪|真值] 距离=11.95m(目标1.00m) 目标方位=+11° 人速=0.00 指令v=+0.60 实际v=0.60 w=-0.0 绕障0左
+[person_vision-5] [INFO] [1792858301.533210653] [person_vision]: VISION 四相机视野内均无人 (检出率 924/1259)
+[follower-7] [INFO] [1792858301.892841069] [follower]: FOLLOWER [跟踪|真值] 距离=11.63m(目标1.00m) 目标方位=+12° 人速=0.00 指令v=+0.60 实际v=0.60 w=-0.0 绕障0左
+[depth_percept-4] [INFO] [1792858302.088270586] [depth_percept]: PERCEPT 误差对比 front:2.0/真10.0(Δ8.04) left:1.1/真6.6(Δ5.52) right:1.1/真0.8(Δ0.30) back:1.2/真4.4(Δ3.21) | 超阈(>0.3m): 4向
+[follower-7] [INFO] [1792858302.393053540] [follower]: FOLLOWER [跟踪|真值] 距离=11.34m(目标1.00m) 目标方位=+12° 人速=0.00 指令v=+0.60 实际v=0.60 w=-0.0 绕障0左
+[follower-7] [INFO] [1792858302.943034667] [follower]: FOLLOWER [跟踪|真值] 距离=11.02m(目标1.00m) 目标方位=+13° 人速=0.00 指令v=+0.60 实际v=0.60 w=-0.0 绕障0左
+[follower-7] [INFO] [1792858303.343982776] [follower]: FOLLOWER 诊断 雷达帧=4962 机器人=(-1.72,-2.77,+33°) 人=(+5.74,+5.00)
+[follower-7] [INFO] [1792858303.493255789] [follower]: FOLLOWER [跟踪|真值] 距离=10.70m(目标1.00m) 目标方位=+13° 人速=0.00 指令v=+0.60 实际v=0.60 w=-0.0 绕障0左
+[follower-7] [INFO] [1792858304.043642850] [follower]: FOLLOWER [跟踪|真值] 距离=10.38m(目标1.00m) 目标方位=+13° 人速=0.00 指令v=+0.60 实际v=0.60 w=+1.0 绕障0左
+[person_vision-5] [INFO] [1792858304.533495257] [person_vision]: VISION 四相机视野内均无人 (检出率 924/1289)
+[follower-7] [INFO] [1792858304.593313903] [follower]: FOLLOWER [跟踪|真值] 距离=10.05m(目标1.00m) 目标方位=+9° 人速=0.00 指令v=+0.60 实际v=0.60 w=-0.2 绕障0左
+[follower-7] [INFO] [1792858305.144268494] [follower]: FOLLOWER [跟踪|真值] 距离=9.73m(目标1.00m) 目标方位=+13° 人速=0.00 指令v=+0.60 实际v=0.60 w=-0.1 绕障0左
+[follower-7] [INFO] [1792858305.693943911] [follower]: FOLLOWER [跟踪|真值] 距离=9.40m(目标1.00m) 目标方位=+15° 人速=0.00 指令v=+0.60 实际v=0.60 w=-0.0 绕障0左
+[follower-7] [INFO] [1792858305.943029662] [follower]: FOLLOWER ⟳ 目标偏离中线 +15.0° > 15°, 先原地对正
+[follower-7] [INFO] [1792858306.242929979] [follower]: FOLLOWER [对正|真值] 距离=9.13m(目标1.00m) 目标方位=+11° 人速=0.00 指令v=+0.00 实际v=0.31 w=+0.3 对正+11°
+[follower-7] [INFO] [1792858306.342927133] [follower]: FOLLOWER ✓ 已对正目标(偏差 +8.7° ≤ 15°), 转入距离跟踪
+[follower-7] [INFO] [1792858306.743079725] [follower]: FOLLOWER [跟踪|真值] 距离=8.98m(目标1.00m) 目标方位=+11° 人速=0.00 指令v=+0.60 实际v=0.54 w=-0.2 绕障0左
+[depth_percept-4] [INFO] [1792858307.188199680] [depth_percept]: PERCEPT 误差对比 front:4.3/真7.3(Δ2.91) left:4.4/真4.8(Δ0.38) right:1.2/真1.2(Δ0.00) back:3.3/真7.3(Δ3.95) | 超阈(>0.3m): 3向
+[follower-7] [INFO] [1792858307.293788593] [follower]: FOLLOWER ⟳ 目标偏离中线 +15.1° > 15°, 先原地对正
+[follower-7] [INFO] [1792858307.294678489] [follower]: FOLLOWER [对正|真值] 距离=8.65m(目标1.00m) 目标方位=+15° 人速=0.00 指令v=+0.40 实际v=0.60 w=+0.3 对正+15°
+[follower-7] [INFO] [1792858307.393356227] [follower]: FOLLOWER 诊断 雷达帧=5126 机器人=(+0.10,-1.49,+34°) 人=(+5.74,+5.00)
+[person_vision-5] [INFO] [1792858307.535902270] [person_vision]: VISION 四相机视野内均无人 (检出率 924/1319)
+[follower-7] [INFO] [1792858307.692970693] [follower]: FOLLOWER ✓ 已对正目标(偏差 +9.2° ≤ 15°), 转入距离跟踪
+[follower-7] [INFO] [1792858307.843382745] [follower]: FOLLOWER [跟踪|真值] 距离=8.48m(目标1.00m) 目标方位=+8° 人速=0.00 指令v=+0.38 实际v=0.24 w=-0.3 绕障0左
+[follower-7] [INFO] [1792858308.343345805] [follower]: FOLLOWER [跟踪|真值] 距离=8.22m(目标1.00m) 目标方位=+14° 人速=0.00 指令v=+0.60 实际v=0.60 w=-0.1 绕障0左
+[follower-7] [INFO] [1792858308.393121932] [follower]: FOLLOWER 绕障0换边右
+[follower-7] [INFO] [1792858308.443600957] [follower]: FOLLOWER ⟳ 目标偏离中线 +15.1° > 15°, 先原地对正
+[follower-7] [INFO] [1792858308.792894477] [follower]: FOLLOWER ✓ 已对正目标(偏差 +9.5° ≤ 15°), 转入距离跟踪
+[follower-7] [INFO] [1792858308.894761204] [follower]: FOLLOWER [跟踪|真值] 距离=8.01m(目标1.00m) 目标方位=+7° 人速=0.00 指令v=+0.32 实际v=0.22 w=+0.8 绕障0右
+[follower-7] [INFO] [1792858309.442958713] [follower]: FOLLOWER [跟踪|真值] 距离=7.72m(目标1.00m) 目标方位=-8° 人速=0.00 指令v=+0.60 实际v=0.61 w=+0.2 绕障0右
+[follower-7] [INFO] [1792858309.992851122] [follower]: FOLLOWER [跟踪|真值] 距离=7.39m(目标1.00m) 目标方位=-13° 人速=0.00 指令v=+0.60 实际v=0.60 w=+0.1 绕障0右
+[follower-7] [INFO] [1792858310.492842310] [follower]: FOLLOWER [跟踪|真值] 距离=7.10m(目标1.00m) 目标方位=-14° 人速=0.00 指令v=+0.60 实际v=0.60 w=+0.0 绕障0右
+[person_vision-5] [INFO] [1792858310.633319234] [person_vision]: VISION 四相机视野内均无人 (检出率 924/1350)
+[follower-7] [INFO] [1792858310.843343793] [follower]: FOLLOWER ⟳ 目标偏离中线 -15.1° > 15°, 先原地对正
+[follower-7] [INFO] [1792858311.043117800] [follower]: FOLLOWER [对正|真值] 距离=6.80m(目标1.00m) 目标方位=-13° 人速=0.00 指令v=+0.00 实际v=0.41 w=-0.3 对正-13°
+[follower-7] [INFO] [1792858311.242924602] [follower]: FOLLOWER ✓ 已对正目标(偏差 -8.9° ≤ 15°), 转入距离跟踪
+[follower-7] [INFO] [1792858311.393024905] [follower]: FOLLOWER 诊断 雷达帧=5286 机器人=(+1.25,-0.02,+56°) 人=(+5.74,+4.98)
+[follower-7] [INFO] [1792858311.593242412] [follower]: FOLLOWER [跟踪|真值] 距离=6.65m(目标1.00m) 目标方位=-10° 人速=0.00 指令v=+0.60 实际v=0.48 w=+0.2 绕障0右
+[follower-7] [INFO] [1792858312.093012300] [follower]: FOLLOWER ⟳ 目标偏离中线 -15.2° > 15°, 先原地对正
+[follower-7] [INFO] [1792858312.143757202] [follower]: FOLLOWER [对正|真值] 距离=6.32m(目标1.00m) 目标方位=-15° 人速=0.00 指令v=+0.20 实际v=0.58 w=-0.3 对正-15°
+[depth_percept-4] [INFO] [1792858312.288315096] [depth_percept]: PERCEPT 误差对比 front:1.8/真6.4(Δ4.60) left:4.2/真4.5(Δ0.28) right:3.5/真5.2(Δ1.69) back:3.3/真5.0(Δ1.68) | 超阈(>0.3m): 3向
+[follower-7] [INFO] [1792858312.493564515] [follower]: FOLLOWER ✓ 已对正目标(偏差 -9.7° ≤ 15°), 转入距离跟踪
+[follower-7] [INFO] [1792858312.693008950] [follower]: FOLLOWER [跟踪|真值] 距离=6.17m(目标1.00m) 目标方位=-9° 人速=0.00 指令v=+0.44 实际v=0.29 w=+0.4 绕障0右
+[follower-7] [INFO] [1792858313.143003261] [follower]: FOLLOWER ⟳ 目标偏离中线 -15.5° > 15°, 先原地对正
+[follower-7] [INFO] [1792858313.243015966] [follower]: FOLLOWER [对正|真值] 距离=5.87m(目标1.00m) 目标方位=-16° 人速=0.00 指令v=+0.00 实际v=0.53 w=-0.3 对正-16°
+[follower-7] [INFO] [1792858313.643421934] [follower]: FOLLOWER ✓ 已对正目标(偏差 -8.7° ≤ 15°), 转入距离跟踪
+[person_vision-5] [INFO] [1792858313.733624655] [person_vision]: VISION 四相机视野内均无人 (检出率 924/1381)
+[follower-7] [INFO] [1792858313.793111314] [follower]: FOLLOWER [跟踪|真值] 距离=5.76m(目标1.00m) 目标方位=-7° 人速=0.00 指令v=+0.38 实际v=0.12 w=+0.5 绕障0右
+[follower-7] [INFO] [1792858314.192999581] [follower]: FOLLOWER ⟳ 目标偏离中线 -15.2° > 15°, 先原地对正
+[follower-7] [INFO] [1792858314.343656245] [follower]: FOLLOWER [对正|真值] 距离=5.52m(目标1.00m) 目标方位=-16° 人速=0.00 指令v=+0.00 实际v=0.47 w=-0.3 对正-16°
+[follower-7] [INFO] [1792858314.692926406] [follower]: FOLLOWER ✓ 已对正目标(偏差 -9.6° ≤ 15°), 转入距离跟踪
+[follower-7] [INFO] [1792858314.892864491] [follower]: FOLLOWER [跟踪|真值] 距离=5.43m(目标1.00m) 目标方位=-9° 人速=0.00 指令v=+0.44 实际v=0.18 w=+1.5 绕障0右
+[follower-7] [INFO] [1792858315.092854824] [follower]: FOLLOWER ⟳ 目标偏离中线 -15.1° > 15°, 先原地对正
+[follower-7] [INFO] [1792858315.393572061] [follower]: FOLLOWER [对正|真值] 距离=5.26m(目标1.00m) 目标方位=-22° 人速=0.00 指令v=+0.00 实际v=0.18 w=-0.5 对正-22°
+[follower-7] [INFO] [1792858315.443171478] [follower]: FOLLOWER 感知源切换 → 视觉
+[follower-7] [INFO] [1792858315.443996917] [follower]: FOLLOWER 诊断 雷达帧=5450 机器人=(+2.01,+1.27,+67°) 人=(+4.88,+4.84)
+[person_vision-5] [INFO] [1792858315.535646719] [person_vision]: VISION 📷 快照保存 1 张: 001155_front_d4.6m_b-15deg.jpg
+[follower-7] [INFO] [1792858315.943344232] [follower]: FOLLOWER [对正|视觉] 距离=4.72m(目标1.00m) 目标方位=-11° 人速=0.00 指令v=+0.00 实际v=0.02 w=-0.3 对正-11°
+[follower-7] [INFO] [1792858316.042928897] [follower]: FOLLOWER 感知源切换 → 真值
+[follower-7] [INFO] [1792858316.093468969] [follower]: FOLLOWER ✓ 已对正目标(偏差 -9.4° ≤ 15°), 转入距离跟踪
+[follower-7] [WARN] [1792858316.243532418] [follower]: FOLLOWER 卡死脱困(平移0.53m/旋转1°倒车)
+[follower-7] [INFO] [1792858316.493528536] [follower]: FOLLOWER [跟踪|真值] 距离=5.19m(目标1.00m) 目标方位=-14° 人速=0.00 指令v=+0.42 实际v=0.32 w=+1.4 绕障0右
+[follower-7] [INFO] [1792858316.543405392] [follower]: FOLLOWER ⟳ 目标偏离中线 -17.1° > 15°, 先原地对正
+[follower-7] [INFO] [1792858316.642960917] [follower]: FOLLOWER 感知源切换 → 视觉
+[person_vision-5] [INFO] [1792858316.735984681] [person_vision]: VISION 📷 快照保存 1 张: 001156_front_d4.6m_b-11deg.jpg
+[person_vision-5] [INFO] [1792858316.736699343] [person_vision]: VISION ★ 人位于[前]相机视野 偏离中线-11.1° 距离=4.64m 面积=59px
+[follower-7] [INFO] [1792858316.994417753] [follower]: FOLLOWER [对正|视觉] 距离=4.28m(目标1.00m) 目标方位=-19° 人速=0.30 指令v=+0.00 实际v=0.02 w=-0.4 对正-19°
+[person_vision-5] [INFO] [1792858317.335438343] [person_vision]: VISION 📷 快照保存 1 张: 001157_front_d4.3m_b-17deg.jpg
+[depth_percept-4] [INFO] [1792858317.388308816] [depth_percept]: PERCEPT 误差对比 front:0.7/真5.2(Δ4.48) left:3.4/真9.2(Δ5.81) right:0.7/真4.5(Δ3.73) back:4.5/真6.2(Δ1.65) | 超阈(>0.3m): 4向
+[follower-7] [INFO] [1792858317.493112939] [follower]: FOLLOWER [对正|视觉] 距离=4.49m(目标1.00m) 目标方位=-13° 人速=0.17 指令v=+0.00 实际v=0.02 w=-0.3 对正-13°
+[follower-7] [INFO] [1792858317.643414266] [follower]: FOLLOWER ✓ 已对正目标(偏差 -9.7° ≤ 15°), 转入距离跟踪
+[person_vision-5] [INFO] [1792858317.933415114] [person_vision]: VISION 📷 快照保存 1 张: 001157_front_d4.6m_b-7deg.jpg
+[follower-7] [INFO] [1792858317.993534708] [follower]: FOLLOWER [跟踪|视觉] 距离=4.65m(目标1.00m) 目标方位=-7° 人速=0.08 指令v=+0.36 实际v=0.37 w=+1.4 绕障0右
+[follower-7] [INFO] [1792858318.243015689] [follower]: FOLLOWER ⟳ 目标偏离中线 -17.1° > 15°, 先原地对正
+[person_vision-5] [INFO] [1792858318.434118148] [person_vision]: VISION 📷 快照保存 1 张: 001158_front_d3.7m_b-29deg.jpg
+[follower-7] [INFO] [1792858318.542987060] [follower]: FOLLOWER [对正|视觉] 距离=3.67m(目标1.00m) 目标方位=-29° 人速=0.63 指令v=+0.00 实际v=0.07 w=-0.8 对正-29°
+[person_vision-5] [INFO] [1792858318.936864514] [person_vision]: VISION 📷 快照保存 2 张: 001158_front_d3.3m_b-36deg.jpg, 001158_right_d2.9m_b-43deg.jpg
+[follower-7] [INFO] [1792858319.093473274] [follower]: FOLLOWER [对正|视觉] 距离=3.72m(目标1.00m) 目标方位=-28° 人速=0.43 指令v=+0.00 实际v=0.06 w=-0.7 对正-28°
+[follower-7] [INFO] [1792858319.443119766] [follower]: FOLLOWER 诊断 雷达帧=5610 机器人=(+2.17,+1.61,+56°) 人=(+5.25,+4.70)
+[person_vision-5] [INFO] [1792858319.536076689] [person_vision]: VISION 📷 快照保存 1 张: 001159_front_d4.4m_b-11deg.jpg
+[follower-7] [INFO] [1792858319.642905021] [follower]: FOLLOWER ✓ 已对正目标(偏差 -8.1° ≤ 15°), 转入距离跟踪
+[follower-7] [INFO] [1792858319.643159023] [follower]: FOLLOWER 绕障0换边左
+[follower-7] [WARN] [1792858319.643808828] [follower]: FOLLOWER 卡死脱困(平移0.36m/旋转0°倒车)
+[follower-7] [INFO] [1792858319.644275510] [follower]: FOLLOWER [跟踪|视觉] 距离=4.45m(目标1.00m) 目标方位=-8° 人速=0.15 指令v=-0.20 实际v=0.02 w=+1.2 绕障0左
+[person_vision-5] [INFO] [1792858319.834408595] [person_vision]: VISION ★ 人位于[前]相机视野 偏离中线-5.5° 距离=4.50m 面积=140px
+[person_vision-5] [INFO] [1792858320.134246876] [person_vision]: VISION 📷 快照保存 1 张: 001200_front_d4.5m_b-0deg.jpg
+[follower-7] [INFO] [1792858320.143147743] [follower]: FOLLOWER [跟踪|视觉] 距离=4.52m(目标1.00m) 目标方位=-0° 人速=0.05 指令v=+0.29 实际v=0.28 w=-1.2 绕障0左
+[follower-7] [INFO] [1792858320.443688068] [follower]: FOLLOWER ⟳ 目标偏离中线 +22.2° > 15°, 先原地对正
+[person_vision-5] [INFO] [1792858320.634153141] [person_vision]: VISION 📷 快照保存 2 张: 001200_front_d2.8m_b+49deg.jpg, 001200_left_d3.3m_b+56deg.jpg
+[follower-7] [INFO] [1792858320.693061244] [follower]: FOLLOWER [对正|视觉] 距离=2.80m(目标1.00m) 目标方位=+49° 人速=0.64 指令v=+0.00 实际v=0.09 w=+1.4 对正+49°
+[follower-7] [INFO] [1792858320.842849534] [follower]: FOLLOWER 感知源切换 → 视觉-left
+[person_vision-5] [INFO] [1792858320.933453941] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线-17.6° (相对机器人+72.4°) 距离=4.02m
+[person_vision-5] [INFO] [1792858321.033420315] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线-10.3° (相对机器人+79.7°) 距离=4.26m
+[person_vision-5] [INFO] [1792858321.134460878] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线-10.3° (相对机器人+79.7°) 距离=4.26m
+[person_vision-5] [INFO] [1792858321.233510723] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线-8.5° (相对机器人+81.5°) 距离=4.31m
+[person_vision-5] [INFO] [1792858321.235014293] [person_vision]: VISION 📷 快照保存 1 张: 001201_left_d4.3m_b+81deg.jpg
+[follower-7] [INFO] [1792858321.242892035] [follower]: FOLLOWER [对正|视觉-left] 距离=4.31m(目标1.00m) 目标方位=+81° 人速=0.64 指令v=+0.00 实际v=0.02 w=+1.5 对正+81°
+[person_vision-5] [INFO] [1792858321.333225238] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线-8.5° (相对机器人+81.5°) 距离=4.31m
+[person_vision-5] [INFO] [1792858321.435947921] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线-11.9° (相对机器人+78.1°) 距离=4.22m
+[person_vision-5] [INFO] [1792858321.535678754] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线-11.9° (相对机器人+78.1°) 距离=4.22m
+[person_vision-5] [INFO] [1792858321.632742219] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线-21.4° (相对机器人+68.6°) 距离=3.87m
+[person_vision-5] [INFO] [1792858321.733721864] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线-21.4° (相对机器人+68.6°) 距离=3.87m
+[person_vision-5] [INFO] [1792858321.735712339] [person_vision]: VISION 📷 快照保存 1 张: 001201_left_d3.9m_b+69deg.jpg
+[follower-7] [INFO] [1792858321.743352733] [follower]: FOLLOWER [对正|视觉-left] 距离=3.87m(目标1.00m) 目标方位=+69° 人速=0.64 指令v=+0.00 实际v=0.09 w=+1.5 对正+69°
+[follower-7] [INFO] [1792858321.843273339] [follower]: FOLLOWER 感知源切换 → 视觉
+[follower-7] [INFO] [1792858322.292984324] [follower]: FOLLOWER [对正|视觉] 距离=4.22m(目标1.00m) 目标方位=+11° 人速=0.31 指令v=+0.00 实际v=0.04 w=+0.3 对正+11°
+[person_vision-5] [INFO] [1792858322.333229701] [person_vision]: VISION 📷 快照保存 1 张: 001202_front_d4.2m_b+11deg.jpg
+[depth_percept-4] [INFO] [1792858322.388158428] [depth_percept]: PERCEPT 误差对比 front:0.5/真0.5(Δ0.02) left:2.1/真5.4(Δ3.39) right:0.5/真6.0(Δ5.51) back:4.1/真7.4(Δ3.30) | 超阈(>0.3m): 3向
+[follower-7] [INFO] [1792858322.443038723] [follower]: FOLLOWER ✓ 已对正目标(偏差 +6.0° ≤ 15°), 转入距离跟踪
+[follower-7] [WARN] [1792858322.444239488] [follower]: FOLLOWER 卡死脱困(平移0.18m/旋转14°倒车)
+[person_vision-5] [INFO] [1792858322.834685591] [person_vision]: VISION 📷 快照保存 1 张: 001202_front_d4.4m_b+2deg.jpg
+[person_vision-5] [INFO] [1792858322.835038263] [person_vision]: VISION ★ 人位于[前]相机视野 偏离中线+1.9° 距离=4.35m 面积=96px
+[follower-7] [INFO] [1792858322.843143238] [follower]: FOLLOWER [跟踪|视觉] 距离=4.35m(目标1.00m) 目标方位=+2° 人速=0.11 指令v=+0.00 实际v=0.02 w=-1.2 绕障0左
+[follower-7] [INFO] [1792858323.243931431] [follower]: FOLLOWER ⟳ 目标偏离中线 +15.8° > 15°, 先原地对正
+[follower-7] [INFO] [1792858323.344234551] [follower]: FOLLOWER [对正|视觉] 距离=4.09m(目标1.00m) 目标方位=+16° 人速=0.38 指令v=+0.00 实际v=0.08 w=+0.3 对正+16°
+[person_vision-5] [INFO] [1792858323.433383636] [person_vision]: VISION 📷 快照保存 1 张: 001203_front_d3.6m_b+29deg.jpg
+[follower-7] [INFO] [1792858323.493280347] [follower]: FOLLOWER 诊断 雷达帧=5770 机器人=(+2.30,+1.72,+2°) 人=(+5.34,+3.59)
+[follower-7] [INFO] [1792858323.893042103] [follower]: FOLLOWER [对正|视觉] 距离=3.01m(目标1.00m) 目标方位=+44° 人速=0.58 指令v=+0.00 实际v=0.03 w=+1.3 对正+44°
+[person_vision-5] [INFO] [1792858324.040493545] [person_vision]: VISION 📷 快照保存 2 张: 001204_front_d3.3m_b+37deg.jpg, 001204_left_d2.9m_b+44deg.jpg
+[follower-7] [INFO] [1792858324.393135844] [follower]: FOLLOWER [对正|视觉] 距离=3.77m(目标1.00m) 目标方位=+25° 人速=0.29 指令v=+0.00 实际v=0.04 w=+0.6 对正+25°
+[person_vision-5] [INFO] [1792858324.633128033] [person_vision]: VISION 📷 快照保存 1 张: 001204_front_d4.3m_b+10deg.jpg
+[follower-7] [INFO] [1792858324.643123729] [follower]: FOLLOWER ✓ 已对正目标(偏差 +9.5° ≤ 15°), 转入距离跟踪
+[follower-7] [WARN] [1792858324.943342287] [follower]: FOLLOWER 卡死脱困(平移0.01m/旋转6°倒车)
+[follower-7] [INFO] [1792858324.943671469] [follower]: FOLLOWER [跟踪|视觉] 距离=4.30m(目标1.00m) 目标方位=+7° 人速=0.10 指令v=-0.20 实际v=0.03 w=-1.2 绕障0左
+[person_vision-5] [INFO] [1792858325.133496920] [person_vision]: VISION 📷 快照保存 1 张: 001205_front_d4.3m_b+9deg.jpg
+[follower-7] [INFO] [1792858325.242930758] [follower]: FOLLOWER ⟳ 目标偏离中线 +16.3° > 15°, 先原地对正
+[follower-7] [INFO] [1792858325.493427553] [follower]: FOLLOWER [对正|视觉] 距离=3.52m(目标1.00m) 目标方位=+31° 人速=0.57 指令v=+0.00 实际v=0.05 w=+0.8 对正+31°
+[person_vision-5] [INFO] [1792858325.633949073] [person_vision]: VISION 📷 快照保存 2 张: 001205_front_d3.0m_b+44deg.jpg, 001205_left_d3.2m_b+52deg.jpg
+[person_vision-5] [INFO] [1792858325.836937210] [person_vision]: VISION ★ 人位于[前]相机视野 偏离中线+49.0° 距离=2.80m 面积=284px
+[follower-7] [INFO] [1792858325.992936890] [follower]: FOLLOWER [对正|视觉] 距离=2.80m(目标1.00m) 目标方位=+49° 人速=0.71 指令v=+0.00 实际v=0.04 w=+1.4 对正+49°
+[person_vision-5] [INFO] [1792858326.133606185] [person_vision]: VISION 📷 快照保存 2 张: 001206_front_d3.0m_b+44deg.jpg, 001206_left_d3.1m_b+51deg.jpg
+[follower-7] [INFO] [1792858326.542995441] [follower]: FOLLOWER [对正|视觉] 距离=4.05m(目标1.00m) 目标方位=+17° 人速=0.24 指令v=+0.00 实际v=0.04 w=+0.3 对正+17°
+[follower-7] [INFO] [1792858326.642886556] [follower]: FOLLOWER ✓ 已对正目标(偏差 +9.7° ≤ 15°), 转入距离跟踪
+[person_vision-5] [INFO] [1792858326.733496920] [person_vision]: VISION 📷 快照保存 1 张: 001206_front_d4.3m_b+10deg.jpg
+[follower-7] [INFO] [1792858327.043165527] [follower]: FOLLOWER [跟踪|视觉] 距离=4.27m(目标1.00m) 目标方位=+9° 人速=0.13 指令v=+0.00 实际v=0.05 w=-3.2 绕障0左
+[follower-7] [INFO] [1792858327.242897717] [follower]: FOLLOWER ⟳ 目标偏离中线 +16.4° > 15°, 先原地对正
+[person_vision-5] [INFO] [1792858327.333490340] [person_vision]: VISION 📷 快照保存 1 张: 001207_front_d4.1m_b+16deg.jpg
+[depth_percept-4] [INFO] [1792858327.388203328] [depth_percept]: PERCEPT 误差对比 front:0.7/真0.5(Δ0.19) left:2.5/真2.3(Δ0.22) right:3.4/真7.7(Δ4.39) back:3.5/真8.3(Δ4.87) | 超阈(>0.3m): 2向
+[follower-7] [INFO] [1792858327.493178649] [follower]: FOLLOWER 诊断 雷达帧=5930 机器人=(+2.29,+1.72,+0°) 人=(+5.32,+3.51)
+[follower-7] [INFO] [1792858327.593232720] [follower]: FOLLOWER [对正|视觉] 距离=3.52m(目标1.00m) 目标方位=+31° 人速=0.49 指令v=+0.00 实际v=0.03 w=+0.8 对正+31°
+[person_vision-5] [INFO] [1792858327.834738224] [person_vision]: VISION 📷 快照保存 2 张: 001207_front_d2.8m_b+49deg.jpg, 001207_left_d3.3m_b+56deg.jpg

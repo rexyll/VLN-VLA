@@ -1,0 +1,27 @@
+>>> [1/3] p83
+>>> 评测 120 s
+>>> 完成: /home/earl/workspace/VLA/tests/out/p83_1.json
+>>> [2/3] p83
+>>> 评测 120 s
+>>> 完成: /home/earl/workspace/VLA/tests/out/p83_2.json
+>>> [3/3] p83
+>>> 评测 120 s
+>>> 完成: /home/earl/workspace/VLA/tests/out/p83_3.json
+
+=== p83  n=3 ===
+指标             中位       最小       最大
+in_band    100.00   100.00   100.00
+near         0.00     0.00     0.00
+far          0.00     0.00     0.00
+dmed         0.97     0.96     0.97
+w10         98.70    96.50    99.30
+mx          16.90    16.30    28.50
+dmin         0.78     0.78     0.79
+bk           7.50     7.00     8.40
+bn          12.00    11.00    16.00
+be          11.10    10.20    14.80
+contact      0.00     0.00     0.00
+ctev         0.00     0.00     0.00
+ctdmin       0.00     0.00     0.00
+lost: [0, 0, 0]
+逐次 in_band: [100.0, 100.0, 100.0]

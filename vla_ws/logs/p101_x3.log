@@ -1,0 +1,27 @@
+=== RUN 1
+    布景: 车(1.75,0.35,yaw63°) 人(2.66,-2.04) 车→人手 2.858m(设计 0.62, 臂长极限 0.70)
+[OK] [1] 任务跑完(RETREAT → HANDBACK → DONE → IDLE)               OK  stages=10
+[OK] [2a] 捧杯(carry)肘外扩(线)  L 227.3 / R 240.2 mm (判据 ≥60)      OK  基础系 L 108.0 / R 160.5 mm, 垂 L -5.5 / R 36.2 mm
+[OK] [2b] 递杯(present)肘外扩(线)  L 173.7 / R 203.6 mm (判据 ≥60)    OK  基础系 L 56.9 / R 144.8 mm(仅供参考, 见下), 伸出 L 0.537 / R 0.492 m
+[OK] [3a] 落稳时两只手都在杯旁  到杯轴 L 111.4 / R 92.6 mm (判据 ≤160)       OK  到杯心3D L 112.1 / R 90.9 mm; 杯落稳 1.8mm
+[OK] [3b] 落稳残差 1.8 mm(判据 ≤5) 松钉后下坠 -0.0 mm(判据 |·|≤5)          OK
+[OK] [4] 收尾悬垂  节点报 L 0.0° / R 0.0° | 实测最大|q| L 0.0 / R 0.0 rad OK
+结论: PASS   (/home/earl/workspace/VLA/tests/out/test_p101.json)
+=== RUN 2
+    布景: 车(1.75,0.35,yaw63°) 人(0.08,3.46) 车→人手 3.273m(设计 0.62, 臂长极限 0.70)
+[OK] [1] 任务跑完(RETREAT → HANDBACK → DONE → IDLE)               OK  stages=10
+[OK] [2a] 捧杯(carry)肘外扩(线)  L 235.1 / R 221.7 mm (判据 ≥60)      OK  基础系 L 139.6 / R 136.1 mm, 垂 L -2.8 / R 99.2 mm
+[OK] [2b] 递杯(present)肘外扩(线)  L 144.3 / R 193.2 mm (判据 ≥60)    OK  基础系 L 25.9 / R 160.2 mm(仅供参考, 见下), 伸出 L 0.576 / R 0.511 m
+[OK] [3a] 落稳时两只手都在杯旁  到杯轴 L 105.8 / R 93.3 mm (判据 ≤160)       OK  到杯心3D L 103.8 / R 93.2 mm; 杯落稳 2.1mm
+[OK] [3b] 落稳残差 2.1 mm(判据 ≤5) 松钉后下坠 -0.0 mm(判据 |·|≤5)          OK
+[OK] [4] 收尾悬垂  节点报 L 0.0° / R 0.0° | 实测最大|q| L 0.0 / R 0.0 rad OK
+结论: PASS   (/home/earl/workspace/VLA/tests/out/test_p101.json)
+=== RUN 3
+    布景: 车(1.75,0.35,yaw63°) 人(-0.23,2.61) 车→人手 2.837m(设计 0.62, 臂长极限 0.70)
+[OK] [1] 任务跑完(RETREAT → HANDBACK → DONE → IDLE)               OK  stages=10
+[OK] [2a] 捧杯(carry)肘外扩(线)  L 236.3 / R 238.2 mm (判据 ≥60)      OK  基础系 L 152.1 / R 138.3 mm, 垂 L -12.2 / R -25.3 mm
+[OK] [2b] 递杯(present)肘外扩(线)  L 159.6 / R 185.2 mm (判据 ≥60)    OK  基础系 L 63.0 / R 120.8 mm(仅供参考, 见下), 伸出 L 0.557 / R 0.524 m
+[OK] [3a] 落稳时两只手都在杯旁  到杯轴 L 99.0 / R 118.8 mm (判据 ≤160)       OK  到杯心3D L 96.4 / R 119.6 mm; 杯落稳 2.7mm
+[OK] [3b] 落稳残差 2.7 mm(判据 ≤5) 松钉后下坠 0.0 mm(判据 |·|≤5)           OK
+[OK] [4] 收尾悬垂  节点报 L 0.0° / R 0.0° | 实测最大|q| L 0.0 / R 0.0 rad OK
+结论: PASS   (/home/earl/workspace/VLA/tests/out/test_p101.json)

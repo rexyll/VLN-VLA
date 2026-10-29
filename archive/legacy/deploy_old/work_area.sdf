@@ -1,0 +1,872 @@
+<?xml version="1.0" ?>
+<sdf version="1.11">
+  <world name="follow_world">
+
+    <physics name="fast" type="ignored">
+      <max_step_size>0.003</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+      <real_time_update_rate>333</real_time_update_rate>
+    </physics>
+
+    <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands"/>
+    <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"/>
+    <plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+
+    <scene>
+      <ambient>0.62 0.62 0.62 1</ambient>
+      <background>0.72 0.78 0.86 1</background>
+      <shadows>true</shadows>
+    </scene>
+
+    <!-- cast_shadows=false: 消除地板上的暗色阴影(会被人检测的暗色先验误判为"人") -->
+    <light type="directional" name="sun">
+      <cast_shadows>false</cast_shadows>
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>0.9 0.9 0.9 1</diffuse>
+      <specular>0.35 0.35 0.35 1</specular>
+      <direction>-0.4 0.3 -0.9</direction>
+    </light>
+
+    <!-- GUI: 全局俯视机位只保留**一处来源** —— ~/.gz/sim/8/gui.config 的
+         MinimalScene/camera_pose(由 vla_demo/gz_gui_fix.py 每次启动重写)。
+         P76c: 原来这里还写了 <camera name="user_cam">(16m), 与 gui.config 的
+         13m 抢同一个机位, 且 view_controller=orbit 让相机容易跟着"选中实体"跑
+         (配合 CameraTracking 时 25s/50s/90s 三帧从全景缩到近景)。已删除,
+         只留 gui.config 一处, 相机端行为才可预测。
+         相机画面小窗(ImageDisplay)同样在 gui.config 中(需在 3D View 之后加载才能锚定)。 -->
+    <gui fullscreen="false"/>
+
+    <!-- 大地面(工作区外) -->
+    <model name="ground_plane">
+      <static>true</static>
+      <pose>0 0 -0.15 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><plane><normal>0 0 1</normal><size>80 80</size></plane></geometry>
+          <surface><friction><ode><mu>1.0</mu><mu2>1.0</mu2></ode></friction></surface>
+        </collision>
+        <visual name="visual">
+          <geometry><plane><normal>0 0 1</normal><size>80 80</size></plane></geometry>
+          <material><ambient>0.42 0.5 0.42 1</ambient><diffuse>0.42 0.5 0.42 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- 工作区地板 12m x 12m -->
+    <model name="floor">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <pose>0 0 -0.05 0 0 0</pose>
+          <geometry><box><size>12.3 12.3 0.1</size></box></geometry>
+          <surface><friction><ode><mu>1.0</mu><mu2>1.0</mu2></ode></friction></surface>
+        </collision>
+        <visual name="visual">
+          <pose>0 0 -0.05 0 0 0</pose>
+          <geometry><box><size>12.3 12.3 0.1</size></box></geometry>
+          <material><ambient>0.78 0.79 0.81 1</ambient><diffuse>0.78 0.79 0.81 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- 工作区围墙(内侧边界 ±6m) -->
+    <model name="walls">
+      <static>true</static>
+      <link name="north">
+        <pose>0 6.075 0.4 0 0 0</pose>
+        <collision name="c"><geometry><box><size>12.3 0.15 0.8</size></box></geometry></collision>
+        <visual name="v">
+          <geometry><box><size>12.3 0.15 0.8</size></box></geometry>
+          <material><ambient>0.55 0.55 0.6 1</ambient><diffuse>0.55 0.55 0.6 1</diffuse></material>
+        </visual>
+      </link>
+      <link name="south">
+        <pose>0 -6.075 0.4 0 0 0</pose>
+        <collision name="c"><geometry><box><size>12.3 0.15 0.8</size></box></geometry></collision>
+        <visual name="v">
+          <geometry><box><size>12.3 0.15 0.8</size></box></geometry>
+          <material><ambient>0.55 0.55 0.6 1</ambient><diffuse>0.55 0.55 0.6 1</diffuse></material>
+        </visual>
+      </link>
+      <link name="east">
+        <pose>6.075 0 0.4 0 0 0</pose>
+        <collision name="c"><geometry><box><size>0.15 12.3 0.8</size></box></geometry></collision>
+        <visual name="v">
+          <geometry><box><size>0.15 12.3 0.8</size></box></geometry>
+          <material><ambient>0.55 0.55 0.6 1</ambient><diffuse>0.55 0.55 0.6 1</diffuse></material>
+        </visual>
+      </link>
+      <link name="west">
+        <pose>-6.075 0 0.4 0 0 0</pose>
+        <collision name="c"><geometry><box><size>0.15 12.3 0.8</size></box></geometry></collision>
+        <visual name="v">
+          <geometry><box><size>0.15 12.3 0.8</size></box></geometry>
+          <material><ambient>0.55 0.55 0.6 1</ambient><diffuse>0.55 0.55 0.6 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- 障碍物 -->
+    <model name="obstacles">
+      <static>true</static>
+      <link name="ob1">
+        <pose>3.5 2.0 0.4 0 0 0</pose>
+        <collision name="c"><geometry><box><size>0.8 0.8 0.8</size></box></geometry></collision>
+        <visual name="v">
+          <geometry><box><size>0.8 0.8 0.8</size></box></geometry>
+          <material><ambient>0.8 0.27 0.27 1</ambient><diffuse>0.8 0.27 0.27 1</diffuse></material>
+        </visual>
+      </link>
+      <link name="ob2">
+        <pose>-3.0 3.2 0.3 0 0 0.5</pose>
+        <collision name="c"><geometry><box><size>1.2 0.6 0.6</size></box></geometry></collision>
+        <visual name="v">
+          <geometry><box><size>1.2 0.6 0.6</size></box></geometry>
+          <material><ambient>0.9 0.57 0.22 1</ambient><diffuse>0.9 0.57 0.22 1</diffuse></material>
+        </visual>
+      </link>
+      <link name="ob3">
+        <pose>0.5 -3.2 0.5 0 0 0</pose>
+        <collision name="c"><geometry><cylinder><radius>0.4</radius><length>1.0</length></cylinder></geometry></collision>
+        <visual name="v">
+          <geometry><cylinder><radius>0.4</radius><length>1.0</length></cylinder></geometry>
+          <material><ambient>0.42 0.66 0.31 1</ambient><diffuse>0.42 0.66 0.31 1</diffuse></material>
+        </visual>
+      </link>
+      <link name="ob4">
+        <pose>-4.2 -2.5 0.4 0 0 0</pose>
+        <collision name="c"><geometry><cylinder><radius>0.5</radius><length>0.8</length></cylinder></geometry></collision>
+        <visual name="v">
+          <geometry><cylinder><radius>0.5</radius><length>0.8</length></cylinder></geometry>
+          <material><ambient>0.24 0.47 0.85 1</ambient><diffuse>0.24 0.47 0.85 1</diffuse></material>
+        </visual>
+      </link>
+      <link name="ob5">
+        <pose>4.2 -3.0 0.6 0 0 0</pose>
+        <collision name="c"><geometry><box><size>0.6 0.6 1.2</size></box></geometry></collision>
+        <visual name="v">
+          <geometry><box><size>0.6 0.6 1.2</size></box></geometry>
+          <material><ambient>0.56 0.39 0.81 1</ambient><diffuse>0.56 0.39 0.81 1</diffuse></material>
+        </visual>
+      </link>
+      <link name="ob6">
+        <pose>-1.5 -4.5 0.25 0 0 -0.4</pose>
+        <collision name="c"><geometry><box><size>1.0 0.5 0.5</size></box></geometry></collision>
+        <visual name="v">
+          <geometry><box><size>1.0 0.5 0.5</size></box></geometry>
+          <material><ambient>0.27 0.51 0.56 1</ambient><diffuse>0.27 0.51 0.56 1</diffuse></material>
+        </visual>
+      </link>
+      <link name="ob7">
+        <pose>2.2 4.6 0.45 0 0 0</pose>
+        <collision name="c"><geometry><cylinder><radius>0.35</radius><length>0.9</length></cylinder></geometry></collision>
+        <visual name="v">
+          <geometry><cylinder><radius>0.35</radius><length>0.9</length></cylinder></geometry>
+          <material><ambient>0.88 0.69 0.25 1</ambient><diffuse>0.88 0.69 0.25 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- 机器人: 双轮差速 + 前向 GPU 激光雷达, 初始位于原点 -->
+    <model name="robot" canonical_link="chassis">
+      <pose>0 0 0 0 0 0</pose>
+      <self_collide>false</self_collide>
+      <link name="chassis">
+        <pose>0 0 0.13 0 0 0</pose>
+        <inertial>
+          <mass>4.0</mass>
+          <inertia><ixx>0.0167</ixx><iyy>0.0333</iyy><izz>0.0433</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia>
+        </inertial>
+        <collision name="c">
+          <geometry><box><size>0.30 0.20 0.10</size></box></geometry>
+        </collision>
+        <visual name="v">
+          <geometry><box><size>0.30 0.20 0.10</size></box></geometry>
+          <material><ambient>0.15 0.35 0.8 1</ambient><diffuse>0.15 0.35 0.8 1</diffuse></material>
+        </visual>
+        <!-- P76: 急停圈(r=0.66, lidar_stop_m) —— 障碍进入此盘即硬停 -->
+        <visual name="stop_zone_v">
+          <pose>0 0 -0.12 0 0 0</pose>
+          <geometry><cylinder><radius>0.660</radius><length>0.02</length></cylinder></geometry>
+          <material>
+            <ambient>1 0.15 0.1 1</ambient>
+            <diffuse>1 0.15 0.1 1</diffuse>
+            <emissive>0.35 0.02 0.0 1</emissive>
+          </material>
+          <transparency>0.55</transparency>
+          <cast_shadows>false</cast_shadows>
+        </visual>
+        <!-- P76: 限速圈(r=1.60, lidar_slow_m) 虚线, 进圈后按距离限速 -->
+        <visual name="slow_ring_00">
+          <pose>1.6000 0.0000 -0.105 0 0 0.0000</pose>
+          <geometry><box><size>0.14 0.070 0.016</size></box></geometry>
+          <material><ambient>1 0.75 0.1 1</ambient><diffuse>1 0.75 0.1 1</diffuse></material>
+          <transparency>0.30</transparency>
+          <cast_shadows>false</cast_shadows>
+        </visual>
+        <visual name="slow_ring_01">
+          <pose>1.5757 0.2778 -0.105 0 0 0.1745</pose>
+          <geometry><box><size>0.14 0.070 0.016</size></box></geometry>
+          <material><ambient>1 0.75 0.1 1</ambient><diffuse>1 0.75 0.1 1</diffuse></material>
+          <transparency>0.30</transparency>
+          <cast_shadows>false</cast_shadows>
+        </visual>
+        <visual name="slow_ring_02">
+          <pose>1.5035 0.5472 -0.105 0 0 0.3491</pose>
+          <geometry><box><size>0.14 0.070 0.016</size></box></geometry>
+          <material><ambient>1 0.75 0.1 1</ambient><diffuse>1 0.75 0.1 1</diffuse></material>
+          <transparency>0.30</transparency>
+          <cast_shadows>false</cast_shadows>
+        </visual>
+        <visual name="slow_ring_03">
+          <pose>1.3856 0.8000 -0.105 0 0 0.5236</pose>
+          <geometry><box><size>0.14 0.070 0.016</size></box></geometry>
+          <material><ambient>1 0.75 0.1 1</ambient><diffuse>1 0.75 0.1 1</diffuse></material>
+          <transparency>0.30</transparency>
+          <cast_shadows>false</cast_shadows>
+        </visual>
+        <visual name="slow_ring_04">
+          <pose>1.2257 1.0285 -0.105 0 0 0.6981</pose>
+          <geometry><box><size>0.14 0.070 0.016</size></box></geometry>
+          <material><ambient>1 0.75 0.1 1</ambient><diffuse>1 0.75 0.1 1</diffuse></material>
+          <transparency>0.30</transparency>
+          <cast_shadows>false</cast_shadows>
+        </visual>
+        <visual name="slow_ring_05">
+          <pose>1.0285 1.2257 -0.105 0 0 0.8727</pose>
+          <geometry><box><size>0.14 0.070 0.016</size></box></geometry>
+          <material><ambient>1 0.75 0.1 1</ambient><diffuse>1 0.75 0.1 1</diffuse></material>
+          <transparency>0.30</transparency>
+          <cast_shadows>false</cast_shadows>
+        </visual>
+        <visual name="slow_ring_06">
+          <pose>0.8000 1.3856 -0.105 0 0 1.0472</pose>
+          <geometry><box><size>0.14 0.070 0.016</size></box></geometry>
+          <material><ambient>1 0.75 0.1 1</ambient><diffuse>1 0.75 0.1 1</diffuse></material>
+          <transparency>0.30</transparency>
+          <cast_shadows>false</cast_shadows>
+        </visual>
+        <visual name="slow_ring_07">
+          <pose>0.5472 1.5035 -0.105 0 0 1.2217</pose>
+          <geometry><box><size>0.14 0.070 0.016</size></box></geometry>
+          <material><ambient>1 0.75 0.1 1</ambient><diffuse>1 0.75 0.1 1</diffuse></material>
+          <transparency>0.30</transparency>
+          <cast_shadows>false</cast_shadows>
+        </visual>
+        <visual name="slow_ring_08">
+          <pose>0.2778 1.5757 -0.105 0 0 1.3963</pose>
+          <geometry><box><size>0.14 0.070 0.016</size></box></geometry>
+          <material><ambient>1 0.75 0.1 1</ambient><diffuse>1 0.75 0.1 1</diffuse></material>
+          <transparency>0.30</transparency>
+          <cast_shadows>false</cast_shadows>
+        </visual>
+        <visual name="slow_ring_09">
+          <pose>0.0000 1.6000 -0.105 0 0 1.5708</pose>
+          <geometry><box><size>0.14 0.070 0.016</size></box></geometry>
+          <material><ambient>1 0.75 0.1 1</ambient><diffuse>1 0.75 0.1 1</diffuse></material>
+          <transparency>0.30</transparency>
+          <cast_shadows>false</cast_shadows>
+        </visual>
+        <visual name="slow_ring_10">
+          <pose>-0.2778 1.5757 -0.105 0 0 1.7453</pose>
+          <geometry><box><size>0.14 0.070 0.016</size></box></geometry>
+          <material><ambient>1 0.75 0.1 1</ambient><diffuse>1 0.75 0.1 1</diffuse></material>
+          <transparency>0.30</transparency>
+          <cast_shadows>false</cast_shadows>
+        </visual>
+        <visual name="slow_ring_11">
+          <pose>-0.5472 1.5035 -0.105 0 0 1.9199</pose>
+          <geometry><box><size>0.14 0.070 0.016</size></box></geometry>
+          <material><ambient>1 0.75 0.1 1</ambient><diffuse>1 0.75 0.1 1</diffuse></material>
+          <transparency>0.30</transparency>
+          <cast_shadows>false</cast_shadows>
+        </visual>
+        <visual name="slow_ring_12">
+          <pose>-0.8000 1.3856 -0.105 0 0 2.0944</pose>
+          <geometry><box><size>0.14 0.070 0.016</size></box></geometry>
+          <material><ambient>1 0.75 0.1 1</ambient><diffuse>1 0.75 0.1 1</diffuse></material>
+          <transparency>0.30</transparency>
+          <cast_shadows>false</cast_shadows>
+        </visual>
+        <visual name="slow_ring_13">
+          <pose>-1.0285 1.2257 -0.105 0 0 2.2689</pose>
+          <geometry><box><size>0.14 0.070 0.016</size></box></geometry>
+          <material><ambient>1 0.75 0.1 1</ambient><diffuse>1 0.75 0.1 1</diffuse></material>
+          <transparency>0.30</transparency>
+          <cast_shadows>false</cast_shadows>
+        </visual>
+        <visual name="slow_ring_14">
+          <pose>-1.2257 1.0285 -0.105 0 0 2.4435</pose>
+          <geometry><box><size>0.14 0.070 0.016</size></box></geometry>
+          <material><ambient>1 0.75 0.1 1</ambient><diffuse>1 0.75 0.1 1</diffuse></material>
+          <transparency>0.30</transparency>
+          <cast_shadows>false</cast_shadows>
+        </visual>
+        <visual name="slow_ring_15">
+          <pose>-1.3856 0.8000 -0.105 0 0 2.6180</pose>
+          <geometry><box><size>0.14 0.070 0.016</size></box></geometry>
+          <material><ambient>1 0.75 0.1 1</ambient><diffuse>1 0.75 0.1 1</diffuse></material>
+          <transparency>0.30</transparency>
+          <cast_shadows>false</cast_shadows>
+        </visual>
+        <visual name="slow_ring_16">
+          <pose>-1.5035 0.5472 -0.105 0 0 2.7925</pose>
+          <geometry><box><size>0.14 0.070 0.016</size></box></geometry>
+          <material><ambient>1 0.75 0.1 1</ambient><diffuse>1 0.75 0.1 1</diffuse></material>
+          <transparency>0.30</transparency>
+          <cast_shadows>false</cast_shadows>
+        </visual>
+        <visual name="slow_ring_17">
+          <pose>-1.5757 0.2778 -0.105 0 0 2.9671</pose>
+          <geometry><box><size>0.14 0.070 0.016</size></box></geometry>
+          <material><ambient>1 0.75 0.1 1</ambient><diffuse>1 0.75 0.1 1</diffuse></material>
+          <transparency>0.30</transparency>
+          <cast_shadows>false</cast_shadows>
+        </visual>
+        <visual name="slow_ring_18">
+          <pose>-1.6000 0.0000 -0.105 0 0 3.1416</pose>
+          <geometry><box><size>0.14 0.070 0.016</size></box></geometry>
+          <material><ambient>1 0.75 0.1 1</ambient><diffuse>1 0.75 0.1 1</diffuse></material>
+          <transparency>0.30</transparency>
+          <cast_shadows>false</cast_shadows>
+        </visual>
+        <visual name="slow_ring_19">
+          <pose>-1.5757 -0.2778 -0.105 0 0 3.3161</pose>
+          <geometry><box><size>0.14 0.070 0.016</size></box></geometry>
+          <material><ambient>1 0.75 0.1 1</ambient><diffuse>1 0.75 0.1 1</diffuse></material>
+          <transparency>0.30</transparency>
+          <cast_shadows>false</cast_shadows>
+        </visual>
+        <visual name="slow_ring_20">
+          <pose>-1.5035 -0.5472 -0.105 0 0 3.4907</pose>
+          <geometry><box><size>0.14 0.070 0.016</size></box></geometry>
+          <material><ambient>1 0.75 0.1 1</ambient><diffuse>1 0.75 0.1 1</diffuse></material>
+          <transparency>0.30</transparency>
+          <cast_shadows>false</cast_shadows>
+        </visual>
+        <visual name="slow_ring_21">
+          <pose>-1.3856 -0.8000 -0.105 0 0 3.6652</pose>
+          <geometry><box><size>0.14 0.070 0.016</size></box></geometry>
+          <material><ambient>1 0.75 0.1 1</ambient><diffuse>1 0.75 0.1 1</diffuse></material>
+          <transparency>0.30</transparency>
+          <cast_shadows>false</cast_shadows>
+        </visual>
+        <visual name="slow_ring_22">
+          <pose>-1.2257 -1.0285 -0.105 0 0 3.8397</pose>
+          <geometry><box><size>0.14 0.070 0.016</size></box></geometry>
+          <material><ambient>1 0.75 0.1 1</ambient><diffuse>1 0.75 0.1 1</diffuse></material>
+          <transparency>0.30</transparency>
+          <cast_shadows>false</cast_shadows>
+        </visual>
+        <visual name="slow_ring_23">
+          <pose>-1.0285 -1.2257 -0.105 0 0 4.0143</pose>
+          <geometry><box><size>0.14 0.070 0.016</size></box></geometry>
+          <material><ambient>1 0.75 0.1 1</ambient><diffuse>1 0.75 0.1 1</diffuse></material>
+          <transparency>0.30</transparency>
+          <cast_shadows>false</cast_shadows>
+        </visual>
+        <visual name="slow_ring_24">
+          <pose>-0.8000 -1.3856 -0.105 0 0 4.1888</pose>
+          <geometry><box><size>0.14 0.070 0.016</size></box></geometry>
+          <material><ambient>1 0.75 0.1 1</ambient><diffuse>1 0.75 0.1 1</diffuse></material>
+          <transparency>0.30</transparency>
+          <cast_shadows>false</cast_shadows>
+        </visual>
+        <visual name="slow_ring_25">
+          <pose>-0.5472 -1.5035 -0.105 0 0 4.3633</pose>
+          <geometry><box><size>0.14 0.070 0.016</size></box></geometry>
+          <material><ambient>1 0.75 0.1 1</ambient><diffuse>1 0.75 0.1 1</diffuse></material>
+          <transparency>0.30</transparency>
+          <cast_shadows>false</cast_shadows>
+        </visual>
+        <visual name="slow_ring_26">
+          <pose>-0.2778 -1.5757 -0.105 0 0 4.5379</pose>
+          <geometry><box><size>0.14 0.070 0.016</size></box></geometry>
+          <material><ambient>1 0.75 0.1 1</ambient><diffuse>1 0.75 0.1 1</diffuse></material>
+          <transparency>0.30</transparency>
+          <cast_shadows>false</cast_shadows>
+        </visual>
+        <visual name="slow_ring_27">
+          <pose>-0.0000 -1.6000 -0.105 0 0 4.7124</pose>
+          <geometry><box><size>0.14 0.070 0.016</size></box></geometry>
+          <material><ambient>1 0.75 0.1 1</ambient><diffuse>1 0.75 0.1 1</diffuse></material>
+          <transparency>0.30</transparency>
+          <cast_shadows>false</cast_shadows>
+        </visual>
+        <visual name="slow_ring_28">
+          <pose>0.2778 -1.5757 -0.105 0 0 4.8869</pose>
+          <geometry><box><size>0.14 0.070 0.016</size></box></geometry>
+          <material><ambient>1 0.75 0.1 1</ambient><diffuse>1 0.75 0.1 1</diffuse></material>
+          <transparency>0.30</transparency>
+          <cast_shadows>false</cast_shadows>
+        </visual>
+        <visual name="slow_ring_29">
+          <pose>0.5472 -1.5035 -0.105 0 0 5.0615</pose>
+          <geometry><box><size>0.14 0.070 0.016</size></box></geometry>
+          <material><ambient>1 0.75 0.1 1</ambient><diffuse>1 0.75 0.1 1</diffuse></material>
+          <transparency>0.30</transparency>
+          <cast_shadows>false</cast_shadows>
+        </visual>
+        <visual name="slow_ring_30">
+          <pose>0.8000 -1.3856 -0.105 0 0 5.2360</pose>
+          <geometry><box><size>0.14 0.070 0.016</size></box></geometry>
+          <material><ambient>1 0.75 0.1 1</ambient><diffuse>1 0.75 0.1 1</diffuse></material>
+          <transparency>0.30</transparency>
+          <cast_shadows>false</cast_shadows>
+        </visual>
+        <visual name="slow_ring_31">
+          <pose>1.0285 -1.2257 -0.105 0 0 5.4105</pose>
+          <geometry><box><size>0.14 0.070 0.016</size></box></geometry>
+          <material><ambient>1 0.75 0.1 1</ambient><diffuse>1 0.75 0.1 1</diffuse></material>
+          <transparency>0.30</transparency>
+          <cast_shadows>false</cast_shadows>
+        </visual>
+        <visual name="slow_ring_32">
+          <pose>1.2257 -1.0285 -0.105 0 0 5.5851</pose>
+          <geometry><box><size>0.14 0.070 0.016</size></box></geometry>
+          <material><ambient>1 0.75 0.1 1</ambient><diffuse>1 0.75 0.1 1</diffuse></material>
+          <transparency>0.30</transparency>
+          <cast_shadows>false</cast_shadows>
+        </visual>
+        <visual name="slow_ring_33">
+          <pose>1.3856 -0.8000 -0.105 0 0 5.7596</pose>
+          <geometry><box><size>0.14 0.070 0.016</size></box></geometry>
+          <material><ambient>1 0.75 0.1 1</ambient><diffuse>1 0.75 0.1 1</diffuse></material>
+          <transparency>0.30</transparency>
+          <cast_shadows>false</cast_shadows>
+        </visual>
+        <visual name="slow_ring_34">
+          <pose>1.5035 -0.5472 -0.105 0 0 5.9341</pose>
+          <geometry><box><size>0.14 0.070 0.016</size></box></geometry>
+          <material><ambient>1 0.75 0.1 1</ambient><diffuse>1 0.75 0.1 1</diffuse></material>
+          <transparency>0.30</transparency>
+          <cast_shadows>false</cast_shadows>
+        </visual>
+        <visual name="slow_ring_35">
+          <pose>1.5757 -0.2778 -0.105 0 0 6.1087</pose>
+          <geometry><box><size>0.14 0.070 0.016</size></box></geometry>
+          <material><ambient>1 0.75 0.1 1</ambient><diffuse>1 0.75 0.1 1</diffuse></material>
+          <transparency>0.30</transparency>
+          <cast_shadows>false</cast_shadows>
+        </visual>
+        <!-- 雷达桅杆(外观) -->
+        <visual name="mast_v">
+          <pose>0.08 0 0.08 0 0 0</pose>
+          <geometry><cylinder><radius>0.02</radius><length>0.12</length></cylinder></geometry>
+          <material><ambient>0.2 0.2 0.2 1</ambient><diffuse>0.2 0.2 0.2 1</diffuse></material>
+        </visual>
+        <!-- 前置相机(第一视角) -->
+        <sensor name="front_camera" type="camera">
+          <pose>0.15 0 0.08 0 0 0</pose>
+          <topic>/camera</topic>
+          <update_rate>10</update_rate>
+          <gz_frame_id>robot_camera</gz_frame_id>
+          <camera name="front">
+            <horizontal_fov>1.6</horizontal_fov>
+            <image>
+              <width>480</width>
+              <height>360</height>
+              <format>R8G8B8</format>
+            </image>
+            <clip>
+              <near>0.1</near>
+              <far>30</far>
+            </clip>
+          </camera>
+          <always_on>1</always_on>
+          <visualize>true</visualize>
+        </sensor>
+        <!-- 4 向深度相机: 前/左/右/后, 量程 0.1~12m(满足10m), FOV 103°x4 覆盖360° -->
+        <sensor name="depth_front" type="rgbd_camera">
+          <pose>0.10 0 0.10 0 0 0</pose>
+          <topic>/depth_front</topic>
+          <update_rate>10</update_rate>
+          <camera name="d">
+            <horizontal_fov>1.8</horizontal_fov>
+            <image><width>320</width><height>240</height><format>R8G8B8</format></image>
+            <clip><near>0.1</near><far>12.0</far></clip>
+            <depth_camera><output>depths</output></depth_camera>
+          </camera>
+          <always_on>1</always_on>
+          <visualize>false</visualize>
+        </sensor>
+        <sensor name="depth_left" type="rgbd_camera">
+          <pose>0.10 0 0.10 0 0 1.5707963</pose>
+          <topic>/depth_left</topic>
+          <update_rate>10</update_rate>
+          <camera name="d">
+            <horizontal_fov>1.8</horizontal_fov>
+            <image><width>320</width><height>240</height><format>R8G8B8</format></image>
+            <clip><near>0.1</near><far>12.0</far></clip>
+            <depth_camera><output>depths</output></depth_camera>
+          </camera>
+          <always_on>1</always_on>
+          <visualize>false</visualize>
+        </sensor>
+        <sensor name="depth_right" type="rgbd_camera">
+          <pose>0.10 0 0.10 0 0 -1.5707963</pose>
+          <topic>/depth_right</topic>
+          <update_rate>10</update_rate>
+          <camera name="d">
+            <horizontal_fov>1.8</horizontal_fov>
+            <image><width>320</width><height>240</height><format>R8G8B8</format></image>
+            <clip><near>0.1</near><far>12.0</far></clip>
+            <depth_camera><output>depths</output></depth_camera>
+          </camera>
+          <always_on>1</always_on>
+          <visualize>false</visualize>
+        </sensor>
+        <sensor name="depth_back" type="rgbd_camera">
+          <pose>0.10 0 0.10 0 0 3.1415926</pose>
+          <topic>/depth_back</topic>
+          <update_rate>10</update_rate>
+          <camera name="d">
+            <horizontal_fov>1.8</horizontal_fov>
+            <image><width>320</width><height>240</height><format>R8G8B8</format></image>
+            <clip><near>0.1</near><far>12.0</far></clip>
+            <depth_camera><output>depths</output></depth_camera>
+          </camera>
+          <always_on>1</always_on>
+          <visualize>false</visualize>
+        </sensor>
+        <sensor name="gpu_lidar" type="gpu_lidar">
+          <pose>0.08 0 0.15 0 0 0</pose>
+          <topic>/lidar</topic>
+          <update_rate>10</update_rate>
+          <gz_frame_id>robot_lidar</gz_frame_id>
+          <lidar>
+            <scan>
+              <horizontal>
+                <samples>360</samples>
+                <resolution>1</resolution>
+                <min_angle>-3.14159</min_angle>
+                <max_angle>3.14159</max_angle>
+              </horizontal>
+            </scan>
+            <range>
+              <min>0.12</min>
+              <max>12.0</max>
+              <resolution>0.01</resolution>
+            </range>
+          </lidar>
+          <always_on>1</always_on>
+          <visualize>true</visualize>
+        </sensor>
+      </link>
+      <link name="left_wheel">
+        <pose relative_to="chassis">0 0.13 -0.07 1.5707 0 0</pose>
+        <inertial>
+          <mass>0.3</mass>
+          <inertia><ixx>0.000432</ixx><iyy>0.000432</iyy><izz>0.000432</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia>
+        </inertial>
+        <collision name="c">
+          <geometry><cylinder><radius>0.06</radius><length>0.04</length></cylinder></geometry>
+          <surface><friction><ode><mu>1.2</mu><mu2>1.0</mu2></ode></friction></surface>
+        </collision>
+        <visual name="v">
+          <geometry><cylinder><radius>0.06</radius><length>0.04</length></cylinder></geometry>
+          <material><ambient>0.12 0.12 0.12 1</ambient><diffuse>0.12 0.12 0.12 1</diffuse></material>
+        </visual>
+      </link>
+      <link name="right_wheel">
+        <pose relative_to="chassis">0 -0.13 -0.07 1.5707 0 0</pose>
+        <inertial>
+          <mass>0.3</mass>
+          <inertia><ixx>0.000432</ixx><iyy>0.000432</iyy><izz>0.000432</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia>
+        </inertial>
+        <collision name="c">
+          <geometry><cylinder><radius>0.06</radius><length>0.04</length></cylinder></geometry>
+          <surface><friction><ode><mu>1.2</mu><mu2>1.0</mu2></ode></friction></surface>
+        </collision>
+        <visual name="v">
+          <geometry><cylinder><radius>0.06</radius><length>0.04</length></cylinder></geometry>
+          <material><ambient>0.12 0.12 0.12 1</ambient><diffuse>0.12 0.12 0.12 1</diffuse></material>
+        </visual>
+      </link>
+      <link name="caster">
+        <pose relative_to="chassis">-0.12 0 -0.10 0 0 0</pose>
+        <inertial>
+          <mass>0.1</mass>
+          <inertia><ixx>0.000036</ixx><iyy>0.000036</iyy><izz>0.000036</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia>
+        </inertial>
+        <collision name="c">
+          <geometry><sphere><radius>0.03</radius></sphere></geometry>
+          <surface>
+            <friction><ode><mu>0.05</mu><mu2>0.05</mu2></ode></friction>
+          </surface>
+        </collision>
+        <visual name="v">
+          <geometry><sphere><radius>0.03</radius></sphere></geometry>
+          <material><ambient>0.3 0.3 0.3 1</ambient><diffuse>0.3 0.3 0.3 1</diffuse></material>
+        </visual>
+      </link>
+
+      <link name="caster_front">
+        <pose relative_to="chassis">0.12 0 -0.10 0 0 0</pose>
+        <inertial>
+          <mass>0.1</mass>
+          <inertia><ixx>0.000036</ixx><iyy>0.000036</iyy><izz>0.000036</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia>
+        </inertial>
+        <collision name="c">
+          <geometry><sphere><radius>0.03</radius></sphere></geometry>
+          <surface>
+            <friction><ode><mu>0.05</mu><mu2>0.05</mu2></ode></friction>
+          </surface>
+        </collision>
+        <visual name="v">
+          <geometry><sphere><radius>0.03</radius></sphere></geometry>
+          <material><ambient>0.3 0.3 0.3 1</ambient><diffuse>0.3 0.3 0.3 1</diffuse></material>
+        </visual>
+      </link>
+      <joint name="left_wheel_joint" type="revolute">
+        <parent>chassis</parent>
+        <child>left_wheel</child>
+        <axis>
+          <xyz>0 0 -1</xyz>
+          <limit><lower>-1e16</lower><upper>1e16</upper></limit>
+        </axis>
+      </joint>
+      <joint name="right_wheel_joint" type="revolute">
+        <parent>chassis</parent>
+        <child>right_wheel</child>
+        <axis>
+          <xyz>0 0 -1</xyz>
+          <limit><lower>-1e16</lower><upper>1e16</upper></limit>
+        </axis>
+      </joint>
+      <!-- P72: 后支撑脚(原来 caster 是游离 link, 车体 31° 后仰拖地) -->
+      <joint name="caster_joint" type="revolute">
+        <parent>chassis</parent>
+        <child>caster</child>
+        <axis>
+          <xyz>0 1 0</xyz>
+          <limit><lower>-1e16</lower><upper>1e16</upper></limit>
+        </axis>
+      </joint>
+
+      <joint name="caster_front_joint" type="revolute">
+        <parent>chassis</parent>
+        <child>caster_front</child>
+        <axis>
+          <xyz>0 1 0</xyz>
+          <limit><lower>-1e16</lower><upper>1e16</upper></limit>
+        </axis>
+      </joint>
+      <plugin filename="gz-sim-diff-drive-system" name="gz::sim::systems::DiffDrive">
+        <left_joint>left_wheel_joint</left_joint>
+        <right_joint>right_wheel_joint</right_joint>
+        <wheel_separation>0.26</wheel_separation>
+        <wheel_radius>0.06</wheel_radius>
+        <topic>/model/robot/cmd_vel</topic>
+        <odom_topic>/model/robot/odometry</odom_topic>
+        <odom_publish_frequency>30</odom_publish_frequency>
+        <max_linear_acceleration>1.2</max_linear_acceleration>
+        <min_linear_acceleration>-1.2</min_linear_acceleration>
+        <max_angular_acceleration>3.0</max_angular_acceleration>
+        <min_angular_acceleration>-3.0</min_angular_acceleration>
+      </plugin>
+    </model>
+
+    <!-- "人": 人形外观(裙摆/躯干/头部合并为单一刚体 link, 物理上不可能掉落)
+         + 隐藏轮组差速驱动, 初始位于机器人前方 1m -->
+    <model name="person" canonical_link="skirt">
+      <pose>1 0 0 0 0 0</pose>
+      <self_collide>false</self_collide>
+      <link name="skirt">
+        <pose>0 0 0.28 0 0 0</pose>
+        <inertial>
+          <mass>7.0</mass>
+          <!-- 三体(skirt+torso+head)平行轴合成 -->
+          <inertia><ixx>2.255</ixx><iyy>2.255</iyy><izz>0.152</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia>
+        </inertial>
+        <!-- 碰撞体直达近地面: 防止机器人钻入裙底被卡死 -->
+        <collision name="c_skirt">
+          <pose>0 0 -0.04 0 0 0</pose>
+          <geometry><cylinder><radius>0.26</radius><length>0.44</length></cylinder></geometry>
+          <surface><friction><ode><mu>0.1</mu><mu2>0.1</mu2></ode></friction></surface>
+        </collision>
+        <visual name="v_skirt">
+          <pose>0 0 -0.04 0 0 0</pose>
+          <geometry><cylinder><radius>0.26</radius><length>0.44</length></cylinder></geometry>
+          <!-- P81: 材质必须真的"深"。原 0.25/0.25/0.28 在 0.62 环境光 + 0.9
+               平行光下渲染出的 V≈75, 而地板 V≈95、墙 V≈219 —— 检测器
+               的"V<=70 且低饱和"先验只剩 5 个灰阶余量, 掩膜只能切到裙摆
+               的两条暗边(7~9px 宽), 宽高比 0.15~0.19 又被 ASPECT_MIN
+               判死。实测同一位置换个观察角度就整帧未检出。
+               改到 0.07/0.07/0.08 后渲染 V≈35~45, 与地板(95)拉开 50 个
+               灰阶, 先验才真正成立。 -->
+          <material><ambient>0.07 0.07 0.08 1</ambient><diffuse>0.07 0.07 0.08 1</diffuse></material>
+        </visual>
+        <!-- 躯干(胶囊, 相对 skirt 中心上方 0.55m) -->
+        <collision name="c_torso">
+          <pose>0 0 0.55 0 0 0</pose>
+          <geometry><capsule><radius>0.17</radius><length>0.4</length></capsule></geometry>
+        </collision>
+        <visual name="v_torso">
+          <pose>0 0 0.55 0 0 0</pose>
+          <geometry><capsule><radius>0.17</radius><length>0.4</length></capsule></geometry>
+          <material><ambient>0.18 0.44 0.82 1</ambient><diffuse>0.18 0.44 0.82 1</diffuse></material>
+        </visual>
+        <!-- 头部(球, 相对 skirt 中心上方 1.05m) -->
+        <collision name="c_head">
+          <pose>0 0 1.05 0 0 0</pose>
+          <geometry><sphere><radius>0.13</radius></sphere></geometry>
+        </collision>
+        <visual name="v_head">
+          <pose>0 0 1.05 0 0 0</pose>
+          <geometry><sphere><radius>0.13</radius></sphere></geometry>
+          <material><ambient>0.94 0.78 0.63 1</ambient><diffuse>0.94 0.78 0.63 1</diffuse></material>
+        </visual>
+      </link>
+      <link name="left_wheel">
+        <pose relative_to="skirt">0 0.20 -0.225 1.5707 0 0</pose>
+        <inertial>
+          <mass>0.25</mass>
+          <inertia><ixx>0.0003</ixx><iyy>0.0003</iyy><izz>0.0003</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia>
+        </inertial>
+        <collision name="c">
+          <geometry><cylinder><radius>0.055</radius><length>0.05</length></cylinder></geometry>
+          <surface><friction><ode><mu>1.2</mu><mu2>1.0</mu2></ode></friction></surface>
+        </collision>
+        <visual name="v">
+          <geometry><cylinder><radius>0.055</radius><length>0.05</length></cylinder></geometry>
+          <material><ambient>0.1 0.1 0.1 1</ambient><diffuse>0.1 0.1 0.1 1</diffuse></material>
+        </visual>
+      </link>
+      <link name="right_wheel">
+        <pose relative_to="skirt">0 -0.20 -0.225 1.5707 0 0</pose>
+        <inertial>
+          <mass>0.25</mass>
+          <inertia><ixx>0.0003</ixx><iyy>0.0003</iyy><izz>0.0003</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia>
+        </inertial>
+        <collision name="c">
+          <geometry><cylinder><radius>0.055</radius><length>0.05</length></cylinder></geometry>
+          <surface><friction><ode><mu>1.2</mu><mu2>1.0</mu2></ode></friction></surface>
+        </collision>
+        <visual name="v">
+          <geometry><cylinder><radius>0.055</radius><length>0.05</length></cylinder></geometry>
+          <material><ambient>0.1 0.1 0.1 1</ambient><diffuse>0.1 0.1 0.1 1</diffuse></material>
+        </visual>
+      </link>
+      <link name="caster">
+        <pose relative_to="skirt">-0.18 0 -0.25 0 0 0</pose>
+        <inertial>
+          <mass>0.1</mass>
+          <inertia><ixx>0.000036</ixx><iyy>0.000036</iyy><izz>0.000036</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia>
+        </inertial>
+        <collision name="c">
+          <geometry><sphere><radius>0.03</radius></sphere></geometry>
+          <surface><friction><ode><mu>0.05</mu><mu2>0.05</mu2></ode></friction></surface>
+        </collision>
+        <visual name="v">
+          <geometry><sphere><radius>0.03</radius></sphere></geometry>
+          <material><ambient>0.3 0.3 0.3 1</ambient><diffuse>0.3 0.3 0.3 1</diffuse></material>
+        </visual>
+      </link>
+
+      <link name="caster_front">
+        <pose relative_to="skirt">0.18 0 -0.25 0 0 0</pose>
+        <inertial>
+          <mass>0.1</mass>
+          <inertia><ixx>0.000036</ixx><iyy>0.000036</iyy><izz>0.000036</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia>
+        </inertial>
+        <collision name="c">
+          <geometry><sphere><radius>0.03</radius></sphere></geometry>
+          <surface><friction><ode><mu>0.05</mu><mu2>0.05</mu2></ode></friction></surface>
+        </collision>
+        <visual name="v">
+          <geometry><sphere><radius>0.03</radius></sphere></geometry>
+          <material><ambient>0.3 0.3 0.3 1</ambient><diffuse>0.3 0.3 0.3 1</diffuse></material>
+        </visual>
+      </link>
+      <joint name="left_wheel_joint" type="revolute">
+        <parent>skirt</parent>
+        <child>left_wheel</child>
+        <axis>
+          <xyz>0 0 -1</xyz>
+          <limit><lower>-1e16</lower><upper>1e16</upper></limit>
+        </axis>
+      </joint>
+      <joint name="right_wheel_joint" type="revolute">
+        <parent>skirt</parent>
+        <child>right_wheel</child>
+        <axis>
+          <xyz>0 0 -1</xyz>
+          <limit><lower>-1e16</lower><upper>1e16</upper></limit>
+        </axis>
+      </joint>
+      <joint name="caster_joint" type="revolute">
+        <parent>skirt</parent>
+        <child>caster</child>
+        <axis>
+          <xyz>0 1 0</xyz>
+          <limit><lower>-1e16</lower><upper>1e16</upper></limit>
+        </axis>
+      </joint>
+
+      <joint name="caster_front_joint" type="revolute">
+        <parent>skirt</parent>
+        <child>caster_front</child>
+        <axis>
+          <xyz>0 1 0</xyz>
+          <limit><lower>-1e16</lower><upper>1e16</upper></limit>
+        </axis>
+      </joint>
+      <plugin filename="gz-sim-diff-drive-system" name="gz::sim::systems::DiffDrive">
+        <left_joint>left_wheel_joint</left_joint>
+        <right_joint>right_wheel_joint</right_joint>
+        <wheel_separation>0.40</wheel_separation>
+        <wheel_radius>0.055</wheel_radius>
+        <topic>/model/person/cmd_vel</topic>
+        <odom_topic>/model/person/odometry</odom_topic>
+        <odom_publish_frequency>30</odom_publish_frequency>
+        <max_linear_acceleration>0.9</max_linear_acceleration>
+        <min_linear_acceleration>-0.9</min_linear_acceleration>
+        <max_angular_acceleration>2.5</max_angular_acceleration>
+        <min_angular_acceleration>-2.5</min_angular_acceleration>
+      </plugin>
+    </model>
+
+    <!-- P76b 顶视相机: 本机 VMware(SVGA3D, Accelerated: no, 1MB VRAM) 上 GUI 的
+         3D 视图会间歇性完全不渲染(只剩底色), 但**服务器端**的相机渲染一直正常
+         (front_camera 图能出来)。所以再挂一台俯视相机走服务器渲染, 由 GUI 的
+         ImageDisplay 窗口(Qt 贴图, 不依赖 GL 视图)显示 /overhead/image,
+         保证"急停圈 / 限速圈 / 轨迹点 / 规划路径"始终看得到。
+         静态模型 + 传感器, 不进 dynamic_pose/info, 不影响 gt_tf 真值链路。
+
+         P76c 关键: 相机传感器的朝向约定**与 GUI 的 camera_pose 相反**。
+         <sensor type="camera"> 沿自身 +X 看, 绕 Y 转 pitch=-90° 把 +X 转到
+         +Z(朝上), 于是整帧只有天空色 —— 实测 PNG 仅 3692 字节纯天蓝、无任何
+         几何, 误判成"渲染坏了"很久。俯视必须写 pitch=**+1.5707963**
+         (+X → -Z, 朝下); 改成 +90° 后同一话题的帧出现 1179 种颜色,
+         地板/障碍/机器人/急停盘/限速圈/规划路径全部可见。 -->
+    <model name="overhead_cam">
+      <static>true</static>
+      <pose>0 0 13 0 1.5707963 0</pose>
+      <link name="link">
+        <sensor name="cam" type="camera">
+          <topic>overhead/image</topic>
+          <always_on>true</always_on>
+          <visualize>false</visualize>
+          <update_rate>10</update_rate>
+          <camera>
+            <horizontal_fov>1.05</horizontal_fov>
+            <image>
+              <width>800</width>
+              <height>800</height>
+              <format>R8G8B8</format>
+            </image>
+            <clip>
+              <near>0.1</near>
+              <far>60</far>
+            </clip>
+          </camera>
+        </sensor>
+      </link>
+    </model>
+
+  </world>
+</sdf>

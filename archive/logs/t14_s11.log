@@ -1,0 +1,86 @@
+[EVAL] 复位 robot=True person=True
+[EVAL] 等待 2s 稳定后下发 FOLLOW...
+[EVAL] FOLLOW 第1次 CLI 下发 rc=0 
+[EVAL] FOLLOW 第2次 CLI 下发 rc=0 
+[EVAL] FOLLOW 第3次 CLI 下发 rc=0 
+[EVAL] FOLLOW 已下发, 开始 120s 评测
+[EVAL  15.0s] d=1.19 cam=front trk=TRACK lost=0 gap=+2.40
+[EVAL  30.0s] d=1.23 cam=front trk=TRACK lost=0 gap=+1.31
+[EVAL  45.0s] d=1.17 cam=front trk=TRACK lost=0 gap=+0.29
+[EVAL  60.0s] d=1.35 cam=left  trk=TRACK lost=0 gap=+1.94
+[EVAL  75.1s] d=1.99 cam=front trk=TRACK lost=0 gap=+0.58
+[EVAL  90.1s] d=2.59 cam=left  trk=TRACK lost=0 gap=+0.48
+[EVAL 105.2s] d=0.97 cam=front trk=TRACK lost=0 gap=+1.58
+
+================ 评测结果 (120s) ================
+{
+ "dist": {
+  "n": 2147,
+  "mean": 1.521,
+  "median": 1.289,
+  "std": 0.661,
+  "min": 0.569,
+  "max": 3.147,
+  "in_band_pct": 14.9,
+  "near_pct": 16.4,
+  "far_pct": 68.7,
+  "min_all": 0.569,
+  "max_streak_s": 3.2
+ },
+ "avoid": {
+  "min_gap": 0.144,
+  "hit_n": 0,
+  "brush_n": 0
+ },
+ "switch": {
+  "n": 37,
+  "resp_mean": 0.97,
+  "resp_max": 2.45,
+  "resp_none": 0,
+  "cross_n": 1,
+  "cross_mean": 1.4
+ },
+ "lost": {
+  "n": 3,
+  "goto_n": 1,
+  "reached_n": 0,
+  "dur_mean": 0.87,
+  "dur_max": 1.8,
+  "regen_mean": 0.87,
+  "events": [
+   {
+    "t0": 0.0,
+    "dur": 0.2,
+    "goto": 1,
+    "reached": 0,
+    "goto_pt": [
+     0.07,
+     0.13
+    ]
+   },
+   {
+    "t0": 1.5,
+    "dur": 1.8,
+    "goto": 0,
+    "reached": 0,
+    "goto_pt": null
+   },
+   {
+    "t0": 35.4,
+    "dur": 0.6,
+    "goto": 0,
+    "reached": 0,
+    "goto_pt": null
+   }
+  ]
+ },
+ "sanity": {
+  "samples": 2442,
+  "vis_pct": 93.0,
+  "front_pct": 80.4,
+  "cmd_v_mean": 0.192
+ },
+ "dur": 120.0
+}
+轨迹图: /home/earl/workspace/VLA/shots/t14_s11_traj.png
+原始数据: /home/earl/workspace/VLA/t14_s11.json

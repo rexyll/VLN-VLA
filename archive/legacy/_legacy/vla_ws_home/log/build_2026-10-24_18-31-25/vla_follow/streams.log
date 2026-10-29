@@ -1,0 +1,46 @@
+[0.487s] Invoking command in '/home/earl/vla_ws/src/vla_follow': PYTHONPATH=/home/earl/vla_ws/build/vla_follow/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/earl/vla_ws/install/vla_follow/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/vla_follow build --build-base /home/earl/vla_ws/build/vla_follow/build install --record /home/earl/vla_ws/build/vla_follow/install.log --install-scripts $base/lib/vla_follow --single-version-externally-managed install_data
+[0.661s] running egg_info
+[0.672s] writing ../../build/vla_follow/vla_follow.egg-info/PKG-INFO
+[0.673s] writing dependency_links to ../../build/vla_follow/vla_follow.egg-info/dependency_links.txt
+[0.673s] writing entry points to ../../build/vla_follow/vla_follow.egg-info/entry_points.txt
+[0.673s] writing requirements to ../../build/vla_follow/vla_follow.egg-info/requires.txt
+[0.673s] writing top-level names to ../../build/vla_follow/vla_follow.egg-info/top_level.txt
+[0.699s] reading manifest file '../../build/vla_follow/vla_follow.egg-info/SOURCES.txt'
+[0.700s] writing manifest file '../../build/vla_follow/vla_follow.egg-info/SOURCES.txt'
+[0.700s] running build
+[0.700s] running build_py
+[0.700s] copying vla_follow/follower.py -> /home/earl/vla_ws/build/vla_follow/build/lib/vla_follow
+[0.700s] copying vla_follow/__init__.py -> /home/earl/vla_ws/build/vla_follow/build/lib/vla_follow
+[0.700s] copying vla_follow/voice_node.py -> /home/earl/vla_ws/build/vla_follow/build/lib/vla_follow
+[0.700s] copying vla_follow/voice_trigger.py -> /home/earl/vla_ws/build/vla_follow/build/lib/vla_follow
+[0.701s] copying vla_follow/person_walk.py -> /home/earl/vla_ws/build/vla_follow/build/lib/vla_follow
+[0.701s] running install
+[0.704s] running install_lib
+[0.715s] copying /home/earl/vla_ws/build/vla_follow/build/lib/vla_follow/follower.py -> /home/earl/vla_ws/install/vla_follow/lib/python3.12/site-packages/vla_follow
+[0.715s] copying /home/earl/vla_ws/build/vla_follow/build/lib/vla_follow/__init__.py -> /home/earl/vla_ws/install/vla_follow/lib/python3.12/site-packages/vla_follow
+[0.715s] copying /home/earl/vla_ws/build/vla_follow/build/lib/vla_follow/voice_node.py -> /home/earl/vla_ws/install/vla_follow/lib/python3.12/site-packages/vla_follow
+[0.717s] copying /home/earl/vla_ws/build/vla_follow/build/lib/vla_follow/voice_trigger.py -> /home/earl/vla_ws/install/vla_follow/lib/python3.12/site-packages/vla_follow
+[0.718s] copying /home/earl/vla_ws/build/vla_follow/build/lib/vla_follow/person_walk.py -> /home/earl/vla_ws/install/vla_follow/lib/python3.12/site-packages/vla_follow
+[0.718s] byte-compiling /home/earl/vla_ws/install/vla_follow/lib/python3.12/site-packages/vla_follow/follower.py to follower.cpython-312.pyc
+[0.718s] byte-compiling /home/earl/vla_ws/install/vla_follow/lib/python3.12/site-packages/vla_follow/__init__.py to __init__.cpython-312.pyc
+[0.718s] byte-compiling /home/earl/vla_ws/install/vla_follow/lib/python3.12/site-packages/vla_follow/voice_node.py to voice_node.cpython-312.pyc
+[0.719s] byte-compiling /home/earl/vla_ws/install/vla_follow/lib/python3.12/site-packages/vla_follow/voice_trigger.py to voice_trigger.cpython-312.pyc
+[0.719s] byte-compiling /home/earl/vla_ws/install/vla_follow/lib/python3.12/site-packages/vla_follow/person_walk.py to person_walk.cpython-312.pyc
+[0.720s] running install_data
+[0.721s] copying resource/vla_follow -> /home/earl/vla_ws/install/vla_follow/share/ament_index/resource_index/packages
+[0.721s] copying package.xml -> /home/earl/vla_ws/install/vla_follow/share/vla_follow
+[0.721s] copying launch/demo.launch.py -> /home/earl/vla_ws/install/vla_follow/share/vla_follow/launch
+[0.721s] copying config/bridge.yml -> /home/earl/vla_ws/install/vla_follow/share/vla_follow/config
+[0.721s] copying worlds/work_area.sdf -> /home/earl/vla_ws/install/vla_follow/share/vla_follow/worlds
+[0.721s] copying audio/follow_2m.wav -> /home/earl/vla_ws/install/vla_follow/share/vla_follow/audio
+[0.721s] copying audio/stop_follow.wav -> /home/earl/vla_ws/install/vla_follow/share/vla_follow/audio
+[0.721s] running install_egg_info
+[0.733s] removing '/home/earl/vla_ws/install/vla_follow/lib/python3.12/site-packages/vla_follow-0.1.0-py3.12.egg-info' (and everything under it)
+[0.733s] Copying ../../build/vla_follow/vla_follow.egg-info to /home/earl/vla_ws/install/vla_follow/lib/python3.12/site-packages/vla_follow-0.1.0-py3.12.egg-info
+[0.733s] running install_scripts
+[0.797s] Installing follower script to /home/earl/vla_ws/install/vla_follow/lib/vla_follow
+[0.797s] Installing person_walk script to /home/earl/vla_ws/install/vla_follow/lib/vla_follow
+[0.797s] Installing voice_node script to /home/earl/vla_ws/install/vla_follow/lib/vla_follow
+[0.797s] Installing voice_trigger script to /home/earl/vla_ws/install/vla_follow/lib/vla_follow
+[0.797s] writing list of installed files to '/home/earl/vla_ws/build/vla_follow/install.log'
+[0.812s] Invoked command in '/home/earl/vla_ws/src/vla_follow' returned '0': PYTHONPATH=/home/earl/vla_ws/build/vla_follow/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/earl/vla_ws/install/vla_follow/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/vla_follow build --build-base /home/earl/vla_ws/build/vla_follow/build install --record /home/earl/vla_ws/build/vla_follow/install.log --install-scripts $base/lib/vla_follow --single-version-externally-managed install_data

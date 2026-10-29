@@ -1,0 +1,510 @@
+[INFO] [launch]: All log files can be found below /home/earl/.ros/log/2026-10-25-15-23-02-974990-earl-VMware-Virtual-Platform-648921
+[INFO] [launch]: Default logging verbosity is set to INFO
+[INFO] [gz-1]: process started with pid [648924]
+[INFO] [parameter_bridge-2]: process started with pid [648925]
+[INFO] [person_walk-3]: process started with pid [648926]
+[INFO] [depth_percept-4]: process started with pid [648927]
+[INFO] [person_vision-5]: process started with pid [648928]
+[INFO] [voice_node-6]: process started with pid [648929]
+[INFO] [follower-7]: process started with pid [648930]
+[voice_node-6] [INFO] [1792912983.378028355] [voice_node]: VOICE 真人语音识别节点已启动 (Vosk 离线中文, 等待语音指令...)
+[voice_node-6] LOG (VoskAPI:ReadDataFiles():model.cc:213) Decoding params beam=12 max-active=5000 lattice-beam=4
+[voice_node-6] LOG (VoskAPI:ReadDataFiles():model.cc:216) Silence phones 1:2:3:4:5:6:7:8:9:10
+[depth_percept-4] [INFO] [1792912983.422821013] [depth_percept]: PERCEPT 4 向深度感知层就绪 (订阅 /depth_*), 输出 /perception/proximity
+[person_walk-3] [INFO] [1792912983.434795057] [person_walk]: PERSON "人"节点就绪, 3 秒后开始在工作区内随机行走
+[voice_node-6] LOG (VoskAPI:RemoveOrphanNodes():nnet-nnet.cc:948) Removed 0 orphan nodes.
+[voice_node-6] LOG (VoskAPI:RemoveOrphanComponents():nnet-nnet.cc:847) Removing 0 orphan components.
+[voice_node-6] LOG (VoskAPI:ReadDataFiles():model.cc:248) Loading i-vector extractor from /home/earl/workspace/VLA/vla_demo/vosk-model-small-cn-0.22/ivector/final.ie
+[voice_node-6] LOG (VoskAPI:ComputeDerivedVars():ivector-extractor.cc:183) Computing derived variables for iVector extractor
+[gz-1] [1;32m[Msg] [0m[1;32mReceived world [[0m[1;32m/home/earl/workspace/VLA/vla_ws/install/vla_follow/share/vla_follow/worlds/work_area.sdf[0m[1;32m] from the GUI.[0m[1;32m[0m
+[gz-1] [1;32m[Msg] [0m[1;32mGazebo Sim Server v[0m[1;32m8.15.0[0m[1;32m[0m
+[gz-1] [1;32m[Msg] [0m[1;32mLoading SDF world file[[0m[1;32m/home/earl/workspace/VLA/vla_ws/install/vla_follow/share/vla_follow/worlds/work_area.sdf[0m[1;32m].[0m
+[gz-1] [1;33mWarning [Utils.cc:132][0m [/sdf/world[@name="follow_world"]/model[@name="robot"]/link[@name="chassis"]/sensor[@name="front_camera"]/gz_frame_id:/home/earl/workspace/VLA/vla_ws/install/vla_follow/share/vla_follow/worlds/work_area.sdf:L734]: XML Element[gz_frame_id], child of element[sensor], not defined in SDF. Copying[gz_frame_id] as children of [sensor].
+[gz-1] [1;33mWarning [Utils.cc:132][0m [/sdf/world[@name="follow_world"]/model[@name="robot"]/link[@name="chassis"]/sensor[@name="gpu_lidar"]/gz_frame_id:/home/earl/workspace/VLA/vla_ws/install/vla_follow/share/vla_follow/worlds/work_area.sdf:L807]: XML Element[gz_frame_id], child of element[sensor], not defined in SDF. Copying[gz_frame_id] as children of [sensor].
+[gz-1] [1;33mWarning [Utils.cc:132][0m [/sdf/world[@name="follow_world"]/model[@name="robot"]/joint[@name="caster_joint"]/axis/xyz[@resolved_frame="child"]:/home/earl/workspace/VLA/vla_ws/install/vla_follow/share/vla_follow/worlds/work_area.sdf:L905]: XML Attribute[resolved_frame] in element[xyz] not defined in SDF.
+[gz-1] [1;33mWarning [Utils.cc:132][0m [/sdf/world[@name="follow_world"]/model[@name="robot"]/joint[@name="caster_joint"]/axis/limits:/home/earl/workspace/VLA/vla_ws/install/vla_follow/share/vla_follow/worlds/work_area.sdf:L906]: XML Element[limits], child of element[axis], not defined in SDF. Copying[limits] as children of [axis].
+[gz-1] [1;33mWarning [Utils.cc:132][0m [/sdf/world[@name="follow_world"]/model[@name="robot"]/joint[@name="caster_front_joint"]/axis/xyz[@resolved_frame="child"]:/home/earl/workspace/VLA/vla_ws/install/vla_follow/share/vla_follow/worlds/work_area.sdf:L913]: XML Attribute[resolved_frame] in element[xyz] not defined in SDF.
+[gz-1] [1;33mWarning [Utils.cc:132][0m [/sdf/world[@name="follow_world"]/model[@name="robot"]/joint[@name="caster_front_joint"]/axis/limits:/home/earl/workspace/VLA/vla_ws/install/vla_follow/share/vla_follow/worlds/work_area.sdf:L914]: XML Element[limits], child of element[axis], not defined in SDF. Copying[limits] as children of [axis].
+[gz-1] [1;33mWarning [Utils.cc:132][0m [/sdf/world[@name="follow_world"]/model[@name="robot"]/joint[@name="left_wheel_joint"]/axis/xyz[@resolved_frame="child"]:/home/earl/workspace/VLA/vla_ws/install/vla_follow/share/vla_follow/worlds/work_area.sdf:L921]: XML Attribute[resolved_frame] in element[xyz] not defined in SDF.
+[gz-1] [1;33mWarning [Utils.cc:132][0m [/sdf/world[@name="follow_world"]/model[@name="robot"]/joint[@name="left_wheel_joint"]/axis/limits:/home/earl/workspace/VLA/vla_ws/install/vla_follow/share/vla_follow/worlds/work_area.sdf:L922]: XML Element[limits], child of element[axis], not defined in SDF. Copying[limits] as children of [axis].
+[gz-1] [1;33mWarning [Utils.cc:132][0m [/sdf/world[@name="follow_world"]/model[@name="robot"]/joint[@name="right_wheel_joint"]/axis/xyz[@resolved_frame="child"]:/home/earl/workspace/VLA/vla_ws/install/vla_follow/share/vla_follow/worlds/work_area.sdf:L929]: XML Attribute[resolved_frame] in element[xyz] not defined in SDF.
+[gz-1] [1;33mWarning [Utils.cc:132][0m [/sdf/world[@name="follow_world"]/model[@name="robot"]/joint[@name="right_wheel_joint"]/axis/limits:/home/earl/workspace/VLA/vla_ws/install/vla_follow/share/vla_follow/worlds/work_area.sdf:L930]: XML Element[limits], child of element[axis], not defined in SDF. Copying[limits] as children of [axis].
+[gz-1] [1;33mWarning [Utils.cc:132][0m [/sdf/world[@name="follow_world"]/model[@name="person"]/joint[@name="left_wheel_joint"]/axis/xyz[@resolved_frame="child"]:/home/earl/workspace/VLA/vla_ws/install/vla_follow/share/vla_follow/worlds/work_area.sdf:L1044]: XML Attribute[resolved_frame] in element[xyz] not defined in SDF.
+[gz-1] [1;33mWarning [Utils.cc:132][0m [/sdf/world[@name="follow_world"]/model[@name="person"]/joint[@name="left_wheel_joint"]/axis/limits:/home/earl/workspace/VLA/vla_ws/install/vla_follow/share/vla_follow/worlds/work_area.sdf:L1045]: XML Element[limits], child of element[axis], not defined in SDF. Copying[limits] as children of [axis].
+[gz-1] [1;33mWarning [Utils.cc:132][0m [/sdf/world[@name="follow_world"]/model[@name="person"]/joint[@name="right_wheel_joint"]/axis/xyz[@resolved_frame="child"]:/home/earl/workspace/VLA/vla_ws/install/vla_follow/share/vla_follow/worlds/work_area.sdf:L1052]: XML Attribute[resolved_frame] in element[xyz] not defined in SDF.
+[gz-1] [1;33mWarning [Utils.cc:132][0m [/sdf/world[@name="follow_world"]/model[@name="person"]/joint[@name="right_wheel_joint"]/axis/limits:/home/earl/workspace/VLA/vla_ws/install/vla_follow/share/vla_follow/worlds/work_area.sdf:L1053]: XML Element[limits], child of element[axis], not defined in SDF. Copying[limits] as children of [axis].
+[voice_node-6] LOG (VoskAPI:ComputeDerivedVars():ivector-extractor.cc:204) Done.
+[voice_node-6] LOG (VoskAPI:ReadDataFiles():model.cc:282) Loading HCL and G from /home/earl/workspace/VLA/vla_demo/vosk-model-small-cn-0.22/graph/HCLr.fst /home/earl/workspace/VLA/vla_demo/vosk-model-small-cn-0.22/graph/Gr.fst
+[follower-7] [INFO] [1792912983.669273100] [follower]: FOLLOWER 跟随控制器v4就绪(对正带±10° / 距离PID / 真值地图绕障)
+[person_vision-5] [INFO] [1792912983.686512168] [person_vision]: VISION 快照配置: 保留10张 @ 2.0Hz (配置: /home/earl/workspace/VLA/vla_demo/vision_config.json)
+[person_vision-5] [INFO] [1792912983.690603209] [person_vision]: VISION 4 向识人+快照管线就绪, 输出 /perception/person[_history]
+[voice_node-6] LOG (VoskAPI:ReadDataFiles():model.cc:308) Loading winfo /home/earl/workspace/VLA/vla_demo/vosk-model-small-cn-0.22/graph/phones/word_boundary.int
+[voice_node-6] [INFO] [1792912983.693861787] [voice_node]: VOICE 中文声学模型加载完成: /home/earl/workspace/VLA/vla_demo/vosk-model-small-cn-0.22 (0.3s), 可以开始识别
+[follower-7] [INFO] [1792912983.710210205] [follower]: FOLLOWER 待命: 等待语音指令...
+[gz-1] [1;33m[Wrn] [Conversions.cc:735] [0m[1;33m<gui><camera> can't be converted yet[0m[1;33m[0m
+[gz-1] [1;33m[Wrn] [Conversions.cc:735] [0m[1;33m<gui><camera> can't be converted yet[0m[1;33m[0m
+[gz-1] [1;32m[Msg] [0m[1;32mServing entity system service on [[0m[1;32m/[0m[1;32mentity/system/add[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[Msg] [0m[1;32mCreate[0m[1;32m service on [[0m[1;32m/world/follow_world/create_multiple[0m[1;32m] (async)[0m[1;32m[0m
+[gz-1] [1;32m[Msg] [0m[1;32mCreate[0m[1;32m service on [[0m[1;32m/world/follow_world/create_multiple/blocking[0m[1;32m] (blocking)[0m[1;32m[0m
+[gz-1] [1;32m[Msg] [0m[1;32mRemove[0m[1;32m service on [[0m[1;32m/world/follow_world/remove[0m[1;32m] (async)[0m[1;32m[0m
+[gz-1] [1;32m[Msg] [0m[1;32mRemove[0m[1;32m service on [[0m[1;32m/world/follow_world/remove/blocking[0m[1;32m] (blocking)[0m[1;32m[0m
+[gz-1] [1;32m[Msg] [0m[1;32mPose[0m[1;32m service on [[0m[1;32m/world/follow_world/set_pose[0m[1;32m] (async)[0m[1;32m[0m
+[gz-1] [1;32m[Msg] [0m[1;32mPose[0m[1;32m service on [[0m[1;32m/world/follow_world/set_pose/blocking[0m[1;32m] (blocking)[0m[1;32m[0m
+[gz-1] [1;32m[Msg] [0m[1;32mPose[0m[1;32m service on [[0m[1;32m/world/follow_world/set_pose_vector[0m[1;32m] (async)[0m[1;32m[0m
+[gz-1] [1;32m[Msg] [0m[1;32mPose[0m[1;32m service on [[0m[1;32m/world/follow_world/set_pose_vector/blocking[0m[1;32m] (blocking)[0m[1;32m[0m
+[gz-1] [1;32m[Msg] [0m[1;32mLight configuration[0m[1;32m service on [[0m[1;32m/world/follow_world/light_config[0m[1;32m] (async)[0m[1;32m[0m
+[gz-1] [1;32m[Msg] [0m[1;32mLight configuration[0m[1;32m service on [[0m[1;32m/world/follow_world/light_config/blocking[0m[1;32m] (blocking)[0m[1;32m[0m
+[gz-1] [1;32m[Msg] [0m[1;32mPhysics[0m[1;32m service on [[0m[1;32m/world/follow_world/set_physics[0m[1;32m] (async)[0m[1;32m[0m
+[gz-1] [1;32m[Msg] [0m[1;32mPhysics[0m[1;32m service on [[0m[1;32m/world/follow_world/set_physics/blocking[0m[1;32m] (blocking)[0m[1;32m[0m
+[gz-1] [1;32m[Msg] [0m[1;32mSphericalCoordinates[0m[1;32m service on [[0m[1;32m/world/follow_world/set_spherical_coordinates[0m[1;32m] (async)[0m[1;32m[0m
+[gz-1] [1;32m[Msg] [0m[1;32mSphericalCoordinates[0m[1;32m service on [[0m[1;32m/world/follow_world/set_spherical_coordinates/blocking[0m[1;32m] (blocking)[0m[1;32m[0m
+[gz-1] [1;32m[Msg] [0m[1;32mEnable collision[0m[1;32m service on [[0m[1;32m/world/follow_world/enable_collision[0m[1;32m] (async)[0m[1;32m[0m
+[gz-1] [1;32m[Msg] [0m[1;32mEnable collision[0m[1;32m service on [[0m[1;32m/world/follow_world/enable_collision/blocking[0m[1;32m] (blocking)[0m[1;32m[0m
+[gz-1] [1;32m[Msg] [0m[1;32mDisable collision[0m[1;32m service on [[0m[1;32m/world/follow_world/disable_collision[0m[1;32m] (async)[0m[1;32m[0m
+[gz-1] [1;32m[Msg] [0m[1;32mDisable collision[0m[1;32m service on [[0m[1;32m/world/follow_world/disable_collision/blocking[0m[1;32m] (blocking)[0m[1;32m[0m
+[gz-1] [1;32m[Msg] [0m[1;32mMaterial[0m[1;32m service on [[0m[1;32m/world/follow_world/visual_config[0m[1;32m] (async)[0m[1;32m[0m
+[gz-1] [1;32m[Msg] [0m[1;32mMaterial[0m[1;32m service on [[0m[1;32m/world/follow_world/visual_config/blocking[0m[1;32m] (blocking)[0m[1;32m[0m
+[gz-1] [1;32m[Msg] [0m[1;32mMaterial[0m[1;32m service on [[0m[1;32m/world/follow_world/wheel_slip[0m[1;32m] (async)[0m[1;32m[0m
+[gz-1] [1;32m[Msg] [0m[1;32mMaterial[0m[1;32m service on [[0m[1;32m/world/follow_world/wheel_slip/blocking[0m[1;32m] (blocking)[0m[1;32m[0m
+[gz-1] [1;32m[Msg] [0m[1;32mDiffDrive subscribing to twist messages on [[0m[1;32m/model/robot/cmd_vel[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[Msg] [0m[1;32mDiffDrive subscribing to twist messages on [[0m[1;32m/model/person/cmd_vel[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[Msg] [0m[1;32mLoaded level [[0m[1;32mdefault[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[Msg] [0m[1;32mServing world controls on [[0m[1;32m/world/follow_world[0m[1;32m/control], [[0m[1;32m/world/follow_world[0m[1;32m/control/state] and [[0m[1;32m/world/follow_world[0m[1;32m/playback/control][0m[1;32m[0m
+[gz-1] [1;32m[Msg] [0m[1;32mServing GUI information on [[0m[1;32m/world/follow_world[0m[1;32m/[0m[1;32mgui/info[0m[1;32m][0m[1;32m[0m
+[person_vision-5] [INFO] [1792912983.791059332] [person_vision]: VISION 四相机视野内均无人 (检出率 0/1)
+[parameter_bridge-2] [INFO] [1792912984.128891759] [ros_gz_bridge]: Creating ROS->GZ Bridge: [/robot/cmd_vel (geometry_msgs/msg/Twist) -> /model/robot/cmd_vel (gz.msgs.Twist)] (Lazy 0)
+[gz-1] [1;33m[GUI] [Wrn] [Application.cc:908] [0m[1;33m[QT] file::/ImageDisplay/ImageDisplay.qml:91:5: QML Image: Invalid image provider: image://plugin38467imagedisplay/fczbc[0m[1;33m[0m
+[parameter_bridge-2] [INFO] [1792912984.210800038] [ros_gz_bridge]: Creating GZ->ROS Bridge: [/model/robot/odometry (gz.msgs.Odometry) -> /robot/odom (nav_msgs/msg/Odometry)] (Lazy 0)
+[parameter_bridge-2] [INFO] [1792912984.214521013] [ros_gz_bridge]: Creating ROS->GZ Bridge: [/person/cmd_vel (geometry_msgs/msg/Twist) -> /model/person/cmd_vel (gz.msgs.Twist)] (Lazy 0)
+[parameter_bridge-2] [INFO] [1792912984.217769531] [ros_gz_bridge]: Creating GZ->ROS Bridge: [/model/person/odometry (gz.msgs.Odometry) -> /person/odom (nav_msgs/msg/Odometry)] (Lazy 0)
+[parameter_bridge-2] [INFO] [1792912984.219717501] [ros_gz_bridge]: Creating GZ->ROS Bridge: [/lidar (gz.msgs.LaserScan) -> /scan (sensor_msgs/msg/LaserScan)] (Lazy 0)
+[parameter_bridge-2] [INFO] [1792912984.227177553] [ros_gz_bridge]: Passing message from ROS geometry_msgs/msg/Twist to Gazebo gz.msgs.Twist (showing msg only once per type)
+[gz-1] [1;32m[Msg] [0m[1;32mWorld [[0m[1;32mfollow_world[0m[1[1;32m[Msg] [0m[1;32mGazebo Sim GUI    v[0m[1;32m8.15.0[0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mLoading config [[0m[1;32m/home/earl/.gz/sim/8/gui.config[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mAdded plugin [[0m[1;32m3D View[0m[1;32m] to main window[0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mLoaded plugin [[0m[1;32mMinimalScene[0m[1;32m] from path [[0m[1;32m/opt/ros/jazzy/opt/gz_gui_vendor/lib/gz-gui-8/plugins/libMinimalScene.so[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mAdded plugin [[0m[1;32mImage display[0m[1;32m] to main window[0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mLoaded plugin [[0m[1;32mImageDisplay[0m[1;32m] from path [[0m[1;32m/opt/ros/jazzy/opt/gz_gui_vendor/lib/gz-gui-8/plugins/libImageDisplay.so[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mCurrently tracking topic on [[0m[1;32m/gui/currently_tracked[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mAdded plugin [[0m[1;32mEntity Context Menu[0m[1;32m] to main window[0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mLoaded plugin [[0m[1;32mEntityContextMenuPlugin[0m[1;32m] from path [[0m[1;32m/opt/ros/jazzy/opt/gz_sim_vendor/lib/gz-sim-8/plugins/gui/libEntityContextMenuPlugin.so[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mAdded plugin [[0m[1;32mScene Manager[0m[1;32m] to main window[0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mLoaded plugin [[0m[1;32mGzSceneManager[0m[1;32m] from path [[0m[1;32m/opt/ros/jazzy/opt/gz_sim_vendor/lib/gz-sim-8/plugins/gui/libGzSceneManager.so[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mCamera view controller topic advertised on [[0m[1;32m/gui/camera/view_control[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mCamera reference visual topic advertised on [[0m[1;32m/gui/camera/view_control/reference_visual[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mCamera view control sensitivity advertised on [[0m[1;32m/gui/camera/view_control/sensitivity[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mAdded plugin [[0m[1;32mInteractive view control[0m[1;32m] to main window[0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mLoaded plugin [[0m[1;32mInteractiveViewControl[0m[1;32m] from path [[0m[1;32m/opt/ros/jazzy/opt/gz_gui_vendor/lib/gz-gui-8/plugins/libInteractiveViewControl.so[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mAdded plugin [[0m[1;32mCamera tracking[0m[1;32m] to main window[0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mLoaded plugin [[0m[1;32mCameraTracking[0m[1;32m] from path [[0m[1;32m/opt/ros/jazzy/opt/gz_gui_vendor/lib/gz-gui-8/plugins/libCameraTracking.so[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mListening to stats on [[0m[1;32m/world/follow_world/stats[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mAdded plugin [[0m[1;32mMarker Manager[0m[1;32m] to main window[0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mLoaded plugin [[0m[1;32mMarkerManager[0m[1;32m] from path [[0m[1;32m/opt/ros/jazzy/opt/gz_gui_vendor/lib/gz-gui-8/plugins/libMarkerManager.so[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mAdded plugin [[0m[1;32mSelect entities[0m[1;32m] to main window[0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mLoaded plugin [[0m[1;32mSelectEntities[0m[1;32m] from path [[0m[1;32m/opt/ros/jazzy/opt/gz_sim_vendor/lib/gz-sim-8/plugins/gui/libSelectEntities.so[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mAdded plugin [[0m[1;32mSpawn[0m[1;32m] to main window[0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mLoaded plugin [[0m[1;32mSpawn[0m[1;32m] from path [[0m[1;32m/opt/ros/jazzy/opt/gz_sim_vendor/lib/gz-sim-8/plugins/gui/libSpawn.so[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mView as transparent service on [[0m[1;32m/gui/view/transparent[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mView as wireframes service on [[0m[1;32m/gui/view/wireframes[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mView center of mass service on [[0m[1;32m/gui/view/com[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mView inertia service on [[0m[1;32m/gui/view/inertia[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mView collisions service on [[0m[1;32m/gui/view/collisions[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mView joints service on [[0m[1;32m/gui/view/joints[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mView frames service on [[0m[1;32m/gui/view/frames[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mAdded plugin [[0m[1;32mVisualization capabilities[0m[1;32m] to main window[0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mLoaded plugin [[0m[1;32mVisualizationCapabilities[0m[1;32m] from path [[0m[1;32m/opt/ros/jazzy/opt/gz_sim_vendor/lib/gz-sim-8/plugins/gui/libVisualizationCapabilities.so[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mUsing world control service [[0m[1;32m/world/follow_world/control[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mListening to stats on [[0m[1;32m/world/follow_world/stats[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mAdded plugin [[0m[1;32mWorld control[0m[1;32m] to main window[0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mLoaded plugin [[0m[1;32mWorldControl[0m[1;32m] from path [[0m[1;32m/opt/ros/jazzy/opt/gz_gui_vendor/lib/gz-gui-8/plugins/libWorldControl.so[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mListening to stats on [[0m[1;32m/world/follow_world/stats[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mAdded plugin [[0m[1;32mWorld stats[0m[1;32m] to main window[0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mLoaded plugin [[0m[1;32mWorldStats[0m[1;32m] from path [[0m[1;32m/opt/ros/jazzy/opt/gz_gui_vendor/lib/gz-gui-8/plugins/libWorldStats.so[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mAdded plugin [[0m[1;32mShapes[0m[1;32m] to main window[0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mLoaded plugin [[0m[1;32mShapes[0m[1;32m] from path [[0m[1;32m/opt/ros/jazzy/opt/gz_sim_vendor/lib/gz-sim-8/plugins/gui/libShapes.so[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mAdded plugin [[0m[1;32mLights[0m[1;32m] to main window[0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mLoaded plugin [[0m[1;32mLights[0m[1;32m] from path [[0m[1;32m/opt/ros/jazzy/opt/gz_sim_vendor/lib/gz-sim-8/plugins/gui/libLights.so[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mAdded plugin [[0m[1;32mTransform control[0m[1;32m] to main window[0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mLoaded plugin [[0m[1;32mTransformControl[0m[1;32m] from path [[0m[1;32m/opt/ros/jazzy/opt/gz_sim_vendor/lib/gz-sim-8/plugins/gui/libTransformControl.so[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mScreenshot service on [[0m[1;32m/gui/screenshot[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mAdded plugin [[0m[1;32mScreenshot[0m[1;32m] to main window[0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mLoaded plugin [[0m[1;32mScreenshot[0m[1;32m] from path [[0m[1;32m/opt/ros/jazzy/opt/gz_gui_vendor/lib/gz-gui-8/plugins/libScreenshot.so[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mAdded plugin [[0m[1;32mCopy/Paste[0m[1;32m] to main window[0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mLoaded plugin [[0m[1;32mCopyPaste[0m[1;32m] from path [[0m[1;32m/opt/ros/jazzy/opt/gz_sim_vendor/lib/gz-sim-8/plugins/gui/libCopyPaste.so[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;33m[GUI] [Wrn] [Application.cc:908] [0m[1;33m[QT] file::/WorldStats/WorldStats.qml:53:3: QML RowLayout: Binding loop detected for property "x"[0m[1;33m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mAdded plugin [[0m[1;32mComponent inspector[0m[1;32m] to main window[0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mLoaded plugin [[0m[1;32mComponentInspector[0m[1;32m] from path [[0m[1;32m/opt/ros/jazzy/opt/gz_sim_vendor/lib/gz-sim-8/plugins/gui/libComponentInspector.so[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mCurrently tracking topic on [[0m[1;32m/gui/currently_tracked[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mAdded plugin [[0m[1;32mEntity tree[0m[1;32m] to main window[0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mLoaded plugin [[0m[1;32mEntityTree[0m[1;32m] from path [[0m[1;32m/opt/ros/jazzy/opt/gz_sim_vendor/lib/gz-sim-8/plugins/gui/libEntityTree.so[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mUsing server control service [[0m[1;32m/server_control[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mLoading plugin [[0m[1;32mgz-rendering-ogre[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mMove to service on [[0m[1;32m/gui/move_to[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mFollow service on [[0m[1;32m/gui/follow[0m[1;32m] (deprecated)[0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mTracking topic on [[0m[1;32m/gui/track[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mTracking status topic on [[0m[1;32m/gui/currently_tracked[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mMove to pose service on [[0m[1;32m/gui/move_to/pose[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mCamera pose topic advertised on [[0m[1;32m/gui/camera/pose[0m[1;32m][0m[1;32m[0m
+[gz-1] [1;32m[GUI] [0m[1;32m[Msg] [0m[1;32mFollow offset service on [[0m[1;32m/gui/follow/offset[0m[1;32m] (deprecated)[0m[1;32m[0m
+[gz-1] [1;33mWarning [Utils.cc:132][0m [/sdf/model[@name="robot"]/link[@name="chassis"]/sensor[@name="front_camera"]/gz_frame_id:<data-string>:L74]: XML Element[gz_frame_id], child of element[sensor], not defined in SDF. Copying[gz_frame_id] as children of [sensor].
+[gz-1] [1;33mWarning [Utils.cc:132][0m [/sdf/model[@name="robot"]/link[@name="chassis"]/sensor[@name="gpu_lidar"]/gz_frame_id:<data-string>:L185]: XML Element[gz_frame_id], child of element[sensor], not defined in SDF. Copying[gz_frame_id] as children of [sensor].
+[gz-1] [1;33mWarning [Utils.cc:132][0m [/sdf/model[@name="robot"]/joint[@name="caster_joint"]/axis/limits:<data-string>:L369]: XML Element[limits], child of element[axis], not defined in SDF. Copying[limits] as children of [axis].
+[gz-1] [1;33mWarning [Utils.cc:132][0m [/sdf/model[@name="robot"]/joint[@name="caster_front_joint"]/axis/limits:<data-string>:L384]: XML Element[limits], child of element[axis], not defined in SDF. Copying[limits] as children of [axis].
+[gz-1] [1;33mWarning [Utils.cc:132][0m [/sdf/model[@name="robot"]/joint[@name="left_wheel_joint"]/axis/limits:<data-string>:L399]: XML Element[limits], child of element[axis], not defined in SDF. Copying[limits] as children of [axis].
+[gz-1] [1;33mWarning [Utils.cc:132][0m [/sdf/model[@name="robot"]/joint[@name="right_wheel_joint"]/axis/limits:<data-string>:L414]: XML Element[limits], child of element[axis], not defined in SDF. Copying[limits] as children of [axis].
+[gz-1] [1;33mWarning [Utils.cc:132][0m [/sdf/model[@name="person"]/joint[@name="left_wheel_joint"]/axis/limits:<data-string>:L231]: XML Element[limits], child of element[axis], not defined in SDF. Copying[limits] as children of [axis].
+[gz-1] [1;33mWarning [Utils.cc:132][0m [/sdf/model[@name="person"]/joint[@name="right_wheel_joint"]/axis/limits:<data-string>:L246]: XML Element[limits], child of element[axis], not defined in SDF. Copying[limits] as children of [axis].
+[person_vision-5] [INFO] [1792912986.093246908] [person_vision]: VISION 📷 快照保存 1 张: 152306_front_d0.6m_b+0deg.jpg
+[person_walk-3] [INFO] [1792912986.425731246] [person_walk]: PERSON 行走中 v=0.26m/s
+[person_walk-3] [INFO] [1792912986.475655796] [person_walk]: PERSON 离机器人过近, 绕开
+[person_walk-3] [INFO] [1792912986.476082785] [person_walk]: PERSON 位置=(+0.00, +0.00) v=0.00 状态=ESCAPE
+[person_vision-5] [INFO] [1792912986.592158328] [person_vision]: VISION 📷 快照保存 1 张: 152306_front_d0.6m_b+0deg.jpg
+[person_vision-5] [INFO] [1792912986.891802909] [person_vision]: VISION ★ 人位于[前]相机视野 偏离中线+0.2° 距离=0.65m 面积=6144px
+[person_vision-5] [INFO] [1792912987.192106315] [person_vision]: VISION 📷 快照保存 1 张: 152307_front_d0.6m_b+0deg.jpg
+[follower-7] [INFO] [1792912987.260264989] [follower]: FOLLOWER 雷达自检: 不可用(全为量程下限) → 全向避障改用 4 台深度相机 (前向 0.12m)
+[person_vision-5] [INFO] [1792912987.792138568] [person_vision]: VISION 📷 快照保存 1 张: 152307_front_d0.6m_b+2deg.jpg
+[person_vision-5] [INFO] [1792912988.392283471] [person_vision]: VISION 📷 快照保存 1 张: 152308_front_d0.5m_b+8deg.jpg
+[person_walk-3] [INFO] [1792912988.526007676] [person_walk]: PERSON 位置=(+0.25, +0.18) v=0.25 状态=ESCAPE
+[depth_percept-4] [INFO] [1792912988.590110909] [depth_percept]: PERCEPT 扇区精度 前Δ3.56(-18°) 左Δ4.65(-37°) 右Δ4.22(+37°) 后Δ2.52(+18°) | 最大Δ4.65m 超阈(>0.3m) 12扇区
+[follower-7] [INFO] [1792912988.710323418] [follower]: FOLLOWER 待命: 等待语音指令...
+[person_vision-5] [INFO] [1792912988.892458473] [person_vision]: VISION 📷 快照保存 1 张: 152308_front_d0.4m_b+18deg.jpg
+[person_vision-5] [INFO] [1792912989.391790158] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线-39.1° (相对机器人+50.9°) 距离=0.30m
+[person_vision-5] [INFO] [1792912989.491717694] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线-36.4° (相对机器人+53.6°) 距离=0.30m
+[person_vision-5] [INFO] [1792912989.591947756] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线-36.4° (相对机器人+53.6°) 距离=0.30m
+[person_vision-5] [INFO] [1792912989.691690971] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线-33.9° (相对机器人+56.1°) 距离=0.30m
+[person_vision-5] [INFO] [1792912989.791645788] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线-33.9° (相对机器人+56.1°) 距离=0.30m
+[person_vision-5] [INFO] [1792912989.891758736] [person_vision]: VISION 四相机视野内均无人 (检出率 38/62)
+[person_walk-3] [INFO] [1792912990.525949582] [person_walk]: PERSON 位置=(+0.65, +0.48) v=0.25 状态=ESCAPE
+[person_vision-5] [INFO] [1792912991.291847414] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线-11.7° (相对机器人+78.3°) 距离=0.33m
+[person_vision-5] [INFO] [1792912991.391898398] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线-11.7° (相对机器人+78.3°) 距离=0.33m
+[person_vision-5] [INFO] [1792912991.492993109] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线-7.2° (相对机器人+82.8°) 距离=0.36m
+[person_vision-5] [INFO] [1792912991.494156707] [person_vision]: VISION 📷 快照保存 1 张: 152311_left_d0.4m_b+83deg.jpg
+[person_vision-5] [INFO] [1792912991.591643261] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线-7.2° (相对机器人+82.8°) 距离=0.36m
+[person_vision-5] [INFO] [1792912991.692100308] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线-3.3° (相对机器人+86.7°) 距离=0.39m
+[person_vision-5] [INFO] [1792912991.791676058] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线-3.3° (相对机器人+86.7°) 距离=0.39m
+[person_vision-5] [INFO] [1792912991.891606812] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+0.2° (相对机器人+90.2°) 距离=0.42m
+[person_vision-5] [INFO] [1792912991.991621381] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+0.2° (相对机器人+90.2°) 距离=0.42m
+[person_vision-5] [INFO] [1792912992.091639594] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+3.0° (相对机器人+93.0°) 距离=0.45m
+[person_vision-5] [INFO] [1792912992.092639601] [person_vision]: VISION 📷 快照保存 1 张: 152312_left_d0.4m_b+93deg.jpg
+[person_vision-5] [INFO] [1792912992.191730628] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+3.0° (相对机器人+93.0°) 距离=0.45m
+[person_vision-5] [INFO] [1792912992.291682113] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+5.8° (相对机器人+95.8°) 距离=0.48m
+[person_vision-5] [INFO] [1792912992.391944920] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+5.8° (相对机器人+95.8°) 距离=0.48m
+[person_vision-5] [INFO] [1792912992.491882899] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+8.1° (相对机器人+98.1°) 距离=0.51m
+[person_walk-3] [INFO] [1792912992.575879973] [person_walk]: PERSON 位置=(+1.06, +0.78) v=0.25 状态=ESCAPE
+[person_vision-5] [INFO] [1792912992.591743250] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+8.1° (相对机器人+98.1°) 距离=0.51m
+[person_vision-5] [INFO] [1792912992.691734754] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+10.3° (相对机器人+100.3°) 距离=0.54m
+[person_vision-5] [INFO] [1792912992.692812713] [person_vision]: VISION 📷 快照保存 1 张: 152312_left_d0.5m_b+100deg.jpg
+[person_vision-5] [INFO] [1792912992.791647205] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+10.3° (相对机器人+100.3°) 距离=0.54m
+[person_vision-5] [INFO] [1792912992.891749159] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+12.3° (相对机器人+102.3°) 距离=0.57m
+[person_vision-5] [INFO] [1792912992.991583998] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+12.3° (相对机器人+102.3°) 距离=0.57m
+[person_vision-5] [INFO] [1792912993.292864454] [person_vision]: VISION 📷 快照保存 1 张: 152313_left_d0.6m_b+106deg.jpg
+[depth_percept-4] [INFO] [1792912993.690244585] [depth_percept]: PERCEPT 扇区精度 前Δ3.32(+18°) 左Δ2.31(-37°) 右Δ4.22(+37°) 后Δ2.52(+18°) | 最大Δ4.22m 超阈(>0.3m) 12扇区
+[follower-7] [INFO] [1792912993.760228225] [follower]: FOLLOWER 待命: 等待语音指令...
+[person_vision-5] [INFO] [1792912993.792061337] [person_vision]: VISION 📷 快照保存 1 张: 152313_left_d0.7m_b+109deg.jpg
+[person_vision-5] [INFO] [1792912994.091651600] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+21.1° (相对机器人+111.1°) 距离=0.75m
+[person_walk-3] [INFO] [1792912994.175809829] [person_walk]: PERSON 行走中 v=0.34m/s
+[person_vision-5] [INFO] [1792912994.191931830] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+21.1° (相对机器人+111.1°) 距离=0.75m
+[person_vision-5] [INFO] [1792912994.291678441] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+22.2° (相对机器人+112.2°) 距离=0.78m
+[person_vision-5] [INFO] [1792912994.392157894] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+22.2° (相对机器人+112.2°) 距离=0.78m
+[person_vision-5] [INFO] [1792912994.393320544] [person_vision]: VISION 📷 快照保存 1 张: 152314_left_d0.8m_b+112deg.jpg
+[person_vision-5] [INFO] [1792912994.491774142] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+23.4° (相对机器人+113.4°) 距离=0.82m
+[person_vision-5] [INFO] [1792912994.592421259] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+23.4° (相对机器人+113.4°) 距离=0.82m
+[person_walk-3] [INFO] [1792912994.625904896] [person_walk]: PERSON 位置=(+1.48, +1.09) 朝向=36° v=0.28 状态=WALK
+[person_vision-5] [INFO] [1792912994.692046753] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+24.4° (相对机器人+114.4°) 距离=0.85m
+[person_vision-5] [INFO] [1792912994.791648358] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+24.4° (相对机器人+114.4°) 距离=0.85m
+[person_vision-5] [INFO] [1792912994.891631296] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+25.3° (相对机器人+115.3°) 距离=0.89m
+[person_vision-5] [INFO] [1792912994.892398345] [person_vision]: VISION 📷 快照保存 1 张: 152314_left_d0.9m_b+115deg.jpg
+[person_vision-5] [INFO] [1792912994.991799813] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+25.3° (相对机器人+115.3°) 距离=0.89m
+[person_vision-5] [INFO] [1792912995.091629123] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+26.3° (相对机器人+116.2°) 距离=0.92m
+[person_vision-5] [INFO] [1792912995.191858923] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+26.3° (相对机器人+116.2°) 距离=0.92m
+[person_vision-5] [INFO] [1792912995.291807774] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+27.2° (相对机器人+117.2°) 距离=0.95m
+[person_vision-5] [INFO] [1792912995.391687664] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+27.2° (相对机器人+117.2°) 距离=0.95m
+[person_vision-5] [INFO] [1792912995.393294030] [person_vision]: VISION 📷 快照保存 1 张: 152315_left_d1.0m_b+117deg.jpg
+[person_vision-5] [INFO] [1792912995.492046290] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+28.0° (相对机器人+118.0°) 距离=0.99m
+[person_vision-5] [INFO] [1792912995.591661352] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+28.0° (相对机器人+118.0°) 距离=0.99m
+[person_vision-5] [INFO] [1792912995.691949326] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+28.8° (相对机器人+118.7°) 距离=1.02m
+[person_vision-5] [INFO] [1792912995.791721594] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+28.8° (相对机器人+118.7°) 距离=1.02m
+[person_vision-5] [INFO] [1792912995.891714663] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+29.5° (相对机器人+119.5°) 距离=1.06m
+[person_vision-5] [INFO] [1792912995.892682006] [person_vision]: VISION 📷 快照保存 1 张: 152315_left_d1.1m_b+120deg.jpg
+[person_vision-5] [INFO] [1792912995.991974739] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+29.5° (相对机器人+119.5°) 距离=1.06m
+[person_vision-5] [INFO] [1792912996.393016795] [person_vision]: VISION 📷 快照保存 1 张: 152316_left_d1.1m_b+121deg.jpg
+[person_walk-3] [INFO] [1792912996.626140864] [person_walk]: PERSON 位置=(+1.94, +1.43) 朝向=36° v=0.28 状态=WALK
+[person_vision-5] [INFO] [1792912996.992485111] [person_vision]: VISION 📷 快照保存 1 张: 152316_left_d1.2m_b+122deg.jpg
+[person_vision-5] [INFO] [1792912997.091722396] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+33.0° (相对机器人+123.0°) 距离=1.27m
+[person_vision-5] [INFO] [1792912997.191656478] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+33.0° (相对机器人+123.0°) 距离=1.27m
+[person_vision-5] [INFO] [1792912997.291841380] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+33.4° (相对机器人+123.4°) 距离=1.30m
+[person_vision-5] [INFO] [1792912997.391965046] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+33.4° (相对机器人+123.4°) 距离=1.30m
+[person_vision-5] [INFO] [1792912997.492202685] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+33.9° (相对机器人+123.9°) 距离=1.34m
+[person_vision-5] [INFO] [1792912997.493727850] [person_vision]: VISION 📷 快照保存 1 张: 152317_left_d1.3m_b+124deg.jpg
+[person_vision-5] [INFO] [1792912997.591847395] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+33.9° (相对机器人+123.9°) 距离=1.34m
+[person_vision-5] [INFO] [1792912997.692204977] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+34.4° (相对机器人+124.4°) 距离=1.37m
+[person_vision-5] [INFO] [1792912997.791847345] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+34.4° (相对机器人+124.4°) 距离=1.37m
+[person_vision-5] [INFO] [1792912997.891616903] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+34.8° (相对机器人+124.8°) 距离=1.41m
+[person_vision-5] [INFO] [1792912997.991867484] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+34.8° (相对机器人+124.8°) 距离=1.41m
+[person_vision-5] [INFO] [1792912998.091638983] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+35.2° (相对机器人+125.2°) 距离=1.44m
+[person_vision-5] [INFO] [1792912998.092853879] [person_vision]: VISION 📷 快照保存 1 张: 152318_left_d1.4m_b+125deg.jpg
+[person_vision-5] [INFO] [1792912998.191663631] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+35.2° (相对机器人+125.2°) 距离=1.44m
+[person_vision-5] [INFO] [1792912998.291677042] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+35.5° (相对机器人+125.5°) 距离=1.47m
+[person_vision-5] [INFO] [1792912998.391972883] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+35.5° (相对机器人+125.5°) 距离=1.47m
+[person_vision-5] [INFO] [1792912998.492062294] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+35.8° (相对机器人+125.8°) 距离=1.51m
+[person_vision-5] [INFO] [1792912998.591879921] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+35.8° (相对机器人+125.8°) 距离=1.51m
+[person_vision-5] [INFO] [1792912998.594067913] [person_vision]: VISION 📷 快照保存 2 张: 152318_left_d1.5m_b+126deg.jpg, 152318_back_d1.3m_b+135deg.jpg
+[person_walk-3] [INFO] [1792912998.675878253] [person_walk]: PERSON 位置=(+2.40, +1.77) 朝向=37° v=0.20 状态=WALK
+[depth_percept-4] [INFO] [1792912998.690058838] [depth_percept]: PERCEPT 扇区精度 前Δ3.32(+18°) 左Δ4.59(+18°) 右Δ4.22(+37°) 后Δ2.59(-37°) | 最大Δ4.59m 超阈(>0.3m) 12扇区
+[person_vision-5] [INFO] [1792912998.691913085] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+36.1° (相对机器人+126.1°) 距离=1.54m
+[follower-7] [INFO] [1792912998.760314902] [follower]: FOLLOWER 待命: 等待语音指令...
+[person_vision-5] [INFO] [1792912998.791738124] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+36.1° (相对机器人+126.1°) 距离=1.54m
+[person_vision-5] [INFO] [1792912998.891907316] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+36.3° (相对机器人+126.2°) 距离=1.56m
+[person_vision-5] [INFO] [1792912998.991761241] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+36.3° (相对机器人+126.2°) 距离=1.56m
+[person_vision-5] [INFO] [1792912999.091662715] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+36.6° (相对机器人+126.6°) 距离=1.59m
+[person_vision-5] [INFO] [1792912999.192492705] [person_vision]: VISION 📷 快照保存 2 张: 152319_left_d1.6m_b+127deg.jpg, 152319_back_d1.4m_b+136deg.jpg
+[person_vision-5] [INFO] [1792912999.692988219] [person_vision]: VISION 📷 快照保存 2 张: 152319_left_d1.7m_b+126deg.jpg, 152319_back_d1.5m_b+136deg.jpg
+[person_vision-5] [INFO] [1792913000.191704333] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+35.6° (相对机器人+125.6°) 距离=1.73m
+[person_vision-5] [INFO] [1792913000.291869038] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+35.3° (相对机器人+125.3°) 距离=1.75m
+[person_vision-5] [INFO] [1792913000.292842142] [person_vision]: VISION 📷 快照保存 2 张: 152320_left_d1.8m_b+125deg.jpg, 152320_back_d1.5m_b+135deg.jpg
+[person_vision-5] [INFO] [1792913000.391906149] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+35.3° (相对机器人+125.3°) 距离=1.75m
+[person_vision-5] [INFO] [1792913000.491852378] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+35.0° (相对机器人+125.0°) 距离=1.78m
+[person_vision-5] [INFO] [1792913000.591870933] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+35.0° (相对机器人+125.0°) 距离=1.78m
+[person_walk-3] [INFO] [1792913000.625653449] [person_walk]: PERSON 停顿
+[person_walk-3] [INFO] [1792913000.676046480] [person_walk]: PERSON 位置=(+2.55, +2.02) 朝向=72° v=0.09 状态=PAUSE
+[person_vision-5] [INFO] [1792913000.691843745] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+34.7° (相对机器人+124.7°) 距离=1.80m
+[person_vision-5] [INFO] [1792913000.791848529] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+34.7° (相对机器人+124.7°) 距离=1.80m
+[person_vision-5] [INFO] [1792913000.792858193] [person_vision]: VISION 📷 快照保存 1 张: 152320_left_d1.8m_b+125deg.jpg
+[person_vision-5] [INFO] [1792913000.892580049] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+34.5° (相对机器人+124.5°) 距离=1.82m
+[person_vision-5] [INFO] [1792913000.992389408] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+34.5° (相对机器人+124.5°) 距离=1.82m
+[person_vision-5] [INFO] [1792913001.091876907] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+34.4° (相对机器人+124.4°) 距离=1.82m
+[person_vision-5] [INFO] [1792913001.192317342] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+34.4° (相对机器人+124.4��) 距离=1.82m
+[person_vision-5] [INFO] [1792913001.292698331] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+34.4° (相对机器人+124.4°) 距离=1.82m
+[person_vision-5] [INFO] [1792913001.293697591] [person_vision]: VISION 📷 快照保存 1 张: 152321_left_d1.8m_b+124deg.jpg
+[person_vision-5] [INFO] [1792913001.391886345] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+34.4° (相对机器人+124.4°) 距离=1.82m
+[person_vision-5] [INFO] [1792913001.492501564] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+34.4° (相对机器人+124.4°) 距离=1.82m
+[person_vision-5] [INFO] [1792913001.591737003] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+34.4° (相对机器人+124.4°) 距离=1.82m
+[person_vision-5] [INFO] [1792913001.691941046] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+34.4° (相对机器人+124.4°) 距离=1.82m
+[person_vision-5] [INFO] [1792913001.792283937] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+34.4° (相对机器人+124.4°) 距离=1.82m
+[person_vision-5] [INFO] [1792913001.891944797] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+34.4° (相对机器人+124.4��) 距离=1.82m
+[person_vision-5] [INFO] [1792913001.893120510] [person_vision]: VISION 📷 快照保存 1 张: 152321_left_d1.8m_b+124deg.jpg
+[person_vision-5] [INFO] [1792913001.991918820] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+34.4° (相对机器人+124.4°) 距离=1.82m
+[person_vision-5] [INFO] [1792913002.092546612] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+34.4° (相对机器人+124.4°) 距离=1.82m
+[person_vision-5] [INFO] [1792913002.492595006] [person_vision]: VISION 📷 快照保存 1 张: 152322_left_d1.8m_b+124deg.jpg
+[person_walk-3] [INFO] [1792913002.725885919] [person_walk]: PERSON 位置=(+2.56, +2.04) 朝向=72° v=0.00 状态=PAUSE
+[person_vision-5] [INFO] [1792913002.992357319] [person_vision]: VISION 📷 快照保存 1 张: 152322_left_d1.8m_b+124deg.jpg
+[person_vision-5] [INFO] [1792913003.191958525] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+34.4° (相对机器人+124.4°) 距离=1.82m
+[person_vision-5] [INFO] [1792913003.291999516] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+34.4° (相对机器人+124.4°) 距离=1.82m
+[person_vision-5] [INFO] [1792913003.392074960] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+34.4° (相对机器人+124.4°) 距离=1.82m
+[person_walk-3] [INFO] [1792913003.425736169] [person_walk]: PERSON 行走中 v=0.26m/s
+[person_vision-5] [INFO] [1792913003.492013495] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+34.4° (相对机器人+124.4°) 距离=1.82m
+[person_vision-5] [INFO] [1792913003.493204749] [person_vision]: VISION 📷 快照保存 1 张: 152323_left_d1.8m_b+124deg.jpg
+[person_vision-5] [INFO] [1792913003.591762054] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+34.4° (相对机器人+124.4°) 距离=1.82m
+[depth_percept-4] [INFO] [1792913003.691907726] [depth_percept]: PERCEPT 扇区精度 前Δ3.32(+18°) 左Δ4.32(+18°) 右Δ4.22(+37°) 后Δ2.52(+18°) | 最大Δ4.32m 超阈(>0.3m) 13扇区
+[person_vision-5] [INFO] [1792913003.693951439] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+34.2° (相对机器人+124.2°) 距离=1.83m
+[person_vision-5] [INFO] [1792913003.791837805] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+34.2° (相对机器人+124.2°) 距离=1.83m
+[follower-7] [INFO] [1792913003.810282333] [follower]: FOLLOWER 待命: 等待语音指令...
+[person_vision-5] [INFO] [1792913003.891781632] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+34.2° (相对机器人+124.2°) 距离=1.85m
+[person_vision-5] [INFO] [1792913003.991990596] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+34.2° (相对机器人+124.2°) 距离=1.85m
+[person_vision-5] [INFO] [1792913004.091668141] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+33.8° (相对机器人+123.7°) 距离=1.88m
+[person_vision-5] [INFO] [1792913004.092411113] [person_vision]: VISION 📷 快照保存 1 张: 152324_left_d1.9m_b+124deg.jpg
+[person_vision-5] [INFO] [1792913004.191674602] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+33.8° (相对机器人+123.7°) 距离=1.88m
+[person_vision-5] [INFO] [1792913004.291819036] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+33.1° (相对机器人+123.1°) 距离=1.93m
+[person_vision-5] [INFO] [1792913004.391645882] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+33.1° (相对机器人+123.1°) 距离=1.93m
+[person_vision-5] [INFO] [1792913004.491611613] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+32.7° (相对机器人+122.7°) 距离=1.98m
+[person_vision-5] [INFO] [1792913004.591723545] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+32.7° (相对机器人+122.7°) 距离=1.98m
+[person_vision-5] [INFO] [1792913004.691745466] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+32.0° (相对机器人+122.0°) 距离=2.03m
+[person_vision-5] [INFO] [1792913004.694125313] [person_vision]: VISION 📷 快照保存 1 张: 152324_left_d2.0m_b+122deg.jpg
+[person_walk-3] [INFO] [1792913004.726476264] [person_walk]: PERSON 位置=(+2.63, +2.27) 朝向=72° v=0.26 状态=WALK
+[person_vision-5] [INFO] [1792913004.791742903] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+32.0° (相对机器人+122.0°) 距离=2.03m
+[person_vision-5] [INFO] [1792913004.891653291] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+31.7° (相对机器人+121.7°) 距离=2.08m
+[person_vision-5] [INFO] [1792913004.991700268] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+31.7° (相对机器人+121.7°) 距离=2.08m
+[person_vision-5] [INFO] [1792913005.091917706] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+31.3° (相对机器人+121.2°) 距离=2.13m
+[person_vision-5] [INFO] [1792913005.191650325] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+31.3° (相对机器人+121.2°) 距离=2.13m
+[person_vision-5] [INFO] [1792913005.292112215] [person_vision]: VISION 📷 快照保存 1 张: 152325_left_d2.2m_b+121deg.jpg
+[person_vision-5] [INFO] [1792913005.793147986] [person_vision]: VISION 📷 快照保存 1 张: 152325_left_d2.3m_b+120deg.jpg
+[person_vision-5] [INFO] [1792913006.191586638] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+29.2° (相对机器人+119.2°) 距离=2.38m
+[person_vision-5] [INFO] [1792913006.291803057] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+28.9° (相对机器人+118.9°) 距离=2.42m
+[person_vision-5] [INFO] [1792913006.391593894] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+28.9° (相对机器人+118.9°) 距离=2.42m
+[person_vision-5] [INFO] [1792913006.392379651] [person_vision]: VISION 📷 快照保存 1 张: 152326_left_d2.4m_b+119deg.jpg
+[person_vision-5] [INFO] [1792913006.491611737] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+28.8° (相对机器人+118.7°) 距离=2.46m
+[person_vision-5] [INFO] [1792913006.591990007] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+28.8° (相对机器人+118.7°) 距离=2.46m
+[person_vision-5] [INFO] [1792913006.691514601] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+28.4° (相对机器人+118.4°) 距离=2.50m
+[person_walk-3] [INFO] [1792913006.775984822] [person_walk]: PERSON 位置=(+2.78, +2.74) 朝向=72° v=0.20 状态=WALK
+[person_vision-5] [INFO] [1792913006.791639702] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+28.4° (相对机器人+118.4°) 距离=2.50m
+[person_vision-5] [INFO] [1792913006.891987556] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+28.1° (相对机器人+118.1°) 距离=2.54m
+[person_vision-5] [INFO] [1792913006.892868508] [person_vision]: VISION 📷 快照保存 1 张: 152326_left_d2.5m_b+118deg.jpg
+[person_vision-5] [INFO] [1792913006.991618457] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+28.1° (相对机器人+118.1°) 距离=2.54m
+[person_vision-5] [INFO] [1792913007.091624856] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+28.0° (相对机器人+118.0°) 距离=2.58m
+[person_vision-5] [INFO] [1792913007.191788464] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+28.0° (相对机器人+118.0°) 距离=2.58m
+[person_vision-5] [INFO] [1792913007.291516556] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+27.7° (相对机器人+117.7°) 距离=2.61m
+[person_vision-5] [INFO] [1792913007.391544335] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+27.7° (相对机器人+117.7°) 距离=2.61m
+[person_vision-5] [INFO] [1792913007.491714126] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+27.3° (相对机器人+117.3°) 距离=2.65m
+[person_vision-5] [INFO] [1792913007.492522143] [person_vision]: VISION 📷 快照保存 1 张: 152327_left_d2.7m_b+117deg.jpg
+[person_vision-5] [INFO] [1792913007.591579263] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+27.3° (相对机器人+117.3°) 距离=2.65m
+[person_vision-5] [INFO] [1792913007.691860694] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+27.2° (相对机器人+117.2°) 距离=2.69m
+[person_vision-5] [INFO] [1792913007.791636180] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+27.2° (相对机器人+117.2°) 距离=2.69m
+[person_vision-5] [INFO] [1792913007.891769099] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+27.0° (相对机器人+117.0°) 距离=2.73m
+[person_vision-5] [INFO] [1792913007.991601991] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+27.0° (相对机器人+117.0°) 距离=2.73m
+[person_vision-5] [INFO] [1792913008.091573465] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+26.9° (相对机器人+116.9°) 距离=2.77m
+[person_vision-5] [INFO] [1792913008.092365837] [person_vision]: VISION 📷 快照保存 1 张: 152328_left_d2.8m_b+117deg.jpg
+[person_vision-5] [INFO] [1792913008.191546656] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+26.9° (相对机器人+116.9°) 距离=2.77m
+[person_vision-5] [INFO] [1792913008.291613413] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+26.6° (相对机器人+116.6°) 距离=2.81m
+[person_vision-5] [INFO] [1792913008.692869735] [person_vision]: VISION 📷 快照保存 1 张: 152328_left_d2.9m_b+116deg.jpg
+[person_walk-3] [INFO] [1792913008.775997395] [person_walk]: PERSON 位置=(+2.90, +3.12) 朝向=72° v=0.20 状态=WALK
+[depth_percept-4] [INFO] [1792913008.790147827] [depth_percept]: PERCEPT 扇区精度 前Δ3.32(+18°) 左Δ3.42(+18°) 右Δ4.22(+37°) 后Δ2.52(+18°) | 最大Δ4.22m 超阈(>0.3m) 13扇区
+[follower-7] [INFO] [1792913008.860969605] [follower]: FOLLOWER 待命: 等待语音指令...
+[person_vision-5] [INFO] [1792913009.293058802] [person_vision]: VISION 📷 快照保存 1 张: 152329_left_d3.0m_b+116deg.jpg
+[person_vision-5] [INFO] [1792913009.391618819] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+25.8° (相对机器人+115.8°) 距离=3.00m
+[person_vision-5] [INFO] [1792913009.491536118] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+25.5° (相对机器人+115.5°) 距离=3.04m
+[person_vision-5] [INFO] [1792913009.591582141] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+25.5° (相对机器人+115.5°) 距离=3.04m
+[person_vision-5] [INFO] [1792913009.691805113] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+25.5° (相对机器人+115.5°) 距离=3.08m
+[person_vision-5] [INFO] [1792913009.791835319] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+25.5° (相对机器人+115.5°) 距离=3.08m
+[person_vision-5] [INFO] [1792913009.792801978] [person_vision]: VISION 📷 快照保存 1 张: 152329_left_d3.1m_b+115deg.jpg
+[person_vision-5] [INFO] [1792913009.891699785] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+25.2° (相对机器人+115.2°) 距离=3.12m
+[person_vision-5] [INFO] [1792913009.991594280] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+25.2° (相对机器人+115.2°) 距离=3.12m
+[person_vision-5] [INFO] [1792913010.091863767] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+25.0° (相对机器人+115.0°) 距离=3.15m
+[person_vision-5] [INFO] [1792913010.191781054] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+25.0° (相对机器人+115.0°) 距离=3.15m
+[person_vision-5] [INFO] [1792913010.291602011] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+24.8° (相对机器人+114.8°) 距离=3.19m
+[person_vision-5] [INFO] [1792913010.391550660] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+24.8° (相对机器人+114.8°) 距离=3.19m
+[person_vision-5] [INFO] [1792913010.392258633] [person_vision]: VISION 📷 快照保存 1 张: 152330_left_d3.2m_b+115deg.jpg
+[person_vision-5] [INFO] [1792913010.492149008] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+24.7° (相对机器人+114.7°) 距离=3.23m
+[person_vision-5] [INFO] [1792913010.591742737] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+24.7° (相对机器人+114.7°) 距离=3.23m
+[person_vision-5] [INFO] [1792913010.691675145] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+24.7° (相对机器人+114.7°) 距离=3.27m
+[person_vision-5] [INFO] [1792913010.791714662] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+24.7° (相对机器人+114.7°) 距离=3.27m
+[person_walk-3] [INFO] [1792913010.826249076] [person_walk]: PERSON 位置=(+3.03, +3.51) 朝向=72° v=0.20 状态=WALK
+[person_vision-5] [INFO] [1792913010.891812593] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+24.4° (相对机器人+114.4°) 距离=3.31m
+[person_vision-5] [INFO] [1792913010.892678128] [person_vision]: VISION 📷 快照保存 1 张: 152330_left_d3.3m_b+114deg.jpg
+[person_vision-5] [INFO] [1792913010.991618362] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+24.4° (相对机器人+114.4°) 距离=3.31m
+[person_vision-5] [INFO] [1792913011.091616965] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+24.4° (相对机器人+114.4°) 距离=3.35m
+[person_vision-5] [INFO] [1792913011.191607374] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+24.4° (相对机器人+114.4°) 距离=3.35m
+[person_vision-5] [INFO] [1792913011.291541627] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+24.1° (相对机器人+114.1°) 距离=3.39m
+[person_vision-5] [INFO] [1792913011.392374998] [person_vision]: VISION 📷 快照保存 1 张: 152331_left_d3.4m_b+114deg.jpg
+[person_vision-5] [INFO] [1792913011.992548332] [person_vision]: VISION 📷 快照保存 1 张: 152331_left_d3.5m_b+114deg.jpg
+[person_vision-5] [INFO] [1792913012.391859405] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+23.4° (相对机器人+113.4°) 距离=3.58m
+[person_walk-3] [INFO] [1792913012.425697017] [person_walk]: PERSON 转向 71°
+[person_vision-5] [INFO] [1792913012.491536550] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+23.3° (相对机器人+113.3°) 距离=3.62m
+[person_vision-5] [INFO] [1792913012.591724055] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+23.3° (相对机器人+113.3°) 距离=3.62m
+[person_vision-5] [INFO] [1792913012.592512024] [person_vision]: VISION 📷 快照保存 1 张: 152332_left_d3.6m_b+113deg.jpg
+[person_vision-5] [INFO] [1792913012.692006539] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+23.3° (相对机器人+113.3°) 距离=3.66m
+[person_vision-5] [INFO] [1792913012.791838702] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+23.3° (相对机器人+113.3°) 距离=3.66m
+[person_walk-3] [INFO] [1792913012.825853169] [person_walk]: PERSON 位置=(+3.15, +3.89) 朝向=64° v=0.15 状态=TURN
+[person_vision-5] [INFO] [1792913012.891894289] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+23.3° (相对机器人+113.3°) 距离=3.68m
+[person_vision-5] [INFO] [1792913012.991828769] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+23.3° (相对机器人+113.3°) 距离=3.68m
+[person_vision-5] [INFO] [1792913013.091696082] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+23.1° (相对机器人+113.1°) 距离=3.71m
+[person_vision-5] [INFO] [1792913013.191590540] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+23.1° (相对机器人+113.1°) 距离=3.71m
+[person_vision-5] [INFO] [1792913013.192386274] [person_vision]: VISION 📷 快照保存 1 张: 152333_left_d3.7m_b+113deg.jpg
+[person_vision-5] [INFO] [1792913013.291914087] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+23.0° (相对机器人+113.0°) 距离=3.73m
+[person_vision-5] [INFO] [1792913013.391824583] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+23.0° (相对机器人+113.0°) 距离=3.73m
+[person_vision-5] [INFO] [1792913013.491800834] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+23.3° (相对机器人+113.3°) 距离=3.75m
+[person_vision-5] [INFO] [1792913013.591813029] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+23.3° (相对机器人+113.3°) 距离=3.75m
+[person_vision-5] [INFO] [1792913013.691792249] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+23.3° (相对机器人+113.3°) 距离=3.77m
+[person_vision-5] [INFO] [1792913013.692866111] [person_vision]: VISION 📷 快照保存 1 张: 152333_left_d3.8m_b+113deg.jpg
+[person_vision-5] [INFO] [1792913013.791583012] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+23.3° (相对机器人+113.3°) 距离=3.77m
+[depth_percept-4] [INFO] [1792913013.890130429] [depth_percept]: PERCEPT 扇区精度 前Δ3.32(+18°) 左Δ2.48(+18°) 右Δ4.22(+37°) 后Δ2.52(+18°) | 最大Δ4.22m 超阈(>0.3m) 13扇区
+[person_vision-5] [INFO] [1792913013.891858645] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+23.3° (相对机器人+113.3°) 距离=3.79m
+[follower-7] [INFO] [1792913013.910386210] [follower]: FOLLOWER 待命: 等待语音指令...
+[person_vision-5] [INFO] [1792913013.991745129] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+23.3° (相对机器人+113.3°) 距离=3.79m
+[person_vision-5] [INFO] [1792913014.091596918] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+23.4° (相对机器人+113.4°) 距离=3.81m
+[person_vision-5] [INFO] [1792913014.191553304] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+23.4° (相对机器人+113.4°) 距离=3.81m
+[person_vision-5] [INFO] [1792913014.291704023] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+23.8° (相对机器人+113.7°) 距离=3.82m
+[person_vision-5] [INFO] [1792913014.292503612] [person_vision]: VISION 📷 快照保存 1 张: 152334_left_d3.8m_b+114deg.jpg
+[person_vision-5] [INFO] [1792913014.391986193] [person_vision]: VISION ★ 人位于[左]相机视野 偏离中线+23.8° (相对机器人+113.7°) 距离=3.82m
+[person_walk-3] [INFO] [1792913014.826119087] [person_walk]: PERSON 位置=(+3.38, +4.06) 朝向=9° v=0.15 状态=TURN
+[person_vision-5] [INFO] [1792913014.894099298] [person_vision]: VISION 📷 快照保存 1 张: 152334_left_d3.9m_b+114deg.jpg
+[person_walk-3] [INFO] [1792913014.975607198] [person_walk]: PERSON 行走中 v=0.40m/s
+[person_walk-3] Traceback (most recent call last):
+[person_walk-3]   File "/home/earl/workspace/VLA/vla_ws/install/vla_follow/lib/vla_follow/person_walk", line 33, in <module>
+[person_walk-3]     sys.exit(load_entry_point('vla-follow', 'console_scripts', 'person_walk')())
+[person_walk-3]              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[person_walk-3]   File "/home/earl/workspace/VLA/vla_ws/build/vla_follow/vla_follow/person_walk.py", line 291, in main
+[person_walk-3]     rclpy.spin(node)
+[person_walk-3]   File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/__init__.py", line 247, in spin
+[person_walk-3]     executor.spin_once()
+[person_walk-3]   File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/executors.py", line 926, in spin_once
+[person_walk-3]     self._spin_once_impl(timeout_sec)
+[person_walk-3]   File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/executors.py", line 907, in _spin_once_impl
+[person_walk-3]     handler, entity, node = self.wait_for_ready_callbacks(
+[person_walk-3]                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[person_walk-3]   File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/executors.py", line 877, in wait_for_ready_callbacks
+[person_walk-3]     return next(self._cb_iter)
+[person_walk-3]            ^^^^^^^^^^^^^^^^^^^
+[person_walk-3]   File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/executors.py", line 785, in _wait_for_ready_callbacks
+[person_walk-3]     raise ExternalShutdownException()
+[person_walk-3] rclpy.executors.ExternalShutdownException
+[voice_node-6] Traceback (most recent call last):
+[voice_node-6]   File "/home/earl/workspace/VLA/vla_ws/install/vla_follow/lib/vla_follow/voice_node", line 33, in <module>
+[voice_node-6]     sys.exit(load_entry_point('vla-follow', 'console_scripts', 'voice_node')())
+[voice_node-6]              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[voice_node-6]   File "/home/earl/workspace/VLA/vla_ws/build/vla_follow/vla_follow/voice_node.py", line 206, in main
+[voice_node-6]     rclpy.spin(node)
+[voice_node-6]   File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/__init__.py", line 247, in spin
+[voice_node-6]     executor.spin_once()
+[voice_node-6]   File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/executors.py", line 926, in spin_once
+[voice_node-6]     self._spin_once_impl(timeout_sec)
+[voice_node-6]   File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/executors.py", line 907, in _spin_once_impl
+[voice_node-6]     handler, entity, node = self.wait_for_ready_callbacks(
+[voice_node-6]                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[voice_node-6]   File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/executors.py", line 877, in wait_for_ready_callbacks
+[voice_node-6]     return next(self._cb_iter)
+[voice_node-6]            ^^^^^^^^^^^^^^^^^^^
+[voice_node-6]   File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/executors.py", line 785, in _wait_for_ready_callbacks
+[voice_node-6]     raise ExternalShutdownException()
+[voice_node-6] rclpy.executors.ExternalShutdownException
+[depth_percept-4] Traceback (most recent call last):
+[depth_percept-4]   File "/home/earl/workspace/VLA/vla_ws/install/vla_follow/lib/vla_follow/depth_percept", line 33, in <module>
+[depth_percept-4]     sys.exit(load_entry_point('vla-follow', 'console_scripts', 'depth_percept')())
+[depth_percept-4]              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[depth_percept-4]   File "/home/earl/workspace/VLA/vla_ws/build/vla_follow/vla_follow/depth_percept.py", line 249, in main
+[depth_percept-4]     rclpy.spin(node)
+[depth_percept-4]   File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/__init__.py", line 247, in spin
+[depth_percept-4]     executor.spin_once()
+[depth_percept-4]   File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/executors.py", line 926, in spin_once
+[person_vision-5] Traceback (most recent call last):
+[person_vision-5]   File "/home/earl/workspace/VLA/vla_ws/install/vla_follow/lib/vla_follow/person_vision", line 33, in <module>
+[person_vision-5]     sys.exit(load_entry_point('vla-follow', 'console_scripts', 'person_vision')())
+[person_vision-5]              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[person_vision-5]   File "/home/earl/workspace/VLA/vla_ws/build/vla_follow/vla_follow/person_vision.py", line 408, in main
+[person_vision-5]     rclpy.spin(node)
+[person_vision-5]   File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/__init__.py", line 247, in spin
+[person_vision-5]     executor.spin_once()
+[person_vision-5]   File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/executors.py", line 926, in spin_once
+[person_vision-5]     self._spin_once_impl(timeout_sec)
+[person_vision-5]   File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/executors.py", line 907, in _spin_once_impl
+[depth_percept-4]     self._spin_once_impl(timeout_sec)
+[depth_percept-4]   File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/executors.py", line 907, in _spin_once_impl
+[depth_percept-4]     handler, entity, node = self.wait_for_ready_callbacks(
+[depth_percept-4]                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[depth_percept-4]   File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/executors.py", line 877, in wait_for_ready_callbacks
+[depth_percept-4]     return next(self._cb_iter)
+[depth_percept-4]            ^^^^^^^^^^^^^^^^^^^
+[depth_percept-4]   File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/executors.py", line 785, in _wait_for_ready_callbacks
+[depth_percept-4]     raise ExternalShutdownException()
+[depth_percept-4] rclpy.executors.ExternalShutdownException
+[person_vision-5]     handler, entity, node = self.wait_for_ready_callbacks(
+[person_vision-5]                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[person_vision-5]   File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/executors.py", line 877, in wait_for_ready_callbacks
+[person_vision-5]     return next(self._cb_iter)
+[person_vision-5]            ^^^^^^^^^^^^^^^^^^^
+[person_vision-5]   File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/executors.py", line 785, in _wait_for_ready_callbacks
+[person_vision-5]     raise ExternalShutdownException()
+[person_vision-5] rclpy.executors.ExternalShutdownException
+[follower-7] Traceback (most recent call last):
+[follower-7]   File "/home/earl/workspace/VLA/vla_ws/install/vla_follow/lib/vla_follow/follower", line 33, in <module>
+[follower-7]     sys.exit(load_entry_point('vla-follow', 'console_scripts', 'follower')())
+[follower-7]              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[follower-7]   File "/home/earl/workspace/VLA/vla_ws/build/vla_follow/vla_follow/follower.py", line 2346, in main
+[follower-7]     rclpy.spin(node)
+[follower-7]   File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/__init__.py", line 247, in spin
+[follower-7]     executor.spin_once()
+[follower-7]   File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/executors.py", line 926, in spin_once
+[follower-7]     self._spin_once_impl(timeout_sec)
+[follower-7]   File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/executors.py", line 907, in _spin_once_impl
+[follower-7]     handler, entity, node = self.wait_for_ready_callbacks(
+[follower-7]                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[follower-7]   File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/executors.py", line 877, in wait_for_ready_callbacks
+[follower-7]     return next(self._cb_iter)
+[follower-7]            ^^^^^^^^^^^^^^^^^^^
+[follower-7]   File "/opt/ros/jazzy/lib/python3.12/site-packages/rclpy/executors.py", line 785, in _wait_for_ready_callbacks
+[follower-7]     raise ExternalShutdownException()
+[follower-7] rclpy.executors.ExternalShutdownException
+[ERROR] [person_walk-3]: process has died [pid 648926, exit code 1, cmd '/home/earl/workspace/VLA/vla_ws/install/vla_follow/lib/vla_follow/person_walk --ros-args'].
+[ERROR] [depth_percept-4]: process has died [pid 648927, exit code 1, cmd '/home/earl/workspace/VLA/vla_ws/install/vla_follow/lib/vla_follow/depth_percept --ros-args'].
+[ERROR] [person_vision-5]: process has died [pid 648928, exit code 1, cmd '/home/earl/workspace/VLA/vla_ws/install/vla_follow/lib/vla_follow/person_vision --ros-args'].
+[ERROR] [voice_node-6]: process has died [pid 648929, exit code 1, cmd '/home/earl/workspace/VLA/vla_ws/install/vla_follow/lib/vla_follow/voice_node --ros-args --params-file /tmp/launch_params_aiccoeji'].
+[ERROR] [follower-7]: process has died [pid 648930, exit code 1, cmd '/home/earl/workspace/VLA/vla_ws/install/vla_follow/lib/vla_follow/follower --ros-args'].

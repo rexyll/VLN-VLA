@@ -1,0 +1,35 @@
+[0.690s] Invoking command in '/home/earl/workspace/VLA/vla_ws/build/vla_follow': DEBUGINFOD_URLS=https://debuginfod.ubuntu.com PYTHONPATH=/home/earl/workspace/VLA/vla_ws/build/vla_follow/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/earl/workspace/VLA/vla_ws/install/vla_follow/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /home/earl/workspace/VLA/vla_ws/build/vla_follow/build --no-deps symlink_data --force
+[0.864s] running develop
+[0.969s] running egg_info
+[0.979s] writing vla_follow.egg-info/PKG-INFO
+[0.980s] writing dependency_links to vla_follow.egg-info/dependency_links.txt
+[0.980s] writing entry points to vla_follow.egg-info/entry_points.txt
+[0.980s] writing requirements to vla_follow.egg-info/requires.txt
+[0.980s] writing top-level names to vla_follow.egg-info/top_level.txt
+[1.001s] reading manifest file 'vla_follow.egg-info/SOURCES.txt'
+[1.002s] writing manifest file 'vla_follow.egg-info/SOURCES.txt'
+[1.013s] running build_ext
+[1.013s] Creating /home/earl/workspace/VLA/vla_ws/install/vla_follow/lib/python3.12/site-packages/vla-follow.egg-link (link to .)
+[1.014s] Installing cmd_mux script to /home/earl/workspace/VLA/vla_ws/install/vla_follow/lib/vla_follow
+[1.014s] Installing depth_percept script to /home/earl/workspace/VLA/vla_ws/install/vla_follow/lib/vla_follow
+[1.014s] Installing follower script to /home/earl/workspace/VLA/vla_ws/install/vla_follow/lib/vla_follow
+[1.014s] Installing gt_tf script to /home/earl/workspace/VLA/vla_ws/install/vla_follow/lib/vla_follow
+[1.014s] Installing gz_viz script to /home/earl/workspace/VLA/vla_ws/install/vla_follow/lib/vla_follow
+[1.014s] Installing person_vision script to /home/earl/workspace/VLA/vla_ws/install/vla_follow/lib/vla_follow
+[1.014s] Installing person_walk script to /home/earl/workspace/VLA/vla_ws/install/vla_follow/lib/vla_follow
+[1.014s] Installing voice_node script to /home/earl/workspace/VLA/vla_ws/install/vla_follow/lib/vla_follow
+[1.014s] Installing voice_trigger script to /home/earl/workspace/VLA/vla_ws/install/vla_follow/lib/vla_follow
+[1.014s] 
+[1.014s] Installed /home/earl/workspace/VLA/vla_ws/build/vla_follow
+[1.014s] running symlink_data
+[1.014s] symbolically linking /home/earl/workspace/VLA/vla_ws/build/vla_follow/resource/vla_follow -> /home/earl/workspace/VLA/vla_ws/install/vla_follow/share/ament_index/resource_index/packages
+[1.014s] symbolically linking /home/earl/workspace/VLA/vla_ws/build/vla_follow/package.xml -> /home/earl/workspace/VLA/vla_ws/install/vla_follow/share/vla_follow
+[1.015s] symbolically linking /home/earl/workspace/VLA/vla_ws/build/vla_follow/launch/nav2_follow.launch.py -> /home/earl/workspace/VLA/vla_ws/install/vla_follow/share/vla_follow/launch
+[1.015s] symbolically linking /home/earl/workspace/VLA/vla_ws/build/vla_follow/launch/demo.launch.py -> /home/earl/workspace/VLA/vla_ws/install/vla_follow/share/vla_follow/launch
+[1.015s] symbolically linking /home/earl/workspace/VLA/vla_ws/build/vla_follow/config/bridge.yml -> /home/earl/workspace/VLA/vla_ws/install/vla_follow/share/vla_follow/config
+[1.015s] symbolically linking /home/earl/workspace/VLA/vla_ws/build/vla_follow/config/nav2_params.yaml -> /home/earl/workspace/VLA/vla_ws/install/vla_follow/share/vla_follow/config
+[1.015s] symbolically linking /home/earl/workspace/VLA/vla_ws/build/vla_follow/worlds/work_area.sdf -> /home/earl/workspace/VLA/vla_ws/install/vla_follow/share/vla_follow/worlds
+[1.015s] symbolically linking /home/earl/workspace/VLA/vla_ws/build/vla_follow/audio/follow_2m.wav -> /home/earl/workspace/VLA/vla_ws/install/vla_follow/share/vla_follow/audio
+[1.015s] symbolically linking /home/earl/workspace/VLA/vla_ws/build/vla_follow/audio/follow_me.wav -> /home/earl/workspace/VLA/vla_ws/install/vla_follow/share/vla_follow/audio
+[1.015s] symbolically linking /home/earl/workspace/VLA/vla_ws/build/vla_follow/audio/stop_follow.wav -> /home/earl/workspace/VLA/vla_ws/install/vla_follow/share/vla_follow/audio
+[1.031s] Invoked command in '/home/earl/workspace/VLA/vla_ws/build/vla_follow' returned '0': DEBUGINFOD_URLS=https://debuginfod.ubuntu.com PYTHONPATH=/home/earl/workspace/VLA/vla_ws/build/vla_follow/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/earl/workspace/VLA/vla_ws/install/vla_follow/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /home/earl/workspace/VLA/vla_ws/build/vla_follow/build --no-deps symlink_data --force

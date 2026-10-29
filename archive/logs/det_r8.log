@@ -1,0 +1,4 @@
+[WAIT] 等 /person/odom
+[START] t0=8.784
+[REC] 开始记录
+wrote det_r8.json  n=2779  dur=100.0s  resets=0

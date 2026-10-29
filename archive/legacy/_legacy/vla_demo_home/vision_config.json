@@ -1,0 +1,14 @@
+{
+  "snapshot_keep": 10,
+  "snapshot_rate_hz": 2.0,
+  "track_dist_m": 1.0,
+  "track_dist_tol_m": 0.1,
+  "recenter_rot_speed": 1.5,
+  "approach_speed": 0.2,
+  "pid_kp_v": 0.6,
+  "pid_ki_v": 0.2,
+  "pid_kd_v": 0.08,
+  "pid_kp_w": 2.2,
+  "pid_ki_w": 0.4,
+  "pid_kd_w": 0.3
+}

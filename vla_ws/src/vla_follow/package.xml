@@ -1,0 +1,46 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>vla_follow</name>
+  <version>0.2.0</version>
+  <description>Voice-command person-following demo (ROS 2 Jazzy + Gazebo Harmonic + Vosk)</description>
+  <maintainer email="earl@example.com">earl</maintainer>
+  <license>Apache-2.0</license>
+
+  <!-- 常规消息与运行时 -->
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
+
+  <!-- Gazebo 直连: 各节点用 gz.transport13 / gz.msgs10 直接订阅
+       dynamic_pose/info、相机图像与深度, 不经过 ros_gz_bridge -->
+  <exec_depend>ros_gz_sim</exec_depend>
+  <exec_depend>ros_gz_bridge</exec_depend>
+
+  <!-- launch -->
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>ament_index_python</exec_depend>
+
+  <!-- Nav2: 仅搜索段(GOTO)接管底盘, 见 launch/nav2_follow.launch.py。
+       follower 通过 nav2_msgs/action/NavigateToPose 下发目标 -->
+  <exec_depend>nav2_msgs</exec_depend>
+  <exec_depend>nav2_behaviors</exec_depend>
+  <exec_depend>nav2_bt_navigator</exec_depend>
+  <exec_depend>nav2_controller</exec_depend>
+  <exec_depend>nav2_lifecycle_manager</exec_depend>
+  <exec_depend>nav2_map_server</exec_depend>
+  <exec_depend>nav2_planner</exec_depend>
+  <exec_depend>nav2_velocity_smoother</exec_depend>
+
+  <!-- Python 三方库: vosk 不在 rosdep 索引里, 需 pip 安装
+       (见 docs/部署文档.md "Python 依赖" 一节) -->
+  <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>python3-opencv</exec_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

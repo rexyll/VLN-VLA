@@ -1,0 +1,944 @@
+<?xml version="1.0" ?>
+<sdf version="1.11">
+  <world name="follow_world">
+
+    <physics name="fast" type="ignored">
+      <max_step_size>0.003</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+      <real_time_update_rate>333</real_time_update_rate>
+    </physics>
+
+    <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands"/>
+    <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"/>
+    <plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+
+    <scene>
+      <ambient>0.62 0.62 0.62 1</ambient>
+      <background>0.72 0.78 0.86 1</background>
+      <shadows>true</shadows>
+    </scene>
+
+    <!-- cast_shadows=false: 消除地板上的暗色阴影(会被人检测的暗色先验误判为"人") -->
+    <light type="directional" name="sun">
+      <cast_shadows>false</cast_shadows>
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>0.9 0.9 0.9 1</diffuse>
+      <specular>0.35 0.35 0.35 1</specular>
+      <direction>-0.4 0.3 -0.9</direction>
+    </light>
+
+    <!-- GUI: 全局俯视机位在 ~/.gz/sim/8/gui.config 的 MinimalScene/camera_pose 配置;
+         相机画面小窗(ImageDisplay)也在 gui.config 中(需在 3D View 之后加载才能锚定) -->
+    <gui fullscreen="false">
+      <camera name="user_cam">
+        <pose>0.001 -0.001 16 0 -1.56 0</pose>
+        <view_controller>orbit</view_controller>
+      </camera>
+    </gui>
+
+    <!-- 大地面(工作区外) -->
+    <model name="ground_plane">
+      <static>true</static>
+      <pose>0 0 -0.15 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><plane><normal>0 0 1</normal><size>80 80</size></plane></geometry>
+          <surface><friction><ode><mu>1.0</mu><mu2>1.0</mu2></ode></friction></surface>
+        </collision>
+        <visual name="visual">
+          <geometry><plane><normal>0 0 1</normal><size>80 80</size></plane></geometry>
+          <material><ambient>0.42 0.5 0.42 1</ambient><diffuse>0.42 0.5 0.42 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- 工作区地板 12m x 12m -->
+    <model name="floor">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <pose>0 0 -0.05 0 0 0</pose>
+          <geometry><box><size>12.3 12.3 0.1</size></box></geometry>
+          <surface><friction><ode><mu>1.0</mu><mu2>1.0</mu2></ode></friction></surface>
+        </collision>
+        <visual name="visual">
+          <pose>0 0 -0.05 0 0 0</pose>
+          <geometry><box><size>12.3 12.3 0.1</size></box></geometry>
+          <material><ambient>0.78 0.79 0.81 1</ambient><diffuse>0.78 0.79 0.81 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- 工作区围墙(内侧边界 ±6m) -->
+    <model name="walls">
+      <static>true</static>
+      <link name="north">
+        <pose>0 6.075 0.4 0 0 0</pose>
+        <collision name="c"><geometry><box><size>12.3 0.15 0.8</size></box></geometry></collision>
+        <visual name="v">
+          <geometry><box><size>12.3 0.15 0.8</size></box></geometry>
+          <material><ambient>0.55 0.55 0.6 1</ambient><diffuse>0.55 0.55 0.6 1</diffuse></material>
+        </visual>
+      </link>
+      <link name="south">
+        <pose>0 -6.075 0.4 0 0 0</pose>
+        <collision name="c"><geometry><box><size>12.3 0.15 0.8</size></box></geometry></collision>
+        <visual name="v">
+          <geometry><box><size>12.3 0.15 0.8</size></box></geometry>
+          <material><ambient>0.55 0.55 0.6 1</ambient><diffuse>0.55 0.55 0.6 1</diffuse></material>
+        </visual>
+      </link>
+      <link name="east">
+        <pose>6.075 0 0.4 0 0 0</pose>
+        <collision name="c"><geometry><box><size>0.15 12.3 0.8</size></box></geometry></collision>
+        <visual name="v">
+          <geometry><box><size>0.15 12.3 0.8</size></box></geometry>
+          <material><ambient>0.55 0.55 0.6 1</ambient><diffuse>0.55 0.55 0.6 1</diffuse></material>
+        </visual>
+      </link>
+      <link name="west">
+        <pose>-6.075 0 0.4 0 0 0</pose>
+        <collision name="c"><geometry><box><size>0.15 12.3 0.8</size></box></geometry></collision>
+        <visual name="v">
+          <geometry><box><size>0.15 12.3 0.8</size></box></geometry>
+          <material><ambient>0.55 0.55 0.6 1</ambient><diffuse>0.55 0.55 0.6 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- 障碍物 -->
+    <model name="obstacles">
+      <static>true</static>
+      <link name="ob1">
+        <pose>3.5 2.0 0.4 0 0 0</pose>
+        <collision name="c"><geometry><box><size>0.8 0.8 0.8</size></box></geometry></collision>
+        <visual name="v">
+          <geometry><box><size>0.8 0.8 0.8</size></box></geometry>
+          <material><ambient>0.8 0.27 0.27 1</ambient><diffuse>0.8 0.27 0.27 1</diffuse></material>
+        </visual>
+      </link>
+      <link name="ob2">
+        <pose>-3.0 3.2 0.3 0 0 0.5</pose>
+        <collision name="c"><geometry><box><size>1.2 0.6 0.6</size></box></geometry></collision>
+        <visual name="v">
+          <geometry><box><size>1.2 0.6 0.6</size></box></geometry>
+          <material><ambient>0.9 0.57 0.22 1</ambient><diffuse>0.9 0.57 0.22 1</diffuse></material>
+        </visual>
+      </link>
+      <link name="ob3">
+        <pose>0.5 -3.2 0.5 0 0 0</pose>
+        <collision name="c"><geometry><cylinder><radius>0.4</radius><length>1.0</length></cylinder></geometry></collision>
+        <visual name="v">
+          <geometry><cylinder><radius>0.4</radius><length>1.0</length></cylinder></geometry>
+          <material><ambient>0.42 0.66 0.31 1</ambient><diffuse>0.42 0.66 0.31 1</diffuse></material>
+        </visual>
+      </link>
+      <link name="ob4">
+        <pose>-4.2 -2.5 0.4 0 0 0</pose>
+        <collision name="c"><geometry><cylinder><radius>0.5</radius><length>0.8</length></cylinder></geometry></collision>
+        <visual name="v">
+          <geometry><cylinder><radius>0.5</radius><length>0.8</length></cylinder></geometry>
+          <material><ambient>0.24 0.47 0.85 1</ambient><diffuse>0.24 0.47 0.85 1</diffuse></material>
+        </visual>
+      </link>
+      <link name="ob5">
+        <pose>4.2 -3.0 0.6 0 0 0</pose>
+        <collision name="c"><geometry><box><size>0.6 0.6 1.2</size></box></geometry></collision>
+        <visual name="v">
+          <geometry><box><size>0.6 0.6 1.2</size></box></geometry>
+          <material><ambient>0.56 0.39 0.81 1</ambient><diffuse>0.56 0.39 0.81 1</diffuse></material>
+        </visual>
+      </link>
+      <link name="ob6">
+        <pose>-1.5 -4.5 0.25 0 0 -0.4</pose>
+        <collision name="c"><geometry><box><size>1.0 0.5 0.5</size></box></geometry></collision>
+        <visual name="v">
+          <geometry><box><size>1.0 0.5 0.5</size></box></geometry>
+          <material><ambient>0.27 0.51 0.56 1</ambient><diffuse>0.27 0.51 0.56 1</diffuse></material>
+        </visual>
+      </link>
+      <link name="ob7">
+        <pose>2.2 4.6 0.45 0 0 0</pose>
+        <collision name="c"><geometry><cylinder><radius>0.35</radius><length>0.9</length></cylinder></geometry></collision>
+        <visual name="v">
+          <geometry><cylinder><radius>0.35</radius><length>0.9</length></cylinder></geometry>
+          <material><ambient>0.88 0.69 0.25 1</ambient><diffuse>0.88 0.69 0.25 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- P58 需求3: 规划路径可视化点。follower 通过 UserCommands 的
+         set_pose 服务把这些小球摆到当前规划路径上; 用不到的点被移到
+         z=-20 隐藏。static + 无 collision, 不参与物理, 不影响避障。 -->
+    <model name="plan_dot_00">
+      <static>true</static>
+      <pose>0 0 -20 0 0 0</pose>
+      <link name="link">
+        <visual name="v">
+          <geometry>
+            <sphere>
+              <radius>0.05</radius>
+            </sphere>
+          </geometry>
+          <material>
+            <ambient>0.05 0.55 1.0 1</ambient>
+            <diffuse>0.10 0.70 1.0 1</diffuse>
+            <emissive>0.05 0.35 0.60 1</emissive>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- P58 需求3: 规划路径可视化点。follower 通过 UserCommands 的
+         set_pose 服务把这些小球摆到当前规划路径上; 用不到的点被移到
+         z=-20 隐藏。static + 无 collision, 不参与物理, 不影响避障。 -->
+    <model name="plan_dot_01">
+      <static>true</static>
+      <pose>0 0 -20 0 0 0</pose>
+      <link name="link">
+        <visual name="v">
+          <geometry>
+            <sphere>
+              <radius>0.05</radius>
+            </sphere>
+          </geometry>
+          <material>
+            <ambient>0.05 0.55 1.0 1</ambient>
+            <diffuse>0.10 0.70 1.0 1</diffuse>
+            <emissive>0.05 0.35 0.60 1</emissive>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- P58 需求3: 规划路径可视化点。follower 通过 UserCommands 的
+         set_pose 服务把这些小球摆到当前规划路径上; 用不到的点被移到
+         z=-20 隐藏。static + 无 collision, 不参与物理, 不影响避障。 -->
+    <model name="plan_dot_02">
+      <static>true</static>
+      <pose>0 0 -20 0 0 0</pose>
+      <link name="link">
+        <visual name="v">
+          <geometry>
+            <sphere>
+              <radius>0.05</radius>
+            </sphere>
+          </geometry>
+          <material>
+            <ambient>0.05 0.55 1.0 1</ambient>
+            <diffuse>0.10 0.70 1.0 1</diffuse>
+            <emissive>0.05 0.35 0.60 1</emissive>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- P58 需求3: 规划路径可视化点。follower 通过 UserCommands 的
+         set_pose 服务把这些小球摆到当前规划路径上; 用不到的点被移到
+         z=-20 隐藏。static + 无 collision, 不参与物理, 不影响避障。 -->
+    <model name="plan_dot_03">
+      <static>true</static>
+      <pose>0 0 -20 0 0 0</pose>
+      <link name="link">
+        <visual name="v">
+          <geometry>
+            <sphere>
+              <radius>0.05</radius>
+            </sphere>
+          </geometry>
+          <material>
+            <ambient>0.05 0.55 1.0 1</ambient>
+            <diffuse>0.10 0.70 1.0 1</diffuse>
+            <emissive>0.05 0.35 0.60 1</emissive>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- P58 需求3: 规划路径可视化点。follower 通过 UserCommands 的
+         set_pose 服务把这些小球摆到当前规划路径上; 用不到的点被移到
+         z=-20 隐藏。static + 无 collision, 不参与物理, 不影响避障。 -->
+    <model name="plan_dot_04">
+      <static>true</static>
+      <pose>0 0 -20 0 0 0</pose>
+      <link name="link">
+        <visual name="v">
+          <geometry>
+            <sphere>
+              <radius>0.05</radius>
+            </sphere>
+          </geometry>
+          <material>
+            <ambient>0.05 0.55 1.0 1</ambient>
+            <diffuse>0.10 0.70 1.0 1</diffuse>
+            <emissive>0.05 0.35 0.60 1</emissive>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- P58 需求3: 规划路径可视化点。follower 通过 UserCommands 的
+         set_pose 服务把这些小球摆到当前规划路径上; 用不到的点被移到
+         z=-20 隐藏。static + 无 collision, 不参与物理, 不影响避障。 -->
+    <model name="plan_dot_05">
+      <static>true</static>
+      <pose>0 0 -20 0 0 0</pose>
+      <link name="link">
+        <visual name="v">
+          <geometry>
+            <sphere>
+              <radius>0.05</radius>
+            </sphere>
+          </geometry>
+          <material>
+            <ambient>0.05 0.55 1.0 1</ambient>
+            <diffuse>0.10 0.70 1.0 1</diffuse>
+            <emissive>0.05 0.35 0.60 1</emissive>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- P58 需求3: 规划路径可视化点。follower 通过 UserCommands 的
+         set_pose 服务把这些小球摆到当前规划路径上; 用不到的点被移到
+         z=-20 隐藏。static + 无 collision, 不参与物理, 不影响避障。 -->
+    <model name="plan_dot_06">
+      <static>true</static>
+      <pose>0 0 -20 0 0 0</pose>
+      <link name="link">
+        <visual name="v">
+          <geometry>
+            <sphere>
+              <radius>0.05</radius>
+            </sphere>
+          </geometry>
+          <material>
+            <ambient>0.05 0.55 1.0 1</ambient>
+            <diffuse>0.10 0.70 1.0 1</diffuse>
+            <emissive>0.05 0.35 0.60 1</emissive>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- P58 需求3: 规划路径可视化点。follower 通过 UserCommands 的
+         set_pose 服务把这些小球摆到当前规划路径上; 用不到的点被移到
+         z=-20 隐藏。static + 无 collision, 不参与物理, 不影响避障。 -->
+    <model name="plan_dot_07">
+      <static>true</static>
+      <pose>0 0 -20 0 0 0</pose>
+      <link name="link">
+        <visual name="v">
+          <geometry>
+            <sphere>
+              <radius>0.05</radius>
+            </sphere>
+          </geometry>
+          <material>
+            <ambient>0.05 0.55 1.0 1</ambient>
+            <diffuse>0.10 0.70 1.0 1</diffuse>
+            <emissive>0.05 0.35 0.60 1</emissive>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- P58 需求3: 规划路径可视化点。follower 通过 UserCommands 的
+         set_pose 服务把这些小球摆到当前规划路径上; 用不到的点被移到
+         z=-20 隐藏。static + 无 collision, 不参与物理, 不影响避障。 -->
+    <model name="plan_dot_08">
+      <static>true</static>
+      <pose>0 0 -20 0 0 0</pose>
+      <link name="link">
+        <visual name="v">
+          <geometry>
+            <sphere>
+              <radius>0.05</radius>
+            </sphere>
+          </geometry>
+          <material>
+            <ambient>0.05 0.55 1.0 1</ambient>
+            <diffuse>0.10 0.70 1.0 1</diffuse>
+            <emissive>0.05 0.35 0.60 1</emissive>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- P58 需求3: 规划路径可视化点。follower 通过 UserCommands 的
+         set_pose 服务把这些小球摆到当前规划路径上; 用不到的点被移到
+         z=-20 隐藏。static + 无 collision, 不参与物理, 不影响避障。 -->
+    <model name="plan_dot_09">
+      <static>true</static>
+      <pose>0 0 -20 0 0 0</pose>
+      <link name="link">
+        <visual name="v">
+          <geometry>
+            <sphere>
+              <radius>0.05</radius>
+            </sphere>
+          </geometry>
+          <material>
+            <ambient>0.05 0.55 1.0 1</ambient>
+            <diffuse>0.10 0.70 1.0 1</diffuse>
+            <emissive>0.05 0.35 0.60 1</emissive>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- P58 需求3: 规划路径可视化点。follower 通过 UserCommands 的
+         set_pose 服务把这些小球摆到当前规划路径上; 用不到的点被移到
+         z=-20 隐藏。static + 无 collision, 不参与物理, 不影响避障。 -->
+    <model name="plan_dot_10">
+      <static>true</static>
+      <pose>0 0 -20 0 0 0</pose>
+      <link name="link">
+        <visual name="v">
+          <geometry>
+            <sphere>
+              <radius>0.05</radius>
+            </sphere>
+          </geometry>
+          <material>
+            <ambient>0.05 0.55 1.0 1</ambient>
+            <diffuse>0.10 0.70 1.0 1</diffuse>
+            <emissive>0.05 0.35 0.60 1</emissive>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- P58 需求3: 规划路径可视化点。follower 通过 UserCommands 的
+         set_pose 服务把这些小球摆到当前规划路径上; 用不到的点被移到
+         z=-20 隐藏。static + 无 collision, 不参与物理, 不影响避障。 -->
+    <model name="plan_dot_11">
+      <static>true</static>
+      <pose>0 0 -20 0 0 0</pose>
+      <link name="link">
+        <visual name="v">
+          <geometry>
+            <sphere>
+              <radius>0.05</radius>
+            </sphere>
+          </geometry>
+          <material>
+            <ambient>0.05 0.55 1.0 1</ambient>
+            <diffuse>0.10 0.70 1.0 1</diffuse>
+            <emissive>0.05 0.35 0.60 1</emissive>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- P58 需求3: 规划路径可视化点。follower 通过 UserCommands 的
+         set_pose 服务把这些小球摆到当前规划路径上; 用不到的点被移到
+         z=-20 隐藏。static + 无 collision, 不参与物理, 不影响避障。 -->
+    <model name="plan_dot_12">
+      <static>true</static>
+      <pose>0 0 -20 0 0 0</pose>
+      <link name="link">
+        <visual name="v">
+          <geometry>
+            <sphere>
+              <radius>0.05</radius>
+            </sphere>
+          </geometry>
+          <material>
+            <ambient>0.05 0.55 1.0 1</ambient>
+            <diffuse>0.10 0.70 1.0 1</diffuse>
+            <emissive>0.05 0.35 0.60 1</emissive>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- P58 需求3: 规划路径可视化点。follower 通过 UserCommands 的
+         set_pose 服务把这些小球摆到当前规划路径上; 用不到的点被移到
+         z=-20 隐藏。static + 无 collision, 不参与物理, 不影响避障。 -->
+    <model name="plan_dot_13">
+      <static>true</static>
+      <pose>0 0 -20 0 0 0</pose>
+      <link name="link">
+        <visual name="v">
+          <geometry>
+            <sphere>
+              <radius>0.05</radius>
+            </sphere>
+          </geometry>
+          <material>
+            <ambient>0.05 0.55 1.0 1</ambient>
+            <diffuse>0.10 0.70 1.0 1</diffuse>
+            <emissive>0.05 0.35 0.60 1</emissive>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- P58 需求3: 规划路径可视化点。follower 通过 UserCommands 的
+         set_pose 服务把这些小球摆到当前规划路径上; 用不到的点被移到
+         z=-20 隐藏。static + 无 collision, 不参与物理, 不影响避障。 -->
+    <model name="plan_dot_14">
+      <static>true</static>
+      <pose>0 0 -20 0 0 0</pose>
+      <link name="link">
+        <visual name="v">
+          <geometry>
+            <sphere>
+              <radius>0.05</radius>
+            </sphere>
+          </geometry>
+          <material>
+            <ambient>0.05 0.55 1.0 1</ambient>
+            <diffuse>0.10 0.70 1.0 1</diffuse>
+            <emissive>0.05 0.35 0.60 1</emissive>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- P58 需求3: 规划路径可视化点。follower 通过 UserCommands 的
+         set_pose 服务把这些小球摆到当前规划路径上; 用不到的点被移到
+         z=-20 隐藏。static + 无 collision, 不参与物理, 不影响避障。 -->
+    <model name="plan_dot_15">
+      <static>true</static>
+      <pose>0 0 -20 0 0 0</pose>
+      <link name="link">
+        <visual name="v">
+          <geometry>
+            <sphere>
+              <radius>0.05</radius>
+            </sphere>
+          </geometry>
+          <material>
+            <ambient>0.05 0.55 1.0 1</ambient>
+            <diffuse>0.10 0.70 1.0 1</diffuse>
+            <emissive>0.05 0.35 0.60 1</emissive>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- P58 需求3: 规划路径可视化点。follower 通过 UserCommands 的
+         set_pose 服务把这些小球摆到当前规划路径上; 用不到的点被移到
+         z=-20 隐藏。static + 无 collision, 不参与物理, 不影响避障。 -->
+    <model name="plan_dot_16">
+      <static>true</static>
+      <pose>0 0 -20 0 0 0</pose>
+      <link name="link">
+        <visual name="v">
+          <geometry>
+            <sphere>
+              <radius>0.05</radius>
+            </sphere>
+          </geometry>
+          <material>
+            <ambient>0.05 0.55 1.0 1</ambient>
+            <diffuse>0.10 0.70 1.0 1</diffuse>
+            <emissive>0.05 0.35 0.60 1</emissive>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- P58 需求3: 规划路径可视化点。follower 通过 UserCommands 的
+         set_pose 服务把这些小球摆到当前规划路径上; 用不到的点被移到
+         z=-20 隐藏。static + 无 collision, 不参与物理, 不影响避障。 -->
+    <model name="plan_dot_17">
+      <static>true</static>
+      <pose>0 0 -20 0 0 0</pose>
+      <link name="link">
+        <visual name="v">
+          <geometry>
+            <sphere>
+              <radius>0.05</radius>
+            </sphere>
+          </geometry>
+          <material>
+            <ambient>0.05 0.55 1.0 1</ambient>
+            <diffuse>0.10 0.70 1.0 1</diffuse>
+            <emissive>0.05 0.35 0.60 1</emissive>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- P58 需求3: 规划路径可视化点。follower 通过 UserCommands 的
+         set_pose 服务把这些小球摆到当前规划路径上; 用不到的点被移到
+         z=-20 隐藏。static + 无 collision, 不参与物理, 不影响避障。 -->
+    <model name="plan_dot_18">
+      <static>true</static>
+      <pose>0 0 -20 0 0 0</pose>
+      <link name="link">
+        <visual name="v">
+          <geometry>
+            <sphere>
+              <radius>0.05</radius>
+            </sphere>
+          </geometry>
+          <material>
+            <ambient>0.05 0.55 1.0 1</ambient>
+            <diffuse>0.10 0.70 1.0 1</diffuse>
+            <emissive>0.05 0.35 0.60 1</emissive>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- P58 需求3: 规划路径可视化点。follower 通过 UserCommands 的
+         set_pose 服务把这些小球摆到当前规划路径上; 用不到的点被移到
+         z=-20 隐藏。static + 无 collision, 不参与物理, 不影响避障。 -->
+    <model name="plan_dot_19">
+      <static>true</static>
+      <pose>0 0 -20 0 0 0</pose>
+      <link name="link">
+        <visual name="v">
+          <geometry>
+            <sphere>
+              <radius>0.05</radius>
+            </sphere>
+          </geometry>
+          <material>
+            <ambient>0.05 0.55 1.0 1</ambient>
+            <diffuse>0.10 0.70 1.0 1</diffuse>
+            <emissive>0.05 0.35 0.60 1</emissive>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- P58 需求3: 规划路径可视化点。follower 通过 UserCommands 的
+         set_pose 服务把这些小球摆到当前规划路径上; 用不到的点被移到
+         z=-20 隐藏。static + 无 collision, 不参与物理, 不影响避障。 -->
+    <model name="plan_dot_20">
+      <static>true</static>
+      <pose>0 0 -20 0 0 0</pose>
+      <link name="link">
+        <visual name="v">
+          <geometry>
+            <sphere>
+              <radius>0.05</radius>
+            </sphere>
+          </geometry>
+          <material>
+            <ambient>0.05 0.55 1.0 1</ambient>
+            <diffuse>0.10 0.70 1.0 1</diffuse>
+            <emissive>0.05 0.35 0.60 1</emissive>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- P58 需求3: 规划路径可视化点。follower 通过 UserCommands 的
+         set_pose 服务把这些小球摆到当前规划路径上; 用不到的点被移到
+         z=-20 隐藏。static + 无 collision, 不参与物理, 不影响避障。 -->
+    <model name="plan_dot_21">
+      <static>true</static>
+      <pose>0 0 -20 0 0 0</pose>
+      <link name="link">
+        <visual name="v">
+          <geometry>
+            <sphere>
+              <radius>0.05</radius>
+            </sphere>
+          </geometry>
+          <material>
+            <ambient>0.05 0.55 1.0 1</ambient>
+            <diffuse>0.10 0.70 1.0 1</diffuse>
+            <emissive>0.05 0.35 0.60 1</emissive>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- P58 需求3: 规划路径可视化点。follower 通过 UserCommands 的
+         set_pose 服务把这些小球摆到当前规划路径上; 用不到的点被移到
+         z=-20 隐藏。static + 无 collision, 不参与物理, 不影响避障。 -->
+    <model name="plan_dot_22">
+      <static>true</static>
+      <pose>0 0 -20 0 0 0</pose>
+      <link name="link">
+        <visual name="v">
+          <geometry>
+            <sphere>
+              <radius>0.05</radius>
+            </sphere>
+          </geometry>
+          <material>
+            <ambient>0.05 0.55 1.0 1</ambient>
+            <diffuse>0.10 0.70 1.0 1</diffuse>
+            <emissive>0.05 0.35 0.60 1</emissive>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- P58 需求3: 规划路径可视化点。follower 通过 UserCommands 的
+         set_pose 服务把这些小球摆到当前规划路径上; 用不到的点被移到
+         z=-20 隐藏。static + 无 collision, 不参与物理, 不影响避障。 -->
+    <model name="plan_dot_23">
+      <static>true</static>
+      <pose>0 0 -20 0 0 0</pose>
+      <link name="link">
+        <visual name="v">
+          <geometry>
+            <sphere>
+              <radius>0.05</radius>
+            </sphere>
+          </geometry>
+          <material>
+            <ambient>0.05 0.55 1.0 1</ambient>
+            <diffuse>0.10 0.70 1.0 1</diffuse>
+            <emissive>0.05 0.35 0.60 1</emissive>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- 机器人: 双轮差速 + 前向 GPU 激光雷达, 初始位于原点 -->
+    <model name="robot" canonical_link="chassis">
+      <pose>0 0 0 0 0 0</pose>
+      <self_collide>false</self_collide>
+      <link name="chassis">
+        <pose>0 0 0.13 0 0 0</pose>
+        <inertial>
+          <mass>4.0</mass>
+          <inertia><ixx>0.0167</ixx><iyy>0.0333</iyy><izz>0.0433</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia>
+        </inertial>
+        <collision name="c">
+          <geometry><box><size>0.30 0.20 0.10</size></box></geometry>
+        </collision>
+        <visual name="v">
+          <geometry><box><size>0.30 0.20 0.10</size></box></geometry>
+          <material><ambient>0.15 0.35 0.8 1</ambient><diffuse>0.15 0.35 0.8 1</diffuse></material>
+        </visual>
+        <!-- 雷达桅杆(外观) -->
+        <visual name="mast_v">
+          <pose>0.08 0 0.08 0 0 0</pose>
+          <geometry><cylinder><radius>0.02</radius><length>0.12</length></cylinder></geometry>
+          <material><ambient>0.2 0.2 0.2 1</ambient><diffuse>0.2 0.2 0.2 1</diffuse></material>
+        </visual>
+        <!-- 前置相机(第一视角) -->
+        <sensor name="front_camera" type="camera">
+          <pose>0.15 0 0.08 0 0 0</pose>
+          <topic>/camera</topic>
+          <update_rate>10</update_rate>
+          <gz_frame_id>robot_camera</gz_frame_id>
+          <camera name="front">
+            <horizontal_fov>1.6</horizontal_fov>
+            <image>
+              <width>480</width>
+              <height>360</height>
+              <format>R8G8B8</format>
+            </image>
+            <clip>
+              <near>0.1</near>
+              <far>30</far>
+            </clip>
+          </camera>
+          <always_on>1</always_on>
+          <visualize>true</visualize>
+        </sensor>
+        <!-- 4 向深度相机: 前/左/右/后, 量程 0.1~12m(满足10m), FOV 103°x4 覆盖360° -->
+        <sensor name="depth_front" type="rgbd_camera">
+          <pose>0.10 0 0.10 0 0 0</pose>
+          <topic>/depth_front</topic>
+          <update_rate>5</update_rate>
+          <camera name="d">
+            <horizontal_fov>1.8</horizontal_fov>
+            <image><width>320</width><height>240</height><format>R8G8B8</format></image>
+            <clip><near>0.1</near><far>12.0</far></clip>
+            <depth_camera><output>depths</output></depth_camera>
+          </camera>
+          <always_on>1</always_on>
+          <visualize>false</visualize>
+        </sensor>
+        <sensor name="depth_left" type="rgbd_camera">
+          <pose>0.10 0 0.10 0 0 1.5707963</pose>
+          <topic>/depth_left</topic>
+          <update_rate>5</update_rate>
+          <camera name="d">
+            <horizontal_fov>1.8</horizontal_fov>
+            <image><width>320</width><height>240</height><format>R8G8B8</format></image>
+            <clip><near>0.1</near><far>12.0</far></clip>
+            <depth_camera><output>depths</output></depth_camera>
+          </camera>
+          <always_on>1</always_on>
+          <visualize>false</visualize>
+        </sensor>
+        <sensor name="depth_right" type="rgbd_camera">
+          <pose>0.10 0 0.10 0 0 -1.5707963</pose>
+          <topic>/depth_right</topic>
+          <update_rate>5</update_rate>
+          <camera name="d">
+            <horizontal_fov>1.8</horizontal_fov>
+            <image><width>320</width><height>240</height><format>R8G8B8</format></image>
+            <clip><near>0.1</near><far>12.0</far></clip>
+            <depth_camera><output>depths</output></depth_camera>
+          </camera>
+          <always_on>1</always_on>
+          <visualize>false</visualize>
+        </sensor>
+        <sensor name="depth_back" type="rgbd_camera">
+          <pose>0.10 0 0.10 0 0 3.1415926</pose>
+          <topic>/depth_back</topic>
+          <update_rate>5</update_rate>
+          <camera name="d">
+            <horizontal_fov>1.8</horizontal_fov>
+            <image><width>320</width><height>240</height><format>R8G8B8</format></image>
+            <clip><near>0.1</near><far>12.0</far></clip>
+            <depth_camera><output>depths</output></depth_camera>
+          </camera>
+          <always_on>1</always_on>
+          <visualize>false</visualize>
+        </sensor>
+        <sensor name="gpu_lidar" type="gpu_lidar">
+          <pose>0.08 0 0.15 0 0 0</pose>
+          <topic>/lidar</topic>
+          <update_rate>10</update_rate>
+          <gz_frame_id>robot_lidar</gz_frame_id>
+          <lidar>
+            <scan>
+              <horizontal>
+                <samples>360</samples>
+                <resolution>1</resolution>
+                <min_angle>-3.14159</min_angle>
+                <max_angle>3.14159</max_angle>
+              </horizontal>
+            </scan>
+            <range>
+              <min>0.12</min>
+              <max>12.0</max>
+              <resolution>0.01</resolution>
+            </range>
+          </lidar>
+          <always_on>1</always_on>
+          <visualize>true</visualize>
+        </sensor>
+      </link>
+      <link name="left_wheel">
+        <pose relative_to="chassis">0 0.13 -0.07 1.5707 0 0</pose>
+        <inertial>
+          <mass>0.3</mass>
+          <inertia><ixx>0.000432</ixx><iyy>0.000432</iyy><izz>0.000432</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia>
+        </inertial>
+        <collision name="c">
+          <geometry><cylinder><radius>0.06</radius><length>0.04</length></cylinder></geometry>
+          <surface><friction><ode><mu>1.2</mu><mu2>1.0</mu2></ode></friction></surface>
+        </collision>
+        <visual name="v">
+          <geometry><cylinder><radius>0.06</radius><length>0.04</length></cylinder></geometry>
+          <material><ambient>0.12 0.12 0.12 1</ambient><diffuse>0.12 0.12 0.12 1</diffuse></material>
+        </visual>
+      </link>
+      <link name="right_wheel">
+        <pose relative_to="chassis">0 -0.13 -0.07 1.5707 0 0</pose>
+        <inertial>
+          <mass>0.3</mass>
+          <inertia><ixx>0.000432</ixx><iyy>0.000432</iyy><izz>0.000432</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia>
+        </inertial>
+        <collision name="c">
+          <geometry><cylinder><radius>0.06</radius><length>0.04</length></cylinder></geometry>
+          <surface><friction><ode><mu>1.2</mu><mu2>1.0</mu2></ode></friction></surface>
+        </collision>
+        <visual name="v">
+          <geometry><cylinder><radius>0.06</radius><length>0.04</length></cylinder></geometry>
+          <material><ambient>0.12 0.12 0.12 1</ambient><diffuse>0.12 0.12 0.12 1</diffuse></material>
+        </visual>
+      </link>
+      <link name="caster">
+        <pose relative_to="chassis">-0.12 0 -0.10 0 0 0</pose>
+        <inertial>
+          <mass>0.1</mass>
+          <inertia><ixx>0.000036</ixx><iyy>0.000036</iyy><izz>0.000036</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia>
+        </inertial>
+        <collision name="c">
+          <geometry><sphere><radius>0.03</radius></sphere></geometry>
+          <surface>
+            <friction><ode><mu>0.05</mu><mu2>0.05</mu2></ode></friction>
+          </surface>
+        </collision>
+        <visual name="v">
+          <geometry><sphere><radius>0.03</radius></sphere></geometry>
+          <material><ambient>0.3 0.3 0.3 1</ambient><diffuse>0.3 0.3 0.3 1</diffuse></material>
+        </visual>
+      </link>
+      
+      <joint name="left_wheel_joint" type="revolute">
+        <parent>chassis</parent>
+        <child>left_wheel</child>
+        <axis>
+          <xyz resolved_frame="child">0 0 1</xyz>
+          <limits><lower>-1e16</lower><upper>1e16</upper></limits>
+        </axis>
+      </joint>
+      <joint name="right_wheel_joint" type="revolute">
+        <parent>chassis</parent>
+        <child>right_wheel</child>
+        <axis>
+          <xyz resolved_frame="child">0 0 1</xyz>
+          <limits><lower>-1e16</lower><upper>1e16</upper></limits>
+        </axis>
+      </joint>
+      <plugin filename="gz-sim-diff-drive-system" name="gz::sim::systems::DiffDrive">
+        <left_joint>left_wheel_joint</left_joint>
+        <right_joint>right_wheel_joint</right_joint>
+        <wheel_separation>0.26</wheel_separation>
+        <wheel_radius>0.06</wheel_radius>
+        <topic>/model/robot/cmd_vel</topic>
+        <odom_topic>/model/robot/odometry</odom_topic>
+        <odom_publish_frequency>30</odom_publish_frequency>
+        <max_linear_acceleration>1.2</max_linear_acceleration>
+        <min_linear_acceleration>-1.2</min_linear_acceleration>
+        <max_angular_acceleration>3.0</max_angular_acceleration>
+        <min_angular_acceleration>-3.0</min_angular_acceleration>
+      </plugin>
+    </model>
+
+    <!-- "人": 人形外观(裙摆/躯干/头部) + 隐藏轮组, 初始位于机器人前方 1m -->
+    <model name="person" canonical_link="skirt">
+      <pose>1 0 0 0 0 0</pose>
+      <self_collide>false</self_collide>
+      <link name="skirt">
+        <pose>0 0 0.28 0 0 0</pose>
+        <inertial>
+          <mass>3.0</mass>
+          <inertia><ixx>0.0796</ixx><iyy>0.0796</iyy><izz>0.1014</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia>
+        </inertial>
+        
+      <joint name="left_wheel_joint" type="revolute">
+        <parent>skirt</parent>
+        <child>left_wheel</child>
+        <axis>
+          <xyz resolved_frame="child">0 0 1</xyz>
+          <limits><lower>-1e16</lower><upper>1e16</upper></limits>
+        </axis>
+      </joint>
+      <joint name="right_wheel_joint" type="revolute">
+        <parent>skirt</parent>
+        <child>right_wheel</child>
+        <axis>
+          <xyz resolved_frame="child">0 0 1</xyz>
+          <limits><lower>-1e16</lower><upper>1e16</upper></limits>
+        </axis>
+      </joint>
+      <plugin filename="gz-sim-diff-drive-system" name="gz::sim::systems::DiffDrive">
+        <left_joint>left_wheel_joint</left_joint>
+        <right_joint>right_wheel_joint</right_joint>
+        <wheel_separation>0.40</wheel_separation>
+        <wheel_radius>0.055</wheel_radius>
+        <topic>/model/person/cmd_vel</topic>
+        <odom_topic>/model/person/odometry</odom_topic>
+        <odom_publish_frequency>30</odom_publish_frequency>
+        <max_linear_acceleration>0.9</max_linear_acceleration>
+        <min_linear_acceleration>-0.9</min_linear_acceleration>
+        <max_angular_acceleration>2.5</max_angular_acceleration>
+        <min_angular_acceleration>-2.5</min_angular_acceleration>
+      </plugin>
+    </model>
+
+  </world>
+</sdf>

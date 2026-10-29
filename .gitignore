@@ -1,0 +1,11 @@
+#CMake / build outputs
+
+build/
+dist/
+install/
+
+
+
+.workbuddy/
+
+

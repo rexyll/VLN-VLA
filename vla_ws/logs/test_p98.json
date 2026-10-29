@@ -1,0 +1,26 @@
+{
+ "1": {
+  "ok": true,
+  "missing": []
+ },
+ "2": {
+  "ok": true,
+  "max_stream_vis": 3
+ },
+ "3": {
+  "ok": true,
+  "level_max_mm": 15.7,
+  "level_min_mm": -1976.0,
+  "drop_mm": 1991.8
+ },
+ "4": {
+  "ok": false,
+  "leftover": [
+   "cup_water_disc",
+   "stream0",
+   "stream1",
+   "stream2"
+  ]
+ },
+ "_ok": false
+}
