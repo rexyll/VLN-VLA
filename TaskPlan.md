@@ -2039,3 +2039,19 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 **验证边界：**
 - 本轮加强了真实 ROS 2 executor 生命周期检查，但 CarryBus._await() 仍依赖 DrinkTask.spin_for() 中的 rclpy.spin_once(self)。当前真实 executor 测试只让单一 executor 线程拥有 spin；并未证明 _await() 可安全嵌入已运行的 MultiThreadedExecutor。
 - 尚未覆盖真实 executor 中完整事务 waiter 的 timeout/retry、callback group 并发策略及 DDS timeout 边界；P104-07 继续保持“正在进行中”。
+
+
+### 8.43 在真实 ROS 2 DDS 路径验证终态 ACK 冲突策略（2026-11-08）
+
+**本轮继续推进 P104-07：**
+- CarryBus 已采用 first-terminal-ACK-wins：同一 request_id 的重复相同 ACK 幂等；首个终态结果写入后，后续冲突 ACK 不覆盖它。纯 Python 回归已覆盖 success→queue-full 与 queue-full→success 两种顺序。
+- 扩展 tests/test_carry_ros2_executor.py：通过真实 ROS 2 Jazzy publisher/subscription 和单一 MultiThreadedExecutor，分别投递重复 success、success 后冲突 queue-full，以及重复 queue-full、queue-full 后冲突 success；断言 executor 收到的最终缓存仍是每个 request_id 的首个终态 ACK。
+
+**提交与 CI：**
+- 当前代码提交 bcf9915af985d1720f397259c628a8898d61a8b5。
+- Python workflow run [42483414383](https://github.com/rexyll/VLN-VLA/actions/runs/42483414383) 与 ROS 2 Jazzy workflow run [42483414427](https://github.com/rexyll/VLN-VLA/actions/runs/42483414427) 在本记录时均处于运行中，尚未取得最终结果。
+- 前序 first-terminal-ACK-wins 代码提交 06e07fe8a89a9925cf74535cc525ef88c8bf1bc2 的 Python workflow [42483279303](https://github.com/rexyll/VLN-VLA/actions/runs/42483279303) 已成功；纯 Python 重复/冲突 ACK 策略测试提交 3619477dcb3bcc68c9c60ab6db97ec5141eb7d5d 的纯测试和编译 workflow [42483281864](https://github.com/rexyll/VLN-VLA/actions/runs/42483281864) 已成功。
+
+**验证边界：**
+- 本轮把 ACK 终态策略扩展到真实 ROS 2 DDS 投递路径，但仍未在真实 executor 下调用 CarryBus._await() 完成完整事务等待；DrinkTask.spin_for() 的 rclpy.spin_once(self) 与已运行 executor 的所有权冲突仍待解决。
+- P104-07 保持“正在进行中”；下一步优先设计 executor-aware waiter（单一 executor 所有者、waiter 仅等待事件/条件变量，不自行 spin），并在 ROS 2 集成测试中覆盖真实事务超时、重试、取消及节点关闭。
