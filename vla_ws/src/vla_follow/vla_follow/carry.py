@@ -95,6 +95,8 @@ class CarryBus(object):
         self.ack_by_request = {}
         self._ack_events = {}
         self._ack_lock = threading.RLock()
+        # Set before executor shutdown to release all executor-managed waiters.
+        self._waiters_cancelled = False
         # model -> {'side': 'R'/'L', 'offset': 4x4}
         self.items = {}
         self.pub_count = 0
@@ -129,6 +131,18 @@ class CarryBus(object):
                 if event is not None:
                     event.set()
 
+    def cancel_waiters(self):
+        """Cancel active/future transactions before stopping the external executor.
+
+        The executor owner must call this before executor.shutdown(); ROS 2
+        executor shutdown alone does not notify arbitrary threading.Event waiters.
+        Cancellation is terminal for this CarryBus instance.
+        """
+        with self._ack_lock:
+            self._waiters_cancelled = True
+            for event in getattr(self, '_ack_events', {}).values():
+                event.set()
+
     def _send(self, text):
         self.pub.publish(String(data=text))
         self.pub_count += 1
@@ -158,6 +172,9 @@ class CarryBus(object):
                 self._ack_events[request_id] = ack_event
         try:
             while time.monotonic() < deadline:
+                with self._ack_lock:
+                    if getattr(self, '_waiters_cancelled', False):
+                        return False
                 emit(request_id)
                 remaining = max(0.0, deadline - time.monotonic())
                 if getattr(self, 'executor_managed', False):
@@ -165,6 +182,8 @@ class CarryBus(object):
                 else:
                     self.node.spin_for(min(0.08, remaining))
                 with self._ack_lock:
+                    if getattr(self, '_waiters_cancelled', False):
+                        return False
                     hit = self.ack_by_request.pop(request_id, None)
                     if hit is not None:
                         ack_event.clear()
