@@ -323,6 +323,7 @@ class TestP104(unittest.TestCase):
         bus.pending_requests = set()
         bus.ack_by_request = {}
         bus._ack_lock = threading.RLock()
+        bus._ack_lock = threading.RLock()
         node.bus = bus
         emitted = []
         ok = bus._await(
@@ -369,6 +370,7 @@ class TestP104(unittest.TestCase):
         bus.ack_t = 0.0
         bus.pending_requests = set()
         bus.ack_by_request = {}
+        bus._ack_lock = threading.RLock()
         node.bus = bus
 
         outer_ok = bus._await(
@@ -418,6 +420,7 @@ class TestP104(unittest.TestCase):
         bus.ack_t = 0.0
         bus.pending_requests = set()
         bus.ack_by_request = {}
+        bus._ack_lock = threading.RLock()
         node.bus = bus
         emitted = []
         ok = bus._await(
@@ -490,6 +493,7 @@ class TestP104(unittest.TestCase):
         bus.ack_t = 0.0
         bus.pending_requests = set()
         bus.ack_by_request = {}
+        bus._ack_lock = threading.RLock()
         node.bus = bus
         emitted = []
         ok = bus._await(
