@@ -1848,3 +1848,24 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 新增的单测验证拒绝 ACK 可被完成缓存命中；当前 headless 场景尚未专门模拟“queue-full 后同 request_id 重发”的真实 transport 并发时序，因此这一项仍需补充运行时故障注入。
 - P104 纯 Python 回归已重新恢复全绿；CarryBus hand_to 连续性用例的 4×4 变换组合现已修正。
 - P104-07 仍未完成真实 ROS 2 executor 并发/迟到 ACK 与 Gazebo 端到端联调；P104-08 仍缺真实 RGB-D 遮挡/相机切换验证；P104-05/P104-06 动态碰撞验证及 P104-09 三轮完整 E2E 仍未关闭。
+
+
+### 8.32 将 queue-full 终态 ACK 登记收敛为可直接回归的共享原语（2026-11-08）
+
+**本轮继续推进 P104-07：** 复核 §8.29 的实现后发现，旧测试是先单独验证队列 Full，再手工调用 ACK cache.Remember()；它没有执行生产代码真正使用的“Full 判定 + 终态 ACK 缓存登记”组合逻辑，存在测试与生产路径脱节的风险。
+
+**改进：**
+- 在 GraspCarryQueue.hh 新增 PushAndRememberFull()，将队列 Push 与 Full 时的终态拒绝 ACK 登记封装为同一可复用操作。
+- GraspCarry::Enqueue() 改为调用该共享原语；仍由 Enqueue 外层持有 mtx，使队列、完成缓存和 in-flight 状态维持同一锁保护。
+- C++ 回归改为实际调用共享原语：先填满容量为 1 的队列，提交唯一 joint 事务并获得 queue-full ACK，释放队列容量后确认同一事务命中缓存且不再入队。
+- 测试命令结构增加 joint 字段，以覆盖与生产事务键相同的操作字段布局。
+
+**提交：**
+- 共享原语：81a574f。
+- 插件接入：afe4648。
+- 回归测试：a00a6bd、43524bf。
+
+**验证边界：**
+- 本轮提交后需等待 P104 GraspCarry C++ workflow 对插件编译、CTest 和 headless Gazebo 测试的实际结果；在结果返回前不得标记通过。
+- 新测试验证共享事务原语，不替代真实 Gazebo transport 对同一 request_id 重发的时序故障注入，也不替代 ROS 2 executor 并发联调。
+- P104-07 继续保持“正在进行中”。
