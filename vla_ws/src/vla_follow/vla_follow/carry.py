@@ -188,8 +188,15 @@ class CarryBus(object):
                     if hit is not None:
                         ack_event.clear()
                 if hit and ok_pred(hit, request_id):
+                    # ACK consumption under _ack_lock is the transaction's
+                    # success linearization point. Cancellation after this point
+                    # does not revoke success, but it must stop further duplicate
+                    # retransmits before they are emitted.
                     for _ in range(3):
-                        emit(request_id)
+                        with self._ack_lock:
+                            if getattr(self, '_waiters_cancelled', False):
+                                break
+                            emit(request_id)
                         if getattr(self, 'executor_managed', False):
                             time.sleep(0.03)
                         else:
