@@ -1265,10 +1265,11 @@ class DrinkTask(Node):
         掌系 -z 即正下方), 手部十关节全零 = 并拢伸直顺势朝下。抓取编排
         不受影响 —— run_drink 的 prepare_present 第一动作就是 home()。
         """
-        if self.carry.items:
+        held_items = self.carry.holding()
+        if held_items:
             self.get_logger().error(
                 'HANG 被拒绝：仍抓持 %s；禁止自动 release，必须先完成安全放置/人工恢复'
-                % ','.join(sorted(self.carry.items.keys())))
+                % ','.join(sorted(held_items)))
             return False
         self.sync_to_measured()
         hang_ok = True
