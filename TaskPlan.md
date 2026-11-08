@@ -1288,9 +1288,9 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 | P104-04 | 修复 PEEK 状态转移并强化绕障重捕获 | 正在进行中（入口/退出状态静态核对通过，待遮挡仿真） | 进入/退出 PEEK 状态可追踪；有检出时取消 Nav2 搜索；遮挡后重新锁定同一轨迹 |
 | P104-05 | 建立桌面/桌腿几何碰撞检测与逐路点路径门控 | 正在进行中（FK 胶囊+掌部 OBB/SAT+逐指胶囊纯测试通过；桌面/桌腿及手部代理几何与 work_area.sdf 一致性测试 17/17 CI 通过；待 Gazebo 动态几何/轨迹校准） | FK 生成的臂/手指扫掠线段无桌面、桌腿 AABB 相交；碰撞路径不下发 |
 | P104-06 | 放杯后立即启动安全预收臂，净空后完成自然悬垂 | 正在进行中（三阶段逻辑单测通过；最终 Q_HANG 压实动作碰撞门控已由 Python CI 18/18 通过；待 Gazebo 轨迹碰撞验证） | 放杯成功后先抬手离杯，再尽早执行安全折肘；在肩部收回前达到臂长净空；全过程不穿桌、不碰杯 |
-| P104-07 | 修复 PUT_BACK 未落稳仍松手、任务继续执行等状态机错误 | 正在进行中（release ACK/未知态隔离、release pending 门控、插件 in-flight 去重与完成 ACK 重放、CarryBus 跨进程重启 request_id 防复用已实现；headless Gazebo 已通过大整数 ID、确定性 ACK 丢失重试和双事务并发 ACK 身份隔离；迟到/重复 ACK 纯测试 19/19 CI 通过；Gazebo headless 队列满载拒绝 ACK 已由 C++ CI 通过；首轮恢复排空/ACK 恰好一次通过；严格逐条 FIFO 和 32 条溢出拒绝恰好一次增强断言待 CI） | 未落稳/复核失败时不 release、不撤离；关键抓取/递交/接回失败不会被忽略 |
+| P104-07 | 修复 PUT_BACK 未落稳仍松手、任务继续执行等状态机错误 | 正在进行中（release ACK/未知态隔离、release pending 门控、插件 in-flight 去重与完成 ACK 重放、CarryBus 跨进程重启 request_id 防复用已实现；headless Gazebo 已通过大整数 ID、确定性 ACK 丢失重试和双事务并发 ACK 身份隔离；迟到/重复 ACK 纯测试 19/19 CI 通过；Gazebo headless 队列满载拒绝 ACK 已由 C++ CI 通过；恢复排空增强版已通过 headless Gazebo CI：128 条已接受事务逐条严格 FIFO 且每条成功 ACK 恰好一次；后 32 条溢出事务逐条恰好一条 queue-full 拒绝 ACK） | 未落稳/复核失败时不 release、不撤离；关键抓取/递交/接回失败不会被忽略 |
 | P104-08 | 扩展遮挡、目标关联、桌面碰撞和失败分支测试 | 正在进行中（最新 Python CI 20/20 纯数学/几何/运动学、桌面与手部 SDF 几何一致性、最终悬垂压实门控、CarryBus ACK/迟到 ACK/进程重启 ID 及人体遮挡预测速度限幅/过期测试通过；待 ROS/Gazebo 场景、碰撞几何校准与回归） | 新增专项测试并能输出逐阶段证据；已有 P102/P103/P97/P94 回归不退化 |
-| P104-09 | 全面逻辑审查、文档与回归结果记录 | 正在进行中（Python CI 20/20、GraspCarry C++ 编译/链接与 8/8 独立测试通过；headless Gazebo 已验证 uint64 大 ID、确定性 ACK 丢失重放、双事务并发 ACK 隔离、missing-model 拒绝 ACK 和 queue-full 拒绝 ACK；首轮恢复排空/128 条恰好一次 ACK 检查已通过；增强后的严格 FIFO/32 条拒绝计数待 CI；ROS 2 CarryBus 联调、完整 work_area 场景和端到端回归未完成） | 对关键动作返回值、状态转移、超时、资源/消息生命周期做审查；更新 README/测试指引与本节结论 |
+| P104-09 | 全面逻辑审查、文档与回归结果记录 | 正在进行中（Python CI 20/20、GraspCarry C++ 编译/链接与 8/8 独立测试通过；headless Gazebo 已验证 uint64 大 ID、确定性 ACK 丢失重放、双事务并发 ACK 隔离、missing-model 拒绝 ACK 和 queue-full 拒绝 ACK；恢复排空增强版 headless Gazebo CI 已通过：128 条成功 ACK 严格 FIFO/恰好一次，32 条拒绝 ACK 恰好一次；ROS 2 CarryBus 联调、完整 work_area 场景和端到端回归未完成） | 对关键动作返回值、状态转移、超时、资源/消息生命周期做审查；更新 README/测试指引与本节结论 |
 
 ### 8.3 验收门槛
 
@@ -1735,8 +1735,11 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 检查首尾事务 ACK 顺序，确认尾部请求不会越过队首请求。
 - 对被拒绝事务不要求成功 ACK；拒绝 ACK 与成功 ACK 的语义分离。
 
+**验证记录：**
+- C++/Gazebo CI run [42474730597](https://github.com/rexyll/VLN-VLA/actions/runs/42474730597) 已通过：GraspCarry 编译/链接、8/8 C++ 队列单测、headless Gazebo 运行时 ACK 协议、队列暂停洪泛、恢复排空和全部逐项断言均成功。
+- 128 条已接受事务各有且仅有一条成功 ACK，ACK 顺序逐条严格递增；第 129~160 条事务各有且仅有一条 `queue-full` 拒绝 ACK。
+
 **验证边界：**
-- 新增恢复排空/ACK 计数测试等待 C++/Gazebo CI。
 - 该断言验证命令入队、恢复消费和 ACK 计数，不验证 128 个物理关节目标的最终运动精度。
 - P104-07/P104-09 继续保持“正在进行中”。
 
