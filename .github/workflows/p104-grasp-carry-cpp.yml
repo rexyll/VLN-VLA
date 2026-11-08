@@ -51,6 +51,16 @@ jobs:
             libgz-common5-profiler-dev \
             libgz-math7-dev gz-harmonic
 
+      - name: Install ROS 2 Jazzy and ros_gz_bridge
+        run: |
+          curl --fail --location --retry 3 --retry-delay 2 \
+            -o /tmp/ros2-apt-source.deb \
+            https://github.com/ros-infrastructure/ros-apt-source/releases/download/1.3.0/ros2-apt-source_1.3.0.noble_all.deb
+          sudo dpkg -i /tmp/ros2-apt-source.deb
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            ros-jazzy-ros-base ros-jazzy-ros-gz-bridge python3-numpy
+
       - name: Configure GraspCarry plugin
         working-directory: vla_ws/src/vla_follow/gz_plugins
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
@@ -232,3 +242,68 @@ jobs:
             if [ "$i" -eq 129 ]; then expected_reject_count=2; fi
             test "$reject_count" -eq "$expected_reject_count"
           done
+      - name: Verify CarryBus through ROS 2 and ros_gz_bridge with ACK fault injection
+        env:
+          GZ_SIM_SYSTEM_PLUGIN_PATH: ${{ github.workspace }}/vla_ws/src/vla_follow/gz_plugins/build
+        shell: bash
+        run: |
+          set -euo pipefail
+          source /opt/ros/jazzy/setup.bash
+          cat > /tmp/grasp-carry-ros-bridge.yml <<'YAML'
+          - ros_topic_name: "/drink/carry"
+            gz_topic_name: "/drink/carry"
+            ros_type_name: "std_msgs/msg/String"
+            gz_type_name: "gz.msgs.StringMsg"
+            direction: ROS_TO_GZ
+          - ros_topic_name: "/drink/carry/ack_raw"
+            gz_topic_name: "/drink/carry/ack"
+            ros_type_name: "std_msgs/msg/String"
+            gz_type_name: "gz.msgs.StringMsg"
+            direction: GZ_TO_ROS
+          YAML
+
+          gz sim -s -r -v 2 tests/grasp_carry_integration.sdf > /tmp/grasp-carry-bridge-gz.log 2>&1 &
+          SIM_PID=$!
+          BRIDGE_PID=""
+          cleanup() {
+            status=$?
+            if [ "$status" -ne 0 ]; then
+              cat /tmp/grasp-carry-bridge.log 2>/dev/null || true
+              cat /tmp/grasp-carry-bridge-gz.log 2>/dev/null || true
+            fi
+            if [ -n "$BRIDGE_PID" ]; then kill "$BRIDGE_PID" 2>/dev/null || true; fi
+            kill "$SIM_PID" 2>/dev/null || true
+            return "$status"
+          }
+          trap cleanup EXIT
+
+          ready=0
+          for _ in $(seq 1 30); do
+            if gz topic -l 2>/dev/null | grep -Fxq "/drink/carry/ack"; then
+              ready=1
+              break
+            fi
+            if ! kill -0 "$SIM_PID" 2>/dev/null; then
+              cat /tmp/grasp-carry-bridge-gz.log
+              exit 1
+            fi
+            sleep 1
+          done
+          test "$ready" -eq 1
+
+          ros2 run ros_gz_bridge parameter_bridge --ros-args \
+            -p config_file:=/tmp/grasp-carry-ros-bridge.yml \
+            > /tmp/grasp-carry-bridge.log 2>&1 &
+          BRIDGE_PID=$!
+          for _ in $(seq 1 30); do
+            if ! kill -0 "$BRIDGE_PID" 2>/dev/null; then
+              cat /tmp/grasp-carry-bridge.log
+              exit 1
+            fi
+            if grep -q "Creating GZ->ROS Bridge" /tmp/grasp-carry-bridge.log &&
+               grep -q "Creating ROS->GZ Bridge" /tmp/grasp-carry-bridge.log; then
+              break
+            fi
+            sleep 1
+          done
+          python3 tests/test_carry_gz_bridge.py
