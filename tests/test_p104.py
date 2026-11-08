@@ -31,6 +31,10 @@ class TestP104(unittest.TestCase):
         self.assertFalse(V.sensor_pair_fresh(10.00, 10.25, 10.26))
         self.assertFalse(V.sensor_pair_fresh(0.0, 10.08, 10.12))
         self.assertFalse(V.sensor_pair_fresh(None, 10.08, 10.12))
+        self.assertTrue(V.timestamp_fresh(10.0, 10.12))
+        self.assertFalse(V.timestamp_fresh(9.5, 10.12))
+        self.assertFalse(V.timestamp_fresh(10.2, 10.12))
+        self.assertFalse(V.timestamp_fresh(None, 10.12))
 
     def test_person_association_gate_is_bounded_and_age_monotonic(self):
         self.assertGreater(V.association_gate(1.0), V.association_gate(0.0))
