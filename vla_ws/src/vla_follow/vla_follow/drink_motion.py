@@ -1784,7 +1784,7 @@ def person_hand_gap_ok(gap_mm, openness, tolerance_mm=45.0):
 
 def person_hands(node, openness, dur=0.6, dt=0.05, tag=''):
     """人的双手斜坡开合，并通过 Gazebo 真值手心间距验收到位。"""
-    cur = float(node.bus.val.get('person_arm_l_joint', 0.0))
+    cur = float(node.bus.get('person_arm_l_joint'))
     n = max(1, int(dur / max(dt, 1e-3)))
     for i in range(1, n + 1):
         v = cur + (float(openness) - cur) * float(i) / n
