@@ -1379,7 +1379,10 @@ class Follower(Node):
                     self._peek_from = self._track
                     self._track = 'PEEK'
                     self._peek_t0 = now
-                    self._peek_xy = self._last_vis_xy
+                    # 历史推测点存在而 last_vis 缓存为空时仍可执行绕视，
+                    # 避免 PEEK 分支解包 None 直接把 follower 线程打崩。
+                    self._peek_xy = (self._last_vis_xy
+                                     if self._last_vis_xy is not None else _ck)
                     self._peek_obs = _blk
                     self._peek_vd = self._person_vdir()
                     self._peek_free_t = 0.0
