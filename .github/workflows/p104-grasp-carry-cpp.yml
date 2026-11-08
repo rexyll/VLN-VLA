@@ -94,7 +94,7 @@ jobs:
 
           ready=0
           for _ in $(seq 1 30); do
-            if grep -q "监听 /drink/carry" /tmp/grasp-carry-gz.log; then ready=1; break; fi
+            if gz topic -l 2>/dev/null | grep -Fxq "/drink/carry/ack"; then ready=1; break; fi
             if ! kill -0 "$SIM_PID" 2>/dev/null; then cat /tmp/grasp-carry-gz.log; exit 1; fi
             sleep 1
           done
