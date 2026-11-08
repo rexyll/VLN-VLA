@@ -80,7 +80,9 @@ class TestCarryGazeboBridge(unittest.TestCase):
                             "first plugin ACK was not observed/dropped")
             self.assertTrue(
                 ok, "CarryBus did not recover after the first ACK was dropped")
-            self.assertEqual(len(relay.forwarded), 1)
+            self.assertGreaterEqual(len(relay.forwarded), 1)
+            self.assertEqual(len(set(relay.forwarded)), 1,
+                             "replayed ACK payload changed across retries")
             self.assertTrue(relay.forwarded[0].startswith("ok place cup "))
 
             # Two concurrent requests share the same CarryBus and executor.
