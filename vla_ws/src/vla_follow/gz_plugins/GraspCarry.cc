@@ -78,6 +78,7 @@
 #include <mutex>
 #include <sstream>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <gz/common/Console.hh>
