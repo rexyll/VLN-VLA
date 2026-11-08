@@ -1005,6 +1005,11 @@ def hang_natural(node, side, fold=None, info=None, stages=(1, 2, 3),
                 info.update(out)
             return q_meas(node, side), out
     q1 = q_meas(node, side)
+    if q1 is None:
+        out.update(ok=False, reason='joint_state_missing_after_recovery')
+        if info is not None:
+            info.update(out)
+        return None, out
     out.update(
         ok=True,
         elbow_drift_mm=round(elbow_drift, 1),
