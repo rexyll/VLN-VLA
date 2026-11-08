@@ -42,7 +42,8 @@ set_target_properties(GraspCarry PROPERTIES
 
 
 # Standalone unit tests for the transport-thread queue/cache primitives.
-# These tests require only the C++ standard library and can run without Gazebo.
+# The test executable itself has no Gazebo link dependency; project configure still
+# resolves the Gazebo packages above because the plugin target is part of this build.
 enable_testing()
 add_executable(test_GraspCarryQueue test_GraspCarryQueue.cc)
 target_include_directories(test_GraspCarryQueue PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
