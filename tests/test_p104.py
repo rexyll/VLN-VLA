@@ -18,6 +18,77 @@ import numpy as np
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, 'vla_ws', 'src', 'vla_follow'))
 
+
+def _stub_module(name, package=False):
+    """Install a minimal import placeholder for an unused runtime dependency."""
+    import types
+    module = types.ModuleType(name)
+    if package:
+        module.__path__ = []
+    sys.modules[name] = module
+    return module
+
+
+def _stub_ros_gz_imports_for_pure_tests():
+    """P104 tests exercise pure helpers; they never instantiate ROS/Gazebo nodes."""
+    try:
+        from rclpy.node import Node  # noqa: F401
+    except ModuleNotFoundError as exc:
+        if exc.name not in ('rclpy', 'rclpy.node'):
+            raise
+        rclpy = _stub_module('rclpy', package=True)
+        node_mod = _stub_module('rclpy.node')
+        node_mod.Node = type('Node', (), {})
+        rclpy.node = node_mod
+
+    try:
+        from std_msgs.msg import String  # noqa: F401
+    except ModuleNotFoundError as exc:
+        if exc.name not in ('std_msgs', 'std_msgs.msg'):
+            raise
+        std_msgs = _stub_module('std_msgs', package=True)
+        msg_mod = _stub_module('std_msgs.msg')
+        msg_mod.String = type('String', (), {})
+        std_msgs.msg = msg_mod
+
+    try:
+        import gz.transport13  # noqa: F401
+    except ModuleNotFoundError as exc:
+        if exc.name not in ('gz', 'gz.transport13'):
+            raise
+        gz = _stub_module('gz', package=True)
+        transport_mod = _stub_module('gz.transport13')
+        gz.transport13 = transport_mod
+
+    try:
+        from gz.msgs10.image_pb2 import Image  # noqa: F401
+    except ModuleNotFoundError as exc:
+        if exc.name not in ('gz', 'gz.msgs10', 'gz.msgs10.image_pb2'):
+            raise
+        gz = sys.modules.get('gz') or _stub_module('gz', package=True)
+        msgs = sys.modules.get('gz.msgs10') or _stub_module(
+            'gz.msgs10', package=True)
+        image_mod = _stub_module('gz.msgs10.image_pb2')
+        image_mod.Image = type('Image', (), {})
+        gz.msgs10 = msgs
+        msgs.image_pb2 = image_mod
+
+    try:
+        from gz.msgs10.pose_v_pb2 import Pose_V  # noqa: F401
+    except ModuleNotFoundError as exc:
+        if exc.name not in ('gz', 'gz.msgs10', 'gz.msgs10.pose_v_pb2'):
+            raise
+        gz = sys.modules.get('gz') or _stub_module('gz', package=True)
+        msgs = sys.modules.get('gz.msgs10') or _stub_module(
+            'gz.msgs10', package=True)
+        pose_mod = _stub_module('gz.msgs10.pose_v_pb2')
+        pose_mod.Pose_V = type('Pose_V', (), {})
+        gz.msgs10 = msgs
+        msgs.pose_v_pb2 = pose_mod
+
+
+_stub_ros_gz_imports_for_pure_tests()
+
 from vla_follow import arm_kin as K  # noqa: E402
 from vla_follow import drink_motion as M  # noqa: E402
 from vla_follow import person_vision as V  # noqa: E402
