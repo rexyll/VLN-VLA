@@ -1481,8 +1481,15 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 构建后检查共享库非空，并执行 `ldd -r` 检查动态依赖/未解析符号。
 - 工作流仅在插件源码、该工作流文件变更时触发 push/PR，也支持手动触发；不会启动完整 ROS 2/Gazebo 场景。
 
+**首轮 CI 失败分析与修复：**
+- 首轮 C++ CI run `42460773664` 的依赖安装成功，但 CMake configure 在 `gz-transport13` 导入链接接口时失败：缺少 imported target `CPPZMQ::CPPZMQ`；因此编译步骤被跳过。该失败是构建环境遗漏 cppzmq 开发包/显式发现依赖，不是 `GraspCarry.cc` 编译错误。
+- Ubuntu 24.04 将 C++ ZeroMQ 绑定作为 `cppzmq-dev` 包提供；Gazebo Transport 13 的链接接口依赖 `CPPZMQ::CPPZMQ`。参考 Ubuntu 包信息与 Gazebo Transport 依赖记录。
+- 已在 `gz_plugins/CMakeLists.txt` 的 Gazebo 依赖发现前加入 `find_package(CPPZMQ REQUIRED)`，并在 C++ CI 安装步骤加入 `cppzmq-dev`。
+
 **提交与验证状态：**
 - 工作流提交：`0fba83c15c3f07aef6e501012e80552c7954755a`（直接提交到 `main`）。
-- 当前仅确认工作流文件已写入 `main`；GitHub Actions 的实际执行结果待本次 push run 返回后核验。不得提前写成 C++ 构建通过。
+- 首轮 C++ CI run `42460773664`：依赖安装通过，CMake configure 因 `CPPZMQ::CPPZMQ` 缺失失败；C++ 编译未执行。
+- 修复已直接提交到 `main`：CMake 依赖发现提交 `f12fc50ff709660a9f0f9a8d7d778b8e576d6e6c`；CI 依赖补充提交 `90cdb56d4bcce8459cf66a83ea9f1a8acc24e4ca`。
+- 修复后的 C++ CI 结果尚待 GitHub Actions 触发并核验；不得提前写成 C++ 构建通过。
 - 即使 C++ 构建 CI 通过，也只证明插件在目标 Gazebo Harmonic 开发环境下可编译、链接；不证明 FIFO 队列调度、队列满载拒绝、仿真暂停恢复、ACK 丢失/迟到/重复等运行时行为正确，更不替代 Gazebo 场景和端到端验证。
 - P104-07/P104-08/P104-09 仍保持“正在进行中”。下一步优先检查本工作流首轮结果，若构建失败按真实编译日志修复；构建通过后再补插件协议/队列的可执行测试与仿真故障注入。
