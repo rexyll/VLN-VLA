@@ -1230,7 +1230,9 @@ def prepare_present(node, fill=0.65, verbose=True):
     # 先在臂长之外把双手抬到壶/杯高度, 再靠近。
     out['entry'] = pour_approach(node)
     if not out['entry']['ok']:
-        node.get_logger().warn('PREPARE 入场: 抬臂或驶入有告警, 继续尝试倒水')
+        node.get_logger().error(
+            'PREPARE 入场未通过（抬臂/驶入未确认），中止桌边操作，避免带着异常姿态伸手')
+        return out
     Tk_home = object_pose(node, 'kettle')
     pour = pour_into_cup(node, fill=fill)
     out.update(pour)
@@ -1242,6 +1244,10 @@ def prepare_present(node, fill=0.65, verbose=True):
         node.liquid.pour_stop()      # P98: 收水完成, 水柱熄灭
     ok_d, res_d = put_down(node, 'R', 'kettle', Tk_home)
     out['res']['kettle_back'] = res_d
+    if not ok_d:
+        node.get_logger().error(
+            'PREPARE 水壶未确认落稳，保持抓持并中止后续动作')
+        return out
     node.arm['R'].move(K.Q_REST, timeout=10.0)
     node.spin_for(0.4)
     place_robot(node, T_serve)
@@ -1251,7 +1257,15 @@ def prepare_present(node, fill=0.65, verbose=True):
     # 而不是垂在下面(原来 KDL 用 home 当种子, 两侧肘都朝下)。
     ok_c, res_c = place_held(node, 'L', 'cup', Tcup_carry, tol_mm=5.0)
     out['res']['cup_carry'] = res_c
+    if not ok_c:
+        node.get_logger().error(
+            'PREPARE 左手双手捧杯位形未到位（%.1fmm），保持抓持并中止转身' % res_c)
+        return out
     off_r = hand_onto(node, 'R', 'cup', lambda T: P.cup_cradle_palm(T, 'R'))
+    if off_r is None:
+        node.get_logger().error(
+            'PREPARE 右手未能贴合水杯，保持左手抓持并中止递杯准备')
+        return out
     # P94: 转身朝向优先用**实测人的位置**, 人不在接水位附近才退回名义
     # PERSON_SPOT。原来写死 PERSON_SPOT: 人站偏 0.15m 转身就差 9.3°, 后面
     # `_present_target` 虽然会按实测人手方向把杯子送过去, 但机器人是斜着
