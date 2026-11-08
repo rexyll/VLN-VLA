@@ -9,7 +9,7 @@
 
 ## 当前执行位置（2026-11-08）
 
-- **当前主节点：P104-07** —— 继续完成 ROS 2 CarryBus 与 Gazebo GraspCarry 插件的事务端到端联调；headless Gazebo 已验证插件队列满载拒绝、恢复后 128 条事务严格 FIFO 排空/成功 ACK 恰好一次，以及 32 条溢出命令逐条拒绝 ACK 恰好一次；CarryBus 已在真实 ROS 2 MultiThreadedExecutor 下覆盖并发事务、request_id 隔离、迟到 ACK、超时清理、拒绝 ACK、取消唤醒和关闭顺序；本轮新增 ROS 2 ↔ ros_gz_bridge ↔ GraspCarry 事务测试及 ACK 丢失注入，正在执行完整 Gazebo CI；CI 通过前不计入已验收能力。
+- **当前主节点：P104-07** —— 继续完成 ROS 2 CarryBus 与 Gazebo GraspCarry 插件的事务端到端联调；插件构建、队列单测及共享库检查已通过；首轮扩展 Gazebo CI 在 headless queue saturation 脚本的固定队列边界断言处失败，日志表明暂停物理与 PreUpdate 消费存在边界竞态，已改为依据首个实际 queue-full ACK 动态判定接受/拒绝分界，并验证 FIFO 与终态拒绝重放；新的 Gazebo + ROS 2 bridge CI 正在执行，未通过前不计入已验收能力。
 - **并行回归：P104-08** —— 此前 20/20 纯 Python 测试通过；P104-07 本轮新增 CarryBus 人手交接连续性用例后，`tests/test_p104.py` 共 21 个用例，新增项待 CI 验证。继续扩展真实 RGB-D 遮挡、四相机切换和跟踪重捕获验证。
 - **未关闭的仿真节点：P104-05/P104-06** —— 桌面/手部代理几何和自然收臂逻辑已通过静态/纯测试，但仍需完整 work_area.sdf 场景中的动态碰撞与轨迹验证。
 - **最终验收：P104-09** —— 完整双臂倒水递水 E2E 至少三轮、ROS 2/Gazebo 集成和 P102/P103/P97/P94 回归尚未完成。
@@ -2267,4 +2267,21 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 **验收边界：**
 - 本用例只覆盖 `place` ACK 首包丢失后的缓存重放，以及两个并发 `joint` 事务的桥接往返；尚未覆盖 bridge 进程重启、transport 断连恢复、桥接队列背压和完整 DrinkTask 抓取/释放动作序列。
 - P104-07 继续未完成；待 CI 结果出来后按实际结果修复并扩展，不把单次 ACK fault injection 等同于完整任务端到端验收。
+
+### 8.58 修复 headless Gazebo 队列饱和测试的暂停边界竞态（2026-11-08）
+
+- 检查失败的 Gazebo CI run `42493351019` 日志：插件配置、C++ 编译、队列单测、共享库依赖检查全部成功；失败发生在既有 headless ACK 协议脚本的队列满载验证阶段，桥接 E2E 因前置步骤失败而被跳过。
+- 日志中观察到预期固定边界 request ID `1700000000000000329` 未出现对应 ACK，而后续 ID 已产生 `queue-full` ACK，说明测试将 pause service 返回与 PreUpdate 队列消费边界视为严格同步是不成立的；仿真线程可能在暂停生效前完成一次队列消费。
+- 修正 `.github/workflows/p104-grasp-carry-cpp.yml`：
+  - pause service 成功后增加短暂稳定窗口；
+  - 不再硬编码恰好 128 条被接收的 request ID 边界；
+  - 从实际 ACK 流中发现第一个 `queue-full` request ID；
+  - 重试该 request ID，要求终态拒绝 ACK 恰好重放一次；
+  - 恢复仿真后，要求边界之前所有已接受事务严格 FIFO、每条成功 ACK 恰好一次；边界及之后所有请求均为 queue-full，首个拒绝请求因显式重试而恰好出现两次拒绝 ACK。
+- 代码提交：`4294fd0c1147246c7c4955082edb412487b9abf2` — `test: make Gazebo queue saturation boundary deterministic`。
+- 新 CI：Python `42494113251`、ROS 2 executor `42494113368`、Gazebo C++ / headless / bridge `42494113287`；记录时均已启动，尚未取得最终结果。
+
+**验收边界：**
+- 这次修复的是测试对暂停生效时序的错误假设，不是放宽生产队列容量或 ACK 语义。
+- 只有 Gazebo workflow 后续 queue saturation 与 ros_gz_bridge ACK fault injection 两个步骤全部成功，才算本轮真实桥接链路初步通过；P104-07 仍未关闭。
 
