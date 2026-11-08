@@ -181,6 +181,18 @@ class TestP104(unittest.TestCase):
         self.assertEqual(rotation.shape, (3, 3))
         np.testing.assert_allclose(half, 0.5 * np.asarray(K.PALM_SIZE))
 
+    def test_person_hand_gap_gate_checks_realized_open_and_closed_width(self):
+        self.assertAlmostEqual(
+            M.person_hand_gap_expected_mm(0.42), 345.0, places=6)
+        self.assertAlmostEqual(
+            M.person_hand_gap_expected_mm(0.035), 184.0, places=6)
+        self.assertTrue(M.person_hand_gap_ok(350.0, 0.42))
+        self.assertFalse(M.person_hand_gap_ok(184.0, 0.42))
+        self.assertTrue(M.person_hand_gap_ok(190.0, 0.035))
+        self.assertFalse(M.person_hand_gap_ok(345.0, 0.035))
+        self.assertFalse(M.person_hand_gap_ok(None, 0.42))
+        self.assertFalse(M.person_hand_gap_ok(np.nan, 0.42))
+
     def test_base_pose_confirmation_rejects_nonfinite_or_out_of_tolerance(self):
         self.assertTrue(M.base_pose_converged(2.0, 0.01, 8.0))
         self.assertFalse(M.base_pose_converged(8.0, 0.01, 8.0))
