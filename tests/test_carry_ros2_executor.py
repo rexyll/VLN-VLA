@@ -20,9 +20,58 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "vla_ws", "src", "vla_follow"))
 
 from vla_follow.carry import ACK_TOPIC, CarryBus  # noqa: E402
+from vla_follow.drink_task import CmdBus  # noqa: E402
 
 
 class TestCarryRos2Executor(unittest.TestCase):
+    def test_cmd_bus_atomic_multi_joint_snapshots(self):
+        rclpy.init()
+        node = Node("cmd_bus_concurrency_test")
+        bus = CmdBus(node, names=("joint_a", "joint_b"),
+                     init={"joint_a": 0.0, "joint_b": 0.0})
+        errors = []
+        start = threading.Barrier(3)
+
+        def writer():
+            try:
+                start.wait(timeout=3.0)
+                for value in range(1, 5001):
+                    bus.set(("joint_a", "joint_b"), (value, value))
+                    if value % 17 == 0:
+                        bus.publish_all()
+            except Exception as exc:
+                errors.append(exc)
+
+        def reader():
+            try:
+                start.wait(timeout=3.0)
+                for _ in range(5000):
+                    values = bus.get_many(("joint_a", "joint_b"))
+                    if values[0] != values[1]:
+                        errors.append(AssertionError(
+                            "multi-joint snapshot observed a torn update: %r"
+                            % values))
+                        return
+                    bus.get("joint_a")
+            except Exception as exc:
+                errors.append(exc)
+
+        threads = [threading.Thread(target=writer),
+                   threading.Thread(target=reader)]
+        for thread in threads:
+            thread.start()
+        start.wait(timeout=3.0)
+        for thread in threads:
+            thread.join(timeout=5.0)
+            self.assertFalse(thread.is_alive(),
+                             "CmdBus concurrency worker did not finish")
+        self.assertFalse(errors, "CmdBus concurrency errors: %r" % errors)
+        self.assertEqual(bus.get_many(("joint_a", "joint_b")).tolist(),
+                         [5000.0, 5000.0])
+        self.assertGreater(bus.count, 0)
+        node.destroy_node()
+        rclpy.shutdown()
+
     def test_executor_delivers_concurrent_ids_and_rejects_late_ack(self):
         rclpy.init()
         node = Node("carry_ack_executor_integration_test")
