@@ -745,7 +745,7 @@ def place_held(node, side, model, T_obj_goal, tol_mm=PLACE_TOL_MM,
 
 
 def put_down(node, side, model, T_obj_goal, retreat=0.10,
-             tol_mm=PLACE_TOL_MM):
+             tol_mm=PLACE_TOL_MM, info=None):
     """松手放回；未落稳或张手后复核失败时保持附着，绝不提前 release。"""
     ok1, res = place_held(node, side, model, T_obj_goal, tol_mm)
     if not ok1:
@@ -765,9 +765,18 @@ def put_down(node, side, model, T_obj_goal, retreat=0.10,
         return False, res2
     T_back = wrist(node, side) @ K.trans((0.0, 0.0, retreat))
     node.carry.release(model)
-    node.spin_for(0.3)
+    node.spin_for(0.6)
+    if info is not None:
+        T_after_release = object_pose(node, model)
+        if T_after_release is not None:
+            info['drop_mm'] = round(
+                (float(np.asarray(T_obj_goal)[2, 3])
+                 - float(T_after_release[2, 3])) * 1e3, 1)
     ok_back, res_back, _ = reach(node, side, T_back, tol_mm=8.0,
                                  check_table=True)
+    if info is not None:
+        info['withdraw_ok'] = bool(ok_back)
+        info['withdraw_res_mm'] = round(float(res_back), 1)
     if not ok_back:
         node.get_logger().warn(
             'PUT_DOWN %s 已安全落桌，但撤手未到位 %.1fmm' % (model, res_back))
@@ -829,7 +838,7 @@ def put_down_two(node, model, T_obj_goal, tol_mm=PLACE_TOL_MM, steps=4,
         node.get_logger().warn(
             'PUT_DOWN_TWO 右手离杯子 %.0fmm(没贴上), 退回单臂放回' % (d_r * 1e3))
         return put_down(node, 'L', model, T_obj_goal, retreat=retreat,
-                        tol_mm=tol_mm)
+                        tol_mm=tol_mm, info=info)
     off_l = np.linalg.inv(T_obj) @ Tl
     off_r = np.linalg.inv(T_obj) @ Tr
     for i in range(1, steps + 1):
@@ -1215,15 +1224,38 @@ def lift_ready(node, sides=('L', 'R'), info=None, r=None, z=None):
         ok = err <= 2e-3
         if not ok:
             node.get_logger().warn(
-                'LIFT[%s] 预备位 IK 未收敛 %.1fmm (%s)' % (s, err * 1e3, how))
-        for qq in K.raise_path(q0, q):
-            node.arm[s].move(qq, timeout=6.0, tol_deg=3.0)
-        node.arm[s].move(q, timeout=6.0)
+                'LIFT[%s] 预备位 IK 未收敛 %.1fmm (%s)，停止抬臂' %
+                (s, err * 1e3, how))
+            ok_all = False
+            errs[s] = 9e9
+            continue
+        path_ok = True
+        for path_i, qq in enumerate(K.raise_path(q0, q)):
+            _move_ok, _move_err = node.arm[s].move(
+                qq, timeout=6.0, tol_deg=3.0)
+            if not _move_ok:
+                node.get_logger().error(
+                    'LIFT[%s] 第%d个预备路点伺服超时，停止后续抬臂' %
+                    (s, path_i))
+                path_ok = False
+                break
+        if path_ok:
+            path_ok, _move_err = node.arm[s].move(q, timeout=6.0)
+        if not path_ok:
+            ok_all = False
+            errs[s] = 9e9
+            continue
         # 路点走完只保证"关节进了 3° 容差", 7 轴串下来指尖还有 20mm 级残差
         # (实测 17~25mm)。预备位是后面抓杯的起点, 差 20mm 就要靠抓取那一步
         # 自己补 —— 用与全局一致的闭环再压一次。
         _ok, e, _how2 = reach(node, s, T, tol_mm=5.0, passes=3)
-        if e > 4.0:
+        if e > 4.0 and not _ok:
+            _ok2, e2, _how3 = reach(
+                node, s, T, tol_mm=3.0, passes=2, tol_deg=0.08)
+            if e2 < e:
+                e = e2
+            _ok = _ok2
+        elif e > 4.0:
             # 还有 5~8mm 的不动点(见 reach 的 tol_deg 说明): 把伺服判据逼紧
             # 再补一轮。预备位是抓杯的起点, 差 7mm 就得让抓取那一步自己补。
             _ok2, e2, _how3 = reach(node, s, T, tol_mm=3.0, passes=2,
@@ -1231,7 +1263,7 @@ def lift_ready(node, sides=('L', 'R'), info=None, r=None, z=None):
             if e2 < e:
                 e = e2
         errs[s] = round(float(e), 1)
-        ok_all = ok_all and ok
+        ok_all = ok_all and ok and _ok
         node.get_logger().info(
             'LIFT[%s] 抬臂预备位: 掌心高 %.2fm 前伸 %.2fm 残差 %.1fmm (%s) '
             'q=%s 应力 %.2f'
