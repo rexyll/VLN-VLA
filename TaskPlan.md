@@ -1471,3 +1471,18 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 该改动不增加测试项数，仍为 14 项；提交 `d0854046ac24736bc460b0cdbf933a8f45398a08` 的 CI run `42460165722` 成功：Python 编译与纯测试均通过，日志 `Ran 14 tests ... OK`。
 
 **边界：** Python 状态门控和纯单测不能证明真实 executor 调度下不存在其他发布路径；仍需 ROS 2/Gazebo 并发故障注入。P104-07/P104-08/P104-09 保持“正在进行中”，PR 继续 Draft。
+
+### 8.12 将 GraspCarry 纳入 Gazebo Harmonic C++ 构建 CI（2026-11-08）
+
+**本轮目的：** P104-09 的主要验证缺口之一是 GraspCarry.cc 只做过静态审查，既有 Python CI 不会编译 Gazebo 插件。为避免后续协议改动持续绕过 C++ 编译，本轮在 main 增加独立构建工作流：
+
+- 新增 `.github/workflows/p104-grasp-carry-cpp.yml`，固定使用 Ubuntu 24.04 与 Gazebo Harmonic 对应的 gz-sim8 / gz-plugin2 / gz-transport13 / gz-msgs10 / gz-common5 / gz-math7 开发库。
+- 使用 OSRF 官方稳定软件源安装开发依赖；按插件自身 CMakeLists.txt 配置并构建 `libGraspCarry.so`。
+- 构建后检查共享库非空，并执行 `ldd -r` 检查动态依赖/未解析符号。
+- 工作流仅在插件源码、该工作流文件变更时触发 push/PR，也支持手动触发；不会启动完整 ROS 2/Gazebo 场景。
+
+**提交与验证状态：**
+- 工作流提交：`0fba83c15c3f07aef6e501012e80552c7954755a`（直接提交到 `main`）。
+- 当前仅确认工作流文件已写入 `main`；GitHub Actions 的实际执行结果待本次 push run 返回后核验。不得提前写成 C++ 构建通过。
+- 即使 C++ 构建 CI 通过，也只证明插件在目标 Gazebo Harmonic 开发环境下可编译、链接；不证明 FIFO 队列调度、队列满载拒绝、仿真暂停恢复、ACK 丢失/迟到/重复等运行时行为正确，更不替代 Gazebo 场景和端到端验证。
+- P104-07/P104-08/P104-09 仍保持“正在进行中”。下一步优先检查本工作流首轮结果，若构建失败按真实编译日志修复；构建通过后再补插件协议/队列的可执行测试与仿真故障注入。
