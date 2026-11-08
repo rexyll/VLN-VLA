@@ -716,8 +716,30 @@ def put_down_two(node, model, T_obj_goal, tol_mm=PLACE_TOL_MM, steps=4,
     off_r = np.linalg.inv(T_obj) @ Tr
     for i in range(1, steps + 1):
         Ti = _blend_pose(T_obj, T_obj_goal, i / float(steps))
-        reach(node, 'L', Ti @ off_l, tol_mm=4.0, elbow=elbow)
-        reach(node, 'R', Ti @ off_r, tol_mm=6.0, elbow=elbow)
+        ok_l, res_l, _ = reach(
+            node, 'L', Ti @ off_l, tol_mm=4.0, elbow=elbow,
+            check_table=True)
+        if not ok_l:
+            node.get_logger().error(
+                'PUT_DOWN_TWO 第%d/%d步左手未到位 %.1fmm，停止下降并保持抓持'
+                % (i, steps, res_l))
+            if info is not None:
+                info.update(release_blocked=True,
+                            release_block_reason='left_arm_path_failed',
+                            failed_step=i, left_res_mm=round(res_l, 1))
+            return False, res_l
+        ok_r, res_r, _ = reach(
+            node, 'R', Ti @ off_r, tol_mm=6.0, elbow=elbow,
+            check_table=True)
+        if not ok_r:
+            node.get_logger().error(
+                'PUT_DOWN_TWO 第%d/%d步右手未到位 %.1fmm，停止下降并保持抓持'
+                % (i, steps, res_r))
+            if info is not None:
+                info.update(release_blocked=True,
+                            release_block_reason='right_arm_path_failed',
+                            failed_step=i, right_res_mm=round(res_r, 1))
+            return False, res_r
         settle_sim(node, 0.12)
     ok1, res = place_held(node, 'L', model, T_obj_goal, tol_mm, elbow=elbow)
     settle_sim(node, 0.5)
@@ -933,8 +955,20 @@ def hang_natural(node, side, fold=None, info=None, stages=(1, 2, 3),
                     info.update(out)
                 return q_cur, out
         el_before = K.elbow_pos(side, q_cur)
-        for q in path:
-            node.arm[side].move(q, timeout=6.0, tol_deg=3.0)
+        for path_i, q in enumerate(path):
+            ok_move, err_move = node.arm[side].move(
+                q, timeout=6.0, tol_deg=3.0)
+            if not ok_move:
+                out.update(ok=False, reason='joint_servo_timeout',
+                           blocked_stage=stage, blocked_waypoint=path_i,
+                           max_joint_error_deg=round(
+                               float(np.max(np.abs(np.degrees(err_move)))), 2))
+                node.get_logger().error(
+                    'HANG[%s] 第%d段路点%d伺服超时；保持当前姿态，不跳到下一段'
+                    % (side, stage, path_i))
+                if info is not None:
+                    info.update(out)
+                return q_meas(node, side), out
             wrist_step = max(
                 wrist_step,
                 float(np.max(np.abs(q[[4, 5, 6]] - q_prev[[4, 5, 6]]))))
@@ -955,8 +989,21 @@ def hang_natural(node, side, fold=None, info=None, stages=(1, 2, 3),
 
     if 3 in stages:
         # 路点最终点本身即 Q_HANG；再压实一次目标并收拢手指。
-        node.arm[side].move(K.Q_HANG, timeout=8.0)
-        node.hand[side].move(K.grip_values(side, K.GRIP_HANG), timeout=6.0)
+        ok_arm, err_arm = node.arm[side].move(K.Q_HANG, timeout=8.0)
+        if not ok_arm:
+            out.update(ok=False, reason='hang_settle_timeout',
+                       max_joint_error_deg=round(
+                           float(np.max(np.abs(np.degrees(err_arm)))), 2))
+            if info is not None:
+                info.update(out)
+            return q_meas(node, side), out
+        ok_hand, err_hand = node.hand[side].move(
+            K.grip_values(side, K.GRIP_HANG), timeout=6.0)
+        if not ok_hand:
+            out.update(ok=False, reason='hang_hand_timeout')
+            if info is not None:
+                info.update(out)
+            return q_meas(node, side), out
     q1 = q_meas(node, side)
     out.update(
         ok=True,
