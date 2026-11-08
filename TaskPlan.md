@@ -9,7 +9,7 @@
 
 ## 当前执行位置（2026-11-08）
 
-- **当前主节点：P104-07** —— 继续完成 ROS 2 CarryBus 与 Gazebo GraspCarry 插件的事务端到端联调；headless Gazebo 已验证插件队列满载拒绝、恢复后 128 条事务严格 FIFO 排空/成功 ACK 恰好一次，以及 32 条溢出命令逐条拒绝 ACK 恰好一次；尚未验证 ROS 2 CarryBus 在真实 executor 中的并发/迟到 ACK 与插件之间的端到端链路。
+- **当前主节点：P104-07** —— 继续完成 ROS 2 CarryBus 与 Gazebo GraspCarry 插件的事务端到端联调；headless Gazebo 已验证插件队列满载拒绝、恢复后 128 条事务严格 FIFO 排空/成功 ACK 恰好一次，以及 32 条溢出命令逐条拒绝 ACK 恰好一次；CarryBus 已在真实 ROS 2 MultiThreadedExecutor 下覆盖并发事务、request_id 隔离、迟到 ACK、超时清理、拒绝 ACK、取消唤醒和关闭顺序；仍缺真实 ROS 2 ↔ Gazebo GraspCarry transport 故障注入及完整事务 E2E。
 - **并行回归：P104-08** —— 此前 20/20 纯 Python 测试通过；P104-07 本轮新增 CarryBus 人手交接连续性用例后，`tests/test_p104.py` 共 21 个用例，新增项待 CI 验证。继续扩展真实 RGB-D 遮挡、四相机切换和跟踪重捕获验证。
 - **未关闭的仿真节点：P104-05/P104-06** —— 桌面/手部代理几何和自然收臂逻辑已通过静态/纯测试，但仍需完整 work_area.sdf 场景中的动态碰撞与轨迹验证。
 - **最终验收：P104-09** —— 完整双臂倒水递水 E2E 至少三轮、ROS 2/Gazebo 集成和 P102/P103/P97/P94 回归尚未完成。
