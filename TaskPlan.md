@@ -2209,3 +2209,20 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 这一步建立的是请求标志和任务执行槽的原子状态转换，不表示同步任务已能在 executor 回调线程运行。run_drink/home/hang 仍包含 spin_for()，只能由主任务线程执行；ROS 回调仍只入队。
 - _set_state()、_tick() 的状态快照、follower 状态与时间戳、shutdown 时取消 waiter / 停止定时器 / 销毁节点顺序仍待审查。
 - P104-07 继续未完成；下一步补充任务状态广播一致性和 shutdown 生命周期测试，再决定是否调整 executor 所有权。
+
+### 8.55 follower 状态原子快照与 CarryBus waiter 关闭顺序（2026-11-08）
+
+- 将 follower 状态字典与接收时间戳合并为单一 `_follower_status_snapshot=(payload, monotonic_time)` 引用。回调解析后一次性替换快照；DRINK handback 判定只读取一次快照，避免把不同消息的状态与时间戳配对。
+- follower handback freshness 同时检查年龄非负且小于 1.5s；保留原有“发送 FOLLOW 后必须收到新鲜 FOLLOW 状态”语义。
+- 新增模块级 `_shutdown_node(node)` 统一关闭入口：先 `node.carry.cancel_waiters()` 唤醒/终止所有 CarryBus waiter，再 `node.destroy_node()` 关闭 ROS transport。即使 waiter cancel 抛错，也通过 finally 保证 destroy_node 执行；main() 外层 finally 随后执行 `rclpy.shutdown()`。
+- 新增纯隔离测试：follower 状态与时间戳作为同一快照更新；畸形 JSON 不覆盖上一个有效快照；shutdown 顺序必须为 cancel_waiters → destroy_node；cancel_waiters 抛错时仍 destroy_node。
+
+**提交与 CI：**
+- `cf0fdee6bba2d233d2f61cdded8e3413e5cb2e23` — fix: snapshot follower status and cancel waiters on shutdown；Python run [42490979599](https://github.com/rexyll/VLN-VLA/actions/runs/42490979599) success；ROS 2 Jazzy run [42490979601](https://github.com/rexyll/VLN-VLA/actions/runs/42490979601) success。
+- `8aacee03d2174cda01e912f0ba64fe57b50f6d06` — test: cover follower snapshots and shutdown ordering；ROS 2 run [42491035757](https://github.com/rexyll/VLN-VLA/actions/runs/42491035757) success。
+- `6256244d8087e71e4f3bc5e6bc43e7c8ac89f013` — test: import shutdown helper from module；Python run [42491063646](https://github.com/rexyll/VLN-VLA/actions/runs/42491063646) success；ROS 2 Jazzy run [42491063577](https://github.com/rexyll/VLN-VLA/actions/runs/42491063577) success，真实 executor 集成测试 8 项通过。
+
+**验证边界与后续：**
+- 当前生产 DrinkTask 仍是单一主任务线程持有 run_drink/home/hang；回调只入队，主循环通过 `spin_once` 驱动。`_set_state()` 与 `_tick()` 的状态广播仍依赖这一单线程所有权；未宣称可由多个 executor 线程并发调用。
+- `_shutdown_node()` 已建立当前单线程架构下 waiter → node 的销毁顺序；将来引入外部 executor 时，还必须先停止接收新任务、取消 waiter、shutdown executor、join executor 线程，再 remove/destroy node，最后 `rclpy.shutdown()`。当前尚未引入外部 executor。
+- P104-07 仍未完成：尚缺真实 Gazebo GraspCarry 插件 transport 故障注入与完整 ROS 2/Gazebo 事务 E2E。
