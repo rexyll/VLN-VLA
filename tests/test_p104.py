@@ -66,6 +66,24 @@ class TestP104(unittest.TestCase):
         self.assertFalse(M._segment_hits_aabb(
             (-1.0, 2.0, 0.5), (2.0, 2.0, 0.5), lo, hi, radius=0.05))
 
+    def test_oriented_palm_box_sat_detects_overlap_and_separation(self):
+        I = np.eye(3)
+        self.assertTrue(M._obb_hits_aabb(
+            (0.0, 0.0, 0.0), I, (0.10, 0.05, 0.04),
+            (0.08, -0.02, -0.02), (0.14, 0.02, 0.02), margin=0.0))
+        self.assertFalse(M._obb_hits_aabb(
+            (0.0, 0.0, 0.0), I, (0.10, 0.05, 0.04),
+            (0.20, -0.02, -0.02), (0.24, 0.02, 0.02), margin=0.0))
+
+        angle = np.deg2rad(45.0)
+        Rz = np.array([[np.cos(angle), -np.sin(angle), 0.0],
+                       [np.sin(angle), np.cos(angle), 0.0],
+                       [0.0, 0.0, 1.0]])
+        # Thin rotated palm: box near +y is outside its rotated narrow width.
+        self.assertFalse(M._obb_hits_aabb(
+            (0.0, 0.0, 0.0), Rz, (0.50, 0.05, 0.04),
+            (-0.05, 0.35, -0.03), (0.05, 0.45, 0.03), margin=0.0))
+
     def test_hang_recovery_has_three_ordered_human_motion_stages(self):
         q0 = K.Q_REST.copy()
         q0[3] = -0.85
