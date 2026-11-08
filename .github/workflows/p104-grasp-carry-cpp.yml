@@ -130,6 +130,21 @@ jobs:
 
           publish "joint cup water_joint 0.012 1700000000000000002"
           wait_ack "ok joint cup water_joint 1700000000000000002"
+
+          # Two independent transactions are submitted concurrently. Each must
+          # receive only its own request-ID ACK; neither may consume the other's.
+          publish "joint cup water_joint 0.006 1700000000000000006" &
+          JOINT_A_PID=$!
+          publish "joint cup water_joint 0.018 1700000000000000007" &
+          JOINT_B_PID=$!
+          wait "$JOINT_A_PID"
+          wait "$JOINT_B_PID"
+          wait_ack "ok joint cup water_joint 1700000000000000006"
+          wait_ack "ok joint cup water_joint 1700000000000000007"
+          count_a=$(grep -Fc "ok joint cup water_joint 1700000000000000006" /tmp/grasp-carry-acks.log || true)
+          count_b=$(grep -Fc "ok joint cup water_joint 1700000000000000007" /tmp/grasp-carry-acks.log || true)
+          test "$count_a" -eq 1
+          test "$count_b" -eq 1
           publish "release cup 1700000000000000003"
           wait_ack "ok release cup 1700000000000000003"
           publish "grab missing_model 0 0 0.5 0 0 0 1 1700000000000000004"
