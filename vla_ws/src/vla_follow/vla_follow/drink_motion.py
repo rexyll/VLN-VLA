@@ -576,15 +576,32 @@ def place_robot(node, T_goal, tol_mm=8.0, tries=3, settle=0.25):
     # 假性失败。这里把 yaw 一并卡进收敛判据。
     res = 9e9
     yaw_err = 9e9
+    ack_ok = False
     for _ in range(max(1, tries) * 2):
-        node.carry.place('robot', T_goal)
+        ack_ok = bool(node.carry.place('robot', T_goal))
+        if not ack_ok:
+            node.get_logger().error(
+                'PLACE_ROBOT 无 ACK，停止重试并拒绝继续桌边动作')
+            break
         settle_sim(node, settle)
-        res = pos_err_mm(object_pose(node, 'robot'), T_goal)
-        yaw_err = abs(yaw_err_of(object_pose(node, 'robot'), T_goal))
+        T_now = object_pose(node, 'robot')
+        if T_now is None:
+            node.get_logger().error('PLACE_ROBOT 收到 ACK 但缺少 robot 真值位姿')
+            ack_ok = False
+            break
+        res = pos_err_mm(T_now, T_goal)
+        yaw_err = abs(yaw_err_of(T_now, T_goal))
         if res < tol_mm and yaw_err < math.radians(2.0):
             break
     node.sync_base_from_truth(quiet=True)
-    return res
+    if not ack_ok or res >= tol_mm or yaw_err >= math.radians(2.0):
+        node.get_logger().error(
+            'PLACE_ROBOT 未收敛: ack=%s position=%.1fmm yaw=%.2f° '
+            '(limits %.1fmm/2.00°)'
+            % (ack_ok, res, math.degrees(yaw_err), tol_mm))
+        # 保留历史返回“残差mm”的接口；失败时保证严格大于调用方 tol_mm。
+        return max(float(res), float(tol_mm) + 1.0)
+    return float(res)
 
 
 def yaw_err_of(T_obj, T_goal):
@@ -1432,8 +1449,18 @@ def pour_approach(node, v_max=0.16, info=None):
     d0 = table_gap_m(node)
     # 一律摆到待入场位: 不论车从哪儿来, 每次的入场几何都一致(验收可复现),
     # 而且"停下 → 抬臂 → 开进去"这段动作每次都看得见。
-    place_robot(node, T_stand)
-    node.home()                       # 在远处复位(臂 Q_REST、十指张开、水流归零)
+    stand_mm = place_robot(node, T_stand)
+    if stand_mm >= 8.0:
+        out.update(ok=False, reason='stand_pose_not_confirmed',
+                   stand_mm=round(float(stand_mm), 1))
+        node.get_logger().error(
+            'POUR 入场无法确认远端待命位（%.1fmm），不执行 home/抬臂' % stand_mm)
+        return out
+    home_ok = node.home()            # 在远处复位(臂 Q_REST、十指张开、水流归零)
+    if not home_ok:
+        out.update(ok=False, reason='home_failed')
+        node.get_logger().error('POUR 入场 home 复位失败，停止抬臂')
+        return out
     out['gap_before'] = round(table_gap_m(node), 3)
     out['gap_at_arrival'] = round(d0, 3)
     out['reach_m'] = K.ARM_REACH
@@ -1450,9 +1477,16 @@ def pour_approach(node, v_max=0.16, info=None):
     # 所以在服务位上方再摆正一次(几厘米的瞬移, 画面上看不出来)。
     snap = place_robot(node, K.frame(K.rot_z(0.0),
                                      (L.SERVE_POSE[0], L.SERVE_POSE[1], 0.0)))
+    snap_ok = bool(snap < 8.0)
     out.update(gap_after=round(table_gap_m(node), 3),
                drive_mm=round(res_d, 1), snap_mm=round(snap, 1),
-               ok=bool(ok_l and ok_d))
+               snap_ok=snap_ok, home_ok=bool(home_ok),
+               ok=bool(ok_l and ok_d and snap_ok and home_ok))
+    if not out['ok']:
+        out['reason'] = ('lift_ready_failed' if not ok_l else
+                         'drive_to_service_failed' if not ok_d else
+                         'service_pose_snap_failed')
+        node.get_logger().error('POUR 入场未完成: %s' % out['reason'])
     if info is not None:
         info.update(out)
     return out
@@ -1479,6 +1513,10 @@ def prepare_present(node, fill=0.65, verbose=True):
             'PREPARE 入场未通过（抬臂/驶入未确认），中止桌边操作，避免带着异常姿态伸手')
         return out
     Tk_home = object_pose(node, 'kettle')
+    if Tk_home is None:
+        out['reason'] = 'kettle_pose_missing'
+        node.get_logger().error('PREPARE 缺少水壶真值位姿，停止倒水')
+        return out
     pour = pour_into_cup(node, fill=fill)
     out.update(pour)
     if not pour['ok']:
@@ -1493,9 +1531,21 @@ def prepare_present(node, fill=0.65, verbose=True):
         node.get_logger().error(
             'PREPARE 水壶未确认落稳，保持抓持并中止后续动作')
         return out
-    node.arm['R'].move(K.Q_REST, timeout=10.0)
+    ok_r_home, err_r_home = node.arm['R'].move(K.Q_REST, timeout=10.0)
+    if not ok_r_home:
+        out['reason'] = 'right_arm_home_failed'
+        node.get_logger().error(
+            'PREPARE 右臂回 Q_REST 超时(最大误差 %.1f°)，保持杯子抓持并中止'
+            % math.degrees(float(np.nanmax(np.abs(err_r_home)))))
+        return out
     node.spin_for(0.4)
-    place_robot(node, T_serve)
+    serve_mm = place_robot(node, T_serve)
+    if serve_mm >= 8.0:
+        out['reason'] = 'service_pose_reset_failed'
+        node.get_logger().error(
+            'PREPARE 服务位底盘摆正失败 %.1fmm，保持杯子抓持并中止'
+            % serve_mm)
+        return out
     bx, by, byaw = node.base
     Tcup_carry = P.cup_in_base(bx, by, byaw, L.CUP_CARRY_R, L.CUP_CARRY_Z)
     # P101: 捧杯/贴手都走"肘朝外"解 —— 抱着杯子时肘得像人一样架在体侧,
@@ -1534,9 +1584,14 @@ def prepare_present(node, fill=0.65, verbose=True):
     # (**朝向保留**), 让 base 与人手点严格落在同一条射线上。
     T_face = K.frame(K.rot_z(yaw_face),
                      (L.SERVE_POSE[0], L.SERVE_POSE[1], 0.0))
-    place_robot(node, T_face)
-    out.update({'ok': bool(ok_d and ok_c and off_r is not None and ok_t),
+    face_mm = place_robot(node, T_face)
+    face_ok = bool(face_mm < 8.0)
+    out.update({'ok': bool(ok_d and ok_c and off_r is not None and ok_t
+                            and face_ok),
                 'turn_ok': ok_t, 'turn_err': err_t,
+                'service_reset_mm': round(serve_mm, 1),
+                'face_reset_mm': round(face_mm, 1),
+                'face_reset_ok': face_ok,
                 'kettle_home': Tk_home,
                 'cup': object_pose(node, 'cup'),
                 'off_r': off_r})
