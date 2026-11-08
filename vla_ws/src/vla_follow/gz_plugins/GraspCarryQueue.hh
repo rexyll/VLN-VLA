@@ -31,13 +31,13 @@ public:
                          CoalesceMatch coalesceMatch,
                          DuplicateMatch duplicateMatch)
   {
-    for (auto it = pending_.rbegin(); it != pending_.rend(); ++it)
+    // Only coalesce with the queue tail. Looking past another command can move
+    // a later set/place update ahead of an intervening transaction (joint,
+    // grab, or release) for the same model and violate FIFO semantics.
+    if (!pending_.empty() && coalesceMatch(pending_.back(), command))
     {
-      if (coalesceMatch(*it, command))
-      {
-        *it = std::forward<Command>(command);
-        return QueueInsertResult::Coalesced;
-      }
+      pending_.back() = std::forward<Command>(command);
+      return QueueInsertResult::Coalesced;
     }
 
     for (const auto &queued : pending_)
