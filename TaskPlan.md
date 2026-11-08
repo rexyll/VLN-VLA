@@ -1496,3 +1496,17 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 
 - **本轮复核（main HEAD `d2937ab35469d3559b7bb12bcce6e335ab4a4d17`）：** C++ run `42461180193` 的 Configure / Compile / `ldd -r` 三个步骤均为 success；Python run `42461188997` 的模块编译与纯测试两个 job 均为 success。由此关闭“插件从未经过目标环境 C++ 编译”的缺口，但不把编译成功等同于插件运行时正确。
 - **下一步：** 为 GraspCarry 有界 FIFO、同 request_id 去重、set coalesce、队列满载拒绝 ACK、release/joint 命令顺序建立可执行协议测试；随后再做真实 Gazebo 并发与暂停/恢复故障注入。P104-07/P104-08/P104-09 仍保持“正在进行中”。
+
+### 8.13 将 GraspCarry 有界命令队列抽离并建立独立 C++ 协议测试（2026-11-08）
+
+**本轮改动：**
+- 新增 `vla_ws/src/vla_follow/gz_plugins/GraspCarryQueue.hh`，将有界 FIFO 容器及插入结果（Enqueued / Coalesced / Duplicate / Full）抽离为可独立测试的模板；线程安全仍由插件调用方的同一把 mutex 保证。
+- `GraspCarry.cc` 改为使用 `BoundedCommandQueue<Cmd>{128}`，保持既有策略：同模型无 ACK 的 `set` / `place` 流合并、同 `op/model/joint/request_id` 事务去重、满载时返回 queue-full 拒绝 ACK、每个 PreUpdate 最多消费一条。
+- 新增 `tests/test_grasp_carry_queue.cc`，覆盖 5 组场景：128 容量 FIFO 与满载、set 合并且保留队列位置、request_id 全身份去重、队列满载时合并/去重优先于拒绝、按模型和操作隔离流。
+- `.github/workflows/p104-grasp-carry-cpp.yml` 新增独立 C++ 测试编译与执行步骤（C++17、`-Wall -Wextra -Werror`），与 Gazebo 插件构建和 `ldd -r` 验证同一工作流。
+
+**当前验证状态：**
+- 测试代码和 CI 步骤已提交到 `main`；截至本次记录，最新 C++ 工作流 run `42462978351` 正在安装依赖，尚未进入插件编译或队列测试步骤，因此**不能将 5/5 测试记为通过**。
+- 较早的 run `42462975925` 和 `42462920916` 分别对应队列实现/头文件提交时的中间状态，不作为最终验收依据。
+- 队列测试仅验证容器层的 FIFO、合并、去重与容量策略；插件 ACK 的真实发送时序、Gazebo ECM 操作、仿真暂停/恢复及 ROS/Gazebo 并发故障注入仍待集成验证。
+- P104-07/P104-08/P104-09 继续保持“正在进行中”。下一步先核验 run `42462978351` 的完整结果；若通过，再增加插件级 ACK 拒绝/迟到/重复及暂停恢复测试。
