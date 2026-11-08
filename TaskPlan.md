@@ -1708,7 +1708,7 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 
 **新增集成步骤：**
 - 在专用 `grasp_carry_test` world 中启用 Gazebo `UserCommands` 服务。
-- 通过 world control 暂停仿真，使 `PreUpdate` 不消费命令。
+- 通过 world control 暂停专用测试 world，使 `PreUpdate` 不消费命令；该服务仅用于测试夹具冻结仿真，不改变机器人生产控制仍经 ROS 2 → ros_gz_bridge → Gazebo 的架构约束。
 - 向插件快速发送 160 条具有不同 request_id 的事务命令，超过 128 条队列容量。
 - 要求插件至少返回一条 `queue-full` 拒绝 ACK；验证真实插件 Enqueue 满载分支和 ACK 文本，而不仅是队列模板返回值。
 
