@@ -22,7 +22,9 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "vla_ws", "src", "vla_follow"))
 
 from vla_follow.carry import ACK_TOPIC, CarryBus  # noqa: E402
-from vla_follow.drink_task import CmdBus, DrinkTask  # noqa: E402
+from vla_follow.drink_task import (  # noqa: E402
+    CmdBus, DrinkTask, _shutdown_node)
+
 
 
 class TestCarryRos2Executor(unittest.TestCase):
@@ -52,7 +54,7 @@ class TestCarryRos2Executor(unittest.TestCase):
             def destroy_node(self):
                 events.append("destroy_node")
 
-        DrinkTask._shutdown_node(FakeNode())
+        _shutdown_node(FakeNode())
         self.assertEqual(events, ["cancel_waiters", "destroy_node"])
 
     def test_shutdown_destroys_node_even_if_waiter_cancel_raises(self):
@@ -70,7 +72,7 @@ class TestCarryRos2Executor(unittest.TestCase):
                 events.append("destroy_node")
 
         with self.assertRaisesRegex(RuntimeError, "cancel failed"):
-            DrinkTask._shutdown_node(FakeNode())
+            _shutdown_node(FakeNode())
         self.assertEqual(events, ["cancel_waiters", "destroy_node"])
 
     def test_drink_task_pending_action_claim_is_atomic(self):
