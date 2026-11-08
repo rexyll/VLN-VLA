@@ -1740,28 +1740,50 @@ def person_hand_world(node, T_person, link='person_arms', local_off=None):
     return T
 
 
+def person_hand_gap_expected_mm(openness):
+    """由双臂外展关节目标幅度估算双手心目标间距（端点标定：闭合184/张开345mm）。"""
+    close = float(L.PERSON_HAND_CLOSE)
+    open_ = float(L.PERSON_HAND_OPEN)
+    span = open_ - close
+    if abs(span) < 1e-9:
+        return 184.0
+    ratio = max(0.0, min(1.0, (float(openness) - close) / span))
+    return 184.0 + ratio * (345.0 - 184.0)
+
+
+def person_hand_gap_ok(gap_mm, openness, tolerance_mm=45.0):
+    """使用 Gazebo 真值手心间距验证人物双手确已到达张开/合拢目标。"""
+    if gap_mm is None:
+        return False
+    try:
+        gap = float(gap_mm)
+        target = person_hand_gap_expected_mm(openness)
+        tolerance = float(tolerance_mm)
+    except (TypeError, ValueError):
+        return False
+    return (math.isfinite(gap) and math.isfinite(target)
+            and math.isfinite(tolerance) and gap >= 0.0
+            and tolerance >= 0.0 and abs(gap - target) <= tolerance)
+
+
 def person_hands(node, openness, dur=0.6, dt=0.05, tag=''):
-    """人的两只手开合（斜坡，别瞬移）。
-
-    P96：人的两条手臂各有自己的外展关节（绕肩点的竖直轴）。`openness` 是
-    **幅度**，两侧发**反号**值 —— 两条关节的轴在 SDF 里都写 (0,0,1)，
-    不反号就会变成"左手张开、右手更合拢"（§6.4 #60）。
-
-    为什么走斜坡：位置指令是跳变的，直接给终点画面上就是手"啪"地弹开，
-    而杯子还在机器人手里 —— 看上去像手被电了一下。0.6s 走完 0.385rad，
-    单关节角速度 0.64rad/s，远在 JPC 的 cmd_max(2.0) 之下。
-    """
+    """人的双手斜坡开合，并通过 Gazebo 真值手心间距验收到位。"""
     cur = float(node.bus.val.get('person_arm_l_joint', 0.0))
     n = max(1, int(dur / max(dt, 1e-3)))
     for i in range(1, n + 1):
         v = cur + (float(openness) - cur) * float(i) / n
         node.bus.set(['person_arm_l_joint', 'person_arm_r_joint'], [v, -v])
         node.spin_for(dt)
-    node.spin_for(0.25)          # 让 JPC 把最后一段走完再返回
+    node.spin_for(0.25)          # 让 JPC 把最后一段走完再读真值
+    gap = hand_gap_mm(node)
+    target = person_hand_gap_expected_mm(openness)
+    ok = person_hand_gap_ok(gap, openness)
     node.get_logger().info(
-        '双手%s: 幅度 %.3f rad (左 %+.3f / 右 %+.3f)'
-        % (tag, openness, openness, -openness))
-    return True
+        '双手%s: 命令幅度 %.3f rad, 真值手心距 %s mm / 目标 %.1f±45mm %s'
+        % (tag, openness,
+           '缺失' if gap is None else '%.1f' % gap,
+           target, '到位' if ok else '未到位'))
+    return bool(ok)
 
 
 def person_hand_poses(node, T_person=None):
