@@ -73,7 +73,6 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
-#include <deque>
 #include <map>
 #include <mutex>
 #include <sstream>
@@ -93,6 +92,8 @@
 #include <gz/sim/components/Model.hh>
 #include <gz/sim/components/Name.hh>
 #include <gz/transport/Node.hh>
+
+#include "GraspCarryQueue.hh"
 
 namespace vla
 {
@@ -148,12 +149,7 @@ public:
     bool hasNext = false;
     {
       std::lock_guard<std::mutex> lk(this->mtx);
-      if (!this->pending.empty())
-      {
-        next = std::move(this->pending.front());
-        this->pending.pop_front();
-        hasNext = true;
-      }
+      hasNext = this->pending.Pop(next);
     }
     if (hasNext)
       this->Apply(next, _ecm);
@@ -270,30 +266,29 @@ private:
   void Enqueue(Cmd &&_c)
   {
     std::lock_guard<std::mutex> lk(this->mtx);
-    // 高频无 ACK 位姿流只保留同一对象的最新值。
-    if (_c.op == "set" || (_c.op == "place" && _c.requestId == 0))
-    {
-      for (auto it = this->pending.rbegin(); it != this->pending.rend(); ++it)
-      {
-        if (it->op == _c.op && it->model == _c.model && it->requestId == 0)
+    const auto result = this->pending.Push(
+        std::move(_c),
+        [](const Cmd &queued, const Cmd &incoming)
         {
-          *it = std::move(_c);
-          return;
-        }
-      }
-    }
-    // 相同 request_id 的重发只入队一次，执行后的 ACK 满足所有重试。
-    if (_c.requestId != 0)
-    {
-      for (const auto &queued : this->pending)
-      {
-        if (queued.op == _c.op && queued.model == _c.model &&
-            queued.joint == _c.joint && queued.requestId == _c.requestId)
-          return;
-      }
-    }
-    constexpr size_t kMaxPending = 128;
-    if (this->pending.size() >= kMaxPending)
+          // 高频无 ACK 位姿流只保留同一对象的最新值。
+          const bool stream = incoming.op == "set" ||
+                              (incoming.op == "place" &&
+                               incoming.requestId == 0);
+          return stream && queued.op == incoming.op &&
+                 queued.model == incoming.model &&
+                 queued.requestId == 0;
+        },
+        [](const Cmd &queued, const Cmd &incoming)
+        {
+          // 相同 request_id 的重发只入队一次，执行后的 ACK 满足所有重试。
+          return incoming.requestId != 0 &&
+                 queued.op == incoming.op &&
+                 queued.model == incoming.model &&
+                 queued.joint == incoming.joint &&
+                 queued.requestId == incoming.requestId;
+        });
+
+    if (result == QueueInsertResult::Full)
     {
       std::string failure;
       if (_c.op == "release")
@@ -309,9 +304,7 @@ private:
         this->SendAck(failure);
       gzerr << "[GraspCarry] 命令队列已满，拒绝 " << _c.op
             << " " << _c.model << std::endl;
-      return;
     }
-    this->pending.push_back(std::move(_c));
   }
 
   /// \brief 仿真线程: 执行一条指令
@@ -415,7 +408,7 @@ private:
   gz::transport::Node node;
   gz::transport::Node::Publisher ackPub;
   std::mutex mtx;
-  std::deque<Cmd> pending;
+  BoundedCommandQueue<Cmd> pending{128};
   std::map<std::string, Target> targets;
   // 踩坑记录(P87): jet/water 是**速度模式** JointPositionController, 所属模型
   // 被本插件每 1ms teleport 时, 速度指令会被 teleport 的清零抢走 —— 同一命令
