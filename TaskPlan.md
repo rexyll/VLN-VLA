@@ -2084,3 +2084,11 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
   - `11e039d905c1f4467e8ba9d471d386b823c86c97` — `fix: preserve legacy CarryBus waiter fixtures`
   - `fc277e1fd3ab056640a93b876da829fb64b5c55b` — `test: allow bounded CarryBus timeout retransmits`
 - 验证边界：修复后的 Python 与 ROS 2 Jazzy CI 尚待本次提交触发的 workflow 完成；在两条 workflow 均成功前，不将 executor-managed 事务等待标记为验收通过。
+
+
+### 8.46 CarryBus 旧测试夹具兼容性补充（2026-11-08）
+
+- 对 §8.45 的首轮兼容修复复查 CI 日志后发现：除 ACK callback 和等待分支外，`_await()` 的 `finally` 清理路径仍直接访问 `_ack_events`，且一个等待分支仍直接读取 `executor_managed`。因此历史 `object.__new__` 测试夹具仍报属性缺失。
+- 已将所有模式判断统一改为缺省关闭的兼容读取，并让 finally 清理对缺失事件字典安全退化；正常 `CarryBus.__init__` 实例仍使用独立 Event map。
+- 修复提交：`0068672691852774d89ec677b1fcfce7e3bf5446`（`fix: default missing executor waiter state safely`）。
+- 当前验证：该提交触发的 Python 与 ROS 2 Jazzy workflow 尚待结束；P104-07 继续保持未完成。
