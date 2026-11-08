@@ -647,7 +647,13 @@ class DrinkTask(Node):
             #    画面上是"机器人放手了而人还没接住"。
             #    P94/P96: 顺带把"递杯补位 + 双手开合"的过程数据播出去
             #    (只读验收脚本要用; 这些都是真值测量, 不是回读指令)
-            M.person_hands(self, L.PERSON_HAND_CLOSE, dur=0.8, tag='合拢捧杯')
+            ok_person_grip = M.person_hands(
+                self, L.PERSON_HAND_CLOSE, dur=0.8, tag='合拢捧杯')
+            if not ok_person_grip:
+                self._set_state('FAIL_PERSON_GRIP')
+                self.get_logger().error(
+                    'DRINK 人手未确认合拢；不执行机器人交接')
+                return False
             res['hands']['close_gap_mm'] = M.hand_gap_mm(self)
             # P96: **交接前**的手-杯间距是"递杯精度"(和 P94 的 d_hand 同一个
             # 东西), **交接后**的才是"两只手捧没捧在杯壁上"。混在一起量的话,
@@ -689,10 +695,22 @@ class DrinkTask(Node):
             _elb = self._elbow_report('递杯')
             if _elb:
                 res['elbows'] = _elb
-            M.open_hand(self, 'L')
-            M.open_hand(self, 'R')
-            self.arm['L'].move(K.Q_REST, timeout=10.0)
-            self.arm['R'].move(K.Q_REST, timeout=10.0)
+            open_l, _ = M.open_hand(self, 'L')
+            open_r, _ = M.open_hand(self, 'R')
+            if not (open_l and open_r):
+                self._set_state('FAIL_ROBOT_RELEASE_HANDS')
+                self.get_logger().error(
+                    'DRINK 杯已交给人手，但机器人张手未全部确认；'
+                    '停止喝水阶段，避免双方仍有手部接触')
+                return False
+            rest_l, _ = self.arm['L'].move(K.Q_REST, timeout=10.0)
+            rest_r, _ = self.arm['R'].move(K.Q_REST, timeout=10.0)
+            if not (rest_l and rest_r):
+                self._set_state('FAIL_ROBOT_WITHDRAW')
+                self.get_logger().error(
+                    'DRINK 机器人空手回到 Q_REST 未全部确认；'
+                    '不向人发送 DRINK_READY')
+                return False
             self.spin_for(0.6)
             self._tell_person('DRINK_READY')
             # 4) 人喝水: 举杯 → 停一会儿 → 放下
@@ -708,6 +726,11 @@ class DrinkTask(Node):
             # 5) 双手接回(左手主手 grab, 右手贴上去 —— §6.4 #44)
             self._set_state('TAKE_BACK')
             Tcup = M.object_pose(self, 'cup')
+            if Tcup is None:
+                self._set_state('FAIL_TAKE_BACK')
+                self.get_logger().error(
+                    'DRINK 接回阶段缺少水杯真值位姿；不下发接近动作')
+                return False
             _okr, rr_r, _ = M.reach(self, 'R', P.cup_cradle_palm(Tcup, 'R'),
                                     tol_mm=5.0)
             _okl, rr_l, _ = M.reach(self, 'L', P.cup_cradle_palm(Tcup, 'L'),
@@ -732,7 +755,13 @@ class DrinkTask(Node):
             # P96: **人先双手张开 → 机器人才把杯子端走**。顺序不能反 ——
             # 手还合着就端走, 画面上是杯子从两只手里被硬拔出来; 这和松手那套
             # "张手 → 对位 → 松钉 → 撤手"是同一个道理, 只是主体换成了人。
-            M.person_hands(self, L.PERSON_HAND_OPEN, dur=0.8, tag='张开交还')
+            ok_person_open = M.person_hands(
+                self, L.PERSON_HAND_OPEN, dur=0.8, tag='张开交还')
+            if not ok_person_open:
+                self._set_state('FAIL_PERSON_RELEASE')
+                self.get_logger().error(
+                    'DRINK 人手未确认张开；机器人保持持杯，不执行撤手/放回')
+                return False
             _hg = M.hands_to_cup_mm(self)
             if _hg is not None:
                 res['hands'].update(give_l_mm=round(_hg[0], 1),
@@ -750,7 +779,13 @@ class DrinkTask(Node):
                     'DRINK 接回后右手未能贴合杯子；保持左手持杯，不开始放回')
                 return False
             # 交完就收手(空手自然垂着时是合着的), 免得人一路张着手走回去
-            M.person_hands(self, L.PERSON_HAND_CLOSE, dur=0.6, tag='交还后收手')
+            ok_person_close = M.person_hands(
+                self, L.PERSON_HAND_CLOSE, dur=0.6, tag='交还后收手')
+            if not ok_person_close:
+                self._set_state('FAIL_PERSON_HAND_RESET')
+                self.get_logger().error(
+                    'DRINK 人手复位失败；机器人保持杯子抓持，不开始放回')
+                return False
             self.spin_for(0.5)
             self._tell_person('DRINK_DONE')
             # 6) 转回桌前 → 放回原位
@@ -770,6 +805,11 @@ class DrinkTask(Node):
             # (0.56m) 还近; `put_down` 是对**物体真值**闭环的, 与底盘在哪无关。
             # 转身造成的 3~7cm 平移漂移也由这条闭环吸收。
             Tcup_home = P.cup_on_table()
+            if M.object_pose(self, 'cup') is None:
+                self._set_state('FAIL_PUT_BACK')
+                self.get_logger().error(
+                    'DRINK 放回阶段缺少水杯真值位姿；保持抓持，不执行放杯')
+                return False
             self.get_logger().info(
                 'PUT_BACK 目标=%s 当前=%s (base=%s)'
                 % (np.round(Tcup_home[:3, 3], 3),
