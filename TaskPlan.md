@@ -1889,3 +1889,22 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 **修复：** 将全部既有无 joint 命令夹具统一为 op/model/requestId/空 joint；新 joint 事务统一为 op/model/requestId/joint。修复提交 ff437d1。
 
 **验证边界：** 等待 ff437d1 触发的 C++ workflow。此前 42477568464 编译失败，且 42477568464 之后未修复的中间提交不能计为通过。P104-07 仍进行中。
+
+
+### 8.35 在真实 Gazebo Transport 中验证 queue-full 终态 ACK 的同 ID 重放（2026-11-08）
+
+**本轮推进 P104-07：** §8.34 已核实队列满载时的拒绝 ACK 在共享原语单测中会写入完成缓存，但仍缺真实 Gazebo Transport 重发同一 request_id 的运行时证据。本轮扩展 `.github/workflows/p104-grasp-carry-cpp.yml` 的 headless Gazebo 场景：
+
+- 暂停 world 并洪泛 160 条唯一 joint 事务，等待第 129 条（request_id `1700000000000000329`）收到真实 `queue-full` 拒绝 ACK。
+- 在仿真仍暂停、队列仍满的状态下，原样重发第 129 条命令及相同 request_id。
+- 要求该 request_id 收到第二条相同拒绝 ACK，且随后恢复 physics 后仍只保留两条拒绝 ACK；其余第 130~160 条各恰好一条拒绝 ACK。
+- 继续逐项验证前 128 条已接受事务各恰好一条成功 ACK，且成功 ACK 顺序严格 FIFO。
+
+**提交：**
+- 首次加入 transport 重发步骤：`5f195c1`。
+- 补齐最终拒绝 ACK 计数断言：`ccababca`。
+
+**验证边界：**
+- 本次提交触发的 C++/Gazebo workflow 尚待执行结果；在 headless Gazebo 步骤成功前，不得将该运行时重放测试标记为通过。
+- 此项仍不覆盖 ROS 2 CarryBus 与 Gazebo 同进程联调、多线程 executor 压力、迟到 ACK 的真实 transport 时序或完整双臂倒水递水 E2E。
+- P104-07 继续“正在进行中”；P104-08/P104-09 及动态碰撞验证仍按原计划推进。
