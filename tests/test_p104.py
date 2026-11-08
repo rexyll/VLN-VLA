@@ -181,6 +181,13 @@ class TestP104(unittest.TestCase):
         self.assertEqual(rotation.shape, (3, 3))
         np.testing.assert_allclose(half, 0.5 * np.asarray(K.PALM_SIZE))
 
+    def test_base_pose_confirmation_rejects_nonfinite_or_out_of_tolerance(self):
+        self.assertTrue(M.base_pose_converged(2.0, 0.01, 8.0))
+        self.assertFalse(M.base_pose_converged(8.0, 0.01, 8.0))
+        self.assertFalse(M.base_pose_converged(2.0, np.nan, 8.0))
+        self.assertFalse(M.base_pose_converged(np.inf, 0.01, 8.0))
+        self.assertFalse(M.base_pose_converged(None, 0.01, 8.0))
+
     def test_segment_aabb_guard_detects_crossing_and_clear_path(self):
         lo = (0.0, 0.0, 0.0)
         hi = (1.0, 1.0, 1.0)
