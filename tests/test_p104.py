@@ -546,8 +546,8 @@ class TestP104(unittest.TestCase):
         np.testing.assert_allclose(sent[0][2], object_pose, atol=1e-9)
 
         # Subsequent host motion is transferred rigidly using the frozen offset.
-        host_pose = K.trans((0.7, 0.05, 1.0)) @ K.rot(
-            (0.0, 0.0, 1.0), 0.35)
+        host_pose = K.trans((0.7, 0.05, 1.0)) @ K.frame(
+            K.rot((0.0, 0.0, 1.0), 0.35))
         bus.update()
         np.testing.assert_allclose(
             sent[-1][2], host_pose @ offset, atol=1e-9)
