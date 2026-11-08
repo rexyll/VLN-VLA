@@ -605,7 +605,16 @@ class DrinkTask(Node):
             if 'cup' in self.carry.items:
                 pass                      # 手里还端着杯子: 让它自然保持
             else:
-                self.carry.joint_ramp('cup', 'water_joint', 0.0, dur=0.4)
+                water_zero_ok = self.carry.joint_ramp(
+                    'cup', 'water_joint', 0.0, dur=0.4)
+                if not water_zero_ok:
+                    water_zero_ok = self.carry.joint(
+                        'cup', 'water_joint', 0.0)
+                if not water_zero_ok:
+                    self._set_state('FAIL_WATER_RESET')
+                    self.get_logger().error(
+                        'DRINK 水位归零命令无 ACK，拒绝开始新一轮倒水')
+                    return False
                 self.liquid.reset_cycle()   # P98: 杯内水量记账同步清零
             # 1) 倒水 + 捧杯 + 原地转身面向人
             self._set_state('PREPARE')
