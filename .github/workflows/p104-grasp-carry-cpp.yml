@@ -189,3 +189,21 @@ jobs:
           done
           overflow_count=$(grep -Fc "queue-full" /tmp/grasp-carry-acks.log || true)
           test "$overflow_count" -ge 1
+
+          # Resume physics and require every accepted transaction to drain
+          # exactly once in FIFO order. The first 128 requests were accepted;
+          # requests 129..160 must have been rejected while paused.
+          timeout 5s gz service \
+            -s /world/grasp_carry_test/control \
+            --reqtype gz.msgs.WorldControl \
+            --reptype gz.msgs.Boolean \
+            --timeout 1000 --req 'pause: false'
+          wait_ack "ok joint cup water_joint 1700000000000000328"
+          for i in $(seq 1 128); do
+            request_id=$((1700000000000000200 + i))
+            ack_count=$(grep -Fc "ok joint cup water_joint $request_id" /tmp/grasp-carry-acks.log || true)
+            test "$ack_count" -eq 1
+          done
+          first_ack_line=$(grep -nF "ok joint cup water_joint 1700000000000000201" /tmp/grasp-carry-acks.log | tail -n1 | cut -d: -f1)
+          last_ack_line=$(grep -nF "ok joint cup water_joint 1700000000000000328" /tmp/grasp-carry-acks.log | tail -n1 | cut -d: -f1)
+          test "$first_ack_line" -lt "$last_ack_line"
