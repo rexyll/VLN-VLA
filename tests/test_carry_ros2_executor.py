@@ -26,6 +26,41 @@ from vla_follow.drink_task import CmdBus, DrinkTask  # noqa: E402
 
 
 class TestCarryRos2Executor(unittest.TestCase):
+    def test_drink_task_pending_action_claim_is_atomic(self):
+        state = SimpleNamespace(
+            _task_lock=threading.RLock(),
+            _busy=False,
+            _want_drink=True,
+            _want_home=True,
+            _want_hang=False)
+        start = threading.Barrier(3)
+        claimed = []
+        errors = []
+
+        def claim():
+            try:
+                start.wait(timeout=3.0)
+                claimed.append(DrinkTask._take_pending_action(state))
+            except Exception as exc:
+                errors.append(exc)
+
+        workers = [threading.Thread(target=claim) for _ in range(2)]
+        for worker in workers:
+            worker.start()
+        start.wait(timeout=3.0)
+        for worker in workers:
+            worker.join(timeout=3.0)
+            self.assertFalse(worker.is_alive(),
+                             "pending action claim worker did not finish")
+        self.assertFalse(errors, "pending action claim errors: %r" % errors)
+        self.assertEqual(claimed.count("drink"), 1)
+        self.assertEqual(claimed.count(None), 1)
+        self.assertTrue(state._busy)
+        self.assertFalse(state._want_drink)
+        self.assertTrue(state._want_home)
+        DrinkTask._finish_pending_action(state)
+        self.assertFalse(state._busy)
+
     def test_drink_task_joint_callback_publishes_coherent_snapshots(self):
         state = SimpleNamespace(js={})
         errors = []
