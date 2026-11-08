@@ -438,6 +438,32 @@ class TestP104(unittest.TestCase):
             'Msg', (), {'data': 'ok joint cup water_joint 401'})())
         self.assertNotIn(401, bus.ack_by_request)
 
+    def test_carry_late_ack_cannot_complete_a_different_pending_request(self):
+        class Node:
+            def create_publisher(self, *_args):
+                return object()
+            def create_subscription(self, *_args):
+                return object()
+
+        bus = C.CarryBus(Node())
+        expired_request_id = 7001
+        active_request_id = 7002
+        bus.pending_requests.add(active_request_id)
+
+        # A delayed success for the expired transaction arrives while a newer
+        # transaction is pending. It must remain diagnostic-only.
+        bus._on_ack(type(
+            'Msg', (), {
+                'data': 'ok joint cup water_joint %d' % expired_request_id
+            })())
+        self.assertNotIn(expired_request_id, bus.ack_by_request)
+        self.assertNotIn(active_request_id, bus.ack_by_request)
+
+        # Only the ACK carrying the currently pending identity may complete it.
+        expected = 'ok joint cup water_joint %d' % active_request_id
+        bus._on_ack(type('Msg', (), {'data': expected})())
+        self.assertEqual(bus.ack_by_request.get(active_request_id), expected)
+
     def test_carry_ack_callback_is_safe_under_concurrent_executor_threads(self):
         class Node:
             def create_publisher(self, *_args):
