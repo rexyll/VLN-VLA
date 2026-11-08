@@ -125,7 +125,7 @@ class CarryBus(object):
                 # the first observed result (notably queue-full is terminal).
                 if request_id not in self.ack_by_request:
                     self.ack_by_request[request_id] = msg.data
-                event = self._ack_events.get(request_id)
+                event = getattr(self, '_ack_events', {}).get(request_id)
                 if event is not None:
                     event.set()
 
@@ -154,7 +154,7 @@ class CarryBus(object):
         ack_event = threading.Event()
         with self._ack_lock:
             self.pending_requests.add(request_id)
-            if self.executor_managed:
+            if getattr(self, 'executor_managed', False):
                 self._ack_events[request_id] = ack_event
         try:
             while time.monotonic() < deadline:
