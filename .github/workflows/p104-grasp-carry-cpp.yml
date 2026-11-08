@@ -247,8 +247,11 @@ jobs:
           GZ_SIM_SYSTEM_PLUGIN_PATH: ${{ github.workspace }}/vla_ws/src/vla_follow/gz_plugins/build
         shell: bash
         run: |
-          set -euo pipefail
+          # ROS setup scripts reference optional environment variables; source
+          # before enabling nounset, then keep strict mode for the test itself.
+          set -eo pipefail
           source /opt/ros/jazzy/setup.bash
+          set -u
           cat > /tmp/grasp-carry-ros-bridge.yml <<'YAML'
           - ros_topic_name: "/drink/carry"
             gz_topic_name: "/drink/carry"
