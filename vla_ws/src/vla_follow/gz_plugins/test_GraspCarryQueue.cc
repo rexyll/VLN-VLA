@@ -78,6 +78,13 @@ void TestCapacityAndAckReplayCache()
   cache.Remember("joint|cup|water_joint|3", "ok joint cup water_joint 3");
   CHECK(!cache.Find("grab|cup||1", ack));
   CHECK(cache.Find("release|all||2", ack));
+
+  // Queue-full is a terminal transaction result: a retry must replay the
+  // rejection even after queue capacity becomes available.
+  const std::string rejectedKey = "joint|cup|water_joint|77";
+  cache.Remember(rejectedKey, "fail joint cup water_joint 77 queue-full");
+  CHECK(cache.Find(rejectedKey, ack));
+  CHECK(ack == "fail joint cup water_joint 77 queue-full");
 }
 
 void TestInflightRegistryLifecycle()
