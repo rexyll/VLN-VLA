@@ -1185,7 +1185,23 @@ def hang_natural(node, side, fold=None, info=None, stages=(1, 2, 3),
         out['stages_done'].append(stage)
 
     if 3 in stages:
-        # 路点最终点本身即 Q_HANG；再压实一次目标并收拢手指。
+        # 路点最终点本身即 Q_HANG；但伺服完成后的实测姿态可能有残差。
+        # 最后的压实动作仍需从最新实测关节状态重新经过桌面/桌腿门控，
+        # 不能因为前一条规划路径已检查就跳过最后一次纠偏运动的安全检查。
+        if check_table:
+            clear, hit = arm_path_table_clear(
+                node, side, [K.Q_HANG], ignore_initial=True)
+            if not clear:
+                out.update(ok=False, table_clear=False,
+                           table_block=hit, blocked_stage=3,
+                           reason='hang_settle_table_collision')
+                node.get_logger().warn(
+                    'HANG[%s] 最终悬垂压实因桌面/桌腿碰撞风险被拦截: %s'
+                    % (side, hit))
+                if info is not None:
+                    info.update(out)
+                return q_meas(node, side), out
+        # 最终压实目标并收拢手指。
         ok_arm, err_arm = node.arm[side].move(K.Q_HANG, timeout=8.0)
         if not ok_arm:
             out.update(ok=False, reason='hang_settle_timeout',
