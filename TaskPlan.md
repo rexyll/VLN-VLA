@@ -2092,3 +2092,11 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 已将所有模式判断统一改为缺省关闭的兼容读取，并让 finally 清理对缺失事件字典安全退化；正常 `CarryBus.__init__` 实例仍使用独立 Event map。
 - 修复提交：`0068672691852774d89ec677b1fcfce7e3bf5446`（`fix: default missing executor waiter state safely`）。
 - 当前验证：该提交触发的 Python 与 ROS 2 Jazzy workflow 尚待结束；P104-07 继续保持未完成。
+
+
+### 8.47 Executor mode 初始化误改修复（2026-11-08）
+
+- §8.46 的自动兼容替换误把构造函数中的赋值语句也改成了对 `getattr(...)` 返回值赋值，导致 `carry.py` 语法错误；CI 的 compile job 与纯测试均明确捕获该问题。
+- 已恢复构造函数的真实字段赋值 `self.executor_managed = bool(executor_managed)`，仅在读取历史轻量测试夹具时使用缺省读取。
+- 修复提交：`d35cc985ae4a40fad39cb5d74e87526560d95fa9`。
+- 该提交触发的 CI 尚待完成；此前提交的失败均保留为失败记录，不作为通过依据。
