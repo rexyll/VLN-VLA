@@ -100,9 +100,6 @@ jobs:
           done
           if [ "$ready" -ne 1 ]; then cat /tmp/grasp-carry-gz.log; exit 1; fi
 
-          timeout 20s gz topic -e -t /drink/carry/ack > /tmp/grasp-carry-acks.log 2>&1 &
-          SUB_PID=$!
-          sleep 2
           publish() {
             timeout 5s gz topic -t /drink/carry -m gz.msgs.StringMsg -p "data: \"$1\""
           }
@@ -117,13 +114,19 @@ jobs:
             return 1
           }
 
-          publish "grab cup 0 0 0.5 0 0 0 1 1700000000000000001"
-          wait_ack "ok grab cup 1700000000000000001"
-          # Retry the completed request: the plugin must replay its cached ACK.
+          # Deliberately publish the first transaction with no ACK subscriber:
+          # its terminal ACK is lost from the client's perspective.
           publish "grab cup 0 0 0.5 0 0 0 1 1700000000000000001"
           sleep 1
+          # The client reconnects and retries the same request ID. The plugin
+          # must replay the cached terminal ACK instead of applying grab again.
+          timeout 20s gz topic -e -t /drink/carry/ack > /tmp/grasp-carry-acks.log 2>&1 &
+          SUB_PID=$!
+          sleep 2
+          publish "grab cup 0 0 0.5 0 0 0 1 1700000000000000001"
+          wait_ack "ok grab cup 1700000000000000001"
           count=$(grep -Fc "ok grab cup 1700000000000000001" /tmp/grasp-carry-acks.log || true)
-          test "$count" -ge 2
+          test "$count" -eq 1
 
           publish "joint cup water_joint 0.012 1700000000000000002"
           wait_ack "ok joint cup water_joint 1700000000000000002"
