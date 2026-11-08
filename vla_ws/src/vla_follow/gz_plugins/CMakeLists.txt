@@ -39,3 +39,11 @@ target_link_libraries(GraspCarry
 )
 set_target_properties(GraspCarry PROPERTIES
   LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+
+
+# Standalone unit tests for the transport-thread queue/cache primitives.
+# These tests require only the C++ standard library and can run without Gazebo.
+enable_testing()
+add_executable(test_GraspCarryQueue test_GraspCarryQueue.cc)
+target_include_directories(test_GraspCarryQueue PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+add_test(NAME GraspCarryQueue COMMAND test_GraspCarryQueue)
