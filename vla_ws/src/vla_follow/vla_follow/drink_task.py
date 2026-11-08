@@ -771,21 +771,23 @@ class DrinkTask(Node):
             ok_d, res_d = M.put_down_two(self, 'cup', Tcup_home, info=_pb)
             res['putback'] = _pb
             if not ok_d:
-                if 'cup' in self.carry.items or not _pb.get('drop_mm') is not None:
+                # drop_mm 仅在 put_down_two 已经完成 release 后写入；
+                # 没有它或 carry 仍登记持有，说明水杯未安全落桌，不能继续移动底盘。
+                if 'cup' in self.carry.items or _pb.get('drop_mm') is None:
                     self._set_state('FAIL_PUT_BACK')
                     self.get_logger().error(
                         'DRINK 水杯未确认落稳或仍处于抓持状态（%.1fmm），'
                         '保持当前抓持，不执行撤离'
                         % res_d)
                     return False
-                # 杯已安全 release，失败只可能来自松手后的桌面净空门控；
-                # 允许后续分阶段安全回收来完成脱离，但保留该告警记录。
+                # 物体已安全释放，但初始 hands_off 被桌面净空门控拦下；
+                # 这不是“放杯失败”，由下面的分阶段收臂路径接手完成安全撤手。
                 res['putback']['hands_off_initial_ok'] = False
-                node_putback_warning = True
+                res['putback']['placed_release_ok'] = True
+                ok_d = True
                 self.get_logger().warn(
-                    'DRINK 水杯已落稳，但初始撤手未全部完成；转入桌面碰撞门控收臂')
-            else:
-                node_putback_warning = False
+                    'DRINK 水杯已落稳并解除附着，但初始撤手被碰撞门控拦截；'
+                    '转入分阶段收臂')
             # 放回要量"落稳那一刻"(手还捧着、没抬手撤走), 见 put_down_two
             _ar = _pb.get('arm_rest') or self._arm_state('放回')
             res.setdefault('arm', {})['放回'] = _ar
@@ -902,16 +904,17 @@ class DrinkTask(Node):
             for _s in ('R', 'L'):
                 _early = _hp[_s].get('early', {})
                 _fin = _hp[_s].get('finish_retry') or _hp[_s].get('finish', {})
+                _fold_src = _early if _early.get('ok') else _fin
                 _hp[_s] = {
                     **_fin,
-                    'elbow_drift_mm': _early.get('elbow_drift_mm', 0.0),
-                    'fold_deg': _early.get('fold_deg', 0.0),
+                    'elbow_drift_mm': _fold_src.get('elbow_drift_mm', 0.0),
+                    'fold_deg': _fold_src.get('fold_deg', 0.0),
                     'wrist_deg': _early.get('wrist_deg', _fin.get('wrist_deg', 0.0)),
                     'wrist_step_deg': max(
                         float(_early.get('wrist_step_deg', 0.0) or 0.0),
                         float(_fin.get('wrist_step_deg', 0.0) or 0.0)),
-                    'q0': _early.get('q0', _fin.get('q0')),
-                    'palm0_m': _early.get('palm0_m', _fin.get('palm0_m')),
+                    'q0': _fold_src.get('q0', _fin.get('q0')),
+                    'palm0_m': _fold_src.get('palm0_m', _fin.get('palm0_m')),
                     'early': _early,
                     'finish': _fin}
             res['hang_path'] = _hp
@@ -921,6 +924,15 @@ class DrinkTask(Node):
                 _cup1, M.object_pose(self, 'cup'))
             res['retreat_geom']['cup_total_mm'] = _drift(
                 _cup0, M.object_pose(self, 'cup'))
+            # 以真实桌沿净空作为交还跟随的硬条件；不能因 move 返回了超时
+            # 就忽略机器人仍靠桌太近，也不能在臂仍伸展时交还 follower。
+            if _g < K.ARM_REACH + 0.08:
+                self._set_state('FAIL_RETREAT_CLEARANCE')
+                self.get_logger().error(
+                    'DRINK 撤离净空不足 %.3fm（要求 %.3fm），保持停止，不交还跟随'
+                    % (_g, K.ARM_REACH + 0.08))
+                return False
+            ok_r = True
             _h = {}
             for _s in ('R', 'L'):
                 _names = ['%s_%s_joint' % (_s, _j[0]) for _j in K.JOINTS]
@@ -971,7 +983,8 @@ class DrinkTask(Node):
                      'retreat_geom': res.get('retreat_geom'),
                      'entry': res.get('entry')}
             res = {'ok': bool(ok_g and ok_d and off_r is not None and ok_h
-                                 and ok_r and ok_retract and pr.get('ok', False)),
+                                 and ok_present and ok_follow and ok_r
+                                 and ok_retract and pr.get('ok', False)),
                    'cup_home_mm': res_d, 'turn_err': pr.get('turn_err'),
                    'retreat_mm': res_r, 'handback': ok_r,
                    'approach': res.get('approach'),
