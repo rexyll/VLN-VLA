@@ -26,7 +26,7 @@ class TestCarryRos2Executor(unittest.TestCase):
     def test_executor_delivers_concurrent_ids_and_rejects_late_ack(self):
         rclpy.init()
         node = Node("carry_ack_executor_integration_test")
-        bus = CarryBus(node)
+        bus = CarryBus(node, executor_managed=True)
         ack_pub = node.create_publisher(String, ACK_TOPIC, 10)
         executor = MultiThreadedExecutor(num_threads=2)
         executor.add_node(node)
@@ -98,6 +98,66 @@ class TestCarryRos2Executor(unittest.TestCase):
                 9104: "ok joint cup water_joint 9104",
                 9105: "fail joint cup water_joint 9105 queue-full",
             })
+
+            # Exercise the real CarryBus._await() path while the external
+            # MultiThreadedExecutor owns callback progress. Two transaction
+            # threads wait independently; neither is allowed to spin the node.
+            transaction_results = {}
+            transaction_ids = {}
+            start = threading.Barrier(3)
+
+            def run_transaction(name):
+                start.wait(timeout=3.0)
+
+                def emit(request_id):
+                    transaction_ids[name] = request_id
+                    ack_pub.publish(String(
+                        data="ok transaction %s %d" % (name, request_id)))
+
+                transaction_results[name] = bus._await(
+                    emit,
+                    lambda ack, rid: ack == "ok transaction %s %d" % (name, rid),
+                    2.0)
+
+            waiters = [
+                threading.Thread(target=run_transaction, args=("left",)),
+                threading.Thread(target=run_transaction, args=("right",)),
+            ]
+            for waiter in waiters:
+                waiter.start()
+            start.wait(timeout=3.0)
+            for waiter in waiters:
+                waiter.join(timeout=4.0)
+                self.assertFalse(waiter.is_alive(),
+                                 "executor-managed transaction waiter hung")
+            self.assertEqual(transaction_results, {"left": True, "right": True})
+            self.assertNotEqual(transaction_ids["left"], transaction_ids["right"])
+
+            # A timeout must remove both pending state and its wakeup Event.
+            timed_out_ids = []
+            self.assertFalse(bus._await(
+                lambda rid: timed_out_ids.append(rid),
+                lambda ack, rid: ack == "ok timeout %d" % rid,
+                0.12))
+            self.assertEqual(len(timed_out_ids), 1)
+            timed_out_id = timed_out_ids[0]
+            ack_pub.publish(String(data="ok timeout %d" % timed_out_id))
+            time.sleep(0.15)
+            with bus._ack_lock:
+                self.assertNotIn(timed_out_id, bus.pending_requests)
+                self.assertNotIn(timed_out_id, bus.ack_by_request)
+                self.assertNotIn(timed_out_id, bus._ack_events)
+
+            # A terminal queue-full ACK is a rejection, not a retryable success.
+            queue_full_ids = []
+            self.assertFalse(bus._await(
+                lambda rid: (
+                    queue_full_ids.append(rid),
+                    ack_pub.publish(String(
+                        data="fail transaction %d queue-full" % rid))),
+                lambda ack, rid: ack == "ok transaction %d" % rid,
+                1.0))
+            self.assertEqual(len(queue_full_ids), 1)
 
             # Expire 9101, register a different waiter, then deliver its late ACK.
             with bus._ack_lock:
