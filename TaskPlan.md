@@ -1288,7 +1288,7 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 | P104-04 | 修复 PEEK 状态转移并强化绕障重捕获 | 正在进行中（入口/退出状态静态核对通过，待遮挡仿真） | 进入/退出 PEEK 状态可追踪；有检出时取消 Nav2 搜索；遮挡后重新锁定同一轨迹 |
 | P104-05 | 建立桌面/桌腿几何碰撞检测与逐路点路径门控 | 正在进行中（FK 胶囊+掌部 OBB/SAT+逐指胶囊纯测试通过；待 Gazebo 几何校准） | FK 生成的臂/手指扫掠线段无桌面、桌腿 AABB 相交；碰撞路径不下发 |
 | P104-06 | 放杯后立即启动安全预收臂，净空后完成自然悬垂 | 正在进行中（三阶段逻辑单测通过；待 Gazebo 轨迹碰撞验证） | 放杯成功后先抬手离杯，再尽早执行安全折肘；在肩部收回前达到臂长净空；全过程不穿桌、不碰杯 |
-| P104-07 | 修复 PUT_BACK 未落稳仍松手、任务继续执行等状态机错误 | 正在进行中（release ACK/未知态隔离、release pending 门控、插件 in-flight 去重与完成 ACK 重放、CarryBus 跨进程重启 request_id 防复用已实现；headless Gazebo 已验证基础 ACK；待丢包/迟到/并发故障注入） | 未落稳/复核失败时不 release、不撤离；关键抓取/递交/接回失败不会被忽略 |
+| P104-07 | 修复 PUT_BACK 未落稳仍松手、任务继续执行等状态机错误 | 正在进行中（release ACK/未知态隔离、release pending 门控、插件 in-flight 去重与完成 ACK 重放、CarryBus 跨进程重启 request_id 防复用已实现；headless Gazebo 基础 ACK 与大整数 ID 已通过；新增 ACK 丢失后重连重试测试待 CI 验证；迟到/并发故障注入未完成） | 未落稳/复核失败时不 release、不撤离；关键抓取/递交/接回失败不会被忽略 |
 | P104-08 | 扩展遮挡、目标关联、桌面碰撞和失败分支测试 | 正在进行中（最新 CI 14/14 纯数学/几何/运动学及 CarryBus ACK 身份测试通过；待 ROS/Gazebo 场景与故障注入） | 新增专项测试并能输出逐阶段证据；已有 P102/P103/P97/P94 回归不退化 |
 | P104-09 | 全面逻辑审查、文档与回归结果记录 | 正在进行中（Python CI、GraspCarry C++ 编译/链接、8/8 独立测试及 headless Gazebo 插件协议冒烟均已通过；ROS 2 CarryBus 联调、完整 work_area 场景和端到端回归未完成） | 对关键动作返回值、状态转移、超时、资源/消息生命周期做审查；更新 README/测试指引与本节结论 |
 
@@ -1608,9 +1608,13 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 当前 Unix 纳秒时间戳处于 uint64 范围内，可直接由插件的 `uint64_t` 解析；不改变 wire format，也不影响 request_id=0 的旧式 fire-and-forget 消息。
 - 新增 `test_carry_request_ids_are_fresh_across_bus_restarts`，用确定性时钟种子验证两个连续实例不会从相同 ID 起步，且数值仍在 uint64 范围内。
 
-**验证边界：**
-- 本轮等待 Python CI 对语法和 P104 纯测试进行验证。
-- 该修复解决同一主机时钟正常前进情况下的进程重启 ID 复用；不替代跨主机多发布者会话 ID 设计，也不证明真实 ROS 2 executor 并发行为。
-- P104-07/P104-08/P104-09 保持“正在进行中”。
+**验证结果：**
+- Python CI run [42469901198](https://github.com/rexyll/VLN-VLA/actions/runs/42469901198) 的语法编译和纯测试均通过；新增测试包含在内，**15/15 passed**。
+- C++/Gazebo CI run [42470006135](https://github.com/rexyll/VLN-VLA/actions/runs/42470006135) 成功：Gazebo Harmonic 插件编译、8/8 C++ 队列/缓存测试、共享库与 `ldd -r` 检查，以及 headless Gazebo 协议冒烟均通过。
+- 该次 headless 测试使用 `1700000000000000001` 起的大整数 request ID，成功完成 grab/joint/release、重复请求 ACK 重放及缺失模型拒绝 ACK；验证了 Python 纳秒时间戳序号与 C++ `uint64_t` wire format 兼容。
+- 本轮进一步将 headless ACK 测试改为：首次发送 grab 时**不启动 ACK subscriber**，等待插件执行并发布终态 ACK 后再启动订阅者，以相同 request_id 重试；预期重连后只收到缓存重放的一个 ACK。该更严格的“客户端视角 ACK 丢失”场景已加入 CI，**等待新 run 验证**。
 
-- **uint64 wire-format 验证补充：** headless Gazebo 冒烟测试把事务 ID 提升到 `1700000000000000001` 起的 64 位大整数，覆盖 Python `time.time_ns()` 生成值经 Transport 文本解析、C++ `uint64_t`、ACK 序列化和客户端匹配的端到端兼容性；待 C++ CI 运行确认。
+**验证边界：**
+- `time.time_ns()` 方案解决同一主机时钟正常前进情况下的进程重启 ID 复用；不替代跨主机多发布者会话 ID 设计，也不证明真实 ROS 2 executor 并发行为。
+- 上述 headless 测试验证插件协议，不包含 ROS 2 CarryBus 与 Gazebo 的同进程联调、完整 `work_area.sdf`、迟到/并发 ACK 故障注入或完整倒水递水 E2E。
+- P104-07/P104-08/P104-09 保持“正在进行中”。
