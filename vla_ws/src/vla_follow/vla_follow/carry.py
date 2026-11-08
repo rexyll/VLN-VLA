@@ -81,7 +81,7 @@ class CarryBus(object):
         self.node = node
         # External executors own callback progress; waiters only await Events.
         # Default mode preserves DrinkTask's current owner-spin behavior.
-        self.executor_managed = bool(executor_managed)
+        getattr(self, 'executor_managed', False) = bool(executor_managed)
         self.pub = node.create_publisher(String, CARRY_TOPIC, 10)
         node.create_subscription(String, ACK_TOPIC, self._on_ack, 50)
         self.ack = None
@@ -160,7 +160,7 @@ class CarryBus(object):
             while time.monotonic() < deadline:
                 emit(request_id)
                 remaining = max(0.0, deadline - time.monotonic())
-                if self.executor_managed:
+                if getattr(self, 'executor_managed', False):
                     ack_event.wait(min(0.08, remaining))
                 else:
                     self.node.spin_for(min(0.08, remaining))
@@ -171,7 +171,7 @@ class CarryBus(object):
                 if hit and ok_pred(hit, request_id):
                     for _ in range(3):
                         emit(request_id)
-                        if self.executor_managed:
+                        if getattr(self, 'executor_managed', False):
                             time.sleep(0.03)
                         else:
                             self.node.spin_for(0.03)
@@ -185,7 +185,7 @@ class CarryBus(object):
             with self._ack_lock:
                 self.pending_requests.discard(request_id)
                 self.ack_by_request.pop(request_id, None)
-                self._ack_events.pop(request_id, None)
+                getattr(self, '_ack_events', {}).pop(request_id, None)
 
     # ------------------------------------------------------------ 位姿来源
     def palm_world(self, side):
