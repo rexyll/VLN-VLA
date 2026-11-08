@@ -561,6 +561,22 @@ def drive_to(node, xy, v_max=0.22, tol_mm=80.0, timeout=30.0, k=1.1,
     return res < tol_mm, res
 
 
+def base_pose_converged(position_err_mm, yaw_err_rad, tol_mm=8.0,
+                       yaw_tol_rad=math.radians(2.0)):
+    """底盘摆位必须同时满足有限的位置误差与航向误差，NaN/Inf 一律失败。"""
+    try:
+        pos = float(position_err_mm)
+        yaw = float(yaw_err_rad)
+        pos_tol = float(tol_mm)
+        yaw_tol = float(yaw_tol_rad)
+    except (TypeError, ValueError):
+        return False
+    return (math.isfinite(pos) and math.isfinite(yaw)
+            and math.isfinite(pos_tol) and math.isfinite(yaw_tol)
+            and pos >= 0.0 and yaw >= 0.0
+            and pos < pos_tol and yaw < yaw_tol)
+
+
 def place_robot(node, T_goal, tol_mm=8.0, tries=3, settle=0.25):
     """把底盘 teleport 到 T_goal, 用真值核对, 不够就重放。
 
@@ -591,12 +607,10 @@ def place_robot(node, T_goal, tol_mm=8.0, tries=3, settle=0.25):
             break
         res = pos_err_mm(T_now, T_goal)
         yaw_err = abs(yaw_err_of(T_now, T_goal))
-        if res < tol_mm and yaw_err < math.radians(2.0):
+        if base_pose_converged(res, yaw_err, tol_mm):
             break
     node.sync_base_from_truth(quiet=True)
-    if (not ack_ok or not math.isfinite(float(res))
-            or not math.isfinite(float(yaw_err))
-            or res >= tol_mm or yaw_err >= math.radians(2.0)):
+    if not ack_ok or not base_pose_converged(res, yaw_err, tol_mm):
         node.get_logger().error(
             'PLACE_ROBOT 未收敛: ack=%s position=%.1fmm yaw=%.2f° '
             '(limits %.1fmm/2.00°)'
