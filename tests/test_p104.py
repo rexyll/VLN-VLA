@@ -486,6 +486,48 @@ class TestP104(unittest.TestCase):
         self.assertNotIn(active_request_id, bus.ack_by_request)
         self.assertNotIn(expired_request_id, bus.ack_by_request)
 
+    def test_carry_ack_callback_racing_timeout_cleanup_leaves_no_stale_state(self):
+        class Node:
+            def create_publisher(self, *_args):
+                return object()
+            def create_subscription(self, *_args):
+                return object()
+
+        # Exercise both lock acquisition orders repeatedly. The callback either
+        # publishes before cleanup (and cleanup removes it), or observes that
+        # the request is no longer pending. No partial/stale state is allowed.
+        bus = C.CarryBus(Node())
+        for request_id in range(8100, 8200):
+            with bus._ack_lock:
+                bus.pending_requests.add(request_id)
+            gate = threading.Barrier(3)
+
+            def deliver_ack():
+                gate.wait()
+                bus._on_ack(type(
+                    'Msg', (), {
+                        'data': 'ok joint cup water_joint %d' % request_id
+                    })())
+
+            def timeout_cleanup():
+                gate.wait()
+                with bus._ack_lock:
+                    bus.pending_requests.discard(request_id)
+                    bus.ack_by_request.pop(request_id, None)
+
+            callback_thread = threading.Thread(target=deliver_ack)
+            cleanup_thread = threading.Thread(target=timeout_cleanup)
+            callback_thread.start()
+            cleanup_thread.start()
+            gate.wait()
+            callback_thread.join(timeout=2.0)
+            cleanup_thread.join(timeout=2.0)
+            self.assertFalse(callback_thread.is_alive())
+            self.assertFalse(cleanup_thread.is_alive())
+            with bus._ack_lock:
+                self.assertNotIn(request_id, bus.pending_requests)
+                self.assertNotIn(request_id, bus.ack_by_request)
+
     def test_carry_late_ack_cannot_complete_a_different_pending_request(self):
         class Node:
             def create_publisher(self, *_args):
