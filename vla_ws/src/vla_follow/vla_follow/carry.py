@@ -81,9 +81,11 @@ class CarryBus(object):
         self.pub = node.create_publisher(String, CARRY_TOPIC, 10)
         node.create_subscription(String, ACK_TOPIC, self._on_ack, 50)
         self.ack = None
-        self.acks = []              # P98: ack 队列(见 _on_ack)
+        self.acks = []              # 有界诊断历史；事务匹配使用 request_id
         self.ack_t = 0.0
         self.request_seq = 0
+        self.pending_requests = set()
+        self.ack_by_request = {}
         # model -> {'side': 'R'/'L', 'offset': 4x4}
         self.items = {}
         self.pub_count = 0
@@ -94,9 +96,17 @@ class CarryBus(object):
         # water_joint 后, jet 的 ack 会在同一个 spin 窗口里被 water 的 ack
         # 覆盖, _await 永远等不到(实测 jet ramp 全程无 ack)。
         self.acks.append(msg.data)
-        del self.acks[:-64]
+        del self.acks[:-256]
         self.ack = msg.data
         self.ack_t = time.time()
+        # 每个等待者只接收自己的 request_id；嵌套 spin_for/并发事务不能
+        # 通过清空共享 ACK 列表把其他等待者的确认删掉。
+        try:
+            request_id = int(msg.data.rsplit(' ', 1)[1])
+        except (IndexError, ValueError):
+            return
+        if request_id in self.pending_requests:
+            self.ack_by_request[request_id] = msg.data
 
     def _send(self, text):
         self.pub.publish(String(data=text))
@@ -120,19 +130,22 @@ class CarryBus(object):
         t0 = time.time()
         self.request_seq += 1
         request_id = self.request_seq
-        self.ack = None
-        self.acks = []
-        while time.time() - t0 < timeout:
-            emit(request_id)
-            self.node.spin_for(0.08)
-            hit = next((a for a in reversed(self.acks) if ok_pred(a, request_id)), None)
-            if hit:
-                for _ in range(3):           # 补两针, 防止 gz 侧漏收
-                    emit(request_id)
-                    self.node.spin_for(0.03)
-                self.node.get_logger().info('ack: %s' % hit)
-                return True
-        return False
+        self.pending_requests.add(request_id)
+        try:
+            while time.time() - t0 < timeout:
+                emit(request_id)
+                self.node.spin_for(0.08)
+                hit = self.ack_by_request.pop(request_id, None)
+                if hit and ok_pred(hit, request_id):
+                    for _ in range(3):       # 补两针, 防止 gz 侧漏收
+                        emit(request_id)
+                        self.node.spin_for(0.03)
+                    self.node.get_logger().info('ack: %s' % hit)
+                    return True
+            return False
+        finally:
+            self.pending_requests.discard(request_id)
+            self.ack_by_request.pop(request_id, None)
 
     # ------------------------------------------------------------ 位姿来源
     def palm_world(self, side):
