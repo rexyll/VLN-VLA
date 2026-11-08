@@ -1,11 +1,19 @@
-#CMake / build outputs
-
+# 构建产物（沿用远程 main 既有约定）
 build/
 dist/
 install/
 
+# 运行日志与测试产物（运行期生成，不入库）
+log/
+vla_ws/logs/
+tests/out/
+vla_demo/snapshots/
 
+# Python 缓存
+__pycache__/
+*.py[cod]
 
+# 本地工具状态
 .workbuddy/
-
-
+.obsidian/
+.zwork/
