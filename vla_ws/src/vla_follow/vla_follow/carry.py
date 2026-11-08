@@ -298,6 +298,12 @@ class CarryBus(object):
 
     def release(self, model=None, timeout=2.5):
         name = model or 'all'
+        # 等待 release ACK 的整个窗口内禁止 update() 再发 set；否则并发的
+        # 50Hz 跟随更新可能排在 release 后面，把刚释放的目标重新激活。
+        targets = list(self.items) if model is None else [model]
+        for target in targets:
+            if target in self.items:
+                self.items[target]['release_pending'] = True
         ok = self._await(
             lambda rid: self._send('release %s %d' % (name, rid)),
             lambda a, rid: a == 'ok release %s %d' % (name, rid), timeout)
@@ -315,6 +321,7 @@ class CarryBus(object):
             for target in targets:
                 if target in self.items:
                     self.items[target]['release_unknown'] = True
+                    self.items[target].pop('release_pending', None)
             self.node.get_logger().warn(
                 'release %s 无 ack，附着状态未知；已暂停自动 set，可显式重试 release'
                 % name)
@@ -331,7 +338,7 @@ class CarryBus(object):
         for model, it in self.items.items():
             # release ACK 丢失后，不能继续 set：若插件端已解除附着，
             # set 会把 inactive target 重新激活。显式 release 重试成功后再移除。
-            if it.get('release_unknown'):
+            if it.get('release_unknown') or it.get('release_pending'):
                 continue
             if it.get('host'):
                 Tb = self.host_world(it['host'], it.get('link'),
