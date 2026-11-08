@@ -789,7 +789,15 @@ def put_down(node, side, model, T_obj_goal, retreat=0.10,
             'PUT_DOWN %s 张手后复核失败 %.1fmm，保持附着' % (model, res2))
         return False, res2
     T_back = wrist(node, side) @ K.trans((0.0, 0.0, retreat))
-    node.carry.release(model)
+    release_ok = node.carry.release(model)
+    if not release_ok:
+        node.get_logger().error(
+            'PUT_DOWN %s release ACK 未确认；不移动手臂，保持当前位置供安全恢复'
+            % model)
+        if info is not None:
+            info.update(release_blocked=True,
+                        release_block_reason='release_ack_missing')
+        return False, res2
     node.spin_for(0.6)
     if info is not None:
         T_after_release = object_pose(node, model)
@@ -962,7 +970,14 @@ def put_down_two(node, model, T_obj_goal, tol_mm=PLACE_TOL_MM, steps=4,
             info['release_blocked'] = True
             info['release_block_reason'] = 'post_open_pose_not_confirmed'
         return False, res2
-    node.carry.release(model)
+    release_ok = node.carry.release(model)
+    if not release_ok:
+        node.get_logger().error(
+            'PUT_DOWN_TWO release ACK 未确认；停止张手后撤离动作，不移动底盘')
+        if info is not None:
+            info['release_blocked'] = True
+            info['release_block_reason'] = 'release_ack_missing'
+        return False, res2
     settle_sim(node, 0.6)
     # 松钉后**没有再掉**: 正数=往下掉了(说明松手时还没真落桌)
     if info is not None:
