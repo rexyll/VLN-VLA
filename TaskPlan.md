@@ -2055,3 +2055,20 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 **验证边界：**
 - 本轮把 ACK 终态策略扩展到真实 ROS 2 DDS 投递路径，但仍未在真实 executor 下调用 CarryBus._await() 完成完整事务等待；DrinkTask.spin_for() 的 rclpy.spin_once(self) 与已运行 executor 的所有权冲突仍待解决。
 - P104-07 保持“正在进行中”；下一步优先设计 executor-aware waiter（单一 executor 所有者、waiter 仅等待事件/条件变量，不自行 spin），并在 ROS 2 集成测试中覆盖真实事务超时、重试、取消及节点关闭。
+
+
+### 8.44 修复 ROS 2 Jazzy CI 仓库引导的不稳定性（2026-11-08）
+
+**本轮 CI 故障复盘与修复：**
+- 真实 DDS 终态 ACK 集成测试代码已提交；其 ROS 2 workflow [42483414427](https://github.com/rexyll/VLN-VLA/actions/runs/42483414427) 在 Set up ROS 2 Jazzy 阶段失败，尚未运行测试。日志表明 ros-tooling/setup-ros@v0.7 动态查询 ros-apt-source latest release 后下载 bootstrap .deb 返回 HTTP 404（curl exit 22），不是测试断言失败。
+- 核对 ros-infrastructure/ros-apt-source 官方 release metadata，确认 1.3.0 存在 Ubuntu Noble 对应 `ros2-apt-source_1.3.0.noble_all.deb` 资产。
+- 修改 `.github/workflows/p104-carry-ros2.yml`：不再运行时依赖 setup-ros action 的 latest API 查询；改为下载固定版本 1.3.0 bootstrap 包、配置 apt 源，再安装 ROS 2 Jazzy ros-base/rclpy/std_msgs 与 numpy。
+
+**提交与 CI：**
+- 修复提交 5de7eefb1996ac6407e0ad766a96c3bab562c572。
+- Python workflow [42483629433](https://github.com/rexyll/VLN-VLA/actions/runs/42483629433) 与 ROS 2 Jazzy workflow [42483629485](https://github.com/rexyll/VLN-VLA/actions/runs/42483629485) 在记录时均处于运行中，修复尚未得到 CI 验证。
+- 真实 DDS ACK 终态策略测试对应 Python workflow [42483414383](https://github.com/rexyll/VLN-VLA/actions/runs/42483414383) 已成功；对应 ROS 2 workflow [42483414427](https://github.com/rexyll/VLN-VLA/actions/runs/42483414427) 因上述环境引导失败而失败，必须在固定 bootstrap 修复后重新确认。
+
+**当前判断：**
+- P104-07 仍为“正在进行中”。当前真实 executor 测试覆盖 ACK 投递、request_id 隔离、迟到 ACK、终态重复/冲突策略和 executor 关闭顺序；尚未覆盖 CarryBus._await() 在已运行 executor 下的完整事务等待/超时/重试。
+- 下一步先确认固定 ROS apt bootstrap CI 成功，再设计 executor-aware waiter，避免同步 waiter 通过 rclpy.spin_once() 与 executor 线程争夺节点执行权。
