@@ -101,13 +101,13 @@ def tilt_deg(T, ref=np.array([0.0, 0.0, 1.0])):
 #   R2 肘过中线   L: 肘y<0 / R: 肘y>0
 #   (原"R3 手过中线"已删: 物体摆偏 100mm 时左手捧杯必然过中线, 那是物体
 #    的位置不是手臂的问题; 见 arm_kin.violation_list 的说明)
-#   R4 肩内旋过大 |up_roll| > 1.95 rad(112°, 机械限位 2.00)
+#   R4 肩内旋过大 |up_roll| > 2.00 rad(114.6°, 机械限位 2.00)
 #   R5 前臂扭转   |fore_roll + wrist_r| > 2.00 rad(115°) —— 人的旋前+旋后
 #                 合计约 180°, 但那是"特意去拧"; 端杯子不需要, 而老病态位形
 #                 是 171°(2.98), 2.00 拦得住、正常抓杯(1.7~1.9)放得过
 #   R6 腕反折     |wrist_p| > 1.50 rad(86°) —— 正好是本臂机械限位, 这条实际
 #                 判的是"顶到限位", 而不是"屈伸看着别扭"
-#   R7 肘过折     |elbow| > 2.10 rad(120°)
+#   R7 肘过折     |elbow| > 2.25 rad(129°)
 # 阈值只在 `arm_kin.HUMAN_*` / `violation_list` 里维护一份。
 
 
@@ -154,9 +154,204 @@ def log_arm(node, tag, sides=('L', 'R')):
     return out
 
 
+def human_kinematics_ok(states, min_out_line_mm=None,
+                        max_abs_droop_mm=None, max_abs_twist=None,
+                        required_sides=None):
+    """关键搬运动作必须具备指定侧的实测姿态，并通过 P103 规则/质量门槛。
+
+    required_sides: 此动作必须有姿态数据的手臂侧，如抓杯('L')、倒水('L','R')。
+    min_out_line_mm: 可选的逐侧肘外扩线下限（mm），如举杯左臂 100、倒水右臂 60。
+    max_abs_droop_mm/max_abs_twist: 可选的逐侧绝对值上限（mm/rad）。
+    """
+    if not states:
+        return False
+    if required_sides is not None and any(
+            side not in states or not isinstance(states[side], dict)
+            for side in required_sides):
+        return False
+    min_out_line_mm = min_out_line_mm or {}
+    max_abs_droop_mm = max_abs_droop_mm or {}
+    max_abs_twist = max_abs_twist or {}
+    for side, st in states.items():
+        if not isinstance(st, dict) or st.get('bad'):
+            return False
+        if side in min_out_line_mm:
+            value = st.get('out_line_mm')
+            if value is None or float(value) < float(min_out_line_mm[side]):
+                return False
+        if side in max_abs_droop_mm:
+            value = st.get('droop_mm')
+            if value is None or abs(float(value)) > float(max_abs_droop_mm[side]):
+                return False
+        if side in max_abs_twist:
+            value = st.get('twist')
+            if value is None or abs(float(value)) > float(max_abs_twist[side]):
+                return False
+    return True
+
+
+# ---------------------------------------------------------------- 桌面/桌腿碰撞门控（P104）
+def _segment_hits_aabb(p0, p1, lo, hi, radius=0.0):
+    """胶囊线段与 AABB 的保守相交：将盒子按半径外扩后做 slab 检查。"""
+    lo = np.asarray(lo, float) - float(radius)
+    hi = np.asarray(hi, float) + float(radius)
+    a = np.asarray(p0, float)
+    d = np.asarray(p1, float) - a
+    t0, t1 = 0.0, 1.0
+    for k in range(3):
+        if abs(d[k]) < 1e-10:
+            if a[k] < lo[k] or a[k] > hi[k]:
+                return False
+            continue
+        u0 = (lo[k] - a[k]) / d[k]
+        u1 = (hi[k] - a[k]) / d[k]
+        if u0 > u1:
+            u0, u1 = u1, u0
+        t0 = max(t0, u0)
+        t1 = min(t1, u1)
+        if t0 > t1:
+            return False
+    return True
+
+
+def _table_collision_boxes():
+    """与 work_area.sdf 同源的桌面板及四条桌腿 AABB（世界坐标）。"""
+    cx, cy = L.TABLE_XY
+    boxes = [
+        ('table_top', (cx - L.TABLE_W / 2.0, cy - L.TABLE_D / 2.0,
+                       L.TABLE_TOP_Z - L.TABLE_PLATE_T),
+         (cx + L.TABLE_W / 2.0, cy + L.TABLE_D / 2.0, L.TABLE_TOP_Z)),
+        # SDF 中台面外沿 lip 只有 visual，但也纳入 10mm 净空，避免视觉穿模。
+        ('table_lip', (cx - L.TABLE_W / 2.0 - 0.025,
+                       cy - L.TABLE_D / 2.0 - 0.020,
+                       L.TABLE_TOP_Z - L.TABLE_PLATE_T - 0.009),
+         (cx + L.TABLE_W / 2.0 + 0.025,
+          cy + L.TABLE_D / 2.0 + 0.020,
+          L.TABLE_TOP_Z - L.TABLE_PLATE_T + 0.009)),
+    ]
+    for sx in (-0.410, 0.410):
+        for sy in (-0.270, 0.270):
+            x, y = cx + sx, cy + sy
+            boxes.append(('table_leg', (x - 0.025, y - 0.025, 0.0),
+                          (x + 0.025, y + 0.025, L.TABLE_TOP_Z - L.TABLE_PLATE_T)))
+    return boxes
+
+
+def _obb_hits_aabb(center, rotation, half_extents, lo, hi, margin=0.015):
+    """OBB-AABB SAT 相交测试；margin 只扩张桌面盒，避免球形手掌假碰撞。"""
+    c_a = np.asarray(center, float)
+    axes = np.asarray(rotation, float)
+    h_a = np.asarray(half_extents, float)
+    lo = np.asarray(lo, float) - float(margin)
+    hi = np.asarray(hi, float) + float(margin)
+    c_b = 0.5 * (lo + hi)
+    h_b = 0.5 * (hi - lo)
+    # SAT: 3 个 OBB 轴、3 个 AABB 轴、9 个叉积轴。
+    # axes 的列是 OBB 局部 x/y/z 轴在世界系中的方向；
+    # SAT 公式使用 R[i,j] = dot(OBB_axis_i, AABB_axis_j)，所以必须转置。
+    R = axes.T
+    abs_R = np.abs(R) + 1e-9
+    t_world = c_b - c_a
+    t = R @ t_world
+    for i in range(3):
+        ra = h_a[i]
+        rb = float(h_b @ abs_R[i, :])
+        if abs(t[i]) > ra + rb:
+            return False
+    for j in range(3):
+        ra = float(h_a @ abs_R[:, j])
+        rb = h_b[j]
+        if abs(float(t_world[j])) > ra + rb:
+            return False
+    for i in range(3):
+        for j in range(3):
+            i1, i2 = (i + 1) % 3, (i + 2) % 3
+            j1, j2 = (j + 1) % 3, (j + 2) % 3
+            ra = h_a[i1] * abs_R[i2, j] + h_a[i2] * abs_R[i1, j]
+            rb = h_b[j1] * abs_R[i, j2] + h_b[j2] * abs_R[i, j1]
+            value = abs(t[i2] * R[i1, j] - t[i1] * R[i2, j])
+            if value > ra + rb:
+                return False
+    return True
+
+
+def _arm_geometry_world(side, q, base):
+    """由 FK 生成连杆胶囊、掌部 OBB 与逐指胶囊，避免把手指按 55mm 球体膨胀。"""
+    Tb = K.base_pose(*base)
+    Tp = K.fk(side, np.asarray(q, float))
+    R = Tp[:3, :3]
+    p_palm = Tp[:3, 3]
+    p_wrist = p_palm + R @ np.array([0.0, 0.0, K.PALM_OFF])
+    p_shoulder = np.asarray(K.SHOULDER[side], float)
+    p_elbow = K.elbow_pos(side, q)
+    to_world = lambda p: (Tb @ K.trans(p))[:3, 3]
+    sh, el, wr, palm = [to_world(p) for p in
+                        (p_shoulder, p_elbow, p_wrist, p_palm)]
+    T_palm_center = to_world(p_palm + R @ np.asarray(K.PALM_CENTER, float))
+    R_world = Tb[:3, :3] @ R
+
+    segments = [
+        ('upper_arm', sh, el, 0.034),
+        ('forearm', el, wr, 0.030),
+        ('wrist', wr, palm, 0.030),
+    ]
+    # Shadow Hand 的四指分别按几何轴线检查，半径按实际 14mm 指宽取值。
+    for index, x in enumerate(K.FINGER_X):
+        p0 = p_palm + R @ np.array([float(x), 0.0, K.FINGER_BASE_Z])
+        p1 = p_palm + R @ np.array([
+            float(x), 0.0,
+            K.FINGER_BASE_Z - K.PROX_LEN - K.DIST_LEN])
+        segments.append(('finger_%d' % index, to_world(p0), to_world(p1),
+                         K.FINGER_W / 2.0))
+    # 拇指另算，避免四指包络忽略掌侧的拇指扫掠。
+    thx = float(K.THUMB_X[side])
+    th0 = p_palm + R @ np.array([thx, K.THUMB_BASE[1],
+                                 K.THUMB_BASE[2]])
+    th1 = p_palm + R @ np.array([
+        thx, K.THUMB_BASE[1],
+        K.THUMB_BASE[2] - K.PROX_LEN - K.DIST_LEN])
+    segments.append(('thumb', to_world(th0), to_world(th1), 0.012))
+    palm_obb = (T_palm_center, R_world, 0.5 * np.asarray(K.PALM_SIZE, float))
+    return segments, palm_obb
+
+
+def arm_path_table_clear(node, side, path_q, base=None,
+                         ignore_initial=True, max_joint_step=0.02):
+    """收臂路径逐点/插值检查桌面和桌腿；返回 (clear, first_collision)。"""
+    if base is None:
+        base = node.base
+    q0 = q_meas(node, side)
+    if q0 is None:
+        return False, {'reason': 'joint_state_missing'}
+    samples = []
+    prev = np.asarray(q0, float)
+    for target in path_q:
+        target = np.asarray(target, float)
+        n = max(1, int(math.ceil(
+            float(np.max(np.abs(target - prev))) / max_joint_step)))
+        for i in range(1, n + 1):
+            samples.append(prev + (target - prev) * (i / float(n)))
+        prev = target
+    if not ignore_initial:
+        samples.insert(0, np.asarray(q0, float))
+    boxes = _table_collision_boxes()
+    for i, q in enumerate(samples):
+        segments, palm = _arm_geometry_world(side, q, base)
+        pc, pr, ph = palm
+        for box_name, lo, hi in boxes:
+            if _obb_hits_aabb(pc, pr, ph, lo, hi, margin=0.015):
+                return False, {'sample': i, 'segment': 'palm_obb',
+                               'box': box_name}
+            for seg_name, p0, p1, radius in segments:
+                if _segment_hits_aabb(p0, p1, lo, hi, radius + 0.010):
+                    return False, {'sample': i, 'segment': seg_name,
+                                   'box': box_name, 'radius_m': radius}
+    return True, None
+
+
 # ---------------------------------------------------------------- 到位
 def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
-          timeout=10.0, elbow='human', tol_deg=None):
+          timeout=10.0, elbow='human', tol_deg=None, check_table=False):
     """闭环把 side 侧手臂的**掌心**移到世界位形 T_world。
 
     `elbow` 选逆解分支(7 轴对这 6 维位姿冗余 1 维, 同一目标有一整族等价解):
@@ -192,11 +387,28 @@ def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
         # 补位是精度问题, 两件事分开: 第一轮定分支, 后面只用种子做局部修正。
         _mode = elbow if it == 0 else None
         q, _e, how = K.ik_world(side, T_world, node.base, q_now, elbow=_mode)
-        node.arm[side].move(
+        if check_table:
+            _n = max(1, int(math.ceil(float(np.max(np.abs(q - q_now))) / 0.02)))
+            _path = [q_now + (q - q_now) * (i / float(_n))
+                     for i in range(1, _n + 1)]
+            _clear, _hit = arm_path_table_clear(
+                node, side, _path, ignore_initial=True)
+            if not _clear:
+                node.get_logger().warn(
+                    'REACH %s 被桌面碰撞门控拦截: %s' % (side, _hit))
+                return False, res, 'table-collision'
+        ok_move, joint_err = node.arm[side].move(
             q, timeout=timeout,
             tol_deg=(tol_deg if tol_deg is not None
                      else TOL_SCHED[min(it, len(TOL_SCHED) - 1)]))
         res = pos_err_mm(wrist(node, side), T_world)
+        if not ok_move:
+            node.get_logger().warn(
+                'REACH %s 伺服未确认到位，停止补位: 残差 %.1fmm 最大关节误差 %.2f°'
+                % (side, res,
+                   float(np.max(np.abs(np.degrees(joint_err))))
+                   if np.all(np.isfinite(joint_err)) else 9e9))
+            return False, res, how
         if os.environ.get('REACH_DEBUG'):
             _qm = q_meas(node, side)
             node.get_logger().info(
@@ -349,6 +561,22 @@ def drive_to(node, xy, v_max=0.22, tol_mm=80.0, timeout=30.0, k=1.1,
     return res < tol_mm, res
 
 
+def base_pose_converged(position_err_mm, yaw_err_rad, tol_mm=8.0,
+                       yaw_tol_rad=math.radians(2.0)):
+    """底盘摆位必须同时满足有限的位置误差与航向误差，NaN/Inf 一律失败。"""
+    try:
+        pos = float(position_err_mm)
+        yaw = float(yaw_err_rad)
+        pos_tol = float(tol_mm)
+        yaw_tol = float(yaw_tol_rad)
+    except (TypeError, ValueError):
+        return False
+    return (math.isfinite(pos) and math.isfinite(yaw)
+            and math.isfinite(pos_tol) and math.isfinite(yaw_tol)
+            and pos >= 0.0 and yaw >= 0.0
+            and pos < pos_tol and yaw < yaw_tol)
+
+
 def place_robot(node, T_goal, tol_mm=8.0, tries=3, settle=0.25):
     """把底盘 teleport 到 T_goal, 用真值核对, 不够就重放。
 
@@ -364,15 +592,34 @@ def place_robot(node, T_goal, tol_mm=8.0, tries=3, settle=0.25):
     # 假性失败。这里把 yaw 一并卡进收敛判据。
     res = 9e9
     yaw_err = 9e9
+    ack_ok = False
     for _ in range(max(1, tries) * 2):
-        node.carry.place('robot', T_goal)
+        ack_ok = bool(node.carry.place('robot', T_goal))
+        if not ack_ok:
+            node.get_logger().error(
+                'PLACE_ROBOT 无 ACK，停止重试并拒绝继续桌边动作')
+            break
         settle_sim(node, settle)
-        res = pos_err_mm(object_pose(node, 'robot'), T_goal)
-        yaw_err = abs(yaw_err_of(object_pose(node, 'robot'), T_goal))
-        if res < tol_mm and yaw_err < math.radians(2.0):
+        T_now = object_pose(node, 'robot')
+        if T_now is None:
+            node.get_logger().error('PLACE_ROBOT 收到 ACK 但缺少 robot 真值位姿')
+            ack_ok = False
+            break
+        res = pos_err_mm(T_now, T_goal)
+        yaw_err = abs(yaw_err_of(T_now, T_goal))
+        if base_pose_converged(res, yaw_err, tol_mm):
             break
     node.sync_base_from_truth(quiet=True)
-    return res
+    if not ack_ok or not base_pose_converged(res, yaw_err, tol_mm):
+        node.get_logger().error(
+            'PLACE_ROBOT 未收敛: ack=%s position=%.1fmm yaw=%.2f° '
+            '(limits %.1fmm/2.00°)'
+            % (ack_ok, res, math.degrees(yaw_err), tol_mm))
+        # 保留历史返回“残差mm”的接口；失败时保证严格大于调用方 tol_mm。
+        if not math.isfinite(float(res)):
+            return 9e9
+        return max(float(res), float(tol_mm) + 1.0)
+    return float(res)
 
 
 def yaw_err_of(T_obj, T_goal):
@@ -404,24 +651,37 @@ def grasp(node, side, model, palm_fn, grip, approach=0.10, verbose=True):
     流程：张手 → 退到接近位 → 到抓取位 → 闭五指 → 钉住（ack 确认）。
     返回 (是否成功, 抓取位残差 mm)。
     """
-    open_hand(node, side)
+    ok_open, _ = open_hand(node, side)
+    if not ok_open:
+        node.get_logger().error(
+            'grasp %s (%s): 张手伺服失败，禁止靠近和附着' % (model, side))
+        return False, 9e9
     Tk = object_pose(node, model)
     if Tk is None:
         return False, 9e9
     T_grasp = palm_fn(Tk)
     T_pre = T_grasp @ K.trans((0.0, 0.0, approach))
-    reach(node, side, T_pre, tol_mm=8.0)
+    ok_pre, res_pre, _ = reach(node, side, T_pre, tol_mm=8.0)
+    if not ok_pre:
+        node.get_logger().error(
+            'grasp %s (%s): 接近位未到达 %.1fmm，禁止继续伸入' %
+            (model, side, res_pre))
+        return False, res_pre
     ok, res, how = reach(node, side, T_grasp, tol_mm=GRASP_TOL_MM)
     # P98 补: reach 严重未到位还照旧 attach, 会把物体钉到 0.3m 外(实测把杯
     # 钉飞、场景全污)。阈值取 3x 容差: 边缘差几毫米照常抓(IK 已收敛, 手指
     # 闭合余量足够), 300mm 级的灾难失败才拒绝, 让上游走 FAIL 路径。
-    if res > GRASP_TOL_MM * 3.0:
+    if not ok or res > GRASP_TOL_MM * 3.0:
         if verbose:
             node.get_logger().warn(
                 'grasp %s (%s): reach 未到位 %.1fmm (IK=%s), 跳过 attach'
                 % (model, side, res, how))
         return False, res
-    close_hand(node, side, grip)
+    ok_close, _ = close_hand(node, side, grip)
+    if not ok_close:
+        node.get_logger().error(
+            'grasp %s (%s): 闭手未确认到位，禁止 attach' % (model, side))
+        return False, res
     ok_a = node.carry.grab(model, side)
     if verbose:
         node.get_logger().info(
@@ -515,25 +775,63 @@ def place_held(node, side, model, T_obj_goal, tol_mm=PLACE_TOL_MM,
                     np.asarray(T_obj_goal)[:3, 3], 3),
                    pos_err_mm(Tk, T_obj_goal), axis_angle_deg(Tk, T_obj_goal),
                    np.round((dT @ Tp)[:3, 3], 3)))
-        reach(node, side, dT @ Tp,
-              tol_mm=(max(tol_mm, 2.0) if reach_tol_mm is None
-                      else reach_tol_mm), elbow=elbow)
+        ok_reach, reach_res, _how = reach(
+            node, side, dT @ Tp,
+            tol_mm=(max(tol_mm, 2.0) if reach_tol_mm is None
+                    else reach_tol_mm), elbow=elbow)
+        if not ok_reach:
+            node.get_logger().warn(
+                'PLACE %s: 本轮补位伺服/IK 未确认（掌心 %.1fmm），保持当前抓持并停止闭环'
+                % (model, reach_res))
+            return False, res
     return (res < tol_mm and ang < tol_deg), res
 
 
 def put_down(node, side, model, T_obj_goal, retreat=0.10,
-             tol_mm=PLACE_TOL_MM):
-    """松手放回。四步顺序见模块头注释。返回 (是否, 松钉前残差 mm)。"""
+             tol_mm=PLACE_TOL_MM, info=None):
+    """松手放回；未落稳或张手后复核失败时保持附着，绝不提前 release。"""
     ok1, res = place_held(node, side, model, T_obj_goal, tol_mm)
-    open_hand(node, side)
+    if not ok1:
+        node.get_logger().error(
+            'PUT_DOWN %s 落位闭环失败 %.1fmm，保持抓持，不松手' % (model, res))
+        return False, res
+    ok_open, _ = open_hand(node, side)
+    if not ok_open:
+        node.get_logger().error('PUT_DOWN %s 张手伺服失败，保持抓持' % model)
+        return False, res
     node.spin_for(0.2)
     # 张手后再对一次位：此时手指已离开物体，收敛到的是"无接触"状态
     ok2, res2 = place_held(node, side, model, T_obj_goal, tol_mm)
+    if not ok2:
+        node.get_logger().error(
+            'PUT_DOWN %s 张手后复核失败 %.1fmm，保持附着' % (model, res2))
+        return False, res2
     T_back = wrist(node, side) @ K.trans((0.0, 0.0, retreat))
-    node.carry.release(model)
-    node.spin_for(0.3)
-    reach(node, side, T_back, tol_mm=8.0)
-    return (ok1 and ok2), res2
+    release_ok = node.carry.release(model)
+    if not release_ok:
+        node.get_logger().error(
+            'PUT_DOWN %s release ACK 未确认；不移动手臂，保持当前位置供安全恢复'
+            % model)
+        if info is not None:
+            info.update(release_blocked=True,
+                        release_block_reason='release_ack_missing')
+        return False, res2
+    node.spin_for(0.6)
+    if info is not None:
+        T_after_release = object_pose(node, model)
+        if T_after_release is not None:
+            info['drop_mm'] = round(
+                (float(np.asarray(T_obj_goal)[2, 3])
+                 - float(T_after_release[2, 3])) * 1e3, 1)
+    ok_back, res_back, _ = reach(node, side, T_back, tol_mm=8.0,
+                                 check_table=True)
+    if info is not None:
+        info['withdraw_ok'] = bool(ok_back)
+        info['withdraw_res_mm'] = round(float(res_back), 1)
+    if not ok_back:
+        node.get_logger().warn(
+            'PUT_DOWN %s 已安全落桌，但撤手未到位 %.1fmm' % (model, res_back))
+    return bool(ok_back), res2
 
 
 # ---------------------------------------------------------------- 双手捧
@@ -591,13 +889,35 @@ def put_down_two(node, model, T_obj_goal, tol_mm=PLACE_TOL_MM, steps=4,
         node.get_logger().warn(
             'PUT_DOWN_TWO 右手离杯子 %.0fmm(没贴上), 退回单臂放回' % (d_r * 1e3))
         return put_down(node, 'L', model, T_obj_goal, retreat=retreat,
-                        tol_mm=tol_mm)
+                        tol_mm=tol_mm, info=info)
     off_l = np.linalg.inv(T_obj) @ Tl
     off_r = np.linalg.inv(T_obj) @ Tr
     for i in range(1, steps + 1):
         Ti = _blend_pose(T_obj, T_obj_goal, i / float(steps))
-        reach(node, 'L', Ti @ off_l, tol_mm=4.0, elbow=elbow)
-        reach(node, 'R', Ti @ off_r, tol_mm=6.0, elbow=elbow)
+        ok_l, res_l, _ = reach(
+            node, 'L', Ti @ off_l, tol_mm=4.0, elbow=elbow,
+            check_table=True)
+        if not ok_l:
+            node.get_logger().error(
+                'PUT_DOWN_TWO 第%d/%d步左手未到位 %.1fmm，停止下降并保持抓持'
+                % (i, steps, res_l))
+            if info is not None:
+                info.update(release_blocked=True,
+                            release_block_reason='left_arm_path_failed',
+                            failed_step=i, left_res_mm=round(res_l, 1))
+            return False, res_l
+        ok_r, res_r, _ = reach(
+            node, 'R', Ti @ off_r, tol_mm=6.0, elbow=elbow,
+            check_table=True)
+        if not ok_r:
+            node.get_logger().error(
+                'PUT_DOWN_TWO 第%d/%d步右手未到位 %.1fmm，停止下降并保持抓持'
+                % (i, steps, res_r))
+            if info is not None:
+                info.update(release_blocked=True,
+                            release_block_reason='right_arm_path_failed',
+                            failed_step=i, right_res_mm=round(res_r, 1))
+            return False, res_r
         settle_sim(node, 0.12)
     ok1, res = place_held(node, 'L', model, T_obj_goal, tol_mm, elbow=elbow)
     settle_sim(node, 0.5)
@@ -622,11 +942,16 @@ def put_down_two(node, model, T_obj_goal, tol_mm=PLACE_TOL_MM, steps=4,
             continue
         d_rest[s] = float(np.linalg.norm(Tp[:3, 3] - np.asarray(T_obj_goal)[:3, 3]))
         d_axis[s] = float(np.hypot(Tp[0, 3] - Tc0[0, 3], Tp[1, 3] - Tc0[1, 3]))
-    if not resting:
-        node.get_logger().warn(
-            'PUT_DOWN_TWO 杯子还没到位(%.1fmm > %.1f), 两只手都不松'
-            % (res, tol_mm))
-    elif info is not None:
+    if not ok1 or not resting:
+        node.get_logger().error(
+            'PUT_DOWN_TWO 杯子未可靠落稳(ok=%s, 残差 %.1fmm > %.1f)，'
+            '保持两手抓持，不张手、不 release'
+            % (ok1, res, tol_mm))
+        if info is not None:
+            info.update(rest_mm=round(res, 1), release_blocked=True,
+                        release_block_reason='place_not_confirmed')
+        return False, res
+    if info is not None:
         # P103: 落稳那一刻(手还捧着杯子、还没张指)的关节姿态 —— 验收要量的是
         # **放回这个动作**的位形, 不是随后 `hands_off` 抬手的位形
         info['arm_rest'] = dict((s, arm_state(node, s)) for s in ('L', 'R'))
@@ -636,9 +961,18 @@ def put_down_two(node, model, T_obj_goal, tol_mm=PLACE_TOL_MM, steps=4,
                                        for k, v in d_rest.items()),
                     hand_axis_rest=dict((k, round(v * 1e3, 1))
                                         for k, v in d_axis.items()))
-    # 同时张开(指头离开杯壁), 再收一次位, 然后才松钉
-    open_hand(node, 'L')
-    open_hand(node, 'R')
+    # 同时张开(指头离开杯壁), 再收一次位, 然后才松钉。
+    # 张手任何一侧失败都不能解除附着。
+    open_l, _err_l = open_hand(node, 'L')
+    open_r, _err_r = open_hand(node, 'R')
+    if not (open_l and open_r):
+        node.get_logger().error(
+            'PUT_DOWN_TWO 张手伺服失败（L=%s R=%s），保持杯子附着'
+            % (open_l, open_r))
+        if info is not None:
+            info['release_blocked'] = True
+            info['release_block_reason'] = 'hand_open_failed'
+        return False, res
     settle_sim(node, 0.25)
     # 张手之后**只压实、不重挑分支**(elbow=None)。这一步的目标就是"再对一次位",
     # 手已经贴在杯壁上; 要是走 `elbow='human'` 就会在酒杯旁边重新做一次分支决策,
@@ -646,7 +980,22 @@ def put_down_two(node, model, T_obj_goal, tol_mm=PLACE_TOL_MM, steps=4,
     # (up_roll 顶 R4、肘折 2.42 越 R7)—— 姿态难看之外, 这只"重新拧过"的手
     # 随后撤手/倒车时把杯子蹭走 20mm。压实就该沿用当前分支, 做局部跟踪。
     ok2, res2 = place_held(node, 'L', model, T_obj_goal, tol_mm, elbow=None)
-    node.carry.release(model)
+    if not ok2:
+        node.get_logger().error(
+            'PUT_DOWN_TWO 张手后复核失败 %.1fmm，保持杯子附着，不 release'
+            % res2)
+        if info is not None:
+            info['release_blocked'] = True
+            info['release_block_reason'] = 'post_open_pose_not_confirmed'
+        return False, res2
+    release_ok = node.carry.release(model)
+    if not release_ok:
+        node.get_logger().error(
+            'PUT_DOWN_TWO release ACK 未确认；停止张手后撤离动作，不移动底盘')
+        if info is not None:
+            info['release_blocked'] = True
+            info['release_block_reason'] = 'release_ack_missing'
+        return False, res2
     settle_sim(node, 0.6)
     # 松钉后**没有再掉**: 正数=往下掉了(说明松手时还没真落桌)
     if info is not None:
@@ -717,11 +1066,22 @@ def hands_off(node, model, out=0.12, up=0.12, tol_mm=10.0, elbow=None,
         for i, s in enumerate(('L', 'R')):
             Tp = wrist(node, s)
             if Tp is None:
-                continue
+                node.get_logger().error(
+                    'HANDS_OFF[%s] 缺少掌心真值，停止撤手' % s)
+                return False, 9e9
             T = np.asarray(Tp, float).copy()
             T[:3, 3] = T[:3, 3] + lifts[i][k]
-            _ok, e, _how = reach(node, s, T, tol_mm=tol_mm, elbow=elbow)
+            _ok, e, _how = reach(node, s, T, tol_mm=tol_mm, elbow=elbow,
+                                 check_table=True)
             worst = max(worst, float(e))
+            if not _ok:
+                node.get_logger().error(
+                    'HANDS_OFF[%s] 第%d段未完成 %.1fmm，停止后续撤手' %
+                    (s, k + 1, e))
+                if info is not None:
+                    info.update(ok=False, failed_side=s, failed_stage=k + 1,
+                                residual_mm=round(float(e), 1))
+                return False, worst
     if info is not None:
         info['handoff_mm'] = round(worst, 1)
         info['handoff_up_mm'] = round(up * 1e3, 1)
@@ -741,68 +1101,138 @@ def table_gap_m(node, pad=0.0):
     return L.table_clearance(bx, by, pad=pad)
 
 
-def hang_natural(node, side, fold=None, info=None):
-    """按**人体顺序**把一侧手臂从当前位形收到悬垂(见 K.hang_path)。
+def hang_natural(node, side, fold=None, info=None, stages=(1, 2, 3),
+                 check_table=True):
+    """分阶段执行人体式收臂；默认每段先做桌面/桌腿碰撞检查。
 
-    返回 (结束时实测 q, 过程信息 dict)。信息里有:
-        elbow_drift_mm  第①段前后**肘点**的世界位移 —— 应当在 0.5mm 量级,
-                        这就是"前臂以肘为支点"的直接证据;
-        fold_deg        第①段把前臂折了多少度;
-        wrist_deg       全程腕部关节的总摆动(>90° 基本等于"翻转");
-        hand_min_z/max_x 掌心轨迹的最低点 / 最前点(确认没往桌子方向甩)。
+    stages=(1,) 可在放杯后立即启动安全预回收（折肘，肘尖固定）；
+    stages=(2,3) 在底盘达到臂长净空后完成肩部回收和伸肘悬垂。
+    返回 (结束时实测 q, 过程信息 dict)。碰撞检查不通过时不下发该段关节命令。
     """
     q0 = q_meas(node, side)
+    out = {'ok': False, 'stages_done': [], 'table_clear': True}
     if q0 is None:
-        node.arm[side].move(K.Q_HANG, timeout=12.0)
-        return K.Q_HANG, {}
+        out.update(reason='joint_state_missing')
+        if info is not None:
+            info.update(out)
+        return None, out
     fold_v = K.HANG_FOLD if fold is None else fold
-    path = K.hang_path(q0, fold=fold_v)
-    el0 = K.elbow_pos(side, q0)
-    pw0 = K.fk_world(side, q0, node.base)[:3, 3]
-    # 第①段的终点 = "折肘 + 腕归零"之后, 此时 pan/lift/up_roll 还没动
-    q_fold = q0.copy()
-    q_fold[3] = min(q0[3], fold_v)
-    q_fold[4] = q_fold[5] = q_fold[6] = 0.0
-    el1 = K.elbow_pos(side, q_fold)
+    el_start = K.elbow_pos(side, q0)
+    palm0 = K.fk_world(side, q0, node.base)[:3, 3]
     zmin = 9e9
     xmax = -9e9
-    wstep = 0.0
-    prev = q0.copy()
-    for q in path:
-        node.arm[side].move(q, timeout=6.0, tol_deg=3.0)
-        wstep = max(wstep, float(np.max(np.abs(q[[4, 5, 6]] - prev[[4, 5, 6]]))))
-        prev = q
-        pw = K.fk_world(side, q, node.base)[:3, 3]
-        zmin = min(zmin, float(pw[2]))
-        xmax = max(xmax, float(pw[0] - node.base[0]))
-    node.arm[side].move(K.Q_HANG, timeout=8.0)
-    node.hand[side].move(K.grip_values(side, K.GRIP_HANG), timeout=6.0)
+    wrist_step = 0.0
+    q_prev = q0.copy()
+    elbow_drift = 0.0
+
+    for stage in stages:
+        if stage not in (1, 2, 3):
+            raise ValueError('hang_natural stage must be 1, 2 or 3')
+        q_cur = q_meas(node, side)
+        if q_cur is None:
+            out.update(reason='joint_state_lost', ok=False)
+            if info is not None:
+                info.update(out)
+            return None, out
+        paths = K.hang_path_stages(q_cur, fold=fold_v)
+        path = paths[stage - 1]
+        if not path:
+            out['stages_done'].append(stage)
+            continue
+        if check_table:
+            clear, hit = arm_path_table_clear(
+                node, side, path, ignore_initial=True)
+            if not clear:
+                out.update(ok=False, table_clear=False,
+                           table_block=hit, blocked_stage=stage)
+                node.get_logger().warn(
+                    'HANG[%s] 第%d段因桌面/桌腿碰撞风险被拦截: %s'
+                    % (side, stage, hit))
+                if info is not None:
+                    info.update(out)
+                return q_cur, out
+        el_before = K.elbow_pos(side, q_cur)
+        for path_i, q in enumerate(path):
+            ok_move, err_move = node.arm[side].move(
+                q, timeout=6.0, tol_deg=3.0)
+            if not ok_move:
+                out.update(ok=False, reason='joint_servo_timeout',
+                           blocked_stage=stage, blocked_waypoint=path_i,
+                           max_joint_error_deg=round(
+                               float(np.max(np.abs(np.degrees(err_move)))), 2))
+                node.get_logger().error(
+                    'HANG[%s] 第%d段路点%d伺服超时；保持当前姿态，不跳到下一段'
+                    % (side, stage, path_i))
+                if info is not None:
+                    info.update(out)
+                return q_meas(node, side), out
+            wrist_step = max(
+                wrist_step,
+                float(np.max(np.abs(q[[4, 5, 6]] - q_prev[[4, 5, 6]]))))
+            q_prev = q
+            palm = K.fk_world(side, q, node.base)[:3, 3]
+            zmin = min(zmin, float(palm[2]))
+            xmax = max(xmax, float(palm[0] - node.base[0]))
+        q_after = q_meas(node, side)
+        if q_after is None:
+            out.update(ok=False, reason='joint_state_lost_after_move')
+            if info is not None:
+                info.update(out)
+            return None, out
+        if stage == 1:
+            el_after = K.elbow_pos(side, q_after)
+            elbow_drift = float(np.linalg.norm(el_after - el_before)) * 1e3
+        out['stages_done'].append(stage)
+
+    if 3 in stages:
+        # 路点最终点本身即 Q_HANG；再压实一次目标并收拢手指。
+        ok_arm, err_arm = node.arm[side].move(K.Q_HANG, timeout=8.0)
+        if not ok_arm:
+            out.update(ok=False, reason='hang_settle_timeout',
+                       max_joint_error_deg=round(
+                           float(np.max(np.abs(np.degrees(err_arm)))), 2))
+            if info is not None:
+                info.update(out)
+            return q_meas(node, side), out
+        ok_hand, err_hand = node.hand[side].move(
+            K.grip_values(side, K.GRIP_HANG), timeout=6.0)
+        if not ok_hand:
+            out.update(ok=False, reason='hang_hand_timeout')
+            if info is not None:
+                info.update(out)
+            return q_meas(node, side), out
     q1 = q_meas(node, side)
-    out = {'elbow_drift_mm': round(float(np.linalg.norm(el1 - el0)) * 1e3, 1),
-           'fold_deg': round(math.degrees(min(q0[3], fold_v) - q0[3]), 1),
-           # 腕部: 总摆幅 + **单步**最大摆幅。总摆幅大不等于"翻转"(carry 位里
-           # 前臂本来就拧着 1.2rad, 归零是应该的); 单步大才是"一下子翻过去"。
-           'wrist_deg': round(math.degrees(abs(q0[5]) + abs(q0[6])
-                                           + abs(q0[4])), 1),
-           'wrist_step_deg': round(math.degrees(wstep), 1),
-           'hand_min_z': round(zmin, 3), 'hand_max_x': round(xmax, 3),
-           'q0': [round(float(v), 2) for v in q0],
-           'palm0_m': [round(float(pw0[0] - node.base[0]), 3),
-                       round(float(pw0[1] - node.base[1]), 3),
-                       round(float(pw0[2]), 3)],
-           # 收臂这一刻车离桌沿多远 —— 验收用它证明"先退到位再收臂"
-           'gap_m': round(table_gap_m(node), 3),
-           'reach_m': round(K.ARM_REACH, 3),
-           'waypoints': len(path)}
-    if info is not None:
-        info[side] = out
+    if q1 is None:
+        out.update(ok=False, reason='joint_state_missing_after_recovery')
+        if info is not None:
+            info.update(out)
+        return None, out
+    out.update(
+        ok=True,
+        elbow_drift_mm=round(elbow_drift, 1),
+        fold_deg=round(math.degrees(min(float(q0[3]), fold_v) - float(q0[3])), 1),
+        wrist_deg=round(math.degrees(
+            abs(float(q0[4])) + abs(float(q0[5])) + abs(float(q0[6]))), 1),
+        wrist_step_deg=round(math.degrees(wrist_step), 1),
+        hand_min_z=None if zmin == 9e9 else round(zmin, 3),
+        hand_max_x=None if xmax == -9e9 else round(xmax, 3),
+        q0=[round(float(v), 2) for v in q0],
+        palm0_m=[round(float(palm0[0] - node.base[0]), 3),
+                 round(float(palm0[1] - node.base[1]), 3),
+                 round(float(palm0[2]), 3)],
+        gap_m=round(table_gap_m(node), 3),
+        reach_m=round(K.ARM_REACH, 3),
+    )
     node.get_logger().info(
-        'HANG[%s] 自然收臂: q0=%s 掌%s → 折肘 %.0f°(肘点漂移 %.1fmm) '
-        '腕总摆 %.0f°/单步 %.0f° 掌心轨迹 z≥%.2f x≤%.2f  %d 段'
-        % (side, np.round(q0, 2), out['palm0_m'], out['fold_deg'],
-           out['elbow_drift_mm'], out['wrist_deg'], out['wrist_step_deg'],
-           out['hand_min_z'], out['hand_max_x'], out['waypoints']))
+        'HANG[%s] stages=%s 肘点漂移 %.1fmm 腕单步 %.1f° '
+        '桌边净距 %.2fm/%s'
+        % (side, out['stages_done'], out['elbow_drift_mm'],
+           out['wrist_step_deg'], out['gap_m'],
+           'guarded' if check_table else 'unguarded'))
+    if info is not None:
+        info.update(out)
     return q1, out
+
 
 
 def ready_palm_target(node, side, r=None, z=None, y=None):
@@ -852,15 +1282,38 @@ def lift_ready(node, sides=('L', 'R'), info=None, r=None, z=None):
         ok = err <= 2e-3
         if not ok:
             node.get_logger().warn(
-                'LIFT[%s] 预备位 IK 未收敛 %.1fmm (%s)' % (s, err * 1e3, how))
-        for qq in K.raise_path(q0, q):
-            node.arm[s].move(qq, timeout=6.0, tol_deg=3.0)
-        node.arm[s].move(q, timeout=6.0)
+                'LIFT[%s] 预备位 IK 未收敛 %.1fmm (%s)，停止抬臂' %
+                (s, err * 1e3, how))
+            ok_all = False
+            errs[s] = 9e9
+            continue
+        path_ok = True
+        for path_i, qq in enumerate(K.raise_path(q0, q)):
+            _move_ok, _move_err = node.arm[s].move(
+                qq, timeout=6.0, tol_deg=3.0)
+            if not _move_ok:
+                node.get_logger().error(
+                    'LIFT[%s] 第%d个预备路点伺服超时，停止后续抬臂' %
+                    (s, path_i))
+                path_ok = False
+                break
+        if path_ok:
+            path_ok, _move_err = node.arm[s].move(q, timeout=6.0)
+        if not path_ok:
+            ok_all = False
+            errs[s] = 9e9
+            continue
         # 路点走完只保证"关节进了 3° 容差", 7 轴串下来指尖还有 20mm 级残差
         # (实测 17~25mm)。预备位是后面抓杯的起点, 差 20mm 就要靠抓取那一步
         # 自己补 —— 用与全局一致的闭环再压一次。
         _ok, e, _how2 = reach(node, s, T, tol_mm=5.0, passes=3)
-        if e > 4.0:
+        if e > 4.0 and not _ok:
+            _ok2, e2, _how3 = reach(
+                node, s, T, tol_mm=3.0, passes=2, tol_deg=0.08)
+            if e2 < e:
+                e = e2
+            _ok = _ok2
+        elif e > 4.0:
             # 还有 5~8mm 的不动点(见 reach 的 tol_deg 说明): 把伺服判据逼紧
             # 再补一轮。预备位是抓杯的起点, 差 7mm 就得让抓取那一步自己补。
             _ok2, e2, _how3 = reach(node, s, T, tol_mm=3.0, passes=2,
@@ -868,7 +1321,7 @@ def lift_ready(node, sides=('L', 'R'), info=None, r=None, z=None):
             if e2 < e:
                 e = e2
         errs[s] = round(float(e), 1)
-        ok_all = ok_all and ok
+        ok_all = ok_all and ok and _ok
         node.get_logger().info(
             'LIFT[%s] 抬臂预备位: 掌心高 %.2fm 前伸 %.2fm 残差 %.1fmm (%s) '
             'q=%s 应力 %.2f'
@@ -892,7 +1345,13 @@ def hand_onto(node, side, model, palm_fn, tol_mm=5.0, elbow='human'):
     T_obj = object_pose(node, model)
     if T_obj is None:
         return None
-    reach(node, side, palm_fn(T_obj), tol_mm=tol_mm, elbow=elbow)
+    ok_reach, reach_res, _how = reach(
+        node, side, palm_fn(T_obj), tol_mm=tol_mm, elbow=elbow)
+    if not ok_reach:
+        node.get_logger().warn(
+            'HAND_ONTO[%s] 未贴合到位 %.1fmm，不冻结双手相对偏移' %
+            (side, reach_res))
+        return None
     settle_sim(node, 0.30)                      # 等停稳再冻结, 否则量到滑行中的值
     T_obj = object_pose(node, model)
     Tp = wrist(node, side)
@@ -943,7 +1402,9 @@ def pour_into_cup(node, fill=0.65, jet_len=0.16, ramp=True):
     # 直接塞进 out['arm'] 会让验收脚本把它当成 {side: state} 去遍历, 拿 q 的
     # list 当字典调 .get() 而崩(AttributeError: 'list' object has no attribute 'get')。
     out['arm']['grasp_cup'] = log_arm(node, '抓杯', ('L',))
-    if not ok_c:
+    if not ok_c or not human_kinematics_ok(out['arm']['grasp_cup'], required_sides=('L',)):
+        node.get_logger().error(
+            'POUR 抓杯阶段未达成或手臂违反人体关节规则，停止后续倒水')
         return out
     Tcup_pour = P.cup_for_pour()
     # P103: 举杯要走"肘朝外"的解 —— 与捧杯/递杯同一套(P101 的经验)。默认的
@@ -951,37 +1412,77 @@ def pour_into_cup(node, fill=0.65, jet_len=0.16, ramp=True):
     ok_l, res_l = place_held(node, 'L', 'cup', Tcup_pour, tol_mm=3.0)
     out['res']['lift_cup'] = res_l
     out['arm']['lift_cup'] = log_arm(node, '举杯', ('L',))
-    if not ok_l:
+    if not ok_l or not human_kinematics_ok(
+            out['arm']['lift_cup'],
+            min_out_line_mm={'L': 100.0},
+            max_abs_droop_mm={'L': 120.0},
+            max_abs_twist={'L': 2.2}, required_sides=('L',)):
+        node.get_logger().error(
+            'POUR 举杯阶段未达成或左肘外扩/下垂/扭转不符合 P103 判据'
+            '（外扩线≥100mm、|droop|≤120mm、|twist|≤2.2），停止后续倒水')
         return out
     ok_k, res_k = grasp(node, 'R', 'kettle', P.kettle_grasp_palm, K.GRIP_KETTLE)
     out['res']['grasp_kettle'] = res_k
-    if not ok_k:
+    out['arm']['grasp_kettle'] = log_arm(node, '抓壶', ('R',))
+    if not ok_k or not human_kinematics_ok(out['arm']['grasp_kettle'], required_sides=('R',)):
+        node.get_logger().error(
+            'POUR 抓壶阶段未达成或手臂违反人体关节规则，停止后续倒水')
         return out
     Tk_pour, tip_tgt = P.kettle_for_pour(object_pose(node, 'cup'))
     ok_p, res_p = place_held(node, 'R', 'kettle', Tk_pour, tol_mm=4.0)
     out['res']['kettle_pour'] = res_p
     out['arm']['pour'] = log_arm(node, '倒水', ('L', 'R'))
-    if not ok_p:
+    if not ok_p or not human_kinematics_ok(
+            out['arm']['pour'], min_out_line_mm={'R': 60.0},
+            required_sides=('L', 'R')):
+        node.get_logger().error(
+            'POUR 倒水位形未达成、左右臂违反人体关节规则或右肘外扩线小于60mm；'
+            '禁止启动水柱')
         return out
-    # 水柱先伸出, 水位再升 —— 顺序反了会先看见"杯里有水但没水柱"
-    # P98: 有液面控制器时水位由体积积分驱动(水柱由 liquid 逐帧铺),
-    # 没有时(离线单点脚本)退回原来的行程插值。
+    # 水柱先伸出并确认目标指令已被插件接收，再启动水量积分。
+    # ramp ACK 丢失时用一次性 joint ACK 重试；两条都失败就不启动水流，
+    # 避免“杯内水位上涨但水柱没有伸出”或倒水半途继续执行。
     liq = getattr(node, 'liquid', None)
+    if ramp:
+        jet_ok = node.carry.joint_ramp(
+            'kettle', 'jet_joint', jet_len, dur=0.5)
+        if not jet_ok:
+            jet_ok = node.carry.joint('kettle', 'jet_joint', jet_len)
+        if not jet_ok:
+            node.get_logger().error(
+                'POUR 水柱伸出指令无 ACK；不启动液体积分，保持道具抓持')
+            out['reason'] = 'jet_extend_unconfirmed'
+            return out
+        if liq is None:
+            water_ok = node.carry.joint_ramp(
+                'cup', 'water_joint', L.CUP_WATER_MAX * fill, dur=1.2)
+            if not water_ok:
+                water_ok = node.carry.joint(
+                    'cup', 'water_joint', L.CUP_WATER_MAX * fill)
+            if not water_ok:
+                node.carry.joint('kettle', 'jet_joint', 0.0)
+                node.get_logger().error(
+                    'POUR 杯内水位驱动无 ACK；已请求收回水柱，不报告倒水成功')
+                out['reason'] = 'water_level_unconfirmed'
+                return out
+    else:
+        jet_ok = node.carry.joint('kettle', 'jet_joint', jet_len)
+        if not jet_ok:
+            node.get_logger().error(
+                'POUR 水柱目标未确认，不启动倒水')
+            out['reason'] = 'jet_extend_unconfirmed'
+            return out
+        if liq is None:
+            water_ok = node.carry.joint(
+                'cup', 'water_joint', L.CUP_WATER_MAX * fill)
+            if not water_ok:
+                node.carry.joint('kettle', 'jet_joint', 0.0)
+                node.get_logger().error(
+                    'POUR 杯内水位目标未确认，已请求收回水柱')
+                out['reason'] = 'water_level_unconfirmed'
+                return out
     if liq is not None:
         liq.pour_start(fill)
-    if ramp:
-        if not node.carry.joint_ramp('kettle', 'jet_joint', jet_len, dur=0.5):
-            # P98: ramp 的 ack 在通道拥塞时可能超时(指令本身多半已到达),
-            # 补一发直达终值; 插件每 tick 重发目标, 丢一帧无碍。
-            node.carry._send('joint kettle jet_joint %.6f' % jet_len)
-        if liq is None:
-            node.carry.joint_ramp('cup', 'water_joint',
-                                  L.CUP_WATER_MAX * fill, dur=1.2)
-    else:
-        node.carry.joint('kettle', 'jet_joint', jet_len)
-        if liq is None:
-            node.carry.joint('cup', 'water_joint', L.CUP_WATER_MAX * fill)
-    if liq is not None:
         liq.pour_wait()
     node.spin_for(0.6)
     out.update({'cup': Tcup_pour, 'kettle': Tk_pour, 'tip': tip_tgt,
@@ -1006,8 +1507,18 @@ def pour_approach(node, v_max=0.16, info=None):
     d0 = table_gap_m(node)
     # 一律摆到待入场位: 不论车从哪儿来, 每次的入场几何都一致(验收可复现),
     # 而且"停下 → 抬臂 → 开进去"这段动作每次都看得见。
-    place_robot(node, T_stand)
-    node.home()                       # 在远处复位(臂 Q_REST、十指张开、水流归零)
+    stand_mm = place_robot(node, T_stand)
+    if stand_mm >= 8.0:
+        out.update(ok=False, reason='stand_pose_not_confirmed',
+                   stand_mm=round(float(stand_mm), 1))
+        node.get_logger().error(
+            'POUR 入场无法确认远端待命位（%.1fmm），不执行 home/抬臂' % stand_mm)
+        return out
+    home_ok = node.home()            # 在远处复位(臂 Q_REST、十指张开、水流归零)
+    if not home_ok:
+        out.update(ok=False, reason='home_failed')
+        node.get_logger().error('POUR 入场 home 复位失败，停止抬臂')
+        return out
     out['gap_before'] = round(table_gap_m(node), 3)
     out['gap_at_arrival'] = round(d0, 3)
     out['reach_m'] = K.ARM_REACH
@@ -1024,9 +1535,16 @@ def pour_approach(node, v_max=0.16, info=None):
     # 所以在服务位上方再摆正一次(几厘米的瞬移, 画面上看不出来)。
     snap = place_robot(node, K.frame(K.rot_z(0.0),
                                      (L.SERVE_POSE[0], L.SERVE_POSE[1], 0.0)))
+    snap_ok = bool(snap < 8.0)
     out.update(gap_after=round(table_gap_m(node), 3),
                drive_mm=round(res_d, 1), snap_mm=round(snap, 1),
-               ok=bool(ok_l and ok_d))
+               snap_ok=snap_ok, home_ok=bool(home_ok),
+               ok=bool(ok_l and ok_d and snap_ok and home_ok))
+    if not out['ok']:
+        out['reason'] = ('lift_ready_failed' if not ok_l else
+                         'drive_to_service_failed' if not ok_d else
+                         'service_pose_snap_failed')
+        node.get_logger().error('POUR 入场未完成: %s' % out['reason'])
     if info is not None:
         info.update(out)
     return out
@@ -1049,28 +1567,70 @@ def prepare_present(node, fill=0.65, verbose=True):
     # 先在臂长之外把双手抬到壶/杯高度, 再靠近。
     out['entry'] = pour_approach(node)
     if not out['entry']['ok']:
-        node.get_logger().warn('PREPARE 入场: 抬臂或驶入有告警, 继续尝试倒水')
+        node.get_logger().error(
+            'PREPARE 入场未通过（抬臂/驶入未确认），中止桌边操作，避免带着异常姿态伸手')
+        return out
     Tk_home = object_pose(node, 'kettle')
+    if Tk_home is None:
+        out['reason'] = 'kettle_pose_missing'
+        node.get_logger().error('PREPARE 缺少水壶真值位姿，停止倒水')
+        return out
     pour = pour_into_cup(node, fill=fill)
     out.update(pour)
     if not pour['ok']:
+        out['ok'] = False
         return out
-    # 收水: 水柱缩回, 水位保持
-    node.carry.joint_ramp('kettle', 'jet_joint', 0.0, dur=0.5)
+    # 倒水子流程成功不代表 PREPARE 已完成；水壶放回、右臂归位、底盘复位、
+    # 捧杯/副手贴合和转身仍可能失败。最终聚合之前总状态必须保持 False。
+    out['ok'] = False
+    # 收水: 先确认水柱缩回命令，再结束液体积分；无 ACK 时不移动水壶。
+    jet_retract_ok = node.carry.joint_ramp(
+        'kettle', 'jet_joint', 0.0, dur=0.5)
+    if not jet_retract_ok:
+        jet_retract_ok = node.carry.joint('kettle', 'jet_joint', 0.0)
+    if not jet_retract_ok:
+        out['reason'] = 'jet_retract_unconfirmed'
+        node.get_logger().error(
+            'PREPARE 水柱无法确认缩回，保持水壶抓持，不执行放壶/转身')
+        return out
     if getattr(node, 'liquid', None) is not None:
-        node.liquid.pour_stop()      # P98: 收水完成, 水柱熄灭
+        node.liquid.pour_stop()      # P98: 水柱已回收, 再停止液体积分
     ok_d, res_d = put_down(node, 'R', 'kettle', Tk_home)
     out['res']['kettle_back'] = res_d
-    node.arm['R'].move(K.Q_REST, timeout=10.0)
+    if not ok_d:
+        node.get_logger().error(
+            'PREPARE 水壶未确认落稳，保持抓持并中止后续动作')
+        return out
+    ok_r_home, err_r_home = node.arm['R'].move(K.Q_REST, timeout=10.0)
+    if not ok_r_home:
+        out['reason'] = 'right_arm_home_failed'
+        node.get_logger().error(
+            'PREPARE 右臂回 Q_REST 超时(最大误差 %.1f°)，保持杯子抓持并中止'
+            % math.degrees(float(np.nanmax(np.abs(err_r_home)))))
+        return out
     node.spin_for(0.4)
-    place_robot(node, T_serve)
+    serve_mm = place_robot(node, T_serve)
+    if serve_mm >= 8.0:
+        out['reason'] = 'service_pose_reset_failed'
+        node.get_logger().error(
+            'PREPARE 服务位底盘摆正失败 %.1fmm，保持杯子抓持并中止'
+            % serve_mm)
+        return out
     bx, by, byaw = node.base
     Tcup_carry = P.cup_in_base(bx, by, byaw, L.CUP_CARRY_R, L.CUP_CARRY_Z)
     # P101: 捧杯/贴手都走"肘朝外"解 —— 抱着杯子时肘得像人一样架在体侧,
     # 而不是垂在下面(原来 KDL 用 home 当种子, 两侧肘都朝下)。
     ok_c, res_c = place_held(node, 'L', 'cup', Tcup_carry, tol_mm=5.0)
     out['res']['cup_carry'] = res_c
+    if not ok_c:
+        node.get_logger().error(
+            'PREPARE 左手双手捧杯位形未到位（%.1fmm），保持抓持并中止转身' % res_c)
+        return out
     off_r = hand_onto(node, 'R', 'cup', lambda T: P.cup_cradle_palm(T, 'R'))
+    if off_r is None:
+        node.get_logger().error(
+            'PREPARE 右手未能贴合水杯，保持左手抓持并中止递杯准备')
+        return out
     # P94: 转身朝向优先用**实测人的位置**, 人不在接水位附近才退回名义
     # PERSON_SPOT。原来写死 PERSON_SPOT: 人站偏 0.15m 转身就差 9.3°, 后面
     # `_present_target` 虽然会按实测人手方向把杯子送过去, 但机器人是斜着
@@ -1094,9 +1654,14 @@ def prepare_present(node, fill=0.65, verbose=True):
     # (**朝向保留**), 让 base 与人手点严格落在同一条射线上。
     T_face = K.frame(K.rot_z(yaw_face),
                      (L.SERVE_POSE[0], L.SERVE_POSE[1], 0.0))
-    place_robot(node, T_face)
-    out.update({'ok': bool(ok_d and ok_c and off_r is not None and ok_t),
+    face_mm = place_robot(node, T_face)
+    face_ok = bool(face_mm < 8.0)
+    out.update({'ok': bool(ok_d and ok_c and off_r is not None and ok_t
+                            and face_ok),
                 'turn_ok': ok_t, 'turn_err': err_t,
+                'service_reset_mm': round(serve_mm, 1),
+                'face_reset_mm': round(face_mm, 1),
+                'face_reset_ok': face_ok,
                 'kettle_home': Tk_home,
                 'cup': object_pose(node, 'cup'),
                 'off_r': off_r})
@@ -1175,28 +1740,50 @@ def person_hand_world(node, T_person, link='person_arms', local_off=None):
     return T
 
 
+def person_hand_gap_expected_mm(openness):
+    """由双臂外展关节目标幅度估算双手心目标间距（端点标定：闭合184/张开345mm）。"""
+    close = float(L.PERSON_HAND_CLOSE)
+    open_ = float(L.PERSON_HAND_OPEN)
+    span = open_ - close
+    if abs(span) < 1e-9:
+        return 184.0
+    ratio = max(0.0, min(1.0, (float(openness) - close) / span))
+    return 184.0 + ratio * (345.0 - 184.0)
+
+
+def person_hand_gap_ok(gap_mm, openness, tolerance_mm=45.0):
+    """使用 Gazebo 真值手心间距验证人物双手确已到达张开/合拢目标。"""
+    if gap_mm is None:
+        return False
+    try:
+        gap = float(gap_mm)
+        target = person_hand_gap_expected_mm(openness)
+        tolerance = float(tolerance_mm)
+    except (TypeError, ValueError):
+        return False
+    return (math.isfinite(gap) and math.isfinite(target)
+            and math.isfinite(tolerance) and gap >= 0.0
+            and tolerance >= 0.0 and abs(gap - target) <= tolerance)
+
+
 def person_hands(node, openness, dur=0.6, dt=0.05, tag=''):
-    """人的两只手开合（斜坡，别瞬移）。
-
-    P96：人的两条手臂各有自己的外展关节（绕肩点的竖直轴）。`openness` 是
-    **幅度**，两侧发**反号**值 —— 两条关节的轴在 SDF 里都写 (0,0,1)，
-    不反号就会变成"左手张开、右手更合拢"（§6.4 #60）。
-
-    为什么走斜坡：位置指令是跳变的，直接给终点画面上就是手"啪"地弹开，
-    而杯子还在机器人手里 —— 看上去像手被电了一下。0.6s 走完 0.385rad，
-    单关节角速度 0.64rad/s，远在 JPC 的 cmd_max(2.0) 之下。
-    """
+    """人的双手斜坡开合，并通过 Gazebo 真值手心间距验收到位。"""
     cur = float(node.bus.val.get('person_arm_l_joint', 0.0))
     n = max(1, int(dur / max(dt, 1e-3)))
     for i in range(1, n + 1):
         v = cur + (float(openness) - cur) * float(i) / n
         node.bus.set(['person_arm_l_joint', 'person_arm_r_joint'], [v, -v])
         node.spin_for(dt)
-    node.spin_for(0.25)          # 让 JPC 把最后一段走完再返回
+    node.spin_for(0.25)          # 让 JPC 把最后一段走完再读真值
+    gap = hand_gap_mm(node)
+    target = person_hand_gap_expected_mm(openness)
+    ok = person_hand_gap_ok(gap, openness)
     node.get_logger().info(
-        '双手%s: 幅度 %.3f rad (左 %+.3f / 右 %+.3f)'
-        % (tag, openness, openness, -openness))
-    return True
+        '双手%s: 命令幅度 %.3f rad, 真值手心距 %s mm / 目标 %.1f±45mm %s'
+        % (tag, openness,
+           '缺失' if gap is None else '%.1f' % gap,
+           target, '到位' if ok else '未到位'))
+    return bool(ok)
 
 
 def person_hand_poses(node, T_person=None):

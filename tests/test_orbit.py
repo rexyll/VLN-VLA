@@ -159,6 +159,7 @@ class Orbit(Node):
                 'det': bool(self.st.get('detected')),
                 'cam': self.st.get('cam', ''),
                 'vd': self.st.get('vis_dist', -1.0),
+                'assoc_err_m': self.st.get('assoc_err_m'),
                 'trk': self.st.get('track', ''),
                 'occl': bool(occl),
                 'in_fov': abs(brg) < HFOV / 2.0,

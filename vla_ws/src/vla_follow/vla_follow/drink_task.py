@@ -236,6 +236,11 @@ class DrinkTask(Node):
         # cmd_mux 也上了 300s 锁)。这两个都是收到 /robot/command 才动作。
         self.pub_cmd = self.create_publisher(String, '/robot/command', 10)
         self.create_subscription(String, '/robot/command', self._cmd_cb, 10)
+        # P104: 订阅 follower 状态，在交权后确认 FOLLOW 指令确已被接收。
+        self._follower_status = {}
+        self._follower_status_t = 0.0
+        self.create_subscription(String, '/follower/status',
+                                 self._follower_status_cb, 10)
         # ---- 底盘速度(原地转身/驶入/撤离)。P102: 走**独立话题** /drink/cmd_vel,
         # 由 cmd_mux 在喝水锁内放行 —— 原来和 cmd_mux 一起抢 /robot/cmd_vel,
         # 两边都 20Hz, 谁后到谁生效, 撤离能慢 5 倍甚至原地不动。
@@ -265,6 +270,13 @@ class DrinkTask(Node):
             % (PUB_HZ, L.PERSON_HAND_Z, str(L.SERVE_POSE)))
 
     # ------------------------------------------------------------ 回调
+    def _follower_status_cb(self, msg):
+        try:
+            self._follower_status = json.loads(msg.data)
+            self._follower_status_t = time.monotonic()
+        except Exception:
+            pass
+
     def _js_cb(self, msg):
         self.js.update(zip(msg.name, msg.position))
 
@@ -465,7 +477,7 @@ class DrinkTask(Node):
         Tp = M.object_pose(self, 'person')
         Th = M.person_hand_world(self, Tp)
         if Th is None:
-            return {'moved': False, 'why': '拿不到人手真值'}
+            return {'ok': False, 'moved': False, 'why': '拿不到人手真值'}
         dx, dy = Th[0, 3] - bx, Th[1, 3] - by
         d_hb = math.hypot(dx, dy)
         # P94: 三个点都打出来。只看"车→人手"这一个数没法区分"人站远了"和
@@ -488,7 +500,7 @@ class DrinkTask(Node):
                    % (L.CUP_PRESENT_R_MAX,
                       (d_hb - L.CUP_PRESENT_R_MAX) * 1000.0)
                    if d_hb > L.CUP_PRESENT_R_MAX else ' (在臂可及范围内)'))
-            return {'moved': False, 'd_hb': round(d_hb, 3)}
+            return {'ok': True, 'moved': False, 'd_hb': round(d_hb, 3)}
         ux, uy = dx / d_hb, dy / d_hb
         # 能挪多少由**桌子**说了算: 沿"车→人"方向步进试探, 贴到桌面
         # PRESENT_TABLE_PAD 之内就不再往前。别用桌子的外接圆(TABLE_R=0.62)
@@ -508,7 +520,7 @@ class DrinkTask(Node):
                 'DRINK 递杯补位: 车→人手 %.3fm, 但朝人方向已贴到桌子, '
                 '挪不动(杯子会停在离手 %.0fmm)' % (d_hb,
                                                    (d_hb - 0.70) * 1000.0))
-            return {'moved': False, 'why': '贴桌, 挪不动',
+            return {'ok': False, 'moved': False, 'why': '贴桌, 挪不动',
                     'd_hb': round(d_hb, 3)}
         # P96: `drive_to` 的前进速度有个 0.06m/s 的下限(防 P 控制在目标前
         # 停死), 而停稳还要等 0.5s —— 换算下来就是 ~30mm 的固有残差。
@@ -517,6 +529,8 @@ class DrinkTask(Node):
         # **按实测重算方向再补一轮**, 把残差真正吃掉。
         d2 = d_hb
         total = 0.0
+        drive_ok_all = True
+        drive_residuals = []
         for i in range(3):
             self.sync_base_from_truth(quiet=True)
             bxn, byn, _ = self.base
@@ -545,6 +559,13 @@ class DrinkTask(Node):
                                    v_max=0.12, tol_mm=12.0, timeout=25.0,
                                    k=0.9, v_min=0.02, tag='递杯补位%d' % (i + 1))
             total += sn
+            drive_residuals.append(round(float(res_d), 1))
+            if not ok:
+                drive_ok_all = False
+                self.get_logger().error(
+                    'DRINK 递杯补位%d 底盘行驶失败(残差 %.1fmm)，不再继续伸手递杯'
+                    % (i + 1, res_d))
+                break
             self.sync_base_from_truth(quiet=True)
             bxn, byn, _ = self.base
             Thn = M.person_hand_world(self, M.object_pose(self, 'person'))
@@ -556,8 +577,13 @@ class DrinkTask(Node):
         self.get_logger().info(
             'DRINK 递杯补位: 车→人手 %.3f → %.3fm (目标 ≤%.2f)'
             % (d_hb, d2, L.PRESENT_APPROACH_CLEAR))
-        return {'moved': True, 'd_hb': round(d_hb, 3), 'd_after': round(d2, 3),
-                'step_m': round(total, 3), 'drive_ok': bool(d2 > 0),
+        within_safe_reach = d2 > 0.0 and (
+            d2 <= L.PRESENT_APPROACH_CLEAR + L.PRESENT_APPROACH_GAP)
+        approach_ok = bool(drive_ok_all and within_safe_reach)
+        return {'ok': approach_ok, 'moved': bool(total > 0.0),
+                'd_hb': round(d_hb, 3), 'd_after': round(d2, 3),
+                'step_m': round(total, 3), 'drive_ok': bool(drive_ok_all),
+                'drive_residuals_mm': drive_residuals,
                 'drive_res_mm': round((d_hb - d2) * 1000.0, 1)}
 
     def run_drink(self, fill=0.65, drink_s=6.0):
@@ -579,17 +605,23 @@ class DrinkTask(Node):
             if 'cup' in self.carry.items:
                 pass                      # 手里还端着杯子: 让它自然保持
             else:
-                self.carry.joint_ramp('cup', 'water_joint', 0.0, dur=0.4)
+                water_zero_ok = self.carry.joint_ramp(
+                    'cup', 'water_joint', 0.0, dur=0.4)
+                if not water_zero_ok:
+                    water_zero_ok = self.carry.joint(
+                        'cup', 'water_joint', 0.0)
+                if not water_zero_ok:
+                    self._set_state('FAIL_WATER_RESET')
+                    self.get_logger().error(
+                        'DRINK 水位归零命令无 ACK，拒绝开始新一轮倒水')
+                    return False
                 self.liquid.reset_cycle()   # P98: 杯内水量记账同步清零
             # 1) 倒水 + 捧杯 + 原地转身面向人
             self._set_state('PREPARE')
             pr = M.prepare_present(self, fill=fill)
             if not pr['ok']:
-                # P102: 半路失败时手里可能还**钉着**杯子(抓到了、举不到位), 不
-                # 松钉的话它就跟着手悬在空中, 下一轮抓杯必定失败(而且画面上
-                # 杯子会飘走)。失败也要把场景留给下一轮。
-                if self.carry.items:
-                    self.carry.release(None)
+                # P104: 失败时若物体仍被抓持，保持附着供安全恢复/人工检查；
+                # 不得为了“清理场景”在半空中 release，避免道具掉落或飞出。
                 self._set_state('FAIL_PREPARE')
                 self.get_logger().error('DRINK 失败: 倒水/捧杯阶段')
                 return False
@@ -609,16 +641,40 @@ class DrinkTask(Node):
             res.setdefault('arm', {})['前伸前'] = self._arm_state('前伸前')
             # P94: 人站偏(±0.15m/±20°)时先把"够不着"的那段用底盘补上
             res['approach'] = self._approach_if_far()
+            if not res['approach'].get('ok', False):
+                self._set_state('FAIL_PRESENT_APPROACH')
+                self.get_logger().error(
+                    'DRINK 递杯补位未确认安全可达（%s），不伸臂、不交接杯子'
+                    % res['approach'])
+                return False
             # P96: 人看见杯子来了, 两只手**张开**等着接。摆在这而不是放在
             # PRESENT 开头, 是因为补位会把车往前挪 0.2~0.4m —— 人该在车停稳
             # 之后再伸手, 否则手先张开再看着车拱过来, 不像"接"而像"躲"。
-            M.person_hands(self, L.PERSON_HAND_OPEN, dur=0.8, tag='张开迎杯')
+            ok_person_open = M.person_hands(
+                self, L.PERSON_HAND_OPEN, dur=0.8, tag='张开迎杯')
+            if not ok_person_open:
+                self._set_state('FAIL_PERSON_OPEN')
+                self.get_logger().error(
+                    'DRINK 人手未确认张开，不继续把杯子递向未就绪的手')
+                return False
             Tp = self._present_target()
             # P103: 递杯也走 human 分支 —— 'out' 只优化外扩量, 会把 L 侧
             # up_roll 顶到 −1.84(R4 肩内旋超限), 本身就是个违反人体规则的解。
-            M.place_held(self, 'L', 'cup', Tp, tol_mm=6.0, iters=14,
-                         reach_tol_mm=1.5)
-            M.follow_hand(self, 'R', 'cup', pr['off_r'])
+            ok_present, present_mm = M.place_held(
+                self, 'L', 'cup', Tp, tol_mm=6.0, iters=14,
+                reach_tol_mm=1.5)
+            ok_follow, follow_mm = M.follow_hand(
+                self, 'R', 'cup', pr['off_r'])
+            res['present'] = {'ok': ok_present, 'position_mm': present_mm,
+                              'right_hand_ok': ok_follow,
+                              'right_hand_mm': follow_mm}
+            if not (ok_present and ok_follow):
+                self._set_state('FAIL_PRESENT')
+                self.get_logger().error(
+                    'DRINK 递杯位形失败: 左手=%s(%.1fmm) 右手=%s(%.1fmm)，'
+                    '不交给人、不松开杯子'
+                    % (ok_present, present_mm, ok_follow, follow_mm))
+                return False
             self.spin_for(0.5)
             res['hands'] = {'open_gap_mm': M.hand_gap_mm(self)}
             # 3) **人先双手合拢捧住 → 机器人才松手**。
@@ -626,7 +682,13 @@ class DrinkTask(Node):
             #    画面上是"机器人放手了而人还没接住"。
             #    P94/P96: 顺带把"递杯补位 + 双手开合"的过程数据播出去
             #    (只读验收脚本要用; 这些都是真值测量, 不是回读指令)
-            M.person_hands(self, L.PERSON_HAND_CLOSE, dur=0.8, tag='合拢捧杯')
+            ok_person_grip = M.person_hands(
+                self, L.PERSON_HAND_CLOSE, dur=0.8, tag='合拢捧杯')
+            if not ok_person_grip:
+                self._set_state('FAIL_PERSON_GRIP')
+                self.get_logger().error(
+                    'DRINK 人手未确认合拢；不执行机器人交接')
+                return False
             res['hands']['close_gap_mm'] = M.hand_gap_mm(self)
             # P96: **交接前**的手-杯间距是"递杯精度"(和 P94 的 d_hand 同一个
             # 东西), **交接后**的才是"两只手捧没捧在杯壁上"。混在一起量的话,
@@ -640,6 +702,11 @@ class DrinkTask(Node):
                                          'hands': res['hands']})
             ok_h = self.carry.hand_to('cup', 'person', 'person_arms',
                                       L.PERSON_HAND_IN_ARM)
+            if not ok_h:
+                self._set_state('FAIL_HANDOVER')
+                self.get_logger().error(
+                    'DRINK 交接到人手失败：保持机器人当前持有/姿态，不执行张手和撤臂')
+                return False
             # 交接后杯子被钉到"两手连线中点", 手到杯轴就该正好是相切值。
             # 这一项抓的是**结构性错误**: PERSON_HAND_IN_ARM 与两条手臂
             # link 的实际摆放对不上(改了 SDF 忘了改 scene_layout 才会犯)。
@@ -663,15 +730,23 @@ class DrinkTask(Node):
             _elb = self._elbow_report('递杯')
             if _elb:
                 res['elbows'] = _elb
-            M.open_hand(self, 'L')
-            M.open_hand(self, 'R')
-            self.arm['L'].move(K.Q_REST, timeout=10.0)
-            self.arm['R'].move(K.Q_REST, timeout=10.0)
-            self.spin_for(0.6)
-            if not ok_h:
-                self._set_state('FAIL_HANDOVER')
-                self.get_logger().error('DRINK 失败: 交接到人的手')
+            open_l, _ = M.open_hand(self, 'L')
+            open_r, _ = M.open_hand(self, 'R')
+            if not (open_l and open_r):
+                self._set_state('FAIL_ROBOT_RELEASE_HANDS')
+                self.get_logger().error(
+                    'DRINK 杯已交给人手，但机器人张手未全部确认；'
+                    '停止喝水阶段，避免双方仍有手部接触')
                 return False
+            rest_l, _ = self.arm['L'].move(K.Q_REST, timeout=10.0)
+            rest_r, _ = self.arm['R'].move(K.Q_REST, timeout=10.0)
+            if not (rest_l and rest_r):
+                self._set_state('FAIL_ROBOT_WITHDRAW')
+                self.get_logger().error(
+                    'DRINK 机器人空手回到 Q_REST 未全部确认；'
+                    '不向人发送 DRINK_READY')
+                return False
+            self.spin_for(0.6)
             self._tell_person('DRINK_READY')
             # 4) 人喝水: 举杯 → 停一会儿 → 放下
             self._set_state('PERSON_DRINK')
@@ -686,6 +761,11 @@ class DrinkTask(Node):
             # 5) 双手接回(左手主手 grab, 右手贴上去 —— §6.4 #44)
             self._set_state('TAKE_BACK')
             Tcup = M.object_pose(self, 'cup')
+            if Tcup is None:
+                self._set_state('FAIL_TAKE_BACK')
+                self.get_logger().error(
+                    'DRINK 接回阶段缺少水杯真值位姿；不下发接近动作')
+                return False
             _okr, rr_r, _ = M.reach(self, 'R', P.cup_cradle_palm(Tcup, 'R'),
                                     tol_mm=5.0)
             _okl, rr_l, _ = M.reach(self, 'L', P.cup_cradle_palm(Tcup, 'L'),
@@ -693,12 +773,30 @@ class DrinkTask(Node):
             self.get_logger().info(
                 'TAKE_BACK reach: R %.1fmm / L %.1fmm  cup=%s'
                 % (rr_r, rr_l, np.round(Tcup[:3, 3], 3)))
+            if not (_okr and _okl):
+                self._set_state('FAIL_TAKE_BACK')
+                self.get_logger().error(
+                    'DRINK 接回定位失败: R=%s/%.1fmm L=%s/%.1fmm，'
+                    '不抓杯、不要求人松手'
+                    % (_okr, rr_r, _okl, rr_l))
+                return False
             self.spin_for(0.3)
             ok_g = self.carry.grab('cup', 'L')
+            if not ok_g:
+                self._set_state('FAIL_TAKE_BACK')
+                self.get_logger().error(
+                    'DRINK 左手抓回水杯失败；人仍应保持交还姿态，不继续撤手')
+                return False
             # P96: **人先双手张开 → 机器人才把杯子端走**。顺序不能反 ——
             # 手还合着就端走, 画面上是杯子从两只手里被硬拔出来; 这和松手那套
             # "张手 → 对位 → 松钉 → 撤手"是同一个道理, 只是主体换成了人。
-            M.person_hands(self, L.PERSON_HAND_OPEN, dur=0.8, tag='张开交还')
+            ok_person_open = M.person_hands(
+                self, L.PERSON_HAND_OPEN, dur=0.8, tag='张开交还')
+            if not ok_person_open:
+                self._set_state('FAIL_PERSON_RELEASE')
+                self.get_logger().error(
+                    'DRINK 人手未确认张开；机器人保持持杯，不执行撤手/放回')
+                return False
             _hg = M.hands_to_cup_mm(self)
             if _hg is not None:
                 res['hands'].update(give_l_mm=round(_hg[0], 1),
@@ -710,13 +808,30 @@ class DrinkTask(Node):
                        res['hands'].get('grip_r_mm', 0.0)))
             off_r = M.hand_onto(self, 'R', 'cup',
                                 lambda T: P.cup_cradle_palm(T, 'R'))
+            if off_r is None:
+                self._set_state('FAIL_TAKE_BACK_SUPPORT')
+                self.get_logger().error(
+                    'DRINK 接回后右手未能贴合杯子；保持左手持杯，不开始放回')
+                return False
             # 交完就收手(空手自然垂着时是合着的), 免得人一路张着手走回去
-            M.person_hands(self, L.PERSON_HAND_CLOSE, dur=0.6, tag='交还后收手')
+            ok_person_close = M.person_hands(
+                self, L.PERSON_HAND_CLOSE, dur=0.6, tag='交还后收手')
+            if not ok_person_close:
+                self._set_state('FAIL_PERSON_HAND_RESET')
+                self.get_logger().error(
+                    'DRINK 人手复位失败；机器人保持杯子抓持，不开始放回')
+                return False
             self.spin_for(0.5)
             self._tell_person('DRINK_DONE')
             # 6) 转回桌前 → 放回原位
             self._set_state('PUT_BACK')
-            M.turn_base(self, 0.0)
+            ok_turn_back, turn_back_err = M.turn_base(self, 0.0)
+            if not ok_turn_back:
+                self._set_state('FAIL_PUT_BACK_APPROACH')
+                self.get_logger().error(
+                    'DRINK 放回前底盘转向失败 %.1f°，不执行桌边放杯'
+                    % math.degrees(turn_back_err or 0.0))
+                return False
             # P94 #59: **这里不许 place_robot 把底盘瞬移回服务位**。递杯若补过
             # 位, 底盘已经离开服务位 0.24m 了; 而 gz 的 teleport **不清零速度**
             # (§6.4 #20) —— 手里钉着的杯子跟着瞬移之后, release 那一刻会带着
@@ -725,6 +840,11 @@ class DrinkTask(Node):
             # (0.56m) 还近; `put_down` 是对**物体真值**闭环的, 与底盘在哪无关。
             # 转身造成的 3~7cm 平移漂移也由这条闭环吸收。
             Tcup_home = P.cup_on_table()
+            if M.object_pose(self, 'cup') is None:
+                self._set_state('FAIL_PUT_BACK')
+                self.get_logger().error(
+                    'DRINK 放回阶段缺少水杯真值位姿；保持抓持，不执行放杯')
+                return False
             self.get_logger().info(
                 'PUT_BACK 目标=%s 当前=%s (base=%s)'
                 % (np.round(Tcup_home[:3, 3], 3),
@@ -737,6 +857,26 @@ class DrinkTask(Node):
             _pb = {}
             ok_d, res_d = M.put_down_two(self, 'cup', Tcup_home, info=_pb)
             res['putback'] = _pb
+            if not ok_d:
+                # drop_mm 仅在 put_down_two 已经完成 release 后写入；
+                # 没有它或 carry 仍登记持有，说明水杯未安全落桌，不能继续移动底盘。
+                _drop = _pb.get('drop_mm')
+                if ('cup' in self.carry.items or _drop is None
+                        or abs(float(_drop)) > 5.0):
+                    self._set_state('FAIL_PUT_BACK')
+                    self.get_logger().error(
+                        'DRINK 水杯未确认落稳/松钉后发生下落（放回残差 %.1fmm，'
+                        'drop=%s），停止撤离'
+                        % (res_d, _drop))
+                    return False
+                # 物体已安全释放，但初始 hands_off 被桌面净空门控拦下；
+                # 这不是“放杯失败”，由下面的分阶段收臂路径接手完成安全撤手。
+                res['putback']['hands_off_initial_ok'] = False
+                res['putback']['placed_release_ok'] = True
+                ok_d = True
+                self.get_logger().warn(
+                    'DRINK 水杯已落稳并解除附着，但初始撤手被碰撞门控拦截；'
+                    '转入分阶段收臂')
             # 放回要量"落稳那一刻"(手还捧着、没抬手撤走), 见 put_down_two
             _ar = _pb.get('arm_rest') or self._arm_state('放回')
             res.setdefault('arm', {})['放回'] = _ar
@@ -761,49 +901,142 @@ class DrinkTask(Node):
                 if d_slide > 5.0:
                     self.get_logger().warn(
                         'DRINK 放回后滑了 %.1fmm, 摆回原位' % d_slide)
-                    self.carry.place('cup', Tcup_home)
+                    ok_restore = self.carry.place('cup', Tcup_home)
+                    if not ok_restore:
+                        self._set_state('FAIL_CUP_RESTORE')
+                        self.get_logger().error(
+                            'DRINK 放回后杯子偏移 %.1fmm，原位恢复命令无 ACK；'
+                            '保持底盘停止，不继续收臂/交权' % d_slide)
+                        return False
                     self.spin_for(0.5)
+                    Tc2b = M.object_pose(self, 'cup')
+                    restore_mm = (float(np.linalg.norm(
+                        Tc2b[:3, 3] - np.asarray(Tcup_home)[:3, 3])) * 1000.0
+                        if Tc2b is not None else 9e9)
+                    if not math.isfinite(restore_mm) or restore_mm > 5.0:
+                        self._set_state('FAIL_CUP_RESTORE')
+                        self.get_logger().error(
+                            'DRINK 杯子原位恢复后仍偏 %.1fmm，停止任务' % restore_mm)
+                        return False
                     res_d = max(float(res_d), d_slide)
-            # 7) P93: 撤离桌边 —— 双臂收 home, 然后**真开出去**(不是 teleport,
-            #    画面上要看得见机器人离开桌子)。目标在服务位正后方 1.15m。
+            # 7) P104: 放杯后立即开始收臂，分“桌边预回收”和“安全净空后完成”。
+            # put_down_two 已经执行：落稳→双手张开→release→抬手/向两侧撤离。
+            # 这里紧接着只尝试第①段（肘为支点折叠），且每个插值点都过桌面碰撞门控。
             self._set_state('RETREAT')
-            # P102: 退车前先记下杯子在哪 —— 收臂/倒车这一路要是蹭到杯子,
-            # 它是无重力自由体, 蹭一下就会滑走(实测老顺序带偏 47.9mm)。
             _cup0 = M.object_pose(self, 'cup')
-            # P102: **先退, 再收臂** —— 用户 2026-10-28 的第二条要求。
-            # 原来顺序反了(先 `hang()` 再退): 前臂绕肘回收的那段圆弧是在
-            # **桌面上方**画的, 手离杯口只有 0.13m, 画面上像"从桌上把手抽走"。
-            # 正确做法是人放下东西后的顺序: 先退半步拉开距离 → 再垂手。
-            ok_r, res_r = M.drive_to(self, L.SERVE_RETREAT_XY, v_max=0.22,
-                                     tol_mm=80.0, tag='撤离桌边')
+            _hp = {}
+            _early_fold_ok = True
+            for _s in ('R', 'L'):
+                _d = {}
+                _q, _v = M.hang_natural(
+                    self, _s, info=_d, stages=(1,), check_table=True)
+                _hp[_s] = {'early': dict(_d)}
+                _early_fold_ok = _early_fold_ok and bool(_d.get('ok'))
+
+            # 不必先退满 1.15m：只退到桌沿净距约 0.80m（臂+手全长 0.715m
+            # 再留 85mm）就可完成肩部归位/伸肘。底盘位置由真实桌面矩形计算。
+            ok_r, res_r = M.drive_to(
+                self, L.RETREAT_FOLD_XY, v_max=0.20, tol_mm=25.0,
+                tag='收臂净空位')
+            _gap_fold = M.table_gap_m(self)
+            _full_retreat_done = False
+            if not ok_r or _gap_fold < K.ARM_REACH + 0.04:
+                # 进度不足时先退到最终安全位；未达到几何净空绝不执行后两段。
+                ok_r, res_r = M.drive_to(
+                    self, L.SERVE_RETREAT_XY, v_max=0.22,
+                    tol_mm=40.0, tag='补足收臂净空')
+                _full_retreat_done = True
+
+            # 如果桌边第①段因碰撞风险被拦截，就在净空位重新执行完整三段；
+            # 若第①段已安全完成，只执行②/③，避免重新挑选/重做已经完成的折肘。
+            _finish_stages = (2, 3) if _early_fold_ok else (1, 2, 3)
+            _finish_ok = True
+            for _s in ('R', 'L'):
+                _d = {}
+                _q, _v = M.hang_natural(
+                    self, _s, info=_d, stages=_finish_stages,
+                    check_table=True)
+                _hp[_s]['finish'] = dict(_d)
+                _finish_ok = _finish_ok and bool(_d.get('ok'))
+
+            # 若 0.80m 净空位仍被真实几何检查拦截，再退至 1.15m 并重试。
+            if not _finish_ok and not _full_retreat_done:
+                ok_r, res_r = M.drive_to(
+                    self, L.SERVE_RETREAT_XY, v_max=0.22,
+                    tol_mm=40.0, tag='扩大收臂净空')
+                _full_retreat_done = True
+                _finish_ok = True
+                for _s in ('R', 'L'):
+                    _d = {}
+                    _q, _v = M.hang_natural(
+                        self, _s, info=_d, stages=(1, 2, 3),
+                        check_table=True)
+                    _hp[_s]['finish_retry'] = dict(_d)
+                    _finish_ok = _finish_ok and bool(_d.get('ok'))
+
+            ok_retract = bool(_finish_ok)
+            if not _finish_ok:
+                self._set_state('FAIL_ARM_CLEARANCE')
+                self.get_logger().error(
+                    'DRINK 收臂路径被桌面碰撞门控拦截；停止执行，不穿越桌面，不交还跟随')
+                return False
+
+            # 机械臂已悬垂后再完成剩余撤离距离，避免在臂仍伸展时长距离倒车。
+            if not _full_retreat_done:
+                ok_final, res_final = M.drive_to(
+                    self, L.SERVE_RETREAT_XY, v_max=0.22,
+                    tol_mm=40.0, tag='悬垂后撤离')
+                ok_r = bool(ok_r and ok_final)
+                res_r = res_final
+                _full_retreat_done = True
+
             _cup1 = M.object_pose(self, 'cup')
             _g = M.table_gap_m(self)
             res['retreat_geom'] = {
+                'gap_at_fold_m': round(_gap_fold, 3),
                 'gap_m': round(_g, 3), 'reach_m': round(K.ARM_REACH, 3),
                 'clear_mm': round((_g - K.ARM_REACH) * 1e3, 1),
-                # 倒车这一路有没有蹭到杯子(杯子是无重力自由体, 蹭一下就滑走)
+                'early_elbow_fold': bool(_early_fold_ok),
                 'cup_drive_mm': _drift(_cup0, _cup1)}
             self.get_logger().info(
-                'DRINK 退到位: 车→桌沿 %.2fm (臂+手全长 %.2fm, 余量 %+.0fmm)'
-                % (_g, K.ARM_REACH, (_g - K.ARM_REACH) * 1e3))            # P102: 再按**人体顺序**收臂: ①前臂绕肘尖回收(肘点不动, 只转肘)
-            # ②大臂/肩摆正 ③伸肘 → 前臂与上臂同向 = 竖直悬垂。直接
-            # `arm.move(Q_HANG)` 会让 7 个关节同时插值, 腕部在前臂还横着时
-            # 就先翻一圈 —— 用户说的"翻转等违背人体骨骼运动规律的动作"。
-            _hp = {}
+                'DRINK 分阶段收臂完成: 早期折肘=%s  收臂净空 %.2fm  最终桌边净距 %.2fm '
+                '(臂+手 %.2fm, 余量 %+.0fmm)'
+                % (_early_fold_ok, _gap_fold, _g, K.ARM_REACH,
+                   (_g - K.ARM_REACH) * 1e3))
+
+            # 汇总 P102/P103 原验收字段：保持每侧扁平字段兼容，同时保留阶段细节。
             for _s in ('R', 'L'):
-                M.hang_natural(self, _s, info=_hp)
-            self.hang(verbose=False)          # 压实 Q_HANG + 十指并拢
-            self.spin_for(0.4)
+                _early = _hp[_s].get('early', {})
+                _fin = _hp[_s].get('finish_retry') or _hp[_s].get('finish', {})
+                _fold_src = _early if _early.get('ok') else _fin
+                _hp[_s] = {
+                    **_fin,
+                    'elbow_drift_mm': _fold_src.get('elbow_drift_mm', 0.0),
+                    'fold_deg': _fold_src.get('fold_deg', 0.0),
+                    'wrist_deg': _early.get('wrist_deg', _fin.get('wrist_deg', 0.0)),
+                    'wrist_step_deg': max(
+                        float(_early.get('wrist_step_deg', 0.0) or 0.0),
+                        float(_fin.get('wrist_step_deg', 0.0) or 0.0)),
+                    'q0': _fold_src.get('q0', _fin.get('q0')),
+                    'palm0_m': _fold_src.get('palm0_m', _fin.get('palm0_m')),
+                    'early': _early,
+                    'finish': _fin}
             res['hang_path'] = _hp
             res.setdefault('arm', {})['悬垂'] = self._arm_state('悬垂')
             res['arm_trace'] = getattr(self, 'arm_audit', {})
-            if res.get('retreat_geom') is not None:
-                res['retreat_geom']['cup_hang_mm'] = _drift(
-                    _cup1, M.object_pose(self, 'cup'))
-                res['retreat_geom']['cup_total_mm'] = _drift(
-                    _cup0, M.object_pose(self, 'cup'))
-            # P101: 交权时的姿态必须是**悬垂初态**(用户要求)。这里量一次
-            # "实测关节 vs Q_HANG/GRIP_HANG" 的偏差, 验收脚本直接读。
+            res['retreat_geom']['cup_hang_mm'] = _drift(
+                _cup1, M.object_pose(self, 'cup'))
+            res['retreat_geom']['cup_total_mm'] = _drift(
+                _cup0, M.object_pose(self, 'cup'))
+            # 以真实桌沿净空作为交还跟随的硬条件；不能因 move 返回了超时
+            # 就忽略机器人仍靠桌太近，也不能在臂仍伸展时交还 follower。
+            if not math.isfinite(float(_g)) or _g < K.ARM_REACH + 0.08:
+                self._set_state('FAIL_RETREAT_CLEARANCE')
+                self.get_logger().error(
+                    'DRINK 撤离净空不足 %.3fm（要求 %.3fm），保持停止，不交还跟随'
+                    % (_g, K.ARM_REACH + 0.08))
+                return False
+            ok_r = True
             _h = {}
             for _s in ('R', 'L'):
                 _names = ['%s_%s_joint' % (_s, _j[0]) for _j in K.JOINTS]
@@ -827,14 +1060,47 @@ class DrinkTask(Node):
                     self.get_logger().warn(
                         'DRINK 撤离后杯子离原位 %.1fmm(松手时 %.1fmm), 摆回'
                         % (d3, res_d))
-                    self.carry.place('cup', Tcup_home)
+                    ok_restore = self.carry.place('cup', Tcup_home)
+                    if not ok_restore:
+                        self._set_state('FAIL_CUP_RESTORE')
+                        self.get_logger().error(
+                            'DRINK 撤离后杯子偏移 %.1fmm，原位恢复命令无 ACK；'
+                            '不交还跟随控制权' % d3)
+                        return False
                     self.spin_for(0.5)
+                    Tc3b = M.object_pose(self, 'cup')
+                    restore_mm = (float(np.linalg.norm(
+                        Tc3b[:3, 3] - np.asarray(Tcup_home)[:3, 3])) * 1000.0
+                        if Tc3b is not None else 9e9)
+                    if not math.isfinite(restore_mm) or restore_mm > 5.0:
+                        self._set_state('FAIL_CUP_RESTORE')
+                        self.get_logger().error(
+                            'DRINK 撤离后杯子恢复后仍偏 %.1fmm，不交还跟随控制权'
+                            % restore_mm)
+                        return False
                     res_d = max(float(res_d), d3)
             # 8) 交权: follower 恢复跟随 + cmd_mux 解 300s 喝水锁。
             #    两条都是收到 /robot/command 才动作, 一条消息两处生效。
             self._set_state('HANDBACK')
+            _handback_sent_t = time.monotonic()
             self._tell_robot('FOLLOW')
             self.spin_for(1.0)
+            _fs = dict(self._follower_status or {})
+            handback_ok = (_fs.get('state') == 'FOLLOW'
+                           and self._follower_status_t >= _handback_sent_t
+                           and time.monotonic() - self._follower_status_t < 1.5)
+            res['follower'] = {
+                'state': _fs.get('state'),
+                'track': _fs.get('track'),
+                'lost': bool(_fs.get('lost', False)),
+                'fresh': bool(time.monotonic() - self._follower_status_t < 1.5),
+            }
+            if not handback_ok:
+                self._set_state('FAIL_HANDBACK')
+                self.get_logger().error(
+                    'DRINK 已发送 FOLLOW，但未在 1.5s 内收到 follower 的 FOLLOW 状态确认；'
+                    '底盘保持停止，不报告任务成功')
+                return False
             self._set_state('DONE')
             # P91: 在 DONE 上停 3s 让验收脚本抓到终态(截图/判完成),
             # 然后**必须回到 IDLE** —— 不然 5s 心跳会一直广播 DONE,
@@ -853,11 +1119,16 @@ class DrinkTask(Node):
                      'hang_path': res.get('hang_path'),
                      'retreat_geom': res.get('retreat_geom'),
                      'entry': res.get('entry')}
-            res = {'ok': bool(ok_g and ok_d and off_r is not None),
+            res = {'ok': bool(ok_g and ok_d and off_r is not None and ok_h
+                                 and ok_present and ok_follow and ok_r
+                                 and ok_retract and handback_ok
+                                 and pr.get('ok', False)),
                    'cup_home_mm': res_d, 'turn_err': pr.get('turn_err'),
                    'retreat_mm': res_r, 'handback': ok_r,
                    'approach': res.get('approach'),
-                   'hands': res.get('hands'), **_keep}
+                   'present': res.get('present'),
+                   'hands': res.get('hands'),
+                   'follower': res.get('follower'), **_keep}
             self.get_logger().info(
                 'DRINK ★ 完成: 接回=%s 放回=%s(%.1fmm) 撤离%.0fmm 交权=%s '
                 '用时 %.0fs'
@@ -932,7 +1203,10 @@ class DrinkTask(Node):
         # `PREPARE → IDLE → PRESENT` 这种跳变。阶段由 `_set_state()` 独占
         # 管理, home() 只是个动作。`self.state` 初值在 __init__ 里给(BOOT)。
         if self.carry.items:
-            self.carry.release(None)
+            self.get_logger().error(
+                'HOME 被拒绝：仍抓持 %s；禁止自动 release，必须先完成安全放置/人工恢复'
+                % ','.join(sorted(self.carry.items.keys())))
+            return False
         self.sync_to_measured()
         # P96: 这几路跟左右臂无关, 原来却写在 for 里被发了两遍 —— 趁改这行
         # 把它提出来, 顺带把两只手一起归到合拢位。
@@ -940,10 +1214,12 @@ class DrinkTask(Node):
                       'person_arm_l_joint', 'person_arm_r_joint'],
                      [0.0, 0.0, 0.0,
                       L.PERSON_HAND_CLOSE, -L.PERSON_HAND_CLOSE])
+        home_ok = True
         for s in ('R', 'L'):
-            ok_h, err_h = self.hand[s].move(K.grip_values(s, K.GRIP_OPEN),
-                                            timeout=5.0)
+            ok_h, err_h = self.hand[s].move(
+                K.grip_values(s, K.GRIP_OPEN), timeout=5.0)
             ok_a, err_a = self.arm[s].move(K.Q_REST, timeout=10.0)
+            home_ok = home_ok and bool(ok_h and ok_a)
             if verbose:
                 self.get_logger().info(
                     '%s 侧 home: 臂 %s (最大残差 %.1f°)  手 %s (%.1f°)'
@@ -952,7 +1228,13 @@ class DrinkTask(Node):
                        '到位' if ok_h else '超时',
                        math.degrees(np.nanmax(np.abs(err_h)))))
         self.spin_for(0.3)
-        return True
+        self._home_motion_ok = bool(home_ok)
+        all_ok = all(
+            bool(self.js.get('%s_%s_joint' % (s, j[0])) is not None)
+            for s in ('R', 'L') for j in K.JOINTS)
+        # move() 的布尔结果是复位动作的权威确认；上面只检查状态流仍然存在。
+        # 由循环收集本侧关节/手部伺服结果，任何失败都不报告 home 成功。
+        return bool(all_ok and getattr(self, '_home_motion_ok', False))
 
     def hang(self, verbose=True):
         """P98: 悬垂待命 —— 双臂沿体侧竖直向下, 手指并拢伸直与臂同向。
@@ -962,13 +1244,27 @@ class DrinkTask(Node):
         不受影响 —— run_drink 的 prepare_present 第一动作就是 home()。
         """
         if self.carry.items:
-            self.carry.release(None)
+            self.get_logger().error(
+                'HANG 被拒绝：仍抓持 %s；禁止自动 release，必须先完成安全放置/人工恢复'
+                % ','.join(sorted(self.carry.items.keys())))
+            return False
         self.sync_to_measured()
+        hang_ok = True
         for s in ('R', 'L'):
-            self.arm[s].move(K.Q_HANG, timeout=12.0)
+            ok_arm, _ = self.arm[s].move(K.Q_HANG, timeout=12.0)
+            hang_ok = hang_ok and bool(ok_arm)
+        if not hang_ok:
+            self.get_logger().error(
+                'HANG 至少一侧手臂未确认悬垂；不继续下发手型归位')
+            return False
         for s in ('R', 'L'):
-            self.hand[s].move(K.grip_values(s, K.GRIP_HANG), timeout=8.0)
+            ok_hand, _ = self.hand[s].move(
+                K.grip_values(s, K.GRIP_HANG), timeout=8.0)
+            hang_ok = hang_ok and bool(ok_hand)
         self.sync_to_measured()
+        if not hang_ok:
+            self.get_logger().error('HANG 至少一侧灵巧手未确认悬垂手型')
+            return False
         if verbose:
             for s in ('R', 'L'):
                 names = ['%s_%s_joint' % (s, j[0]) for j in K.JOINTS]
@@ -977,6 +1273,7 @@ class DrinkTask(Node):
                     'HANG %s侧悬垂就位: 臂最大|Δ|=%.2f°'
                     % (s, float(np.nanmax(np.abs(np.degrees(
                         q - K.Q_HANG))))))
+        return True
 
     def _srv_hang(self, _req, resp):
         # 与 home 同一规矩: 回调只置标志(见 _srv_home 的 #57 教训),

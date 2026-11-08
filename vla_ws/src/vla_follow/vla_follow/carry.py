@@ -81,8 +81,11 @@ class CarryBus(object):
         self.pub = node.create_publisher(String, CARRY_TOPIC, 10)
         node.create_subscription(String, ACK_TOPIC, self._on_ack, 50)
         self.ack = None
-        self.acks = []              # P98: ack 队列(见 _on_ack)
+        self.acks = []              # 有界诊断历史；事务匹配使用 request_id
         self.ack_t = 0.0
+        self.request_seq = 0
+        self.pending_requests = set()
+        self.ack_by_request = {}
         # model -> {'side': 'R'/'L', 'offset': 4x4}
         self.items = {}
         self.pub_count = 0
@@ -93,19 +96,31 @@ class CarryBus(object):
         # water_joint 后, jet 的 ack 会在同一个 spin 窗口里被 water 的 ack
         # 覆盖, _await 永远等不到(实测 jet ramp 全程无 ack)。
         self.acks.append(msg.data)
-        del self.acks[:-64]
+        del self.acks[:-256]
         self.ack = msg.data
         self.ack_t = time.time()
+        # 每个等待者只接收自己的 request_id；嵌套 spin_for/并发事务不能
+        # 通过清空共享 ACK 列表把其他等待者的确认删掉。
+        # 成功 ACK 的 request_id 是末尾字段；失败 ACK 还带原因后缀
+        # (例如 "... 31 queue-full")，因此从右向左找最后一个纯数字字段。
+        request_id = None
+        for token in reversed(msg.data.split()):
+            if token.isdigit():
+                request_id = int(token)
+                break
+        if request_id is not None and request_id in self.pending_requests:
+            self.ack_by_request[request_id] = msg.data
 
     def _send(self, text):
         self.pub.publish(String(data=text))
         self.pub_count += 1
 
-    def _send_pose(self, op, model, T):
+    def _send_pose(self, op, model, T, request_id=None):
         qx, qy, qz, qw = quat_of(T)
         t = T[:3, 3]
-        self._send('%s %s %.6f %.6f %.6f %.6f %.6f %.6f %.6f'
-                   % (op, model, t[0], t[1], t[2], qx, qy, qz, qw))
+        suffix = '' if request_id is None else ' %d' % request_id
+        self._send(('%s %s %.6f %.6f %.6f %.6f %.6f %.6f %.6f' %
+                    (op, model, t[0], t[1], t[2], qx, qy, qz, qw)) + suffix)
 
     def _await(self, emit, ok_pred, timeout):
         """重复发一条指令直到收到匹配的 ack。
@@ -116,19 +131,27 @@ class CarryBus(object):
         结果"检查"分支永远返回 None, 于是每次都空等到超时。
         """
         t0 = time.time()
-        self.ack = None
-        self.acks = []
-        while time.time() - t0 < timeout:
-            emit()
-            self.node.spin_for(0.08)
-            hit = next((a for a in reversed(self.acks) if ok_pred(a)), None)
-            if hit:
-                for _ in range(3):           # 补两针, 防止 gz 侧漏收
-                    emit()
-                    self.node.spin_for(0.03)
-                self.node.get_logger().info('ack: %s' % hit)
-                return True
-        return False
+        self.request_seq += 1
+        request_id = self.request_seq
+        self.pending_requests.add(request_id)
+        try:
+            while time.time() - t0 < timeout:
+                emit(request_id)
+                self.node.spin_for(0.08)
+                hit = self.ack_by_request.pop(request_id, None)
+                if hit and ok_pred(hit, request_id):
+                    for _ in range(3):       # 补两针, 防止 gz 侧漏收
+                        emit(request_id)
+                        self.node.spin_for(0.03)
+                    self.node.get_logger().info('ack: %s' % hit)
+                    return True
+                if hit and hit.startswith('fail '):
+                    self.node.get_logger().error('命令被插件拒绝: %s' % hit)
+                    return False
+            return False
+        finally:
+            self.pending_requests.discard(request_id)
+            self.ack_by_request.pop(request_id, None)
 
     # ------------------------------------------------------------ 位姿来源
     def palm_world(self, side):
@@ -181,8 +204,8 @@ class CarryBus(object):
     def place(self, model, T, timeout=3.0):
         """一次性把 model 摆到 T(测试布景用, 不持续钉住)。"""
         ok = self._await(
-            lambda: self._send_pose('place', model, T),
-            lambda a: a.startswith('ok place'), timeout)
+            lambda rid: self._send_pose('place', model, T, rid),
+            lambda a, rid: a == 'ok place %s %d' % (model, rid), timeout)
         if ok:
             self.node.get_logger().info('place %s 完成' % model)
         else:
@@ -214,7 +237,7 @@ class CarryBus(object):
 
         state = {'first': True}
 
-        def emit():
+        def emit(request_id):
             Tp_now = self.palm_world(side)
             if Tp_now is None:
                 Tp_now = Tp
@@ -223,10 +246,10 @@ class CarryBus(object):
             # 第一针在发现完成前丢掉, 后面发多少条 `set` 都永远等不到 ack ——
             # 表现为"grab cup 无 ack", 而且换个时刻重跑就好了, 极难复现。
             # grab 是幂等的(重新登记同一目标), 所以整段都发 grab。
-            self._send_pose('grab', model, Tp_now @ off)
+            self._send_pose('grab', model, Tp_now @ off, request_id)
             state['first'] = False
 
-        ok = self._await(emit, lambda a: a.startswith('ok grab'), timeout)
+        ok = self._await(emit, lambda a, rid: a == 'ok grab %s %d' % (model, rid), timeout)
         if not ok:
             self.items.pop(model, None)
             self.node.get_logger().error('grab %s 无 ack' % model)
@@ -256,8 +279,8 @@ class CarryBus(object):
         # water_joint, 泛化的 startswith('ok joint') 会拿 water 的 ack 冒充
         # jet 的 ack(反之亦然)。
         ok = self._await(
-            lambda: self._send('joint %s %s %.6f' % (model, joint, value)),
-            lambda a: a.startswith('ok joint %s' % joint), timeout)
+            lambda rid: self._send('joint %s %s %.6f %d' % (model, joint, value, rid)),
+            lambda a, rid: a == 'ok joint %s %s %d' % (model, joint, rid), timeout)
         if not ok:
             self.node.get_logger().warn('joint %s=%s 无 ack' % (joint, value))
         return ok
@@ -275,17 +298,33 @@ class CarryBus(object):
 
     def release(self, model=None, timeout=2.5):
         name = model or 'all'
+        # 等待 release ACK 的整个窗口内禁止 update() 再发 set；否则并发的
+        # 50Hz 跟随更新可能排在 release 后面，把刚释放的目标重新激活。
+        targets = list(self.items) if model is None else [model]
+        for target in targets:
+            if target in self.items:
+                self.items[target]['release_pending'] = True
         ok = self._await(
-            lambda: self._send('release %s' % name),
-            lambda a: a.startswith('ok release'), timeout)
-        if model is None:
-            self.items.clear()
-        else:
-            self.items.pop(model, None)
+            lambda rid: self._send('release %s %d' % (name, rid)),
+            lambda a, rid: a == 'ok release %s %d' % (name, rid), timeout)
         if ok:
+            if model is None:
+                self.items.clear()
+            else:
+                self.items.pop(model, None)
             self.node.get_logger().info('release %s' % name)
         else:
-            self.node.get_logger().warn('release %s 无 ack(已按松开处理)' % name)
+            # ACK 丢失时，插件端可能已经释放，也可能仍在附着。
+            # 保留本地记录用于显式重试，但 update() 必须停止 set，
+            # 否则插件若已执行 release，后续 set 会重新激活该目标。
+            targets = list(self.items) if model is None else [model]
+            for target in targets:
+                if target in self.items:
+                    self.items[target]['release_unknown'] = True
+                    self.items[target].pop('release_pending', None)
+            self.node.get_logger().warn(
+                'release %s 无 ack，附着状态未知；已暂停自动 set，可显式重试 release'
+                % name)
         return ok
 
     def update(self):
@@ -297,6 +336,10 @@ class CarryBus(object):
             物体就跟着对方的手走，我们这边只管继续钉住。
         """
         for model, it in self.items.items():
+            # release ACK 丢失后，不能继续 set：若插件端已解除附着，
+            # set 会把 inactive target 重新激活。显式 release 重试成功后再移除。
+            if it.get('release_unknown') or it.get('release_pending'):
+                continue
             if it.get('host'):
                 Tb = self.host_world(it['host'], it.get('link'),
                                      it.get('local_off'))

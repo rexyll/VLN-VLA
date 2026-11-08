@@ -73,10 +73,12 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <deque>
 #include <map>
 #include <mutex>
 #include <sstream>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <gz/common/Console.hh>
@@ -140,15 +142,21 @@ public:
     if (_info.paused)
       return;
 
-    // 1) 消化待处理指令(实体查找要 ecm, 只能在这里做)
+    // 1) 每 tick 最多消费一条命令。传输回调只入队，所有 ECM 操作仍在
+    //    仿真线程执行；队列避免高频/并发命令互相覆盖单槽 pending。
+    Cmd next;
+    bool hasNext = false;
     {
       std::lock_guard<std::mutex> lk(this->mtx);
-      if (this->hasPending)
+      if (!this->pending.empty())
       {
-        this->Apply(this->pending, _ecm);
-        this->hasPending = false;
+        next = std::move(this->pending.front());
+        this->pending.pop_front();
+        hasNext = true;
       }
     }
+    if (hasNext)
+      this->Apply(next, _ecm);
 
     // 2) 每 tick 重发一次目标位姿
     for (auto &kv : this->targets)
@@ -189,6 +197,7 @@ private:
     std::string model;
     std::string joint;       // 仅 joint 指令用
     double value{0.0};       // 仅 joint 指令用
+    uint64_t requestId{0};
     gz::math::Pose3d pose;
   };
 
@@ -215,9 +224,8 @@ private:
     iss >> c.op >> c.model;
     if (c.op == "release")
     {
-      std::lock_guard<std::mutex> lk(this->mtx);
-      this->pending = c;
-      this->hasPending = true;
+      iss >> c.requestId;  // 兼容旧客户端：缺省为 0
+      this->Enqueue(std::move(c));
       return;
     }
     if (c.op == "joint")
@@ -228,9 +236,8 @@ private:
               << std::endl;
         return;
       }
-      std::lock_guard<std::mutex> lk(this->mtx);
-      this->pending = c;
-      this->hasPending = true;
+      iss >> c.requestId;  // 兼容旧客户端：缺省为 0
+      this->Enqueue(std::move(c));
       return;
     }
     if (c.op != "grab" && c.op != "set" && c.op != "place")
@@ -255,9 +262,56 @@ private:
     // 这里显式构造, 避开参数顺序歧义。
     c.pose = gz::math::Pose3d(gz::math::Vector3d(x, y, z),
                               gz::math::Quaterniond(qw, qx, qy, qz));
+    iss >> c.requestId;  // 兼容旧客户端：缺省为 0
+    this->Enqueue(std::move(c));
+  }
+
+  /// \brief transport 线程: 有界入队, 不触碰 ECM
+  void Enqueue(Cmd &&_c)
+  {
     std::lock_guard<std::mutex> lk(this->mtx);
-    this->pending = c;
-    this->hasPending = true;
+    // 高频无 ACK 位姿流只保留同一对象的最新值。
+    if (_c.op == "set" || (_c.op == "place" && _c.requestId == 0))
+    {
+      for (auto it = this->pending.rbegin(); it != this->pending.rend(); ++it)
+      {
+        if (it->op == _c.op && it->model == _c.model && it->requestId == 0)
+        {
+          *it = std::move(_c);
+          return;
+        }
+      }
+    }
+    // 相同 request_id 的重发只入队一次，执行后的 ACK 满足所有重试。
+    if (_c.requestId != 0)
+    {
+      for (const auto &queued : this->pending)
+      {
+        if (queued.op == _c.op && queued.model == _c.model &&
+            queued.joint == _c.joint && queued.requestId == _c.requestId)
+          return;
+      }
+    }
+    constexpr size_t kMaxPending = 128;
+    if (this->pending.size() >= kMaxPending)
+    {
+      std::string failure;
+      if (_c.op == "release")
+        failure = "fail release " + _c.model + " " +
+                  std::to_string(_c.requestId) + " queue-full";
+      else if (_c.op == "joint")
+        failure = "fail joint " + _c.model + " " + _c.joint + " " +
+                  std::to_string(_c.requestId) + " queue-full";
+      else if (_c.op == "grab" || _c.op == "place")
+        failure = "fail " + _c.op + " " + _c.model + " " +
+                  std::to_string(_c.requestId) + " queue-full";
+      if (!failure.empty())
+        this->SendAck(failure);
+      gzerr << "[GraspCarry] 命令队列已满，拒绝 " << _c.op
+            << " " << _c.model << std::endl;
+      return;
+    }
+    this->pending.push_back(std::move(_c));
   }
 
   /// \brief 仿真线程: 执行一条指令
@@ -270,13 +324,13 @@ private:
         for (auto &kv : this->targets)
           kv.second.active = false;
         gzmsg << "[GraspCarry] release all" << std::endl;
-        this->SendAck("ok release all");
+        this->SendAck("ok release all " + std::to_string(_c.requestId));
         return;
       }
       auto it = this->targets.find(_c.model);
       if (it != this->targets.end())
         it->second.active = false;
-      this->SendAck("ok release " + _c.model);
+      this->SendAck("ok release " + _c.model + " " + std::to_string(_c.requestId));
       return;
     }
 
@@ -291,7 +345,7 @@ private:
       {
         gzerr << "[GraspCarry] joint: 找不到模型 '" << _c.model << "'"
               << std::endl;
-        this->SendAck("fail " + _c.joint + " no-model");
+        this->SendAck("fail joint " + _c.model + " " + _c.joint + " " + std::to_string(_c.requestId) + " no-model");
         return;
       }
       gz::sim::Entity je = gz::sim::kNullEntity;
@@ -309,7 +363,7 @@ private:
       {
         gzerr << "[GraspCarry] joint: 模型 '" << _c.model << "' 下没有关节 '"
               << _c.joint << "'" << std::endl;
-        this->SendAck("fail " + _c.joint + " no-joint");
+        this->SendAck("fail joint " + _c.model + " " + _c.joint + " " + std::to_string(_c.requestId) + " no-joint");
         return;
       }
       if (!_ecm.Component<gz::sim::components::JointPositionReset>(je))
@@ -320,7 +374,7 @@ private:
       jt.value = _c.value;
       // 用 model::joint 做键, 免得不同模型下的同名关节互相覆盖
       this->joints[_c.model + "::" + _c.joint] = jt;
-      this->SendAck("ok joint " + _c.joint);
+      this->SendAck("ok joint " + _c.model + " " + _c.joint + " " + std::to_string(_c.requestId));
       return;
     }
 
@@ -333,7 +387,7 @@ private:
       {
         gzerr << "[GraspCarry] 找不到模型 '" << _c.model << "'" << std::endl;
         if (_c.op == "grab")
-          this->SendAck("fail " + _c.model + " no-model");
+          this->SendAck("fail grab " + _c.model + " " + std::to_string(_c.requestId) + " no-model");
         return;
       }
       Target t;
@@ -346,7 +400,7 @@ private:
     if (_c.op == "place")
     {
       gz::sim::Model(it->second.entity).SetWorldPoseCmd(_ecm, _c.pose);
-      this->SendAck("ok place " + _c.model);
+      this->SendAck("ok place " + _c.model + " " + std::to_string(_c.requestId));
       return;
     }
     if (_c.op == "grab")
@@ -354,15 +408,14 @@ private:
       gzmsg << "[GraspCarry] grab " << _c.model << " @ ("
             << _c.pose.Pos().X() << " " << _c.pose.Pos().Y() << " "
             << _c.pose.Pos().Z() << ")" << std::endl;
-      this->SendAck("ok grab " + _c.model);
+      this->SendAck("ok grab " + _c.model + " " + std::to_string(_c.requestId));
     }
   }
 
   gz::transport::Node node;
   gz::transport::Node::Publisher ackPub;
   std::mutex mtx;
-  Cmd pending;
-  bool hasPending{false};
+  std::deque<Cmd> pending;
   std::map<std::string, Target> targets;
   // 踩坑记录(P87): jet/water 是**速度模式** JointPositionController, 所属模型
   // 被本插件每 1ms teleport 时, 速度指令会被 teleport 的清零抢走 —— 同一命令
