@@ -236,6 +236,11 @@ class DrinkTask(Node):
         # cmd_mux 也上了 300s 锁)。这两个都是收到 /robot/command 才动作。
         self.pub_cmd = self.create_publisher(String, '/robot/command', 10)
         self.create_subscription(String, '/robot/command', self._cmd_cb, 10)
+        # P104: 订阅 follower 状态，在交权后确认 FOLLOW 指令确已被接收。
+        self._follower_status = {}
+        self._follower_status_t = 0.0
+        self.create_subscription(String, '/follower/status',
+                                 self._follower_status_cb, 10)
         # ---- 底盘速度(原地转身/驶入/撤离)。P102: 走**独立话题** /drink/cmd_vel,
         # 由 cmd_mux 在喝水锁内放行 —— 原来和 cmd_mux 一起抢 /robot/cmd_vel,
         # 两边都 20Hz, 谁后到谁生效, 撤离能慢 5 倍甚至原地不动。
@@ -265,6 +270,13 @@ class DrinkTask(Node):
             % (PUB_HZ, L.PERSON_HAND_Z, str(L.SERVE_POSE)))
 
     # ------------------------------------------------------------ 回调
+    def _follower_status_cb(self, msg):
+        try:
+            self._follower_status = json.loads(msg.data)
+            self._follower_status_t = time.monotonic()
+        except Exception:
+            pass
+
     def _js_cb(self, msg):
         self.js.update(zip(msg.name, msg.position))
 
@@ -966,6 +978,21 @@ class DrinkTask(Node):
             self._set_state('HANDBACK')
             self._tell_robot('FOLLOW')
             self.spin_for(1.0)
+            _fs = dict(self._follower_status or {})
+            handback_ok = (_fs.get('state') == 'FOLLOW'
+                           and time.monotonic() - self._follower_status_t < 1.5)
+            res['follower'] = {
+                'state': _fs.get('state'),
+                'track': _fs.get('track'),
+                'lost': bool(_fs.get('lost', False)),
+                'fresh': bool(time.monotonic() - self._follower_status_t < 1.5),
+            }
+            if not handback_ok:
+                self._set_state('FAIL_HANDBACK')
+                self.get_logger().error(
+                    'DRINK 已发送 FOLLOW，但未在 1.5s 内收到 follower 的 FOLLOW 状态确认；'
+                    '底盘保持停止，不报告任务成功')
+                return False
             self._set_state('DONE')
             # P91: 在 DONE 上停 3s 让验收脚本抓到终态(截图/判完成),
             # 然后**必须回到 IDLE** —— 不然 5s 心跳会一直广播 DONE,
@@ -986,12 +1013,14 @@ class DrinkTask(Node):
                      'entry': res.get('entry')}
             res = {'ok': bool(ok_g and ok_d and off_r is not None and ok_h
                                  and ok_present and ok_follow and ok_r
-                                 and ok_retract and pr.get('ok', False)),
+                                 and ok_retract and handback_ok
+                                 and pr.get('ok', False)),
                    'cup_home_mm': res_d, 'turn_err': pr.get('turn_err'),
                    'retreat_mm': res_r, 'handback': ok_r,
                    'approach': res.get('approach'),
                    'present': res.get('present'),
-                   'hands': res.get('hands'), **_keep}
+                   'hands': res.get('hands'),
+                   'follower': res.get('follower'), **_keep}
             self.get_logger().info(
                 'DRINK ★ 完成: 接回=%s 放回=%s(%.1fmm) 撤离%.0fmm 交权=%s '
                 '用时 %.0fs'
