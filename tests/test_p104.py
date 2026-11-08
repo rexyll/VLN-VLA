@@ -58,6 +58,32 @@ class TestP104(unittest.TestCase):
                    'droop_mm': 30, 'twist': 1.2}},
             min_out_line_mm={'L': 100}))
 
+    def test_oriented_palm_box_sat_and_finger_geometry(self):
+        lo = (0.0, 0.0, 0.0)
+        hi = (1.0, 1.0, 1.0)
+        identity = np.eye(3)
+        self.assertTrue(M._obb_hits_aabb(
+            (0.5, 0.5, 0.5), identity, (0.1, 0.1, 0.1),
+            lo, hi, margin=0.0))
+        # 旋转后的细长掌部 AABB 投影有重叠，但真实 OBB 与箱体分离；
+        # SAT 必须识别分离轴，不能退化为简单包围盒误报。
+        rot45 = K.rot((0.0, 0.0, 1.0), np.pi / 4.0)
+        self.assertFalse(M._obb_hits_aabb(
+            (1.6, 1.6, 0.5), rot45, (0.5, 0.05, 0.05),
+            lo, hi, margin=0.0))
+
+        segments, palm = M._arm_geometry_world('L', K.Q_HANG, (0.0, 0.0, 0.0))
+        segment_names = {name for name, *_ in segments}
+        self.assertIn('upper_arm', segment_names)
+        self.assertIn('forearm', segment_names)
+        self.assertIn('thumb', segment_names)
+        self.assertEqual(sum(1 for name in segment_names
+                             if name.startswith('finger_')), 4)
+        center, rotation, half = palm
+        self.assertEqual(center.shape, (3,))
+        self.assertEqual(rotation.shape, (3, 3))
+        np.testing.assert_allclose(half, 0.5 * np.asarray(K.PALM_SIZE))
+
     def test_segment_aabb_guard_detects_crossing_and_clear_path(self):
         lo = (0.0, 0.0, 0.0)
         hi = (1.0, 1.0, 1.0)
