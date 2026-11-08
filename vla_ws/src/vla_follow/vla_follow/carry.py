@@ -83,6 +83,7 @@ class CarryBus(object):
         self.ack = None
         self.acks = []              # P98: ack 队列(见 _on_ack)
         self.ack_t = 0.0
+        self.request_seq = 0
         # model -> {'side': 'R'/'L', 'offset': 4x4}
         self.items = {}
         self.pub_count = 0
@@ -101,11 +102,12 @@ class CarryBus(object):
         self.pub.publish(String(data=text))
         self.pub_count += 1
 
-    def _send_pose(self, op, model, T):
+    def _send_pose(self, op, model, T, request_id=None):
         qx, qy, qz, qw = quat_of(T)
         t = T[:3, 3]
-        self._send('%s %s %.6f %.6f %.6f %.6f %.6f %.6f %.6f'
-                   % (op, model, t[0], t[1], t[2], qx, qy, qz, qw))
+        suffix = '' if request_id is None else ' %d' % request_id
+        self._send(('%s %s %.6f %.6f %.6f %.6f %.6f %.6f %.6f' %
+                    (op, model, t[0], t[1], t[2], qx, qy, qz, qw)) + suffix)
 
     def _await(self, emit, ok_pred, timeout):
         """重复发一条指令直到收到匹配的 ack。
@@ -116,15 +118,17 @@ class CarryBus(object):
         结果"检查"分支永远返回 None, 于是每次都空等到超时。
         """
         t0 = time.time()
+        self.request_seq += 1
+        request_id = self.request_seq
         self.ack = None
         self.acks = []
         while time.time() - t0 < timeout:
-            emit()
+            emit(request_id)
             self.node.spin_for(0.08)
             hit = next((a for a in reversed(self.acks) if ok_pred(a)), None)
             if hit:
                 for _ in range(3):           # 补两针, 防止 gz 侧漏收
-                    emit()
+                    emit(request_id)
                     self.node.spin_for(0.03)
                 self.node.get_logger().info('ack: %s' % hit)
                 return True
@@ -181,8 +185,8 @@ class CarryBus(object):
     def place(self, model, T, timeout=3.0):
         """一次性把 model 摆到 T(测试布景用, 不持续钉住)。"""
         ok = self._await(
-            lambda: self._send_pose('place', model, T),
-            lambda a: a.startswith('ok place'), timeout)
+            lambda rid: self._send_pose('place', model, T, rid),
+            lambda a: a == 'ok place %s %d' % (model, self.request_seq), timeout)
         if ok:
             self.node.get_logger().info('place %s 完成' % model)
         else:
@@ -214,7 +218,7 @@ class CarryBus(object):
 
         state = {'first': True}
 
-        def emit():
+        def emit(request_id):
             Tp_now = self.palm_world(side)
             if Tp_now is None:
                 Tp_now = Tp
@@ -223,10 +227,10 @@ class CarryBus(object):
             # 第一针在发现完成前丢掉, 后面发多少条 `set` 都永远等不到 ack ——
             # 表现为"grab cup 无 ack", 而且换个时刻重跑就好了, 极难复现。
             # grab 是幂等的(重新登记同一目标), 所以整段都发 grab。
-            self._send_pose('grab', model, Tp_now @ off)
+            self._send_pose('grab', model, Tp_now @ off, request_id)
             state['first'] = False
 
-        ok = self._await(emit, lambda a: a.startswith('ok grab'), timeout)
+        ok = self._await(emit, lambda a: a == 'ok grab %s %d' % (model, self.request_seq), timeout)
         if not ok:
             self.items.pop(model, None)
             self.node.get_logger().error('grab %s 无 ack' % model)
@@ -256,8 +260,8 @@ class CarryBus(object):
         # water_joint, 泛化的 startswith('ok joint') 会拿 water 的 ack 冒充
         # jet 的 ack(反之亦然)。
         ok = self._await(
-            lambda: self._send('joint %s %s %.6f' % (model, joint, value)),
-            lambda a: a.startswith('ok joint %s' % joint), timeout)
+            lambda rid: self._send('joint %s %s %.6f %d' % (model, joint, value, rid)),
+            lambda a: a == 'ok joint %s %s %d' % (model, joint, self.request_seq), timeout)
         if not ok:
             self.node.get_logger().warn('joint %s=%s 无 ack' % (joint, value))
         return ok
@@ -276,8 +280,8 @@ class CarryBus(object):
     def release(self, model=None, timeout=2.5):
         name = model or 'all'
         ok = self._await(
-            lambda: self._send('release %s' % name),
-            lambda a: a.startswith('ok release'), timeout)
+            lambda rid: self._send('release %s %d' % (name, rid)),
+            lambda a: a == 'ok release %s %d' % (name, self.request_seq), timeout)
         if ok:
             if model is None:
                 self.items.clear()
