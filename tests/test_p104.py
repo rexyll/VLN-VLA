@@ -527,6 +527,97 @@ class TestP104(unittest.TestCase):
             self.assertAlmostEqual(
                 hi[2], M.L.TABLE_TOP_Z - M.L.TABLE_PLATE_T, places=6)
 
+    def test_hand_collision_proxy_dimensions_match_work_area_sdf(self):
+        world_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'worlds', 'work_area.sdf')
+        root = ET.parse(world_path).getroot()
+        robot = root.find(".//world/model[@name='robot']")
+        self.assertIsNotNone(robot)
+
+        finger_names = ('index', 'middle', 'ring', 'little')
+        for side in ('R', 'L'):
+            palm = robot.find("./link[@name='%s_palm']" % side)
+            self.assertIsNotNone(palm)
+            palm_pose = [float(x) for x in palm.findtext('pose').split()]
+            self.assertAlmostEqual(palm_pose[2], -K.PALM_OFF, places=6)
+
+            palm_visual = palm.find("./visual[@name='palm']")
+            palm_visual_pose = [
+                float(x) for x in palm_visual.findtext('pose').split()]
+            palm_size = [
+                float(x) for x in
+                palm_visual.findtext('geometry/box/size').split()]
+            np.testing.assert_allclose(
+                palm_visual_pose[:3], K.PALM_CENTER, atol=1e-9)
+            np.testing.assert_allclose(
+                palm_size, K.PALM_SIZE, atol=1e-9)
+
+            for index, finger in enumerate(finger_names):
+                link = robot.find(
+                    "./link[@name='%s_hand_%s_1']" % (side, finger))
+                self.assertIsNotNone(link)
+                pose = [float(x) for x in link.findtext('pose').split()]
+                self.assertAlmostEqual(
+                    pose[0], K.FINGER_X[index], places=6)
+                self.assertAlmostEqual(
+                    pose[1], 0.0, places=6)
+                self.assertAlmostEqual(
+                    pose[2], K.FINGER_BASE_Z, places=6)
+                proximal = [
+                    float(x) for x in
+                    link.findtext("./visual[@name='v']/geometry/box/size")
+                    .split()]
+                self.assertAlmostEqual(
+                    proximal[0], K.FINGER_W, places=6)
+                self.assertAlmostEqual(
+                    proximal[2], K.PROX_LEN, places=6)
+
+                distal_link = robot.find(
+                    "./link[@name='%s_hand_%s_2']" % (side, finger))
+                self.assertIsNotNone(distal_link)
+                distal_pose = [
+                    float(x) for x in distal_link.findtext('pose').split()]
+                self.assertAlmostEqual(
+                    distal_pose[2], -K.PROX_LEN, places=6)
+                distal = [
+                    float(x) for x in
+                    distal_link.findtext("./visual[@name='v']/geometry/box/size")
+                    .split()]
+                self.assertAlmostEqual(
+                    distal[2], K.DIST_LEN, places=6)
+                self.assertLessEqual(distal[0], K.FINGER_W)
+
+            thumb = robot.find(
+                "./link[@name='%s_hand_thumb_1']" % side)
+            self.assertIsNotNone(thumb)
+            thumb_pose = [
+                float(x) for x in thumb.findtext('pose').split()]
+            self.assertAlmostEqual(
+                thumb_pose[0], K.THUMB_X[side], places=6)
+            self.assertAlmostEqual(
+                thumb_pose[1], K.THUMB_BASE[1], places=6)
+            self.assertAlmostEqual(
+                thumb_pose[2], K.THUMB_BASE[2], places=6)
+            thumb_visual = [
+                float(x) for x in
+                thumb.findtext("./visual[@name='v']/geometry/box/size")
+                .split()]
+            thumb_2 = robot.find(
+                "./link[@name='%s_hand_thumb_2']" % side)
+            thumb_2_pose = [
+                float(x) for x in thumb_2.findtext('pose').split()]
+            thumb_2_visual = [
+                float(x) for x in
+                thumb_2.findtext("./visual[@name='v']/geometry/box/size")
+                .split()]
+            # The path guard models the thumb as one conservative 60mm capsule;
+            # the SDF's two visual links total 54mm, so it must not be shorter.
+            self.assertAlmostEqual(
+                thumb_2_pose[2], -thumb_visual[2], places=6)
+            self.assertGreaterEqual(
+                K.PROX_LEN + K.DIST_LEN,
+                thumb_visual[2] + thumb_2_visual[2])
+
     def test_table_collision_guard_covers_table_top_and_legs(self):
         boxes = M._table_collision_boxes()
         names = {item[0] for item in boxes}
