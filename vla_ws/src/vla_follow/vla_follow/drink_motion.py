@@ -226,7 +226,7 @@ def _arm_capsules_world(side, q, base):
 
 
 def arm_path_table_clear(node, side, path_q, base=None,
-                         ignore_initial=True, max_joint_step=0.06):
+                         ignore_initial=True, max_joint_step=0.02):
     """收臂路径逐点/插值检查桌面和桌腿；返回 (clear, first_collision)。"""
     if base is None:
         base = node.base
@@ -248,7 +248,7 @@ def arm_path_table_clear(node, side, path_q, base=None,
     for i, q in enumerate(samples):
         for seg_name, p0, p1, radius in _arm_capsules_world(side, q, base):
             for box_name, lo, hi in boxes:
-                if _segment_hits_aabb(p0, p1, lo, hi, radius + 0.008):
+                if _segment_hits_aabb(p0, p1, lo, hi, radius + 0.015):
                     return False, {'sample': i, 'segment': seg_name,
                                    'box': box_name, 'radius_m': radius}
     return True, None
@@ -293,7 +293,7 @@ def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
         _mode = elbow if it == 0 else None
         q, _e, how = K.ik_world(side, T_world, node.base, q_now, elbow=_mode)
         if check_table:
-            _n = max(1, int(math.ceil(float(np.max(np.abs(q - q_now))) / 0.06)))
+            _n = max(1, int(math.ceil(float(np.max(np.abs(q - q_now))) / 0.02)))
             _path = [q_now + (q - q_now) * (i / float(_n))
                      for i in range(1, _n + 1)]
             _clear, _hit = arm_path_table_clear(
@@ -652,8 +652,12 @@ def put_down(node, side, model, T_obj_goal, retreat=0.10,
     T_back = wrist(node, side) @ K.trans((0.0, 0.0, retreat))
     node.carry.release(model)
     node.spin_for(0.3)
-    reach(node, side, T_back, tol_mm=8.0)
-    return True, res2
+    ok_back, res_back, _ = reach(node, side, T_back, tol_mm=8.0,
+                                 check_table=True)
+    if not ok_back:
+        node.get_logger().warn(
+            'PUT_DOWN %s 已安全落桌，但撤手未到位 %.1fmm' % (model, res_back))
+    return bool(ok_back), res2
 
 
 # ---------------------------------------------------------------- 双手捧
