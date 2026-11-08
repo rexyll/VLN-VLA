@@ -13,6 +13,7 @@ struct Command
 {
   std::string op;
   std::string model;
+  std::string joint;
   unsigned requestId{0};
 };
 
@@ -87,6 +88,46 @@ void TestCapacityAndAckReplayCache()
   CHECK(ack == "fail joint cup water_joint 77 queue-full");
 }
 
+void TestQueueFullRejectionIsAtomicAndReplayable()
+{
+  vla::BoundedCommandQueue<Command> queue(1);
+  vla::CompletedRequestAckCache cache(8);
+  std::string failureAck;
+  const auto coalesce = [](const Command &, const Command &) {
+    return false;
+  };
+  const auto duplicate = [](const Command &, const Command &incoming) {
+    return incoming.requestId != 0;
+  };
+  const auto buildFailure = [](const Command &command) {
+    return "fail joint " + command.model + " " + command.joint + " " +
+           std::to_string(command.requestId) + " queue-full";
+  };
+
+  CHECK(queue.Push(Command{"grab", "cup", "", 1}, coalesce, duplicate) ==
+        vla::QueueInsertResult::Enqueued);
+  const std::string key = "joint|cup|water_joint|77";
+  CHECK(vla::PushAndRememberFull(
+            queue, Command{"joint", "cup", "water_joint", 77},
+            coalesce, duplicate, cache, key, buildFailure, failureAck) ==
+        vla::QueueInsertResult::Full);
+  CHECK(failureAck == "fail joint cup water_joint 77 queue-full");
+
+  // Free capacity, then retry the same transaction. The cached terminal
+  // rejection must win before another queue insertion can take place.
+  Command out;
+  CHECK(queue.Pop(out));
+  std::string replay;
+  CHECK(cache.Find(key, replay));
+  CHECK(replay == failureAck);
+  if (!cache.Find(key, replay))
+    CHECK(vla::PushAndRememberFull(
+              queue, Command{"joint", "cup", "water_joint", 77},
+              coalesce, duplicate, cache, key, buildFailure, failureAck) ==
+          vla::QueueInsertResult::Enqueued);
+  CHECK(queue.Empty());
+}
+
 void TestInflightRegistryLifecycle()
 {
   vla::InFlightRequestRegistry registry;
@@ -104,6 +145,7 @@ int main()
   TestFifoDoesNotCoalesceAcrossTransaction();
   TestTailCoalescingAndTransactionDeduplication();
   TestCapacityAndAckReplayCache();
+  TestQueueFullRejectionIsAtomicAndReplayable();
   TestInflightRegistryLifecycle();
   return 0;
 }
