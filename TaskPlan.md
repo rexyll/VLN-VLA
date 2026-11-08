@@ -1288,7 +1288,7 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 | P104-04 | 修复 PEEK 状态转移并强化绕障重捕获 | 正在进行中（入口/退出状态静态核对通过，待遮挡仿真） | 进入/退出 PEEK 状态可追踪；有检出时取消 Nav2 搜索；遮挡后重新锁定同一轨迹 |
 | P104-05 | 建立桌面/桌腿几何碰撞检测与逐路点路径门控 | 正在进行中（FK 胶囊+掌部 OBB/SAT+逐指胶囊纯测试通过；待 Gazebo 几何校准） | FK 生成的臂/手指扫掠线段无桌面、桌腿 AABB 相交；碰撞路径不下发 |
 | P104-06 | 放杯后立即启动安全预收臂，净空后完成自然悬垂 | 正在进行中（三阶段逻辑单测通过；待 Gazebo 轨迹碰撞验证） | 放杯成功后先抬手离杯，再尽早执行安全折肘；在肩部收回前达到臂长净空；全过程不穿桌、不碰杯 |
-| P104-07 | 修复 PUT_BACK 未落稳仍松手、任务继续执行等状态机错误 | 正在进行中（release ACK/未知态隔离、release pending 门控、插件 in-flight 去重与完成 ACK 重放已实现；headless Gazebo 已验证 grab/joint/release 与拒绝 ACK；待丢包/迟到/并发故障注入） | 未落稳/复核失败时不 release、不撤离；关键抓取/递交/接回失败不会被忽略 |
+| P104-07 | 修复 PUT_BACK 未落稳仍松手、任务继续执行等状态机错误 | 正在进行中（release ACK/未知态隔离、release pending 门控、插件 in-flight 去重与完成 ACK 重放、CarryBus 跨进程重启 request_id 防复用已实现；headless Gazebo 已验证基础 ACK；待丢包/迟到/并发故障注入） | 未落稳/复核失败时不 release、不撤离；关键抓取/递交/接回失败不会被忽略 |
 | P104-08 | 扩展遮挡、目标关联、桌面碰撞和失败分支测试 | 正在进行中（最新 CI 14/14 纯数学/几何/运动学及 CarryBus ACK 身份测试通过；待 ROS/Gazebo 场景与故障注入） | 新增专项测试并能输出逐阶段证据；已有 P102/P103/P97/P94 回归不退化 |
 | P104-09 | 全面逻辑审查、文档与回归结果记录 | 正在进行中（Python CI、GraspCarry C++ 编译/链接、8/8 独立测试及 headless Gazebo 插件协议冒烟均已通过；ROS 2 CarryBus 联调、完整 work_area 场景和端到端回归未完成） | 对关键动作返回值、状态转移、超时、资源/消息生命周期做审查；更新 README/测试指引与本节结论 |
 
@@ -1597,3 +1597,18 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - **CI 故障诊断强化：** 每条 Gazebo Transport 发布命令增加 5 秒超时；运行时冒烟步骤失败时自动输出 ACK 订阅日志和 Gazebo server 日志，避免 transport 连接异常导致 CI 无限等待且缺少诊断信息。
 
 - **启动就绪判据调整：** headless server 的 readiness 不再依赖插件日志文本，而是轮询 Gazebo Transport topic discovery，确认 `/drink/carry/ack` 已实际注册后才启动订阅和发送命令；这同时验证插件 ACK publisher 已被发现。
+
+
+### 8.18 修复 ROS 进程重启后 request_id 与插件 ACK 缓存冲突（2026-11-08）
+
+**静态审查发现：** §8.16 为 Gazebo 插件增加了 256 项 completed ACK 缓存，缓存 key 由 `op/model/joint/request_id` 组成。但 CarryBus 原先每次实例化都将 `request_seq` 置零。若 ROS 节点重启而 Gazebo world/plugin 未重启，新 CarryBus 会从 request_id=1 重新编号；只要相同操作/模型/关节的旧 key 仍在缓存中，插件就会重放旧 ACK 并跳过新命令，造成“ACK 看似成功、实际命令未执行”。
+
+**修复：**
+- CarryBus 初始化时使用 `time.time_ns()` 作为 request_id 序号种子，之后仍按事务递增。
+- 当前 Unix 纳秒时间戳处于 uint64 范围内，可直接由插件的 `uint64_t` 解析；不改变 wire format，也不影响 request_id=0 的旧式 fire-and-forget 消息。
+- 新增 `test_carry_request_ids_are_fresh_across_bus_restarts`，用确定性时钟种子验证两个连续实例不会从相同 ID 起步，且数值仍在 uint64 范围内。
+
+**验证边界：**
+- 本轮等待 Python CI 对语法和 P104 纯测试进行验证。
+- 该修复解决同一主机时钟正常前进情况下的进程重启 ID 复用；不替代跨主机多发布者会话 ID 设计，也不证明真实 ROS 2 executor 并发行为。
+- P104-07/P104-08/P104-09 保持“正在进行中”。
