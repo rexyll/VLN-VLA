@@ -2003,3 +2003,22 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - CarryBus 的 request_id 隔离、超时后迟到 ACK 隔离及 ACK/清理并发竞争已有纯 Python 回归覆盖。
 - 仍需在真实 ROS 2 Jazzy 环境验证 executor 单一所有权、callback group、节点销毁/取消生命周期、DDS ACK 真实迟到与并发事务；当前测试不能替代这些集成验证。
 - P104-07 保持“正在进行中”，下一步优先建立与项目 ROS 2 Jazzy 版本一致的 integration test workflow，再接入真实 executor 测试。
+
+
+### 8.41 建立 ROS 2 Jazzy CarryBus executor 集成测试入口（2026-11-08）
+
+**本轮推进 P104-07：**
+- 新增 tests/test_carry_ros2_executor.py：在真实 ROS 2 节点上实例化 CarryBus，由单一 MultiThreadedExecutor（2 worker）线程拥有并推进回调；测试线程只发布 ACK，不调用 spin_once()/spin_for()。
+- 测试等待 ROS 2 publisher/subscription discovery，发布两个不同 request_id 的 ACK 并验证均由 executor 投递；随后将旧请求 9101 从 pending 移除、注册新请求 9103，再发布 9101 的迟到 ACK，验证它不会登记到 9103。
+- 新增 .github/workflows/p104-carry-ros2.yml，在 Ubuntu 24.04 + ROS 2 Jazzy 环境安装 rclpy/std_msgs/numpy 并运行该集成测试，与 package.xml 声明的 ROS 2 Jazzy 版本保持一致。
+- 同步验证此前 ACK-vs-timeout-cleanup 锁竞争测试：100 个 request_id 使用 Barrier 并发释放 callback 与 cleanup，最终状态均无 pending/缓存残留。
+
+**提交与 CI：**
+- 竞态测试提交：3b3c587aac6e749711b05a5da8f4e634395865b0；workflow run [42481944127](https://github.com/rexyll/VLN-VLA/actions/runs/42481944127) 成功。
+- TaskPlan 记录提交：742e5ee1f86f2de75982cea2ea943d0630e67ca2；workflow run [42482021945](https://github.com/rexyll/VLN-VLA/actions/runs/42482021945) 两个 job 均成功。
+- ROS 2 集成测试脚本提交：2b38a7658cf3ba66cdc23d6d6fbc077f0c365f10。
+- ROS 2 workflow 提交：ca95f2746b08a79ea3649a6f2f564b750f696571。对应 run [42482162011](https://github.com/rexyll/VLN-VLA/actions/runs/42482162011) 在本记录生成时仍处于 Set up ROS 2 Jazzy 步骤；不得将其记为通过。该提交触发的常规 Python workflow [42482162133](https://github.com/rexyll/VLN-VLA/actions/runs/42482162133) 的纯测试和编译 job 已成功。
+
+**验证边界：**
+- 新测试首次把 CarryBus ACK 订阅放入真实 ROS 2 Jazzy executor 和 DDS 通信路径；但当前覆盖的是 ACK 投递/request_id 隔离，不代表 _await() 在真实 executor 下的事务等待模型、callback group 并发执行、DDS 超时边界或 Gazebo 同进程端到端已完成。
+- P104-07 仍为“正在进行中”。待 ROS 2 workflow 首次运行成功后，再扩展真实 executor 下的事务超时/重试和节点关闭生命周期测试。
