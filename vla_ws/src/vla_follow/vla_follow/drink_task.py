@@ -913,7 +913,7 @@ class DrinkTask(Node):
                     restore_mm = (float(np.linalg.norm(
                         Tc2b[:3, 3] - np.asarray(Tcup_home)[:3, 3])) * 1000.0
                         if Tc2b is not None else 9e9)
-                    if restore_mm > 5.0:
+                    if not math.isfinite(restore_mm) or restore_mm > 5.0:
                         self._set_state('FAIL_CUP_RESTORE')
                         self.get_logger().error(
                             'DRINK 杯子原位恢复后仍偏 %.1fmm，停止任务' % restore_mm)
@@ -1030,7 +1030,7 @@ class DrinkTask(Node):
                 _cup0, M.object_pose(self, 'cup'))
             # 以真实桌沿净空作为交还跟随的硬条件；不能因 move 返回了超时
             # 就忽略机器人仍靠桌太近，也不能在臂仍伸展时交还 follower。
-            if _g < K.ARM_REACH + 0.08:
+            if not math.isfinite(float(_g)) or _g < K.ARM_REACH + 0.08:
                 self._set_state('FAIL_RETREAT_CLEARANCE')
                 self.get_logger().error(
                     'DRINK 撤离净空不足 %.3fm（要求 %.3fm），保持停止，不交还跟随'
@@ -1072,7 +1072,7 @@ class DrinkTask(Node):
                     restore_mm = (float(np.linalg.norm(
                         Tc3b[:3, 3] - np.asarray(Tcup_home)[:3, 3])) * 1000.0
                         if Tc3b is not None else 9e9)
-                    if restore_mm > 5.0:
+                    if not math.isfinite(restore_mm) or restore_mm > 5.0:
                         self._set_state('FAIL_CUP_RESTORE')
                         self.get_logger().error(
                             'DRINK 撤离后杯子恢复后仍偏 %.1fmm，不交还跟随控制权'
