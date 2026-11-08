@@ -511,7 +511,8 @@ class TestP104(unittest.TestCase):
 
         # Four collision boxes must match the four SDF leg centers and size.
         leg_boxes = [
-            (lo, hi) for name, lo, hi in M._table_collision_boxes()
+            (np.asarray(lo, float), np.asarray(hi, float))
+            for name, lo, hi in M._table_collision_boxes()
             if name == 'table_leg']
         self.assertEqual(len(leg_boxes), 4)
         for ox, oy in expected_offsets:
