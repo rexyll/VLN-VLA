@@ -291,6 +291,7 @@ private:
   void Enqueue(Cmd &&_c)
   {
     std::string replayAck;
+    std::string failureAck;
     bool replayCompleted = false;
     QueueInsertResult result = QueueInsertResult::Enqueued;
     {
@@ -326,6 +327,25 @@ private:
                  queued.joint == incoming.joint &&
                  queued.requestId == incoming.requestId;
         });
+
+      // A queue-full response is terminal for this transaction. Remember it
+      // under the same lock as the Full decision, so a concurrent retry cannot
+      // slip into the queue before the rejection becomes replayable.
+      if (!replayCompleted && result == QueueInsertResult::Full &&
+          _c.requestId != 0)
+      {
+        if (_c.op == "release")
+          failureAck = "fail release " + _c.model + " " +
+                       std::to_string(_c.requestId) + " queue-full";
+        else if (_c.op == "joint")
+          failureAck = "fail joint " + _c.model + " " + _c.joint + " " +
+                       std::to_string(_c.requestId) + " queue-full";
+        else if (_c.op == "grab" || _c.op == "place")
+          failureAck = "fail " + _c.op + " " + _c.model + " " +
+                       std::to_string(_c.requestId) + " queue-full";
+        if (!failureAck.empty())
+          this->completedAcks.Remember(key, failureAck);
+      }
     }
 
     if (replayCompleted)
@@ -334,20 +354,10 @@ private:
       return;
     }
 
+    if (!failureAck.empty())
+      this->SendAck(failureAck);
     if (result == QueueInsertResult::Full)
     {
-      std::string failure;
-      if (_c.op == "release")
-        failure = "fail release " + _c.model + " " +
-                  std::to_string(_c.requestId) + " queue-full";
-      else if (_c.op == "joint")
-        failure = "fail joint " + _c.model + " " + _c.joint + " " +
-                  std::to_string(_c.requestId) + " queue-full";
-      else if (_c.op == "grab" || _c.op == "place")
-        failure = "fail " + _c.op + " " + _c.model + " " +
-                  std::to_string(_c.requestId) + " queue-full";
-      if (!failure.empty())
-        this->SendAck(failure);
       gzerr << "[GraspCarry] 命令队列已满，拒绝 " << _c.op
             << " " << _c.model << std::endl;
     }
