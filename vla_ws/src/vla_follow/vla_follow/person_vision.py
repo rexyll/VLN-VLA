@@ -66,6 +66,13 @@ DEPTH_MIN = 0.28  # P38: 0.55 → 0.28。DEPTH_MIN 卡的是"人体表面"距离
 W_VIS_MIN, W_VIS_MAX = 0.09, 0.60
 W_REAL = 0.36     # 仅用于"该不该接受"的日志说明, 不再参与判决
 DEPTH_MAX = 7.0   # P36: 11.5→7.0, 更远处 5px 的暗斑会被误判成人
+# P104: 视觉观测只接受足够新鲜且 RGB/Depth 时间相近的配对。
+# sensor 更新率为 10Hz；0.40s 已容忍数帧抖动，但不会把断流旧帧继续当新目标。
+MAX_SENSOR_AGE_S = 0.40
+MAX_RGB_DEPTH_SKEW_S = 0.18
+TRACK_ASSOC_MAX_AGE_S = 2.5
+TRACK_ASSOC_BASE_GATE_M = 0.85
+TRACK_ASSOC_SPEED_MPS = 0.85
 
 CAMS = (('front', 0.0), ('left', 1.5707963),
         ('right', -1.5707963), ('back', 3.1415926))
@@ -181,7 +188,9 @@ class PersonVision(Node):
             else:
                 return
             with self._lock:
-                self.rgb[name] = img
+                # P104: protobuf 消息 buffer 的生命周期不跨回调保证；必须复制，
+                # 否则底层复用消息对象时缓存图像可能被下一帧静默改写。
+                self.rgb[name] = img.copy()
                 self.rgb_t[name] = time.monotonic()
         return cb
 
@@ -192,7 +201,7 @@ class PersonVision(Node):
                 return
             d = np.frombuffer(msg.data[:w * h * 4], dtype='<f4').reshape(h, w)
             with self._lock:
-                self.dep[name] = d
+                self.dep[name] = d.copy()
                 self.dep_t[name] = time.monotonic()
         return cb
 
@@ -206,14 +215,52 @@ class PersonVision(Node):
                     self.ryaw = yaw_of(q)
                 return
 
-    def _detect_cam(self, name):
-        """单相机检测 → dict(det, dist, bearing_cam, u, area, bbox)"""
+    def _predict_world(self, now):
+        """P104: 最近一次主目标世界位置 + 限幅速度外推，供跨帧关联使用。
+
+        历史只在每个采样周期追加一次（不再将四相机对同一人的重复观测
+        当成四个连续时间点）。超过关联时窗则不强行锁旧位置，允许重新捕获。
+        """
+        h = self.hist or []
+        if not h:
+            return None
+        last = h[-1]
+        age = max(0.0, float(now) - float(last.get('t', now)))
+        if age > TRACK_ASSOC_MAX_AGE_S:
+            return None
+        vx = vy = 0.0
+        if len(h) >= 2:
+            first = h[max(0, len(h) - 4)]
+            dt = float(last.get('t', 0.0)) - float(first.get('t', 0.0))
+            if dt >= 0.25:
+                vx = (float(last['wx']) - float(first['wx'])) / dt
+                vy = (float(last['wy']) - float(first['wy'])) / dt
+                speed = math.hypot(vx, vy)
+                if speed > TRACK_ASSOC_SPEED_MPS:
+                    vx *= TRACK_ASSOC_SPEED_MPS / speed
+                    vy *= TRACK_ASSOC_SPEED_MPS / speed
+        horizon = min(age, 1.0)
+        return (float(last['wx']) + vx * horizon,
+                float(last['wy']) + vy * horizon, age)
+
+    def _detect_cam(self, name, predicted=None):
+        """单相机检测；优先选择与运动预测世界位置连续的候选，而非最大暗斑。"""
+        now = time.monotonic()
         with self._lock:
             rgb = self.rgb.get(name)
             dep = self.dep.get(name)
+            tr = self.rgb_t.get(name, 0.0)
+            td = self.dep_t.get(name, 0.0)
+            rx, ry, ryaw = self.rx, self.ry, self.ryaw
         miss = {'det': False, 'dist': -1.0, 'bc': 0.0, 'u': -1,
-                'area': 0, 'bbox': None}
-        if rgb is None or dep is None:
+                'area': 0, 'bbox': None, 'world_xy': None,
+                'track_error': None}
+        if rgb is None or dep is None or tr <= 0.0 or td <= 0.0:
+            return miss
+        # P104: 不能将相机断流前的旧图与另一条新深度帧拼成“检出”。
+        if now - tr > MAX_SENSOR_AGE_S or now - td > MAX_SENSOR_AGE_S:
+            return miss
+        if abs(tr - td) > MAX_RGB_DEPTH_SKEW_S:
             return miss
         if rgb.shape[:2] != dep.shape:
             dep = cv2.resize(dep, (rgb.shape[1], rgb.shape[0]))
@@ -223,21 +270,19 @@ class PersonVision(Node):
                                 np.ones((5, 5), np.uint8))
         cnts, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL,
                                    cv2.CHAIN_APPROX_SIMPLE)
-        best = None
+        candidates = []
         img_w = rgb.shape[1]
         tan_h = math.tan(HFOV / 2.0)
-        for c in cnts:
-            a = cv2.contourArea(c)
-            if a < AREA_MIN or a > AREA_MAX:
+        cam_yaw = dict(CAMS)[name]
+        for cnt in cnts:
+            area = cv2.contourArea(cnt)
+            if area < AREA_MIN or area > AREA_MAX:
                 continue
-            x, y, w, h = cv2.boundingRect(c)
+            x, y, w, h = cv2.boundingRect(cnt)
             asp = w / max(h, 1)
             if not (ASPECT_MIN <= asp <= ASPECT_MAX):
                 continue
-            # P34: 先取深度 —— 深度无效的候选不参与竞争。
-            # 原实现"先选最大面积、再做深度过滤", 一旦面积最大的候选是
-            # 近场伪影, 它自己会被 DEPTH_MIN 过滤掉, 而真正的人已经被
-            # 挤掉了, 整帧直接判未检出(实测导致目标周期性丢失)。
+            # 先过滤无效深度，再比较目标候选，避免最大伪影吞掉真实人体。
             y0 = y + int(h * 0.15)
             y1 = y + int(h * 0.60)
             sub = dep[y0:max(y1, y0 + 1), x:x + w]
@@ -246,63 +291,84 @@ class PersonVision(Node):
             if valid.size < 10:
                 continue
             dist = float(np.quantile(valid, 0.30))
-            # P81: 几何一致性改成"由深度反推可见宽度, 必须落在人体可见
-            # 宽度区间"。原来的写法是拿固定 0.36m 反推 d_geo 再比上下 62%,
-            # 人只要被障碍切掉一半宽度(反推距离翻倍 > 1.62 倍)就被判成
-            # "不是人" —— 障碍旁边丢目标的主因之一。新写法对"残片"天然
-            # 容忍(0.09m 起), 而"暗色墙面"(反推 4~5m 宽)照样剔除。
+            # 被障碍切断的人体允许只剩 9cm 可见宽度。
             w_vis = dist * 2.0 * w * tan_h / img_w
             if not (W_VIS_MIN <= w_vis <= W_VIS_MAX):
                 continue
-            if best is None or a > best[0]:
-                best = (a, x, y, w, h, dist)
-        if best is None:
+            u = x + w / 2.0
+            bc = (img_w / 2.0 - u) * HFOV / img_w
+            bearing = wrap(cam_yaw + bc)
+            wx = rx + math.cos(ryaw + bearing) * dist
+            wy = ry + math.sin(ryaw + bearing) * dist
+            track_error = None
+            if predicted is not None:
+                px, py, age = predicted
+                track_error = math.hypot(wx - px, wy - py)
+                # 门限随遮挡时间增长；不允许连续跟踪时跳到远处背景暗物体，
+                # 但人已被遮挡较久时仍逐渐放宽，避免锁死旧目标。
+                gate = min(1.80, TRACK_ASSOC_BASE_GATE_M + 0.65 * age)
+                if age <= TRACK_ASSOC_MAX_AGE_S and track_error > gate:
+                    continue
+            candidates.append({
+                'det': True, 'dist': dist, 'bc': bc, 'u': int(u),
+                'area': int(area), 'bbox': (x, y, w, h),
+                'world_xy': (float(wx), float(wy)),
+                'track_error': track_error,
+            })
+        if not candidates:
             return miss
-        a, x, y, w, h, dist = best
-        u = x + w / 2.0
-        # 图像 u 向右增; 方位角正方向=左 → 用(中心-u)
-        bc = (img_w / 2.0 - u) * HFOV / img_w
-        return {'det': True, 'dist': dist, 'bc': bc, 'u': int(u),
-                'area': int(a), 'bbox': (x, y, w, h)}
+        if predicted is None:
+            best = max(candidates, key=lambda v: v['area'])
+        else:
+            # 连续性是主排序键；仅在误差近似时才偏好面积较大的完整人体。
+            best = min(candidates, key=lambda v: (
+                float(v['track_error']), -v['area']))
+        return best
 
     # ---------- 快照管线 ----------
-    def _snapshot(self, results, now):
-        """2Hz: 保存检出目标的标注帧, 维护滚动窗口与历史"""
+    def _snapshot(self, results, now, primary=None):
+        """2Hz: 只记录本周期选中的主目标，避免重叠相机制造重复速度样本。"""
         keep = int(self.cfg['snapshot_keep'])
         with self._lock:
             rx, ry, ryaw = self.rx, self.ry, self.ryaw
-        ts = time.strftime('%H%M%S')
         saved = []
-        for name, r in results.items():
+        names = [primary] if primary in results else []
+        for name in names:
+            r = results[name]
             if not r['det'] or r['bbox'] is None:
-                continue  # 未检出目标: 不落盘(等效立即删除)
+                continue
             with self._lock:
                 rgb = self.rgb.get(name)
-            if rgb is None:
+                rgb_t = self.rgb_t.get(name, 0.0)
+            # 抓拍也必须来自新鲜 RGB 帧，且复用回调中的不可变快照。
+            if rgb is None or time.monotonic() - rgb_t > MAX_SENSOR_AGE_S:
                 continue
-            bearing = wrap(dict(CAMS)[name] + r['bc'])
             frame = rgb.copy()
             x, y, w, h = r['bbox']
             if frame.shape[1] <= x + w or frame.shape[0] <= y + h:
                 continue
+            bearing = wrap(dict(CAMS)[name] + r['bc'])
             cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
             cv2.putText(frame,
                         f'[{CAM_CN[name]}] d={r["dist"]:.1f}m '
                         f'b={math.degrees(bearing):+.0f}deg',
                         (5, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
                         (0, 255, 0), 1)
-            wx = rx + math.cos(ryaw + bearing) * r['dist']
-            wy = ry + math.sin(ryaw + bearing) * r['dist']
+            wx, wy = r.get('world_xy') or (
+                rx + math.cos(ryaw + bearing) * r['dist'],
+                ry + math.sin(ryaw + bearing) * r['dist'])
+            ts = time.strftime('%H%M%S')
             fn = os.path.join(
                 SNAP_DIR, f'{ts}_{name}_d{r["dist"]:.1f}m_'
                           f'b{math.degrees(bearing):+.0f}deg.jpg')
             cv2.imwrite(fn, cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
             saved.append(fn)
+            # 每轮最多一条观测。多相机同时看到同一个人时，不能把重复世界点
+            # 当成同一人在很短时间内走了几米。
             self.hist.append({'t': now, 'cam': name,
                               'bearing': round(bearing, 3),
                               'dist': round(r['dist'], 2),
                               'wx': round(wx, 2), 'wy': round(wy, 2)})
-        # 滚动窗口: 超出保留数则删除最旧文件与历史
         self.hist = self.hist[-keep:] if keep > 0 else []
         try:
             files = sorted(f for f in os.listdir(SNAP_DIR) if f.endswith('.jpg'))
@@ -318,7 +384,6 @@ class PersonVision(Node):
             self.get_logger().info(
                 f'VISION 📷 快照保存 {len(saved)} 张: '
                 + ', '.join(os.path.basename(s) for s in saved))
-        # 历史话题: 最近 N 张是否同一相机(跨相机=横向移动)
         seq = [h['cam'] for h in self.hist]
         lateral = len(set(seq)) > 1 if seq else False
         msg = String()
@@ -328,46 +393,48 @@ class PersonVision(Node):
     # ---------- 主循环 ----------
     def _tick(self):
         now = time.monotonic()
+        predicted = self._predict_world(now)
         results = {}
         for name, _ in CAMS:
-            results[name] = self._detect_cam(name)
+            results[name] = self._detect_cam(name, predicted)
         with self._lock:
             ryaw = self.ryaw
-        # 主相机选择: 保持上一主相机; 否则按"与上一拍世界方位最接近"取,
-        # 面积作兜底; 切换需连续 2 帧检出(抑制重叠区来回跳变)
         prev = self._prev_cam
         cands = [n for n, r in results.items() if r['det']]
         primary = None
-        # front 优先: 只有 front 的 bearing 与"偏离垂直中线 ±15°"的控制判据
-        # 同基准。若用 sticky 逻辑一直挂在 left/right 上, 人其实已经回到正前方
-        # 时 bearing 仍由掠射角相机给出(边角畸变大、深度噪声大), 对正会来回过冲。
-        # 门限取半 FOV(51.6°)的 85%, 保证人确实在 front 视野内靠中间的位置。
-        front_ok = (results['front']['det']
-                    and abs(results['front']['bc']) <= HFOV * 0.5 * 0.85)
-        if front_ok:
-            primary = 'front'
-        elif prev and results.get(prev, {}).get('det'):
-            primary = prev
-        elif cands:
-            if self._prev_bearing is not None:
-                def score(n):
-                    b = wrap(dict(CAMS)[n] + results[n]['bc'])
-                    d = abs(wrap(b - self._prev_bearing))
-                    return (d, -results[n]['area'])
+        if cands:
+            front_ok = (results['front']['det']
+                        and abs(results['front']['bc']) <= HFOV * 0.5 * 0.85)
+            if predicted is not None:
+                # 世界位置连续性优先；front 只在误差接近时提供视野质量偏好。
+                ranked = sorted(cands, key=lambda n: (
+                    float(results[n]['track_error']), -results[n]['area']))
+                chosen = ranked[0]
+                best_err = float(results[chosen]['track_error'])
+                if prev in cands and float(results[prev]['track_error']) <= best_err + 0.18:
+                    chosen = prev
+                elif front_ok and float(results['front']['track_error']) <= best_err + 0.12:
+                    chosen = 'front'
+            elif front_ok:
+                chosen = 'front'
+            elif prev in cands:
+                chosen = prev
             else:
-                def score(n):
-                    return (0.0, -results[n]['area'])
-            cands.sort(key=score)
-            cand = cands[0]
-            streak = self._cam_streak.get(cand, 0) + 1
-            self._cam_streak[cand] = streak
-            if streak >= 2:
-                primary = cand
-        if primary is not None:
-            self._prev_cam = primary
-            self._cam_streak[primary] = 2
+                chosen = max(cands, key=lambda n: results[n]['area'])
+            # 主相机切换仍保留两帧迟滞；连续性异常时不让旧主相机强行占优。
+            if chosen == prev or prev is None:
+                primary = chosen
+            else:
+                self._cam_streak[chosen] = self._cam_streak.get(chosen, 0) + 1
+                if self._cam_streak[chosen] >= 2:
+                    primary = chosen
+            if primary is not None:
+                self._prev_cam = primary
+                self._cam_streak[primary] = 2
         else:
             self._prev_cam = None
+            self._cam_streak.clear()
+
         self._frm_n += 1
         out = {'detected': False, 'cam': '', 'dist': -1.0,
                'bearing': 0.0, 'bearing_cam': 0.0, 'u': -1, 'area': 0,
@@ -380,7 +447,9 @@ class PersonVision(Node):
             out = {'detected': True, 'cam': primary,
                    'dist': round(r['dist'], 3), 'bearing': round(bearing, 4),
                    'bearing_cam': round(r['bc'], 4), 'u': r['u'],
-                   'area': r['area'], 'age': 0.0}
+                   'area': r['area'], 'age': 0.0,
+                   'track_error': (None if r['track_error'] is None
+                                   else round(r['track_error'], 3))}
             if primary != 'front' and now - self._last_log > 1.0:
                 self.get_logger().info(
                     f'VISION ★ 人位于[{CAM_CN[primary]}]相机视野 '
@@ -390,12 +459,10 @@ class PersonVision(Node):
         msg = String()
         msg.data = json.dumps(out)
         self.pub.publish(msg)
-        # 快照节拍
         rate = max(0.5, float(self.cfg['snapshot_rate_hz']))
         if now - self._last_snap >= 1.0 / rate:
             self._last_snap = now
-            self._snapshot(results, now)
-        # 周期汇总
+            self._snapshot(results, now, primary)
         if now - self._last_log > 3.0:
             self._last_log = now
             if primary == 'front':
