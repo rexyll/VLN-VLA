@@ -11,6 +11,7 @@
 """
 import os
 import sys
+import threading
 import unittest
 from unittest.mock import patch
 import xml.etree.ElementTree as ET
@@ -321,6 +322,7 @@ class TestP104(unittest.TestCase):
         bus.ack_t = 0.0
         bus.pending_requests = set()
         bus.ack_by_request = {}
+        bus._ack_lock = threading.RLock()
         node.bus = bus
         emitted = []
         ok = bus._await(
@@ -432,6 +434,38 @@ class TestP104(unittest.TestCase):
         bus._on_ack(type(
             'Msg', (), {'data': 'ok joint cup water_joint 401'})())
         self.assertNotIn(401, bus.ack_by_request)
+
+    def test_carry_ack_callback_is_safe_under_concurrent_executor_threads(self):
+        class Node:
+            def create_publisher(self, *_args):
+                return object()
+            def create_subscription(self, *_args):
+                return object()
+
+        bus = C.CarryBus(Node())
+        request_ids = list(range(1001, 1025))
+        bus.pending_requests.update(request_ids)
+        messages = [
+            'ok joint cup water_joint %d' % request_id
+            for request_id in request_ids
+        ]
+        threads = [
+            threading.Thread(
+                target=bus._on_ack,
+                args=(type('Msg', (), {'data': message})(),))
+            for message in messages
+        ]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=2.0)
+            self.assertFalse(thread.is_alive())
+
+        self.assertEqual(set(bus.ack_by_request), set(request_ids))
+        for request_id in request_ids:
+            self.assertEqual(
+                bus.ack_by_request[request_id],
+                'ok joint cup water_joint %d' % request_id)
 
     def test_carry_ack_matching_rejection_fails_without_retrying_to_timeout(self):
         class Logger:
