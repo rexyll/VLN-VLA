@@ -164,40 +164,50 @@ class TestCarryRos2Executor(unittest.TestCase):
 
             # Executor owner cancellation must wake a waiter immediately,
             # rather than leaving it blocked until its transaction timeout.
-            cancelled_ids = []
-            cancelled_results = []
-            waiter_started = threading.Event()
+            cancelled_ids = {"first": [], "second": []}
+            cancelled_results = {}
+            waiter_started = {"first": threading.Event(),
+                              "second": threading.Event()}
 
-            def wait_until_cancelled():
+            def wait_until_cancelled(name):
                 def emit_cancel(request_id):
-                    cancelled_ids.append(request_id)
-                    waiter_started.set()
-                cancelled_results.append(bus._await(
+                    cancelled_ids[name].append(request_id)
+                    waiter_started[name].set()
+                cancelled_results[name] = bus._await(
                     emit_cancel,
-                    lambda ack, rid: ack == "ok cancel %d" % rid,
-                    10.0))
+                    lambda ack, rid: ack == "ok cancel %s %d" % (name, rid),
+                    10.0)
 
-            cancelled_waiter = threading.Thread(target=wait_until_cancelled)
-            cancelled_waiter.start()
-            self.assertTrue(waiter_started.wait(timeout=2.0),
-                            "cancellable waiter did not start")
+            cancelled_waiters = [
+                threading.Thread(target=wait_until_cancelled, args=("first",)),
+                threading.Thread(target=wait_until_cancelled, args=("second",)),
+            ]
+            for waiter in cancelled_waiters:
+                waiter.start()
+            for name in ("first", "second"):
+                self.assertTrue(waiter_started[name].wait(timeout=2.0),
+                                "%s cancellable waiter did not start" % name)
             cancel_deadline = time.monotonic() + 2.0
             while True:
                 with bus._ack_lock:
-                    registered = bool(bus._ack_events)
-                if registered:
+                    registered = len(bus._ack_events)
+                if registered == 2:
                     break
                 self.assertLess(time.monotonic(), cancel_deadline,
-                                "waiter Event was not registered")
+                                "both waiter Events were not registered")
                 time.sleep(0.005)
             bus.cancel_waiters()
-            cancelled_waiter.join(timeout=1.0)
-            self.assertFalse(cancelled_waiter.is_alive(),
-                             "cancel_waiters did not wake executor-managed waiter")
-            self.assertEqual(cancelled_results, [False])
+            bus.cancel_waiters()  # cancellation is idempotent
+            for waiter in cancelled_waiters:
+                waiter.join(timeout=1.0)
+                self.assertFalse(waiter.is_alive(),
+                                 "cancel_waiters did not wake every waiter")
+            self.assertEqual(cancelled_results, {"first": False, "second": False})
             with bus._ack_lock:
-                self.assertNotIn(cancelled_ids[0], bus.pending_requests)
-                self.assertNotIn(cancelled_ids[0], bus.ack_by_request)
+                for name in ("first", "second"):
+                    request_id = cancelled_ids[name][0]
+                    self.assertNotIn(request_id, bus.pending_requests)
+                    self.assertNotIn(request_id, bus.ack_by_request)
                 self.assertFalse(bus._ack_events)
 
             # Expire 9101, register a different waiter, then deliver its late ACK.
