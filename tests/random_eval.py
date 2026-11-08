@@ -415,7 +415,7 @@ def analyze(recs):
         'cmd_v_mean': round(sum(ws) / len(ws), 3) if ws else 0,
     }
 
-    # ---------- 6. 后退频次(P79 用户口径: "避免频繁后退") ----------
+    # ---------- 7. 后退频次(P79 用户口径: "避免频繁后退") ----------
     # 只看正常跟随段(与距离统计同一口径), 后退 = 指令线速度 < -0.03 m/s。
     seg = [r for r in recs if r['t'] > 12.0 and not r['lost']]
     if seg:
