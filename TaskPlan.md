@@ -1288,9 +1288,9 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 | P104-04 | 修复 PEEK 状态转移并强化绕障重捕获 | 正在进行中（入口/退出状态静态核对通过，待遮挡仿真） | 进入/退出 PEEK 状态可追踪；有检出时取消 Nav2 搜索；遮挡后重新锁定同一轨迹 |
 | P104-05 | 建立桌面/桌腿几何碰撞检测与逐路点路径门控 | 正在进行中（FK 胶囊+掌部 OBB/SAT+逐指胶囊纯测试通过；新增代理 AABB 与 work_area.sdf 几何一致性测试待 CI；待 Gazebo 几何校准） | FK 生成的臂/手指扫掠线段无桌面、桌腿 AABB 相交；碰撞路径不下发 |
 | P104-06 | 放杯后立即启动安全预收臂，净空后完成自然悬垂 | 正在进行中（三阶段逻辑单测通过；待 Gazebo 轨迹碰撞验证） | 放杯成功后先抬手离杯，再尽早执行安全折肘；在肩部收回前达到臂长净空；全过程不穿桌、不碰杯 |
-| P104-07 | 修复 PUT_BACK 未落稳仍松手、任务继续执行等状态机错误 | 正在进行中（release ACK/未知态隔离、release pending 门控、插件 in-flight 去重与完成 ACK 重放、CarryBus 跨进程重启 request_id 防复用已实现；headless Gazebo 已通过大整数 ID 与 ACK 丢失重试；新增双事务并发 ACK 检查待 CI，迟到/队列满载故障注入仍未完成） | 未落稳/复核失败时不 release、不撤离；关键抓取/递交/接回失败不会被忽略 |
+| P104-07 | 修复 PUT_BACK 未落稳仍松手、任务继续执行等状态机错误 | 正在进行中（release ACK/未知态隔离、release pending 门控、插件 in-flight 去重与完成 ACK 重放、CarryBus 跨进程重启 request_id 防复用已实现；headless Gazebo 已通过大整数 ID、确定性 ACK 丢失重试和双事务并发 ACK 身份隔离；迟到 ACK/队列满载故障注入仍未完成） | 未落稳/复核失败时不 release、不撤离；关键抓取/递交/接回失败不会被忽略 |
 | P104-08 | 扩展遮挡、目标关联、桌面碰撞和失败分支测试 | 正在进行中（最新 Python CI 15/15 纯数学/几何/运动学及 CarryBus ACK/进程重启 ID 测试通过；待 ROS/Gazebo 场景、碰撞几何校准与回归） | 新增专项测试并能输出逐阶段证据；已有 P102/P103/P97/P94 回归不退化 |
-| P104-09 | 全面逻辑审查、文档与回归结果记录 | 正在进行中（Python CI 15/15、GraspCarry C++ 编译/链接与 8/8 独立测试通过；headless Gazebo 已验证 uint64 大 ID、ACK 丢失后缓存重放及基础拒绝 ACK；ROS 2 CarryBus 联调、完整 work_area 场景和端到端回归未完成） | 对关键动作返回值、状态转移、超时、资源/消息生命周期做审查；更新 README/测试指引与本节结论 |
+| P104-09 | 全面逻辑审查、文档与回归结果记录 | 正在进行中（Python CI 15/15、GraspCarry C++ 编译/链接与 8/8 独立测试通过；headless Gazebo 已验证 uint64 大 ID、确定性 ACK 丢失重放、双事务并发 ACK 隔离及拒绝 ACK；ROS 2 CarryBus 联调、完整 work_area 场景和端到端回归未完成） | 对关键动作返回值、状态转移、超时、资源/消息生命周期做审查；更新 README/测试指引与本节结论 |
 
 ### 8.3 验收门槛
 
@@ -1611,7 +1611,7 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 **验证结果：**
 - Python CI run [42470309378](https://github.com/rexyll/VLN-VLA/actions/runs/42470309378) 的语法编译和纯测试均通过；新增测试包含在内，**15/15 passed**。
 - C++/Gazebo CI run [42470006135](https://github.com/rexyll/VLN-VLA/actions/runs/42470006135) 成功：Gazebo Harmonic 插件编译、8/8 C++ 队列/缓存测试、共享库与 `ldd -r` 检查，以及 headless Gazebo 协议冒烟均通过。
-- 更新后的 ACK 丢失注入场景由 C++/Gazebo CI run [42470259138](https://github.com/rexyll/VLN-VLA/actions/runs/42470259138) 通过；Python CI run [42470309378](https://github.com/rexyll/VLN-VLA/actions/runs/42470309378) 也通过。
+- 更新后的确定性 ACK 丢失注入、双事务并发 ACK 隔离由 C++/Gazebo CI run [42470924168](https://github.com/rexyll/VLN-VLA/actions/runs/42470924168) 通过；Python CI run [42470309378](https://github.com/rexyll/VLN-VLA/actions/runs/42470309378) 也通过。
 - 该次 headless 测试使用 `1700000000000000001` 起的大整数 request ID，成功完成 grab/joint/release、重复请求 ACK 重放及缺失模型拒绝 ACK；验证了 Python 纳秒时间戳序号与 C++ `uint64_t` wire format 兼容。
 - 首版 ACK 丢失测试在无订阅者时发送命令、稍后再订阅；run [42470259138](https://github.com/rexyll/VLN-VLA/actions/runs/42470259138) 曾通过。但后续 run [42470608899](https://github.com/rexyll/VLN-VLA/actions/runs/42470608899) 观察到两条 ACK，说明 Gazebo Transport 可能在 subscriber 建立后才送达首条 ACK，该“无订阅者”时序并不确定，不能作为稳定故障注入验收。现已改为 subscriber 明确丢弃第一条终态 ACK，并通过 marker 确认丢弃发生后才重试；等待新 CI 验证。
 
@@ -1632,6 +1632,7 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 
 **验证边界：**
 - 首次 CI run [42470608899](https://github.com/rexyll/VLN-VLA/actions/runs/42470608899) 在 ACK 丢失步骤失败，未执行到后续并发事务检查。失败证据为客户端日志出现两条相同 grab ACK，根因是“无订阅者”不保证首条 ACK 在订阅者连接前已发布；已将首 ACK 丢弃改为 subscriber 侧确定性过滤，并设置 marker 避免 retry 与原事务 in-flight 窗口竞态。
-- 新版 ACK 丢失步骤和双事务并发 ACK 检查等待 C++/Gazebo CI 重新验证；通过前不宣称运行时并发 ACK 已验证。
+- 修正后的确定性 ACK 丢弃与双事务并发 ACK 检查由 C++/Gazebo CI run [42470924168](https://github.com/rexyll/VLN-VLA/actions/runs/42470924168) 全部通过：首条 grab ACK 被 subscriber 侧丢弃，确认 marker 出现后重试，只收到一个缓存重放 ACK；两个并发 joint 请求分别收到且只收到自己的 ACK。
+- run [42470608899](https://github.com/rexyll/VLN-VLA/actions/runs/42470608899) 的首次并发测试尝试在 ACK 丢失测试处失败，未执行并发命令；修复后 run [42470924168](https://github.com/rexyll/VLN-VLA/actions/runs/42470924168) 通过。
 - 该测试验证两个独立事务的 ACK 身份和结果隔离，不等价于 ROS 2 多线程 executor / CarryBus 同进程并发，也不覆盖迟到 ACK 和队列满载。
 - P104-07/P104-08/P104-09 继续保持“正在进行中”。
