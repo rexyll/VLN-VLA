@@ -9,7 +9,7 @@
 
 ## 当前执行位置（2026-11-08）
 
-- **当前主节点：P104-07** —— 继续完成 ROS 2 CarryBus 与 Gazebo GraspCarry 插件的事务端到端联调；headless Gazebo 已验证插件队列满载拒绝、恢复后 128 条事务严格 FIFO 排空/成功 ACK 恰好一次，以及 32 条溢出命令逐条拒绝 ACK 恰好一次；CarryBus 已在真实 ROS 2 MultiThreadedExecutor 下覆盖并发事务、request_id 隔离、迟到 ACK、超时清理、拒绝 ACK、取消唤醒和关闭顺序；仍缺真实 ROS 2 ↔ Gazebo GraspCarry transport 故障注入及完整事务 E2E。
+- **当前主节点：P104-07** —— 继续完成 ROS 2 CarryBus 与 Gazebo GraspCarry 插件的事务端到端联调；headless Gazebo 已验证插件队列满载拒绝、恢复后 128 条事务严格 FIFO 排空/成功 ACK 恰好一次，以及 32 条溢出命令逐条拒绝 ACK 恰好一次；CarryBus 已在真实 ROS 2 MultiThreadedExecutor 下覆盖并发事务、request_id 隔离、迟到 ACK、超时清理、拒绝 ACK、取消唤醒和关闭顺序；本轮新增 ROS 2 ↔ ros_gz_bridge ↔ GraspCarry 事务测试及 ACK 丢失注入，正在执行完整 Gazebo CI；CI 通过前不计入已验收能力。
 - **并行回归：P104-08** —— 此前 20/20 纯 Python 测试通过；P104-07 本轮新增 CarryBus 人手交接连续性用例后，`tests/test_p104.py` 共 21 个用例，新增项待 CI 验证。继续扩展真实 RGB-D 遮挡、四相机切换和跟踪重捕获验证。
 - **未关闭的仿真节点：P104-05/P104-06** —— 桌面/手部代理几何和自然收臂逻辑已通过静态/纯测试，但仍需完整 work_area.sdf 场景中的动态碰撞与轨迹验证。
 - **最终验收：P104-09** —— 完整双臂倒水递水 E2E 至少三轮、ROS 2/Gazebo 集成和 P102/P103/P97/P94 回归尚未完成。
@@ -2245,4 +2245,26 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 本次收口的是任务状态与 busy 标志的同步读取/更新；没有把 `DrinkTask` 切换到外部 MultiThreadedExecutor，也没有允许任务动作从 ROS 回调线程执行。
 - `base`、`links`、`js` 的跨字段一致性及 timer/callback 生命周期仍需结合真实节点入口继续审查。
 - P104-07 仍未完成：真实 Gazebo GraspCarry 插件 transport 故障注入，以及 CarryBus ↔ ROS 2 ↔ Gazebo 插件完整事务 E2E 尚未验收。
+
+### 8.57 CarryBus 经 ros_gz_bridge 到 Gazebo GraspCarry 的真实事务链路（2026-11-08）
+
+- 新增 `tests/test_carry_gz_bridge.py`：在真实 ROS 2 `MultiThreadedExecutor` 下实例化生产 `CarryBus`，经 `ros_gz_bridge` 向 headless Gazebo 的 GraspCarry 插件发送事务，不再用测试代码直接伪造 ACK。
+- 新增 ROS ACK 中继故障注入器：故意丢弃插件返回的第一条 terminal ACK；CarryBus 必须使用相同 request_id 重发，GraspCarry 必须从 completed ACK cache 重放原结果，事务才能成功。
+- 在同一真实桥接链路中并发提交两个 `joint` 事务，验证 request_id 隔离、ACK 独立消费，以及事务完成后 `pending_requests`、`ack_by_request`、`_ack_events` 均清理。
+- 扩展 `.github/workflows/p104-grasp-carry-cpp.yml`：在 Gazebo Harmonic 插件构建与既有 headless 协议测试后安装 ROS 2 Jazzy / `ros_gz_bridge`，启动真实 Gazebo 插件和双向桥接配置，再运行上述故障注入测试。
+
+**提交：**
+- `99cef9f376c19168461be98de7c2981c5829620c` — `test: add CarryBus Gazebo bridge transaction test`。
+- `58b9080d00e26181df97aea734ae8fd5488c6854` — `fix: wait for bridged Gazebo ACK publisher`。
+- `4affc1592ec48d8c810fe9cbbf5ddcfdf0c5845e` — `test: account for idempotent ACK replay retransmits`。
+- `0c603a000582734354f2e29f73360ecaf5eb7cd5` — `ci: test CarryBus through ros_gz_bridge with ACK loss`。
+
+**验证状态（提交时）：**
+- Python syntax run `42492859769`：completed / success。
+- ROS 2 executor integration run `42492859784`：completed / success。
+- Gazebo + ROS 2 bridge 完整集成 run `42492859646`：执行中；Gazebo 插件配置、编译、队列单测、共享库依赖检查均已通过，既有 headless Gazebo ACK 协议步骤仍在执行。桥接 E2E 尚未报告结果，不得据此关闭 P104-07。
+
+**验收边界：**
+- 本用例只覆盖 `place` ACK 首包丢失后的缓存重放，以及两个并发 `joint` 事务的桥接往返；尚未覆盖 bridge 进程重启、transport 断连恢复、桥接队列背压和完整 DrinkTask 抓取/释放动作序列。
+- P104-07 继续未完成；待 CI 结果出来后按实际结果修复并扩展，不把单次 ACK fault injection 等同于完整任务端到端验收。
 
