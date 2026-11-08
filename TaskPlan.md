@@ -2148,3 +2148,35 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 本轮只验证 CarryBus waiter 的 ACK/取消竞态，不代表 DrinkTask 已接入外部 executor。DrinkTask 仍由主线程通过 spin_for()/spin_sim()/rclpy.spin_once() 推进回调；在明确任务编排线程、定时器回调组、服务回调排队、启动入口和 shutdown/join 顺序之前，不切换 executor_managed=True。
 - 下一步继续审查 DrinkTask 的全部同步等待调用点及启动/测试/launch 入口，先补充 executor 生命周期兼容测试，再决定是否引入外部 MultiThreadedExecutor。
 - P104-07 仍为“正在进行中”：真实 Gazebo GraspCarry 事务 E2E、transport 故障注入和完整任务编排尚未完成。
+
+### 8.51 DrinkTask 共享状态的第一轮并发保护（2026-11-08）
+
+- CmdBus 新增可重入锁：set() 对多关节目标作原子更新；get()/get_many() 读取一致快照；publish_all() 在锁内复制目标和递增帧计数，释放锁后再调用 ROS publisher，避免持锁进入 middleware。
+- DrinkTask.sync_to_measured() 不再直接写 bus.val，而是汇总测量值后调用 CmdBus.set()；drink_motion 的人员手臂目标读取改用 CmdBus.get()。
+- CarryBus 新增独立 _items_lock，保护 hand_to/grab/release/holding 与 50Hz update。update() 在同一锁内检查 release_pending/release_unknown 并发布 set，避免 release 登记 pending 后仍被旧 set 覆盖。
+- DrinkTask 对持有物体的查询改用 CarryBus.holding() 快照接口；旧 object.__new__ 纯测试夹具初始化新锁。
+- DrinkTask 的 /drink/joint_state 与 Gazebo dynamic_pose/info 回调改为 copy-on-write：在局部字典中合并消息，再一次性替换 js/links 引用，避免回调逐字段修改时读者观察到半更新字典。
+- 新增 ROS 2 Jazzy 并发测试，验证 CmdBus 多关节快照、CarryBus 附着状态与 update 并发、DrinkTask joint-state 回调快照完整性。
+
+**提交与 CI：**
+- 6e5c0af7f9bba1950e9c2ab1a7a8700882063e64 — CmdBus 共享目标锁与原子快照；31c6e78667c5903956c48edb49493b2ff85d670e — drink_motion 使用 CmdBus.get()；9cafb592fd959ad4b2ee3d266638db342b8a437e — CmdBus 并发快照测试。对应 run 42488107679（Python）与 42488107629（ROS 2）均 success。
+- cc508eefe97542e9d767a7d0394cda9b7011e5c9 / 2b78bd8e789f3710855334f4d0f2b70be743d68f — CarryBus 附着锁实现及语法修复；640f9f2fdceab46f0d82adc730134906b18b0375 — DrinkTask 使用 holding()；7500bf73726aa99e7749faa8b61d70a217196681 — 并发附着测试；c190780a1d134109bc1a3020fd6012a3c313b1db — 修复旧纯测试夹具。最终 c190780 对应 Python run 42488795742 与 ROS 2 run 42488795715 均 success。
+- cf395d623d71cbe07f9f11553fe50e1f439166c9 — copy-on-write 传感器回调；2506e45554995a59f4dc0e7d81cf297f40114bad — joint-state 快照并发测试。2506e45 对应 Python run 42489276528 与 ROS 2 run 42489276529 均 success。
+
+**验证边界与后续：**
+- 以上只覆盖命令总线、抓取附着字典和传感器回调字典的部分并发访问。DrinkTask 的 state、_busy、_want_* 请求标志、_follower_status 与时间戳、base/links/js 多字段跨域一致性，以及同步 run_drink 与 executor callback 的所有权仍需继续审查。
+- 不启用 executor_managed=True；仍需先定义任务主循环线程、服务回调线程、callback group、传感器快照边界与 shutdown/join 顺序。
+- P104-07 继续为“正在进行中”，Gazebo GraspCarry transport 故障注入和完整 ROS 2/Gazebo 事务 E2E 未完成。
+
+### 8.52 CarryBus 并发事务 request_id 原子分配（2026-11-08）
+
+- ROS 2 并发回归在同时启动两个 executor-managed 事务时偶发出现一个事务超时。复查发现 request_seq += 1 原先位于 _ack_lock 外；并发 waiter 存在分配重复 request_id、覆盖 ACK Event 或交叉消费 ACK 的竞态。
+- 将 request_seq 递增、request_id 读取、pending_requests 登记及 executor Event 注册合并到同一 _ack_lock 临界区，保证 request ID 分配与 waiter 注册原子化。
+- 此问题由真实 ROS 2 Jazzy MultiThreadedExecutor 并发事务测试捕获；修复后原测试验证两个事务均成功且 request_id 不同。
+
+**提交与 CI：**
+- 9f7a082fed9af78746b0d755e11fd66881e8b82c — fix: allocate CarryBus request IDs atomically；Python run 42489499284 completed / success；ROS 2 Jazzy run 42489499291 completed / success。
+
+**验证边界与后续：**
+- request_id 原子分配消除 waiter ID 重用竞态，但仍需继续审查取消、超时、ACK 到达与重发之间的状态转换，并在真实 Gazebo plugin transport 中验证。
+- P104-07 仍未完成；DrinkTask 外部 executor 生命周期集成与 Gazebo GraspCarry 端到端事务验证继续作为后续节点。
