@@ -101,11 +101,14 @@ class CarryBus(object):
         self.ack_t = time.time()
         # 每个等待者只接收自己的 request_id；嵌套 spin_for/并发事务不能
         # 通过清空共享 ACK 列表把其他等待者的确认删掉。
-        try:
-            request_id = int(msg.data.rsplit(' ', 1)[1])
-        except (IndexError, ValueError):
-            return
-        if request_id in self.pending_requests:
+        # 成功 ACK 的 request_id 是末尾字段；失败 ACK 还带原因后缀
+        # (例如 "... 31 queue-full")，因此从右向左找最后一个纯数字字段。
+        request_id = None
+        for token in reversed(msg.data.split()):
+            if token.isdigit():
+                request_id = int(token)
+                break
+        if request_id is not None and request_id in self.pending_requests:
             self.ack_by_request[request_id] = msg.data
 
     def _send(self, text):
