@@ -930,12 +930,17 @@ def _waypoints(qa, qb, step):
     return [qa + (qb - qa) * ((i + 1) / float(n)) for i in range(n)]
 
 
-def hang_path(q0, fold=HANG_FOLD, step=0.30):
-    """q0 → 悬垂(Q_HANG) 的人体顺序路点表(见上面的三段)。"""
+def hang_path_stages(q0, fold=HANG_FOLD, step=0.30):
+    """把人体式收臂拆成三段独立路点，供桌面净空检查与分阶段执行。
+
+    ① 只折肘并归腕（肘尖作为支点）；② 肩部三轴归零；③ 伸肘至悬垂。
+    每段均不超过 step 的单关节增量。调用方可在桌边先尝试第①段，
+    到达臂长净空后再执行第②/③段。
+    """
     q0 = np.asarray(q0, float)
     q1 = q0.copy()
-    q1[3] = min(q0[3], fold)      # 本来就折得更深就别往外翻
-    q1[4] = 0.0                   # 前臂自转归零(纯绕前臂轴, 不改变指向)
+    q1[3] = min(q0[3], fold)
+    q1[4] = 0.0
     q1[5] = 0.0
     q1[6] = 0.0
     q2 = q1.copy()
@@ -943,10 +948,17 @@ def hang_path(q0, fold=HANG_FOLD, step=0.30):
     q2[1] = 0.0
     q2[2] = 0.0
     q3 = np.zeros(NJ)
-    out = []
-    for qa, qb in ((q0, q1), (q1, q2), (q2, q3)):
-        out.extend(_waypoints(qa, qb, step))
-    return out
+    return (
+        _waypoints(q0, q1, step),
+        _waypoints(q1, q2, step),
+        _waypoints(q2, q3, step),
+    )
+
+
+def hang_path(q0, fold=HANG_FOLD, step=0.30):
+    """q0 → 悬垂(Q_HANG) 的人体顺序路点表(向后兼容的三段拼接)。"""
+    return [q for stage in hang_path_stages(q0, fold=fold, step=step)
+            for q in stage]
 
 
 def raise_path(q0, q1, step=0.30):
