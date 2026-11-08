@@ -154,9 +154,109 @@ def log_arm(node, tag, sides=('L', 'R')):
     return out
 
 
+# ---------------------------------------------------------------- 桌面/桌腿碰撞门控（P104）
+def _segment_hits_aabb(p0, p1, lo, hi, radius=0.0):
+    """胶囊线段与 AABB 的保守相交：将盒子按半径外扩后做 slab 检查。"""
+    lo = np.asarray(lo, float) - float(radius)
+    hi = np.asarray(hi, float) + float(radius)
+    a = np.asarray(p0, float)
+    d = np.asarray(p1, float) - a
+    t0, t1 = 0.0, 1.0
+    for k in range(3):
+        if abs(d[k]) < 1e-10:
+            if a[k] < lo[k] or a[k] > hi[k]:
+                return False
+            continue
+        u0 = (lo[k] - a[k]) / d[k]
+        u1 = (hi[k] - a[k]) / d[k]
+        if u0 > u1:
+            u0, u1 = u1, u0
+        t0 = max(t0, u0)
+        t1 = min(t1, u1)
+        if t0 > t1:
+            return False
+    return True
+
+
+def _table_collision_boxes():
+    """与 work_area.sdf 同源的桌面板及四条桌腿 AABB（世界坐标）。"""
+    cx, cy = L.TABLE_XY
+    boxes = [
+        ('table_top', (cx - L.TABLE_W / 2.0, cy - L.TABLE_D / 2.0,
+                       L.TABLE_TOP_Z - L.TABLE_PLATE_T),
+         (cx + L.TABLE_W / 2.0, cy + L.TABLE_D / 2.0, L.TABLE_TOP_Z)),
+        # SDF 中台面外沿 lip 只有 visual，但也纳入 10mm 净空，避免视觉穿模。
+        ('table_lip', (cx - L.TABLE_W / 2.0 - 0.025,
+                       cy - L.TABLE_D / 2.0 - 0.020,
+                       L.TABLE_TOP_Z - L.TABLE_PLATE_T - 0.009),
+         (cx + L.TABLE_W / 2.0 + 0.025,
+          cy + L.TABLE_D / 2.0 + 0.020,
+          L.TABLE_TOP_Z - L.TABLE_PLATE_T + 0.009)),
+    ]
+    for sx in (-0.410, 0.410):
+        for sy in (-0.270, 0.270):
+            x, y = cx + sx, cy + sy
+            boxes.append(('table_leg', (x - 0.025, y - 0.025, 0.0),
+                          (x + 0.025, y + 0.025, L.TABLE_TOP_Z - L.TABLE_PLATE_T)))
+    return boxes
+
+
+def _arm_capsules_world(side, q, base):
+    """由 FK 生成肩-肘-腕-掌-指尖包络；半径包含可见几何与安全余量。"""
+    Tb = K.base_pose(*base)
+    Tp = K.fk(side, np.asarray(q, float))
+    R = Tp[:3, :3]
+    p_palm = Tp[:3, 3]
+    p_wrist = p_palm + R @ np.array([0.0, 0.0, K.PALM_OFF])
+    p_shoulder = np.asarray(K.SHOULDER[side], float)
+    p_elbow = K.elbow_pos(side, q)
+    to_world = lambda p: (Tb @ K.trans(p))[:3, 3]
+    sh, el, wr, palm = [to_world(p) for p in
+                        (p_shoulder, p_elbow, p_wrist, p_palm)]
+    # 手指全包络：从掌心延伸至最远指尖；半径覆盖四指及拇指。
+    tip_local = np.array([0.0, 0.0,
+                          K.FINGER_BASE_Z - K.PROX_LEN - K.DIST_LEN])
+    tip = to_world(p_palm + R @ tip_local)
+    return [
+        ('upper_arm', sh, el, 0.043),
+        ('forearm', el, wr, 0.038),
+        ('wrist', wr, palm, 0.034),
+        ('hand_fingers', palm, tip, 0.055),
+    ]
+
+
+def arm_path_table_clear(node, side, path_q, base=None,
+                         ignore_initial=True, max_joint_step=0.06):
+    """收臂路径逐点/插值检查桌面和桌腿；返回 (clear, first_collision)。"""
+    if base is None:
+        base = node.base
+    q0 = q_meas(node, side)
+    if q0 is None:
+        return False, {'reason': 'joint_state_missing'}
+    samples = []
+    prev = np.asarray(q0, float)
+    for target in path_q:
+        target = np.asarray(target, float)
+        n = max(1, int(math.ceil(
+            float(np.max(np.abs(target - prev))) / max_joint_step)))
+        for i in range(1, n + 1):
+            samples.append(prev + (target - prev) * (i / float(n)))
+        prev = target
+    if not ignore_initial:
+        samples.insert(0, np.asarray(q0, float))
+    boxes = _table_collision_boxes()
+    for i, q in enumerate(samples):
+        for seg_name, p0, p1, radius in _arm_capsules_world(side, q, base):
+            for box_name, lo, hi in boxes:
+                if _segment_hits_aabb(p0, p1, lo, hi, radius + 0.008):
+                    return False, {'sample': i, 'segment': seg_name,
+                                   'box': box_name, 'radius_m': radius}
+    return True, None
+
+
 # ---------------------------------------------------------------- 到位
 def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
-          timeout=10.0, elbow='human', tol_deg=None):
+          timeout=10.0, elbow='human', tol_deg=None, check_table=False):
     """闭环把 side 侧手臂的**掌心**移到世界位形 T_world。
 
     `elbow` 选逆解分支(7 轴对这 6 维位姿冗余 1 维, 同一目标有一整族等价解):
@@ -192,6 +292,16 @@ def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
         # 补位是精度问题, 两件事分开: 第一轮定分支, 后面只用种子做局部修正。
         _mode = elbow if it == 0 else None
         q, _e, how = K.ik_world(side, T_world, node.base, q_now, elbow=_mode)
+        if check_table:
+            _n = max(1, int(math.ceil(float(np.max(np.abs(q - q_now))) / 0.06)))
+            _path = [q_now + (q - q_now) * (i / float(_n))
+                     for i in range(1, _n + 1)]
+            _clear, _hit = arm_path_table_clear(
+                node, side, _path, ignore_initial=True)
+            if not _clear:
+                node.get_logger().warn(
+                    'REACH %s 被桌面碰撞门控拦截: %s' % (side, _hit))
+                return False, res, 'table-collision'
         node.arm[side].move(
             q, timeout=timeout,
             tol_deg=(tol_deg if tol_deg is not None
