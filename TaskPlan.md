@@ -2022,3 +2022,20 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 **验证边界：**
 - 新测试首次把 CarryBus ACK 订阅放入真实 ROS 2 Jazzy executor 和 DDS 通信路径；但当前覆盖的是 ACK 投递/request_id 隔离，不代表 _await() 在真实 executor 下的事务等待模型、callback group 并发执行、DDS 超时边界或 Gazebo 同进程端到端已完成。
 - P104-07 仍为“正在进行中”。待 ROS 2 workflow 首次运行成功后，再扩展真实 executor 下的事务超时/重试和节点关闭生命周期测试。
+
+
+### 8.42 补充真实 ROS 2 executor 关闭生命周期断言（2026-11-08）
+
+**本轮继续推进 P104-07：**
+- 在 tests/test_carry_ros2_executor.py 的清理路径中，明确按 executor shutdown → spin thread join → remove_node → destroy_node → rclpy.shutdown 的顺序释放资源。
+- 新增 shutdown 返回值与 spin thread 已退出断言，防止集成测试只验证 ACK 投递，却遗漏 executor 仍存活或节点销毁顺序错误。
+- 已有 ROS 2 Jazzy executor 集成测试首次运行成功：workflow run [42482162011](https://github.com/rexyll/VLN-VLA/actions/runs/42482162011)，executor ACK 投递、两个 request_id 隔离和旧 ACK 迟到隔离通过。
+
+**本轮提交与 CI：**
+- 代码提交 c6f148c8a24098726c3eaa12e1772bc84694db50：增加 executor 关闭及线程退出断言。
+- 常规 Python workflow run [42482550892](https://github.com/rexyll/VLN-VLA/actions/runs/42482550892)：纯测试和 Python 编译均 completed / success。
+- ROS 2 Jazzy workflow run [42482550889](https://github.com/rexyll/VLN-VLA/actions/runs/42482550889)：TaskPlan 更新时仍处于 Set up ROS 2 Jazzy，尚未取得最终结果；不得标记为通过，需后续复查。
+
+**验证边界：**
+- 本轮加强了真实 ROS 2 executor 生命周期检查，但 CarryBus._await() 仍依赖 DrinkTask.spin_for() 中的 rclpy.spin_once(self)。当前真实 executor 测试只让单一 executor 线程拥有 spin；并未证明 _await() 可安全嵌入已运行的 MultiThreadedExecutor。
+- 尚未覆盖真实 executor 中完整事务 waiter 的 timeout/retry、callback group 并发策略及 DDS timeout 边界；P104-07 继续保持“正在进行中”。
