@@ -1401,3 +1401,25 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 首次新增 ACK 测试的 CI run `42452576305` 曾因测试 Node stub 缺少 `get_logger()` 失败；已按日志补齐测试桩，并由上述两个最新 run 验证通过。该失败不应从历史中抹去。
 - 本轮 C++ 插件修改尚未纳入编译 CI；`GraspCarry.cc` 仅完成静态协议检查。不得将 12/12 Python 纯测试解释为 C++ 构建或 Gazebo 联调通过。
 
+
+
+### 8.8 GraspCarry 单槽命令覆盖与事务排队（2026-11-08）
+
+**静态审查发现：** P104-ACK 已为 place/grab/joint/release 增加精确 request_id，但插件端仍使用单槽 `pending`。Gazebo transport 回调若在两个 PreUpdate 之间收到多条命令，后到命令会覆盖先到命令；request_id 只能阻止错误 ACK 被接受，不能保证被覆盖的事务最终执行。特别是并发 joint 与 release/place 事务，可能出现等待超时或命令次序不确定。
+
+**本轮修改（开发分支）：**
+- 将插件端单槽 `Cmd pending + hasPending` 改为有界 FIFO `std::deque<Cmd>`，PreUpdate 每 tick 最多消费一条，ECM 访问仍只发生在仿真线程。
+- 高频无 ACK 的 `set` 与旧式无 request_id 的 `place` 按操作/模型合并，只保留队列中该对象的最新位姿，避免仿真暂停或负载升高时堆积过期目标。
+- 对队列中相同操作、模型、关节和 request_id 的重发去重；同一事务只执行一次，执行后 ACK 可满足客户端重试。
+- 队列容量设为 128；满载时拒绝需要 ACK 的事务并回传带原 request_id 的 `fail ... queue-full`，不静默覆盖已排队事务；同时记录错误日志。
+- 新增显式 `<utility>` include，供移动队列元素使用。
+
+**提交：**
+- `12e6424c646637f3ae5b381452d442c31cc46d75`：插件命令队列与事务去重。
+- `476a3c38b6e0da05d8ea4cd6e939fa1a16d2afc9`：补充标准库 include。
+
+**验证边界与后续：**
+- 本轮仅完成源码静态修改和差异检查；当前可用 CI 仅覆盖 Python 编译及 P104 纯测试，未覆盖 C++ Gazebo 插件构建。
+- 必须补做 GraspCarry C++ 编译、队列 FIFO/满载/去重测试，以及多关节并发、重复/迟到 ACK、release 与 set 交错、仿真暂停后恢复等 Gazebo 故障注入。
+- 队列满载时的 fail ACK、transport 回调与仿真线程的实际调度、队列吞吐和暂停恢复语义尚未在运行时验证；本修改不得标记为运行验收通过。
+- P104-07/P104-08/P104-09 仍为“正在进行中”，PR 继续 Draft，不合并。
