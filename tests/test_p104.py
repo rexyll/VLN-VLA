@@ -511,6 +511,54 @@ class TestP104(unittest.TestCase):
         bus.update()
         self.assertEqual(sent, [])
 
+    def test_carry_hand_to_switches_host_without_pose_discontinuity(self):
+        class Logger:
+            def info(self, *_args):
+                pass
+            def error(self, *_args):
+                pass
+
+        class Node:
+            def get_logger(self):
+                return Logger()
+
+        bus = object.__new__(C.CarryBus)
+        bus.node = Node()
+        bus.items = {}
+        host_pose = K.trans((0.4, -0.2, 0.8))
+        object_pose = K.trans((0.55, -0.1, 0.9))
+        bus.host_world = lambda *_args: host_pose.copy()
+        bus.obj_world = lambda _model: object_pose.copy()
+
+        self.assertTrue(bus.hand_to(
+            'cup', 'person_arms', 'person_arms_link', (0.0, 0.0, 0.1)))
+        offset = bus.items['cup']['offset'].copy()
+        self.assertEqual(bus.items['cup']['host'], 'person_arms')
+        np.testing.assert_allclose(host_pose @ offset, object_pose, atol=1e-9)
+
+        # The first update after handover must preserve the exact world pose.
+        sent = []
+        bus._send_pose = lambda op, model, pose: sent.append(
+            (op, model, np.asarray(pose, float).copy()))
+        bus.update()
+        self.assertEqual(len(sent), 1)
+        self.assertEqual(sent[0][0:2], ('set', 'cup'))
+        np.testing.assert_allclose(sent[0][2], object_pose, atol=1e-9)
+
+        # Subsequent host motion is transferred rigidly using the frozen offset.
+        host_pose = K.trans((0.7, 0.05, 1.0)) @ K.rot(
+            (0.0, 0.0, 1.0), 0.35)
+        bus.update()
+        np.testing.assert_allclose(
+            sent[-1][2], host_pose @ offset, atol=1e-9)
+
+        # A missing host observation must not overwrite the existing owner.
+        previous = bus.items['cup']
+        bus.host_world = lambda *_args: None
+        self.assertFalse(bus.hand_to('cup', 'missing_host'))
+        self.assertIs(bus.items['cup'], previous)
+
+
     def test_table_collision_boxes_match_work_area_sdf(self):
         world_path = os.path.join(
             ROOT, 'vla_ws', 'src', 'vla_follow', 'worlds', 'work_area.sdf')
