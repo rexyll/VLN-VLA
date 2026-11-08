@@ -7,12 +7,14 @@ on:
     paths:
       - ".github/workflows/p104-grasp-carry-cpp.yml"
       - "vla_ws/src/vla_follow/gz_plugins/**"
+      - "tests/test_grasp_carry_queue.cc"
   pull_request:
     branches:
       - main
     paths:
       - ".github/workflows/p104-grasp-carry-cpp.yml"
       - "vla_ws/src/vla_follow/gz_plugins/**"
+      - "tests/test_grasp_carry_queue.cc"
   workflow_dispatch:
 
 permissions:
