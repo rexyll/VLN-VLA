@@ -773,12 +773,14 @@ class DrinkTask(Node):
             if not ok_d:
                 # drop_mm 仅在 put_down_two 已经完成 release 后写入；
                 # 没有它或 carry 仍登记持有，说明水杯未安全落桌，不能继续移动底盘。
-                if 'cup' in self.carry.items or _pb.get('drop_mm') is None:
+                _drop = _pb.get('drop_mm')
+                if ('cup' in self.carry.items or _drop is None
+                        or abs(float(_drop)) > 5.0):
                     self._set_state('FAIL_PUT_BACK')
                     self.get_logger().error(
-                        'DRINK 水杯未确认落稳或仍处于抓持状态（%.1fmm），'
-                        '保持当前抓持，不执行撤离'
-                        % res_d)
+                        'DRINK 水杯未确认落稳/松钉后发生下落（放回残差 %.1fmm，'
+                        'drop=%s），停止撤离'
+                        % (res_d, _drop))
                     return False
                 # 物体已安全释放，但初始 hands_off 被桌面净空门控拦下；
                 # 这不是“放杯失败”，由下面的分阶段收臂路径接手完成安全撤手。
