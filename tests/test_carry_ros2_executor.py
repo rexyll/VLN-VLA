@@ -162,6 +162,56 @@ class TestCarryRos2Executor(unittest.TestCase):
             self.assertEqual(len(set(queue_full_ids)), 1,
                              "queue-full retransmits changed request_id")
 
+            # ACK consumption wins over a later cancellation, but cancellation
+            # must prevent remaining duplicate ACK retransmits. Hold the second
+            # emit at a deterministic barrier so cancel_waiters races that path
+            # without relying on scheduler timing.
+            race_ids = []
+            retransmit_entered = threading.Event()
+            allow_retransmit = threading.Event()
+            race_result = {}
+
+            def race_emit(request_id):
+                race_ids.append(request_id)
+                if len(race_ids) == 1:
+                    ack_pub.publish(String(data="ok race %d" % request_id))
+                elif len(race_ids) == 2:
+                    retransmit_entered.set()
+                    self.assertTrue(allow_retransmit.wait(timeout=2.0),
+                                    "retransmit barrier was not released")
+
+            race_waiter = threading.Thread(target=lambda: race_result.setdefault(
+                "ok", bus._await(
+                    race_emit,
+                    lambda ack, rid: ack == "ok race %d" % rid,
+                    3.0)))
+            race_waiter.start()
+            self.assertTrue(retransmit_entered.wait(timeout=2.0),
+                            "successful ACK did not reach retransmit phase")
+            cancel_started = threading.Event()
+
+            def cancel_after_ack():
+                cancel_started.set()
+                bus.cancel_waiters()
+
+            race_canceller = threading.Thread(target=cancel_after_ack)
+            race_canceller.start()
+            self.assertTrue(cancel_started.wait(timeout=1.0))
+            allow_retransmit.set()
+            race_waiter.join(timeout=2.0)
+            race_canceller.join(timeout=2.0)
+            self.assertFalse(race_waiter.is_alive(),
+                             "ACK/cancel race waiter did not finish")
+            self.assertFalse(race_canceller.is_alive(),
+                             "ACK/cancel race cancellation did not finish")
+            self.assertEqual(race_result, {"ok": True})
+            self.assertEqual(len(race_ids), 2,
+                             "cancellation allowed post-race duplicate emits")
+            with bus._ack_lock:
+                self.assertNotIn(race_ids[0], bus.pending_requests)
+                self.assertNotIn(race_ids[0], bus.ack_by_request)
+                self.assertNotIn(race_ids[0], bus._ack_events)
+
             # Executor owner cancellation must wake a waiter immediately,
             # rather than leaving it blocked until its transaction timeout.
             cancelled_ids = {"first": [], "second": []}
