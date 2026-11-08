@@ -437,6 +437,38 @@ class TestP104(unittest.TestCase):
             'Msg', (), {'data': 'ok joint cup water_joint 401'})())
         self.assertNotIn(401, bus.ack_by_request)
 
+    def test_carry_ack_first_terminal_result_wins_over_duplicates_and_conflicts(self):
+        class Node:
+            pass
+
+        bus = object.__new__(C.CarryBus)
+        bus.node = Node()
+        bus.ack = None
+        bus.acks = []
+        bus.ack_t = 0.0
+        bus.pending_requests = {8101, 8102}
+        bus.ack_by_request = {}
+        bus._ack_lock = threading.RLock()
+
+        def deliver(data):
+            bus._on_ack(type('Msg', (), {'data': data})())
+
+        # Identical duplicate is idempotent; a later conflicting ACK cannot
+        # turn a terminal success into failure.
+        success = 'ok joint cup water_joint 8101'
+        deliver(success)
+        deliver(success)
+        deliver('fail joint cup water_joint 8101 queue-full')
+        self.assertEqual(bus.ack_by_request[8101], success)
+
+        # The reverse order is also deterministic: terminal queue-full reject
+        # remains authoritative even if a contradictory success arrives later.
+        rejected = 'fail joint cup water_joint 8102 queue-full'
+        deliver(rejected)
+        deliver(rejected)
+        deliver('ok joint cup water_joint 8102')
+        self.assertEqual(bus.ack_by_request[8102], rejected)
+
     def test_carry_ack_arriving_after_timeout_is_quarantined(self):
         class Logger:
             def info(self, *_args):
