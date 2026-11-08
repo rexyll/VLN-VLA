@@ -77,8 +77,11 @@ def quat_of(T):
 class CarryBus(object):
     """抓握附着的指令通道。由 drink_task 持有, 定时器驱动 update()。"""
 
-    def __init__(self, node):
+    def __init__(self, node, executor_managed=False):
         self.node = node
+        # External executors own callback progress; waiters only await Events.
+        # Default mode preserves DrinkTask's current owner-spin behavior.
+        self.executor_managed = bool(executor_managed)
         self.pub = node.create_publisher(String, CARRY_TOPIC, 10)
         node.create_subscription(String, ACK_TOPIC, self._on_ack, 50)
         self.ack = None
@@ -90,6 +93,7 @@ class CarryBus(object):
         self.request_seq = time.time_ns()
         self.pending_requests = set()
         self.ack_by_request = {}
+        self._ack_events = {}
         self._ack_lock = threading.RLock()
         # model -> {'side': 'R'/'L', 'offset': 4x4}
         self.items = {}
@@ -121,6 +125,9 @@ class CarryBus(object):
                 # the first observed result (notably queue-full is terminal).
                 if request_id not in self.ack_by_request:
                     self.ack_by_request[request_id] = msg.data
+                event = self._ack_events.get(request_id)
+                if event is not None:
+                    event.set()
 
     def _send(self, text):
         self.pub.publish(String(data=text))
@@ -134,28 +141,40 @@ class CarryBus(object):
                     (op, model, t[0], t[1], t[2], qx, qy, qz, qw)) + suffix)
 
     def _await(self, emit, ok_pred, timeout):
-        """重复发一条指令直到收到匹配的 ack。
+        """重复发送指令直到收到匹配 ACK。
 
-        单向话题在 gz/ROS 发现完成前会静默丢消息(实测第一轮连发三次全丢),
-        所以必须靠 ack 确认; ack 到了之后再补发几针, 保证 gz 侧也收到。
-        注意 emit 和 ok_pred 是两个不同的东西 —— 第一版把它们写成一个函数,
-        结果"检查"分支永远返回 None, 于是每次都空等到超时。
+        默认模式由当前调用者通过 node.spin_for() 推进回调，兼容
+        DrinkTask 的单线程主循环。executor_managed 模式下，节点回调由
+        外部 executor 唯一拥有；事务线程只等待该 request_id 的 Event，
+        绝不再次调用 spin_once()/spin_for()。
         """
-        t0 = time.time()
+        deadline = time.monotonic() + max(0.0, float(timeout))
         self.request_seq += 1
         request_id = self.request_seq
+        ack_event = threading.Event()
         with self._ack_lock:
             self.pending_requests.add(request_id)
+            if self.executor_managed:
+                self._ack_events[request_id] = ack_event
         try:
-            while time.time() - t0 < timeout:
+            while time.monotonic() < deadline:
                 emit(request_id)
-                self.node.spin_for(0.08)
+                remaining = max(0.0, deadline - time.monotonic())
+                if self.executor_managed:
+                    ack_event.wait(min(0.08, remaining))
+                else:
+                    self.node.spin_for(min(0.08, remaining))
                 with self._ack_lock:
                     hit = self.ack_by_request.pop(request_id, None)
+                    if hit is not None:
+                        ack_event.clear()
                 if hit and ok_pred(hit, request_id):
-                    for _ in range(3):       # 补两针, 防止 gz 侧漏收
+                    for _ in range(3):
                         emit(request_id)
-                        self.node.spin_for(0.03)
+                        if self.executor_managed:
+                            time.sleep(0.03)
+                        else:
+                            self.node.spin_for(0.03)
                     self.node.get_logger().info('ack: %s' % hit)
                     return True
                 if hit and hit.startswith('fail '):
@@ -166,6 +185,7 @@ class CarryBus(object):
             with self._ack_lock:
                 self.pending_requests.discard(request_id)
                 self.ack_by_request.pop(request_id, None)
+                self._ack_events.pop(request_id, None)
 
     # ------------------------------------------------------------ 位姿来源
     def palm_world(self, side):
