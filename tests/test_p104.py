@@ -92,6 +92,7 @@ _stub_ros_gz_imports_for_pure_tests()
 from vla_follow import arm_kin as K  # noqa: E402
 from vla_follow import drink_motion as M  # noqa: E402
 from vla_follow import person_vision as V  # noqa: E402
+from vla_follow import carry as C  # noqa: E402
 
 
 class TestP104(unittest.TestCase):
@@ -255,6 +256,49 @@ class TestP104(unittest.TestCase):
                     self.assertLessEqual(
                         float(np.max(np.abs(q - previous))), 0.300001)
                 previous = q
+
+    def test_release_ack_loss_quarantines_target_until_explicit_retry(self):
+        class Logger:
+            def info(self, *_args):
+                pass
+            def warn(self, *_args):
+                pass
+
+        class Node:
+            def get_logger(self):
+                return Logger()
+
+        bus = object.__new__(C.CarryBus)
+        bus.node = Node()
+        bus.items = {
+            'cup': {'side': 'L', 'offset': np.eye(4)},
+            'kettle': {'side': 'R', 'offset': np.eye(4)},
+        }
+        bus._await = lambda *_args, **_kwargs: False
+
+        self.assertFalse(bus.release('cup'))
+        self.assertIn('cup', bus.items)
+        self.assertTrue(bus.items['cup']['release_unknown'])
+        self.assertNotIn('release_unknown', bus.items['kettle'])
+
+        sent = []
+        bus._send_pose = lambda *args: sent.append(args)
+        bus.palm_world = lambda _side: np.eye(4)
+        bus.update()
+        self.assertEqual(sent, [])  # unknown target must not be reactivated by set
+
+        # A later explicit release retry with a matching ACK clears the quarantine.
+        bus._await = lambda *_args, **_kwargs: True
+        self.assertTrue(bus.release('cup'))
+        self.assertNotIn('cup', bus.items)
+        self.assertIn('kettle', bus.items)
+
+        # release-all ACK loss quarantines every remaining attached object.
+        bus._await = lambda *_args, **_kwargs: False
+        self.assertFalse(bus.release())
+        self.assertTrue(bus.items['kettle']['release_unknown'])
+        bus.update()
+        self.assertEqual(sent, [])
 
     def test_table_collision_guard_covers_table_top_and_legs(self):
         boxes = M._table_collision_boxes()
