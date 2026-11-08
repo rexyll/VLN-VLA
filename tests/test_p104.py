@@ -12,6 +12,7 @@
 import os
 import sys
 import unittest
+from unittest.mock import patch
 import xml.etree.ElementTree as ET
 
 import numpy as np
@@ -526,6 +527,58 @@ class TestP104(unittest.TestCase):
             self.assertAlmostEqual(lo[2], 0.0, places=6)
             self.assertAlmostEqual(
                 hi[2], M.L.TABLE_TOP_Z - M.L.TABLE_PLATE_T, places=6)
+
+    def test_hang_final_settle_is_collision_gated_again(self):
+        class Logger:
+            def info(self, *_args):
+                pass
+            def warn(self, *_args):
+                pass
+            def error(self, *_args):
+                pass
+
+        class Node:
+            def __init__(self):
+                self.base = (0.0, 0.0, 0.0)
+                self.js = {
+                    'L_%s_joint' % joint[0]: float(value)
+                    for joint, value in zip(K.JOINTS, (
+                        0.0, 0.0, 0.0, K.HANG_FOLD, 0.0, 0.0, 0.0))}
+                self.arm = {'L': Arm(self)}
+                self.hand = {'L': Hand()}
+            def get_logger(self):
+                return Logger()
+
+        class Arm:
+            def __init__(self, node):
+                self.node = node
+            def move(self, q, **_kwargs):
+                for joint, value in zip(K.JOINTS, q):
+                    self.node.js['L_%s_joint' % joint[0]] = float(value)
+                return True, np.zeros(K.NJ)
+
+        class Hand:
+            def move(self, _q, **_kwargs):
+                return True, np.zeros(1)
+
+        node = Node()
+        gate_calls = []
+
+        def allow_path(_node, side, path, **_kwargs):
+            gate_calls.append((side, [np.asarray(q, float).copy() for q in path]))
+            return True, None
+
+        with patch.object(M, 'arm_path_table_clear', side_effect=allow_path):
+            q_after, result = M.hang_natural(
+                node, 'L', stages=(3,), check_table=True)
+
+        self.assertTrue(result['ok'])
+        self.assertEqual(result['stages_done'], [3])
+        # One guard for the planned stage-3 path and another for the final
+        # measured-state -> Q_HANG settling correction.
+        self.assertEqual(len(gate_calls), 2)
+        np.testing.assert_allclose(gate_calls[-1][1][-1], K.Q_HANG)
+        np.testing.assert_allclose(q_after, K.Q_HANG)
 
     def test_hand_collision_proxy_dimensions_match_work_area_sdf(self):
         world_path = os.path.join(
