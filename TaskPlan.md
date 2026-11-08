@@ -1568,3 +1568,19 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 纯 C++ 缓存测试不替代 Gazebo transport 的真实 ACK 丢包/重复/迟到故障注入。P104-07/P104-08/P104-09 继续“正在进行中”。
 
 - **协议边界补充：** `request_id=0` 是旧式 fire-and-forget 流量，不进入完成 ACK 缓存；`place` 目标模型不存在时返回并缓存明确的 `fail place ... no-model`，避免 ROS 等待者无意义超时。
+
+
+### 8.17 建立 GraspCarry headless Gazebo 插件运行时协议冒烟测试（2026-11-08）
+
+**本轮目标：** 现有 C++ CI 已证明插件能编译和链接，但此前没有在 Gazebo server 中真正加载插件、发布命令或接收 ACK。为缩小这一验证缺口，在现有 Ubuntu 24.04/Gazebo Harmonic workflow 中加入无 GUI 的最小场景。
+
+**实现：**
+- 新增 `tests/grasp_carry_integration.sdf`，仅包含 `GraspCarry` world system、`cup` 模型及 `water_joint`，不依赖完整机器人/ROS 2 场景。
+- CI 安装 Gazebo Harmonic 运行时工具，使用 `gz sim -s -r` 启动 headless server，并通过 Gazebo Transport CLI 订阅 `/drink/carry/ack`、发布 `/drink/carry`。
+- 运行时检查 `grab`、同 request_id 的完成后重试 ACK 重放、`joint`、`release`，以及 `grab/place` 目标不存在时的拒绝 ACK。
+- 该工作流将验证插件确实被 Gazebo 加载并执行 PreUpdate/ECM 相关命令，而不只是链接共享库。
+
+**验收边界：**
+- 新增 workflow 步骤后等待首次 CI 真实结果；在 CI 通过前不宣称运行时协议测试成功。
+- 该最小场景只验证插件加载和 Gazebo Transport ACK 协议，不包含 ROS 2 CarryBus、完整 `work_area.sdf`、视觉遮挡/碰撞、暂停恢复或倒水递水 E2E。
+- P104-07/P104-08/P104-09 仍为“正在进行中”。
