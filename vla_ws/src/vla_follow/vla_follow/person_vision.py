@@ -448,7 +448,11 @@ class PersonVision(Node):
                 chosen = prev
             else:
                 chosen = max(cands, key=lambda n: results[n]['area'])
-            # 主相机切换仍保留两帧迟滞；连续性异常时不让旧主相机强行占优。
+            # 主相机切换仍保留连续两帧迟滞；中间若切回旧相机，候选 streak 必须清零，
+            # 不能把不连续的两次出现累计成“连续两帧”。
+            for _cam in tuple(self._cam_streak):
+                if _cam != chosen:
+                    self._cam_streak[_cam] = 0
             if chosen == prev or prev is None:
                 primary = chosen
             else:
