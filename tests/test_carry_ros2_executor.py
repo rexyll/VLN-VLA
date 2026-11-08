@@ -82,8 +82,14 @@ class TestCarryRos2Executor(unittest.TestCase):
                     self.assertNotIn(9103, bus.ack_by_request)
                 time.sleep(0.01)
         finally:
-            executor.shutdown(timeout_sec=2.0)
+            # Executor lifecycle is part of the integration contract: stop the
+            # sole spin owner before destroying its node or shutting ROS down.
+            shutdown_ok = executor.shutdown(timeout_sec=2.0)
             spin_thread.join(timeout=2.0)
+            self.assertTrue(shutdown_ok, "ROS 2 executor did not shut down cleanly")
+            self.assertFalse(spin_thread.is_alive(),
+                             "executor spin thread survived shutdown")
+            executor.remove_node(node)
             node.destroy_node()
             rclpy.shutdown()
 
