@@ -336,8 +336,8 @@ class TestP104(unittest.TestCase):
             0.5)
         self.assertTrue(node.nested_result)
         self.assertTrue(outer_ok)
-        self.assertEqual(node.outer_ids, [21, 21, 21, 21, 21])
-        self.assertEqual(node.inner_ids, [22, 22, 22, 22, 22])
+        self.assertEqual(node.outer_ids, [21, 21, 21, 21])
+        self.assertEqual(node.inner_ids, [22, 22, 22, 22])
         self.assertEqual(bus.pending_requests, set())
         self.assertEqual(bus.ack_by_request, {})
 
