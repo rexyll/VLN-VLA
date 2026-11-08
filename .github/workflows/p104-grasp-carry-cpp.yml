@@ -1,0 +1,62 @@
+name: P104 GraspCarry C++ build
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/p104-grasp-carry-cpp.yml"
+      - "vla_ws/src/vla_follow/gz_plugins/**"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/p104-grasp-carry-cpp.yml"
+      - "vla_ws/src/vla_follow/gz_plugins/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-grasp-carry:
+    name: Build Gazebo Harmonic GraspCarry plugin
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Gazebo Harmonic development dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y curl lsb-release gnupg
+          sudo curl -fsSL https://packages.osrfoundation.org/gazebo.gpg \
+            --output /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] https://packages.osrfoundation.org/gazebo/ubuntu-stable $(lsb_release -cs) main" \
+            | sudo tee /etc/apt/sources.list.d/gazebo-stable.list > /dev/null
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake pkg-config \
+            libgz-cmake3-dev \
+            libgz-plugin2-dev \
+            libgz-sim8-dev \
+            libgz-transport13-dev \
+            libgz-msgs10-dev \
+            libgz-common5-dev \
+            libgz-common5-profiler-dev \
+            libgz-math7-dev
+
+      - name: Configure GraspCarry plugin
+        working-directory: vla_ws/src/vla_follow/gz_plugins
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Compile GraspCarry plugin
+        working-directory: vla_ws/src/vla_follow/gz_plugins
+        run: cmake --build build --parallel 2
+
+      - name: Verify shared library and runtime dependencies
+        working-directory: vla_ws/src/vla_follow/gz_plugins
+        run: |
+          test -s build/libGraspCarry.so
+          ldd -r build/libGraspCarry.so
