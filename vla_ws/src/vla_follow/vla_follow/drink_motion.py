@@ -154,11 +154,34 @@ def log_arm(node, tag, sides=('L', 'R')):
     return out
 
 
-def human_kinematics_ok(states):
-    """关键搬运动作必须有每侧实测姿态，且 P103 R1/R2/R4/R5/R6/R7 全部合规。"""
-    return bool(states) and all(
-        isinstance(st, dict) and not st.get('bad')
-        for st in states.values())
+def human_kinematics_ok(states, min_out_line_mm=None,
+                        max_abs_droop_mm=None, max_abs_twist=None):
+    """关键搬运动作必须有实测姿态并通过 P103 规则/姿态质量门槛。
+
+    min_out_line_mm: 可选的逐侧肘外扩线下限（mm），如举杯左臂 100、倒水右臂 60。
+    max_abs_droop_mm/max_abs_twist: 可选的逐侧绝对值上限（mm/rad）。
+    """
+    if not states:
+        return False
+    min_out_line_mm = min_out_line_mm or {}
+    max_abs_droop_mm = max_abs_droop_mm or {}
+    max_abs_twist = max_abs_twist or {}
+    for side, st in states.items():
+        if not isinstance(st, dict) or st.get('bad'):
+            return False
+        if side in min_out_line_mm:
+            value = st.get('out_line_mm')
+            if value is None or float(value) < float(min_out_line_mm[side]):
+                return False
+        if side in max_abs_droop_mm:
+            value = st.get('droop_mm')
+            if value is None or abs(float(value)) > float(max_abs_droop_mm[side]):
+                return False
+        if side in max_abs_twist:
+            value = st.get('twist')
+            if value is None or abs(float(value)) > float(max_abs_twist[side]):
+                return False
+    return True
 
 
 # ---------------------------------------------------------------- 桌面/桌腿碰撞门控（P104）
@@ -1197,9 +1220,14 @@ def pour_into_cup(node, fill=0.65, jet_len=0.16, ramp=True):
     ok_l, res_l = place_held(node, 'L', 'cup', Tcup_pour, tol_mm=3.0)
     out['res']['lift_cup'] = res_l
     out['arm']['lift_cup'] = log_arm(node, '举杯', ('L',))
-    if not ok_l or not human_kinematics_ok(out['arm']['lift_cup']):
+    if not ok_l or not human_kinematics_ok(
+            out['arm']['lift_cup'],
+            min_out_line_mm={'L': 100.0},
+            max_abs_droop_mm={'L': 120.0},
+            max_abs_twist={'L': 2.2}):
         node.get_logger().error(
-            'POUR 举杯阶段未达成或手臂违反人体关节规则，停止后续倒水')
+            'POUR 举杯阶段未达成或左肘外扩/下垂/扭转不符合 P103 判据'
+            '（外扩线≥100mm、|droop|≤120mm、|twist|≤2.2），停止后续倒水')
         return out
     ok_k, res_k = grasp(node, 'R', 'kettle', P.kettle_grasp_palm, K.GRIP_KETTLE)
     out['res']['grasp_kettle'] = res_k
@@ -1212,9 +1240,11 @@ def pour_into_cup(node, fill=0.65, jet_len=0.16, ramp=True):
     ok_p, res_p = place_held(node, 'R', 'kettle', Tk_pour, tol_mm=4.0)
     out['res']['kettle_pour'] = res_p
     out['arm']['pour'] = log_arm(node, '倒水', ('L', 'R'))
-    if not ok_p or not human_kinematics_ok(out['arm']['pour']):
+    if not ok_p or not human_kinematics_ok(
+            out['arm']['pour'], min_out_line_mm={'R': 60.0}):
         node.get_logger().error(
-            'POUR 倒水位形未达成或左右臂违反人体关节规则；禁止启动水柱')
+            'POUR 倒水位形未达成、左右臂违反人体关节规则或右肘外扩线小于60mm；'
+            '禁止启动水柱')
         return out
     # 水柱先伸出, 水位再升 —— 顺序反了会先看见"杯里有水但没水柱"
     # P98: 有液面控制器时水位由体积积分驱动(水柱由 liquid 逐帧铺),
