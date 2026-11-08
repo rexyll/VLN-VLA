@@ -55,6 +55,13 @@ jobs:
         working-directory: vla_ws/src/vla_follow/gz_plugins
         run: cmake --build build --parallel 2
 
+      - name: Test bounded GraspCarry command queue
+        run: |
+          c++ -std=c++17 -Wall -Wextra -Werror \
+            -Ivla_ws/src/vla_follow/gz_plugins \
+            tests/test_grasp_carry_queue.cc -o /tmp/test_grasp_carry_queue
+          /tmp/test_grasp_carry_queue
+
       - name: Verify shared library and runtime dependencies
         working-directory: vla_ws/src/vla_follow/gz_plugins
         run: |
