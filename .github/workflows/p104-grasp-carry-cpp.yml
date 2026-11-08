@@ -199,11 +199,17 @@ jobs:
             --reptype gz.msgs.Boolean \
             --timeout 1000 --req 'pause: false'
           wait_ack "ok joint cup water_joint 1700000000000000328"
+          previous_ack_line=0
           for i in $(seq 1 128); do
             request_id=$((1700000000000000200 + i))
             ack_count=$(grep -Fc "ok joint cup water_joint $request_id" /tmp/grasp-carry-acks.log || true)
             test "$ack_count" -eq 1
+            ack_line=$(grep -nF "ok joint cup water_joint $request_id" /tmp/grasp-carry-acks.log | tail -n1 | cut -d: -f1)
+            test "$ack_line" -gt "$previous_ack_line"
+            previous_ack_line=$ack_line
           done
-          first_ack_line=$(grep -nF "ok joint cup water_joint 1700000000000000201" /tmp/grasp-carry-acks.log | tail -n1 | cut -d: -f1)
-          last_ack_line=$(grep -nF "ok joint cup water_joint 1700000000000000328" /tmp/grasp-carry-acks.log | tail -n1 | cut -d: -f1)
-          test "$first_ack_line" -lt "$last_ack_line"
+          for i in $(seq 129 160); do
+            request_id=$((1700000000000000200 + i))
+            reject_count=$(grep -Fc "fail joint cup water_joint $request_id queue-full" /tmp/grasp-carry-acks.log || true)
+            test "$reject_count" -eq 1
+          done
