@@ -341,6 +341,40 @@ class TestP104(unittest.TestCase):
         self.assertEqual(bus.pending_requests, set())
         self.assertEqual(bus.ack_by_request, {})
 
+    def test_carry_ack_matching_rejection_fails_without_retrying_to_timeout(self):
+        class Logger:
+            def error(self, *_args):
+                pass
+        class Node:
+            def __init__(self):
+                self.bus = None
+                self.calls = 0
+            def get_logger(self):
+                return Logger()
+            def spin_for(self, _duration):
+                self.calls += 1
+                self.bus._on_ack(type(
+                    'Msg', (), {'data': 'fail joint cup water_joint 31 queue-full'})())
+        node = Node()
+        bus = object.__new__(C.CarryBus)
+        bus.node = node
+        bus.request_seq = 30
+        bus.ack = None
+        bus.acks = []
+        bus.ack_t = 0.0
+        bus.pending_requests = set()
+        bus.ack_by_request = {}
+        node.bus = bus
+        emitted = []
+        ok = bus._await(
+            lambda rid: emitted.append(rid),
+            lambda ack, rid: ack == 'ok joint cup water_joint %d' % rid,
+            0.5)
+        self.assertFalse(ok)
+        self.assertEqual(emitted, [31])
+        self.assertEqual(node.calls, 1)
+        self.assertEqual(bus.pending_requests, set())
+
     def test_release_ack_loss_quarantines_target_until_explicit_retry(self):
         class Logger:
             def info(self, *_args):
