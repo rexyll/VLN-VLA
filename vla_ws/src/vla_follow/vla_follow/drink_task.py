@@ -614,7 +614,7 @@ class DrinkTask(Node):
         try:
             # 0) 水位归零 —— 水面是两个滑动副、不是真流体, 不归零的话重复
             #    演示时"水涨"这一下就看不到了(上一轮还留在杯里)。
-            if 'cup' in self.carry.items:
+            if 'cup' in self.carry.holding():
                 pass                      # 手里还端着杯子: 让它自然保持
             else:
                 water_zero_ok = self.carry.joint_ramp(
@@ -873,7 +873,7 @@ class DrinkTask(Node):
                 # drop_mm 仅在 put_down_two 已经完成 release 后写入；
                 # 没有它或 carry 仍登记持有，说明水杯未安全落桌，不能继续移动底盘。
                 _drop = _pb.get('drop_mm')
-                if ('cup' in self.carry.items or _drop is None
+                if ('cup' in self.carry.holding() or _drop is None
                         or abs(float(_drop)) > 5.0):
                     self._set_state('FAIL_PUT_BACK')
                     self.get_logger().error(
@@ -1197,7 +1197,7 @@ class DrinkTask(Node):
 
     def _carry_tick(self):
         """50Hz: 把每个已抓物体的目标位姿刷给世界内插件。"""
-        if self.carry.items:
+        if self.carry.holding():
             self.carry.update()
         self.liquid.update()
 
@@ -1217,7 +1217,7 @@ class DrinkTask(Node):
         if self.carry.items:
             self.get_logger().error(
                 'HOME 被拒绝：仍抓持 %s；禁止自动 release，必须先完成安全放置/人工恢复'
-                % ','.join(sorted(self.carry.items.keys())))
+                % ','.join(sorted(self.carry.holding())))
             return False
         self.sync_to_measured()
         # P96: 这几路跟左右臂无关, 原来却写在 for 里被发了两遍 —— 趁改这行
