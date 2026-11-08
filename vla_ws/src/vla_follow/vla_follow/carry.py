@@ -278,14 +278,23 @@ class CarryBus(object):
         ok = self._await(
             lambda: self._send('release %s' % name),
             lambda a: a.startswith('ok release'), timeout)
-        if model is None:
-            self.items.clear()
-        else:
-            self.items.pop(model, None)
         if ok:
+            if model is None:
+                self.items.clear()
+            else:
+                self.items.pop(model, None)
             self.node.get_logger().info('release %s' % name)
         else:
-            self.node.get_logger().warn('release %s 无 ack(已按松开处理)' % name)
+            # ACK 丢失时，插件端可能已经释放，也可能仍在附着。
+            # 保留本地记录用于显式重试，但 update() 必须停止 set，
+            # 否则插件若已执行 release，后续 set 会重新激活该目标。
+            targets = list(self.items) if model is None else [model]
+            for target in targets:
+                if target in self.items:
+                    self.items[target]['release_unknown'] = True
+            self.node.get_logger().warn(
+                'release %s 无 ack，附着状态未知；已暂停自动 set，可显式重试 release'
+                % name)
         return ok
 
     def update(self):
@@ -297,6 +306,10 @@ class CarryBus(object):
             物体就跟着对方的手走，我们这边只管继续钉住。
         """
         for model, it in self.items.items():
+            # release ACK 丢失后，不能继续 set：若插件端已解除附着，
+            # set 会把 inactive target 重新激活。显式 release 重试成功后再移除。
+            if it.get('release_unknown'):
+                continue
             if it.get('host'):
                 Tb = self.host_world(it['host'], it.get('link'),
                                      it.get('local_off'))
