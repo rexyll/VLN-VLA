@@ -149,6 +149,12 @@ HANDOVER_YAW = PERSON_SPOT_YAW        # 机器人面向人的朝向
 # 膨胀圈里, 见 §6.4 #47), 否则 follower 的绕障会先跟桌子较劲。
 SERVE_RETREAT_XY = (SERVE_POSE[0] - 1.15, SERVE_POSE[1])
 SERVE_RETREAT_YAW = 0.0               # 保持朝桌, 倒车出去
+# P104: 先退到刚好超过机械臂+灵巧手全长的安全净空，再完成肩部/伸肘回收，
+# 不再等底盘先退满 1.15m 才开始收臂。给臂长再留 85mm 安全余量。
+RETREAT_FOLD_GAP = 0.80
+RETREAT_FOLD_XY = (
+    TABLE_XY[0] - TABLE_W / 2.0 - CHASSIS_R - RETREAT_FOLD_GAP,
+    SERVE_POSE[1])
 # 人: 沿"桌心 → 接水位"方向再往外 1.75m。方向 (-0.43,0.82)/0.926,
 # 终点 (1.36,2.72) —— 距桌心 2.6m(出了桌子 0.62+0.2 的避障圈)、
 # 距机器人撤离位 2.5m。2.5m 是刻意留的: 太近(贴着桌)人走两步就出画,
