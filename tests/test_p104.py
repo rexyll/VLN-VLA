@@ -72,6 +72,16 @@ class TestP104(unittest.TestCase):
             (1.6, 1.6, 0.5), rot45, (0.5, 0.05, 0.05),
             lo, hi, margin=0.0))
 
+        # 复现 3D yaw/pitch/roll 同时存在时的 SAT 轴矩阵方向问题：
+        # 旧实现会错误报告相交；修正后发现分离轴并返回 False。
+        rot3d = (K.rot((0.0, 0.0, 1.0), 0.7)
+                 @ K.rot((0.0, 1.0, 0.0), -0.8)
+                 @ K.rot((1.0, 0.0, 0.0), 0.6))
+        self.assertFalse(M._obb_hits_aabb(
+            (-0.2005222, 0.6672574, 0.45492798), rot3d,
+            (0.27158509, 0.0326054, 0.10873528),
+            lo, hi, margin=0.0))
+
         segments, palm = M._arm_geometry_world('L', K.Q_HANG, (0.0, 0.0, 0.0))
         segment_names = {name for name, *_ in segments}
         self.assertIn('upper_arm', segment_names)
