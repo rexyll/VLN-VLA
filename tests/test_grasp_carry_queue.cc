@@ -192,6 +192,6 @@ int main()
   TestTransactionDeduplicationUsesFullIdentity();
   TestCoalescingAndDeduplicationStillWorkAtCapacity();
   TestStreamsAreScopedByModelAndOperation();
-  std::cout << "GraspCarry queue tests: 6/6 passed\n";
+  std::cout << "GraspCarry queue tests: 8/8 passed\n";
   return 0;
 }
