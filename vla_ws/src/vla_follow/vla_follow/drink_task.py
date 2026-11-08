@@ -239,6 +239,7 @@ class DrinkTask(Node):
         # 语音(/voice/request) → voice_node → /robot/command {"action":"DRINK"}
         # → 本节点排队执行整套任务。回调里只置标志: `run_drink` 内部要
         # `spin_for`(即再进 spin_once), 在回调里重入 executor 会报错。
+        self._task_lock = threading.RLock()
         self._want_drink = False
         self._want_home = False
         self._want_hang = False
@@ -382,10 +383,13 @@ class DrinkTask(Node):
         except Exception:
             return
         if cmd.get('action') == 'DRINK':
-            if self._busy:
+            with self._task_lock:
+                busy = self._busy
+                if not busy:
+                    self._want_drink = True
+            if busy:
                 self.get_logger().warn('DRINK 正在执行, 忽略重复的喝水请求')
                 return
-            self._want_drink = True
             self.get_logger().info(
                 'DRINK ★ 收到喝水请求(来源=%s, 内容="%s"), 排队执行'
                 % (cmd.get('source', '?'), cmd.get('text', '')))
@@ -617,7 +621,8 @@ class DrinkTask(Node):
         from vla_follow import drink_motion as M
         from vla_follow import drink_poses as P
 
-        self._busy = True
+        with self._task_lock:
+            self._busy = True
         self.arm_audit = {}          # P103: 每次任务重新采集姿态审计
         t0 = time.time()
         res = {'ok': False}
@@ -1165,7 +1170,8 @@ class DrinkTask(Node):
                                     % traceback.format_exc())
             return False
         finally:
-            self._busy = False
+            with self._task_lock:
+                self._busy = False
             self.pub_state.publish(String(data=json.dumps(
                 {'state': self.state, 'result': res}, ensure_ascii=False)))
 
@@ -1302,7 +1308,8 @@ class DrinkTask(Node):
     def _srv_hang(self, _req, resp):
         # 与 home 同一规矩: 回调只置标志(见 _srv_home 的 #57 教训),
         # hang() 内部的 spin_for 在回调里重入 executor 会炸节点。
-        self._want_hang = True
+        with self._task_lock:
+            self._want_hang = True
         resp.success = True
         resp.message = 'queued (async hang)'
         return resp
@@ -1408,11 +1415,32 @@ class DrinkTask(Node):
         self.get_logger().info('=== /drink/ck ===\n%s' % text)
         return resp
 
+    def _take_pending_action(self):
+        """Atomically claim one queued action for the sole task runner."""
+        with self._task_lock:
+            if self._busy:
+                return None
+            for action, attr in (
+                    ('drink', '_want_drink'),
+                    ('home', '_want_home'),
+                    ('hang', '_want_hang')):
+                if getattr(self, attr):
+                    setattr(self, attr, False)
+                    # Reserve the task slot before releasing the lock.
+                    self._busy = True
+                    return action
+        return None
+
+    def _finish_pending_action(self):
+        with self._task_lock:
+            self._busy = False
+
     def _srv_home(self, _req, resp):
         # home() 内部要 spin_for(再进 spin_once), 在服务回调里直接调会
         # "Executor is already spinning" 把节点炸掉(实测 2026-10-27)。
         # 与 DRINK 同一个规矩: 回调只置标志, 主循环里执行。
-        self._want_home = True
+        with self._task_lock:
+            self._want_home = True
         resp.success = True
         resp.message = 'queued (async home)'
         return resp
@@ -1457,17 +1485,21 @@ def main():
         while rclpy.ok():                     # 常驻: 保持 20Hz 下发
             # P90: 任务本身要阻塞执行(`run_drink` 内部 spin_for 会再进
             # spin_once), 所以**只能在这里调**, 不能在回调里调。
-            if node._want_drink and not node._busy:
-                node._want_drink = False
+            action = node._take_pending_action()
+            if action == 'drink':
                 node.run_drink()
                 continue
-            if node._want_home and not node._busy:
-                node._want_home = False
-                node.home()
+            if action == 'home':
+                try:
+                    node.home()
+                finally:
+                    node._finish_pending_action()
                 continue
-            if node._want_hang and not node._busy:
-                node._want_hang = False
-                node.hang()
+            if action == 'hang':
+                try:
+                    node.hang()
+                finally:
+                    node._finish_pending_action()
                 continue
             rclpy.spin_once(node, timeout_sec=0.05)
     except KeyboardInterrupt:
