@@ -185,6 +185,7 @@ class Eval(Node):
             'det': det, 'vis_d': float(v.get('dist', -1.0)) if det else -1.0,
             'track': str(st.get('track', '')), 'src': str(st.get('src', '')),
             'lost': bool(st.get('lost', False)),
+            'assoc_err_m': st.get('assoc_err_m'),
             'goto': st.get('goto'), 'cmd_v': float(st.get('cmd_v', 0.0)),
             'gap': gap_obs(self.rx, self.ry),
             # P80: 决策级字段(来自 /follower/diag)
@@ -355,7 +356,18 @@ def analyze(recs):
         'cross_mean': round(sum(cross_resp) / len(cross_resp), 2) if cross_resp else None,
     }
 
-    # ---------- 4. 丢失处理 ----------
+    # ---------- 4. 目标关联连续性 ----------
+    assoc = [float(r['assoc_err_m']) for r in recs
+             if r.get('det') and r.get('assoc_err_m') is not None]
+    out['association'] = {
+        'samples': len(assoc),
+        'mean_m': round(sum(assoc) / len(assoc), 3) if assoc else None,
+        'p95_m': round(float(np.percentile(assoc, 95)), 3) if assoc else None,
+        'max_m': round(max(assoc), 3) if assoc else None,
+        'over_0_75m': sum(1 for e in assoc if e > 0.75),
+    }
+
+    # ---------- 5. 丢失处理 ----------
     evs, cur = [], None
     prev_lost = False
     prev_track = ''
@@ -393,7 +405,7 @@ def analyze(recs):
                     'goto_pt': e['goto_pt']} for e in evs],
     }
 
-    # ---------- 5. 姿态机动性 ----------
+    # ---------- 6. 姿态机动性 ----------
     # 角速度指令绝对值均值/峰值(仅视觉跟踪段)
     ws = [abs(r['cmd_v']) for r in recs if r['t'] > 12]
     out['sanity'] = {
