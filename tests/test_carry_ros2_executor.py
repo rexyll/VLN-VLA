@@ -67,6 +67,38 @@ class TestCarryRos2Executor(unittest.TestCase):
                     9102: "ok joint cup water_joint 9102",
                 })
 
+            # First terminal ACK wins on the real DDS subscription as well:
+            # identical duplicates are harmless and conflicting terminal
+            # outcomes cannot overwrite the first result.
+            with bus._ack_lock:
+                bus.pending_requests.update((9104, 9105))
+            terminal_messages = (
+                "ok joint cup water_joint 9104",
+                "ok joint cup water_joint 9104",
+                "fail joint cup water_joint 9104 queue-full",
+                "fail joint cup water_joint 9105 queue-full",
+                "fail joint cup water_joint 9105 queue-full",
+                "ok joint cup water_joint 9105",
+            )
+            for data in terminal_messages:
+                ack_pub.publish(String(data=data))
+            terminal_deadline = time.monotonic() + 5.0
+            while True:
+                with bus._ack_lock:
+                    terminal = {
+                        request_id: bus.ack_by_request.get(request_id)
+                        for request_id in (9104, 9105)
+                    }
+                if all(terminal.values()):
+                    break
+                self.assertLess(time.monotonic(), terminal_deadline,
+                                "ROS 2 executor did not deliver terminal ACKs")
+                time.sleep(0.01)
+            self.assertEqual(terminal, {
+                9104: "ok joint cup water_joint 9104",
+                9105: "fail joint cup water_joint 9105 queue-full",
+            })
+
             # Expire 9101, register a different waiter, then deliver its late ACK.
             with bus._ack_lock:
                 bus.pending_requests.discard(9101)
