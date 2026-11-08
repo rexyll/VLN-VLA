@@ -3,9 +3,26 @@
 #include <cstddef>
 #include <deque>
 #include <utility>
+#include <set>
+#include <string>
 
 namespace vla
 {
+
+// Caller serializes this registry with the pending queue using one mutex.
+class InFlightRequestRegistry
+{
+public:
+  bool Begin(const std::string &key) { return inFlight_.insert(key).second; }
+  void Finish(const std::string &key) { inFlight_.erase(key); }
+  bool Contains(const std::string &key) const
+  {
+    return inFlight_.find(key) != inFlight_.end();
+  }
+
+private:
+  std::set<std::string> inFlight_;
+};
 
 enum class QueueInsertResult
 {
