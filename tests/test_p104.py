@@ -258,10 +258,15 @@ class TestP104(unittest.TestCase):
                 previous = q
 
     def test_carry_ack_requires_exact_operation_model_and_request_id(self):
+        class Logger:
+            def info(self, *_args):
+                pass
         class Node:
             def __init__(self):
                 self.bus = None
                 self.calls = 0
+            def get_logger(self):
+                return Logger()
             def spin_for(self, _duration):
                 self.calls += 1
                 if self.calls == 1:
