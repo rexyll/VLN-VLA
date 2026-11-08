@@ -771,12 +771,21 @@ class DrinkTask(Node):
             ok_d, res_d = M.put_down_two(self, 'cup', Tcup_home, info=_pb)
             res['putback'] = _pb
             if not ok_d:
-                self._set_state('FAIL_PUT_BACK')
-                self.get_logger().error(
-                    'DRINK 放杯/撤手未通过（%.1fmm，release_blocked=%s），'
-                    '停止后续撤离与收臂'
-                    % (res_d, _pb.get('release_blocked', False)))
-                return False
+                if 'cup' in self.carry.items or not _pb.get('drop_mm') is not None:
+                    self._set_state('FAIL_PUT_BACK')
+                    self.get_logger().error(
+                        'DRINK 水杯未确认落稳或仍处于抓持状态（%.1fmm），'
+                        '保持当前抓持，不执行撤离'
+                        % res_d)
+                    return False
+                # 杯已安全 release，失败只可能来自松手后的桌面净空门控；
+                # 允许后续分阶段安全回收来完成脱离，但保留该告警记录。
+                res['putback']['hands_off_initial_ok'] = False
+                node_putback_warning = True
+                self.get_logger().warn(
+                    'DRINK 水杯已落稳，但初始撤手未全部完成；转入桌面碰撞门控收臂')
+            else:
+                node_putback_warning = False
             # 放回要量"落稳那一刻"(手还捧着、没抬手撤走), 见 put_down_two
             _ar = _pb.get('arm_rest') or self._arm_state('放回')
             res.setdefault('arm', {})['放回'] = _ar
@@ -859,6 +868,7 @@ class DrinkTask(Node):
                     _hp[_s]['finish_retry'] = dict(_d)
                     _finish_ok = _finish_ok and bool(_d.get('ok'))
 
+            ok_retract = bool(_finish_ok)
             if not _finish_ok:
                 self._set_state('FAIL_ARM_CLEARANCE')
                 self.get_logger().error(
@@ -961,7 +971,7 @@ class DrinkTask(Node):
                      'retreat_geom': res.get('retreat_geom'),
                      'entry': res.get('entry')}
             res = {'ok': bool(ok_g and ok_d and off_r is not None and ok_h
-                                 and ok_r and pr.get('ok', False)),
+                                 and ok_r and ok_retract and pr.get('ok', False)),
                    'cup_home_mm': res_d, 'turn_err': pr.get('turn_err'),
                    'retreat_mm': res_r, 'handback': ok_r,
                    'approach': res.get('approach'),
