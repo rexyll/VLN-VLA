@@ -1834,3 +1834,17 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 **提交：** e426d3f。
 
 **验证边界：** 此修复已提交 main，等待该提交触发的 Python CI 重新验证；不能将前一次失败运行计作通过。P104-07/P104-08 继续保持进行中。
+
+
+### 8.31 queue-full 幂等修复与 P104 纯测试 CI 结果（2026-11-08）
+
+**已核验的 GitHub Actions 结果：**
+- GraspCarry C++ workflow run 42476867366（head commit 9b201ba）：成功。Gazebo Harmonic 插件配置、GraspCarry 编译/链接、独立队列 C++ 单测，以及 headless Gazebo ACK 协议步骤均通过。
+- P104 Python workflow run 42477096173（修复测试的提交 e426d3f）：成功。Python 模块编译和 P104 纯测试 job 均通过；先前 39dce19 对应的失败运行 42476931522 已由该修复提交后的成功运行覆盖。
+- 后续仅修改本计划文档的提交 4b0e8d5 对应 Python workflow run 42477125832 也成功。
+
+**验证范围说明：**
+- C++ workflow 成功证明 queue-full ACK 缓存修复可编译，队列单测通过，既有 headless Gazebo ACK/队列场景通过。
+- 新增的单测验证拒绝 ACK 可被完成缓存命中；当前 headless 场景尚未专门模拟“queue-full 后同 request_id 重发”的真实 transport 并发时序，因此这一项仍需补充运行时故障注入。
+- P104 纯 Python 回归已重新恢复全绿；CarryBus hand_to 连续性用例的 4×4 变换组合现已修正。
+- P104-07 仍未完成真实 ROS 2 executor 并发/迟到 ACK 与 Gazebo 端到端联调；P104-08 仍缺真实 RGB-D 遮挡/相机切换验证；P104-05/P104-06 动态碰撞验证及 P104-09 三轮完整 E2E 仍未关闭。
