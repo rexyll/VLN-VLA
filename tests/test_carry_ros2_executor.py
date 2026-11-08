@@ -158,7 +158,9 @@ class TestCarryRos2Executor(unittest.TestCase):
                         data="fail transaction %d queue-full" % rid))),
                 lambda ack, rid: ack == "ok transaction %d" % rid,
                 1.0))
-            self.assertEqual(len(queue_full_ids), 1)
+            self.assertGreaterEqual(len(queue_full_ids), 1)
+            self.assertEqual(len(set(queue_full_ids)), 1,
+                             "queue-full retransmits changed request_id")
 
             # Executor owner cancellation must wake a waiter immediately,
             # rather than leaving it blocked until its transaction timeout.
