@@ -120,7 +120,11 @@ class TestP104(unittest.TestCase):
             'L': {'bad': []}, 'R': {'bad': []}}))
         self.assertFalse(M.human_kinematics_ok({
             'L': {'bad': []}, 'R': {'bad': ['R5前臂扭转']}}))
-        self.assertFalse(M.human_kinematics_ok({'L': {'bad': []}}))
+        # 单臂节点可只要求当前操作侧；双臂倒水必须显式要求 L 和 R 都有实测姿态。
+        self.assertTrue(M.human_kinematics_ok(
+            {'L': {'bad': []}}, required_sides=('L',)))
+        self.assertFalse(M.human_kinematics_ok(
+            {'L': {'bad': []}}, required_sides=('L', 'R')))
         self.assertFalse(M.human_kinematics_ok({}))
         self.assertTrue(M.human_kinematics_ok(
             {'L': {'bad': [], 'out_line_mm': 120,
