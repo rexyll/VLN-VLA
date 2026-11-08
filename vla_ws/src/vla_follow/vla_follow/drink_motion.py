@@ -860,7 +860,8 @@ def hands_off(node, model, out=0.12, up=0.12, tol_mm=10.0, elbow=None,
                 continue
             T = np.asarray(Tp, float).copy()
             T[:3, 3] = T[:3, 3] + lifts[i][k]
-            _ok, e, _how = reach(node, s, T, tol_mm=tol_mm, elbow=elbow,\n                                 check_table=True)
+            _ok, e, _how = reach(node, s, T, tol_mm=tol_mm, elbow=elbow,
+                                 check_table=True)
             worst = max(worst, float(e))
     if info is not None:
         info['handoff_mm'] = round(worst, 1)
@@ -881,68 +882,108 @@ def table_gap_m(node, pad=0.0):
     return L.table_clearance(bx, by, pad=pad)
 
 
-def hang_natural(node, side, fold=None, info=None):
-    """按**人体顺序**把一侧手臂从当前位形收到悬垂(见 K.hang_path)。
+def hang_natural(node, side, fold=None, info=None, stages=(1, 2, 3),
+                 check_table=True):
+    """分阶段执行人体式收臂；默认每段先做桌面/桌腿碰撞检查。
 
-    返回 (结束时实测 q, 过程信息 dict)。信息里有:
-        elbow_drift_mm  第①段前后**肘点**的世界位移 —— 应当在 0.5mm 量级,
-                        这就是"前臂以肘为支点"的直接证据;
-        fold_deg        第①段把前臂折了多少度;
-        wrist_deg       全程腕部关节的总摆动(>90° 基本等于"翻转");
-        hand_min_z/max_x 掌心轨迹的最低点 / 最前点(确认没往桌子方向甩)。
+    stages=(1,) 可在放杯后立即启动安全预回收（折肘，肘尖固定）；
+    stages=(2,3) 在底盘达到臂长净空后完成肩部回收和伸肘悬垂。
+    返回 (结束时实测 q, 过程信息 dict)。碰撞检查不通过时不下发该段关节命令。
     """
     q0 = q_meas(node, side)
+    out = {'ok': False, 'stages_done': [], 'table_clear': True}
     if q0 is None:
-        node.arm[side].move(K.Q_HANG, timeout=12.0)
-        return K.Q_HANG, {}
+        out.update(reason='joint_state_missing')
+        if info is not None:
+            info.update(out)
+        return None, out
     fold_v = K.HANG_FOLD if fold is None else fold
-    path = K.hang_path(q0, fold=fold_v)
-    el0 = K.elbow_pos(side, q0)
-    pw0 = K.fk_world(side, q0, node.base)[:3, 3]
-    # 第①段的终点 = "折肘 + 腕归零"之后, 此时 pan/lift/up_roll 还没动
-    q_fold = q0.copy()
-    q_fold[3] = min(q0[3], fold_v)
-    q_fold[4] = q_fold[5] = q_fold[6] = 0.0
-    el1 = K.elbow_pos(side, q_fold)
+    el_start = K.elbow_pos(side, q0)
+    palm0 = K.fk_world(side, q0, node.base)[:3, 3]
     zmin = 9e9
     xmax = -9e9
-    wstep = 0.0
-    prev = q0.copy()
-    for q in path:
-        node.arm[side].move(q, timeout=6.0, tol_deg=3.0)
-        wstep = max(wstep, float(np.max(np.abs(q[[4, 5, 6]] - prev[[4, 5, 6]]))))
-        prev = q
-        pw = K.fk_world(side, q, node.base)[:3, 3]
-        zmin = min(zmin, float(pw[2]))
-        xmax = max(xmax, float(pw[0] - node.base[0]))
-    node.arm[side].move(K.Q_HANG, timeout=8.0)
-    node.hand[side].move(K.grip_values(side, K.GRIP_HANG), timeout=6.0)
+    wrist_step = 0.0
+    q_prev = q0.copy()
+    elbow_drift = 0.0
+
+    for stage in stages:
+        if stage not in (1, 2, 3):
+            raise ValueError('hang_natural stage must be 1, 2 or 3')
+        q_cur = q_meas(node, side)
+        if q_cur is None:
+            out.update(reason='joint_state_lost', ok=False)
+            if info is not None:
+                info.update(out)
+            return None, out
+        paths = K.hang_path_stages(q_cur, fold=fold_v)
+        path = paths[stage - 1]
+        if not path:
+            out['stages_done'].append(stage)
+            continue
+        if check_table:
+            clear, hit = arm_path_table_clear(
+                node, side, path, ignore_initial=True)
+            if not clear:
+                out.update(ok=False, table_clear=False,
+                           table_block=hit, blocked_stage=stage)
+                node.get_logger().warn(
+                    'HANG[%s] 第%d段因桌面/桌腿碰撞风险被拦截: %s'
+                    % (side, stage, hit))
+                if info is not None:
+                    info.update(out)
+                return q_cur, out
+        el_before = K.elbow_pos(side, q_cur)
+        for q in path:
+            node.arm[side].move(q, timeout=6.0, tol_deg=3.0)
+            wrist_step = max(
+                wrist_step,
+                float(np.max(np.abs(q[[4, 5, 6]] - q_prev[[4, 5, 6]]))))
+            q_prev = q
+            palm = K.fk_world(side, q, node.base)[:3, 3]
+            zmin = min(zmin, float(palm[2]))
+            xmax = max(xmax, float(palm[0] - node.base[0]))
+        q_after = q_meas(node, side)
+        if q_after is None:
+            out.update(ok=False, reason='joint_state_lost_after_move')
+            if info is not None:
+                info.update(out)
+            return None, out
+        if stage == 1:
+            el_after = K.elbow_pos(side, q_after)
+            elbow_drift = float(np.linalg.norm(el_after - el_before)) * 1e3
+        out['stages_done'].append(stage)
+
+    if 3 in stages:
+        # 路点最终点本身即 Q_HANG；再压实一次目标并收拢手指。
+        node.arm[side].move(K.Q_HANG, timeout=8.0)
+        node.hand[side].move(K.grip_values(side, K.GRIP_HANG), timeout=6.0)
     q1 = q_meas(node, side)
-    out = {'elbow_drift_mm': round(float(np.linalg.norm(el1 - el0)) * 1e3, 1),
-           'fold_deg': round(math.degrees(min(q0[3], fold_v) - q0[3]), 1),
-           # 腕部: 总摆幅 + **单步**最大摆幅。总摆幅大不等于"翻转"(carry 位里
-           # 前臂本来就拧着 1.2rad, 归零是应该的); 单步大才是"一下子翻过去"。
-           'wrist_deg': round(math.degrees(abs(q0[5]) + abs(q0[6])
-                                           + abs(q0[4])), 1),
-           'wrist_step_deg': round(math.degrees(wstep), 1),
-           'hand_min_z': round(zmin, 3), 'hand_max_x': round(xmax, 3),
-           'q0': [round(float(v), 2) for v in q0],
-           'palm0_m': [round(float(pw0[0] - node.base[0]), 3),
-                       round(float(pw0[1] - node.base[1]), 3),
-                       round(float(pw0[2]), 3)],
-           # 收臂这一刻车离桌沿多远 —— 验收用它证明"先退到位再收臂"
-           'gap_m': round(table_gap_m(node), 3),
-           'reach_m': round(K.ARM_REACH, 3),
-           'waypoints': len(path)}
-    if info is not None:
-        info[side] = out
+    out.update(
+        ok=True,
+        elbow_drift_mm=round(elbow_drift, 1),
+        fold_deg=round(math.degrees(min(float(q0[3]), fold_v) - float(q0[3])), 1),
+        wrist_deg=round(math.degrees(
+            abs(float(q0[4])) + abs(float(q0[5])) + abs(float(q0[6]))), 1),
+        wrist_step_deg=round(math.degrees(wrist_step), 1),
+        hand_min_z=None if zmin == 9e9 else round(zmin, 3),
+        hand_max_x=None if xmax == -9e9 else round(xmax, 3),
+        q0=[round(float(v), 2) for v in q0],
+        palm0_m=[round(float(palm0[0] - node.base[0]), 3),
+                 round(float(palm0[1] - node.base[1]), 3),
+                 round(float(palm0[2]), 3)],
+        gap_m=round(table_gap_m(node), 3),
+        reach_m=round(K.ARM_REACH, 3),
+    )
     node.get_logger().info(
-        'HANG[%s] 自然收臂: q0=%s 掌%s → 折肘 %.0f°(肘点漂移 %.1fmm) '
-        '腕总摆 %.0f°/单步 %.0f° 掌心轨迹 z≥%.2f x≤%.2f  %d 段'
-        % (side, np.round(q0, 2), out['palm0_m'], out['fold_deg'],
-           out['elbow_drift_mm'], out['wrist_deg'], out['wrist_step_deg'],
-           out['hand_min_z'], out['hand_max_x'], out['waypoints']))
+        'HANG[%s] stages=%s 肘点漂移 %.1fmm 腕单步 %.1f° '
+        '桌边净距 %.2fm/%s'
+        % (side, out['stages_done'], out['elbow_drift_mm'],
+           out['wrist_step_deg'], out['gap_m'],
+           'guarded' if check_table else 'unguarded'))
+    if info is not None:
+        info.update(out)
     return q1, out
+
 
 
 def ready_palm_target(node, side, r=None, z=None, y=None):
