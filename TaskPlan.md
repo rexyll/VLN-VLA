@@ -1613,7 +1613,7 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - C++/Gazebo CI run [42470006135](https://github.com/rexyll/VLN-VLA/actions/runs/42470006135) 成功：Gazebo Harmonic 插件编译、8/8 C++ 队列/缓存测试、共享库与 `ldd -r` 检查，以及 headless Gazebo 协议冒烟均通过。
 - 更新后的 ACK 丢失注入场景由 C++/Gazebo CI run [42470259138](https://github.com/rexyll/VLN-VLA/actions/runs/42470259138) 通过；Python CI run [42470309378](https://github.com/rexyll/VLN-VLA/actions/runs/42470309378) 也通过。
 - 该次 headless 测试使用 `1700000000000000001` 起的大整数 request ID，成功完成 grab/joint/release、重复请求 ACK 重放及缺失模型拒绝 ACK；验证了 Python 纳秒时间戳序号与 C++ `uint64_t` wire format 兼容。
-- 本轮进一步将 headless ACK 测试改为：首次发送 grab 时**不启动 ACK subscriber**，等待插件执行并发布终态 ACK 后再启动订阅者，以相同 request_id 重试；重连后只收到缓存重放的一个 ACK。该“客户端视角 ACK 丢失”场景已由 C++/Gazebo CI run [42470259138](https://github.com/rexyll/VLN-VLA/actions/runs/42470259138) 通过。
+- 首版 ACK 丢失测试在无订阅者时发送命令、稍后再订阅；run [42470259138](https://github.com/rexyll/VLN-VLA/actions/runs/42470259138) 曾通过。但后续 run [42470608899](https://github.com/rexyll/VLN-VLA/actions/runs/42470608899) 观察到两条 ACK，说明 Gazebo Transport 可能在 subscriber 建立后才送达首条 ACK，该“无订阅者”时序并不确定，不能作为稳定故障注入验收。现已改为 subscriber 明确丢弃第一条终态 ACK，并通过 marker 确认丢弃发生后才重试；等待新 CI 验证。
 
 **验证边界：**
 - `time.time_ns()` 方案解决同一主机时钟正常前进情况下的进程重启 ID 复用；不替代跨主机多发布者会话 ID 设计，也不证明真实 ROS 2 executor 并发行为。
@@ -1631,6 +1631,7 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 保留已有 ACK subscriber 暂停订阅期间丢失 ACK、重连后同 ID 重试缓存 ACK 的测试。
 
 **验证边界：**
-- 新增步骤等待 C++/Gazebo CI 首次执行；CI 通过前不宣称运行时并发 ACK 已验证。
+- 首次 CI run [42470608899](https://github.com/rexyll/VLN-VLA/actions/runs/42470608899) 在 ACK 丢失步骤失败，未执行到后续并发事务检查。失败证据为客户端日志出现两条相同 grab ACK，根因是“无订阅者”不保证首条 ACK 在订阅者连接前已发布；已将首 ACK 丢弃改为 subscriber 侧确定性过滤，并设置 marker 避免 retry 与原事务 in-flight 窗口竞态。
+- 新版 ACK 丢失步骤和双事务并发 ACK 检查等待 C++/Gazebo CI 重新验证；通过前不宣称运行时并发 ACK 已验证。
 - 该测试验证两个独立事务的 ACK 身份和结果隔离，不等价于 ROS 2 多线程 executor / CarryBus 同进程并发，也不覆盖迟到 ACK 和队列满载。
 - P104-07/P104-08/P104-09 继续保持“正在进行中”。
