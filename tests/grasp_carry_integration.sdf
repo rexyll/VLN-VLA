@@ -6,6 +6,7 @@
       <max_step_size>0.001</max_step_size>
       <real_time_factor>1</real_time_factor>
     </physics>
+    <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"/>
 
     <plugin filename="libGraspCarry.so" name="vla::GraspCarry">
       <topic>/drink/carry</topic>
