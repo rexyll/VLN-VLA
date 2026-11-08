@@ -1,0 +1,55 @@
+<?xml version="1.0"?>
+<sdf version="1.9">
+  <world name="grasp_carry_test">
+    <gravity>0 0 0</gravity>
+    <physics name="test_physics" type="ignored">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1</real_time_factor>
+    </physics>
+
+    <plugin filename="libGraspCarry.so" name="vla::GraspCarry">
+      <topic>/drink/carry</topic>
+      <ack_topic>/drink/carry/ack</ack_topic>
+      <debug>false</debug>
+    </plugin>
+
+    <model name="cup">
+      <pose>0 0 0.5 0 0 0</pose>
+      <static>false</static>
+      <link name="body">
+        <gravity>false</gravity>
+        <inertial>
+          <mass>1</mass>
+          <inertia>
+            <ixx>0.01</ixx><iyy>0.01</iyy><izz>0.01</izz>
+            <ixy>0</ixy><ixz>0</ixz><iyz>0</iyz>
+          </inertia>
+        </inertial>
+        <collision name="body_collision">
+          <geometry><cylinder><radius>0.04</radius><length>0.12</length></cylinder></geometry>
+        </collision>
+        <visual name="body_visual">
+          <geometry><cylinder><radius>0.04</radius><length>0.12</length></cylinder></geometry>
+        </visual>
+      </link>
+      <link name="water">
+        <gravity>false</gravity>
+        <inertial>
+          <mass>0.01</mass>
+          <inertia>
+            <ixx>0.0001</ixx><iyy>0.0001</iyy><izz>0.0001</izz>
+            <ixy>0</ixy><ixz>0</ixz><iyz>0</iyz>
+          </inertia>
+        </inertial>
+      </link>
+      <joint name="water_joint" type="prismatic">
+        <parent>body</parent>
+        <child>water</child>
+        <axis>
+          <xyz>0 0 1</xyz>
+          <limit><lower>0</lower><upper>0.024</upper><effort>100</effort><velocity>1</velocity></limit>
+        </axis>
+      </joint>
+    </model>
+  </world>
+</sdf>
