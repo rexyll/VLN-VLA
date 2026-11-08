@@ -116,7 +116,11 @@ class CarryBus(object):
                     request_id = int(token)
                     break
             if request_id is not None and request_id in self.pending_requests:
-                self.ack_by_request[request_id] = msg.data
+                # A request has one terminal outcome. Duplicate identical ACKs
+                # are idempotent; a conflicting later ACK must not overwrite
+                # the first observed result (notably queue-full is terminal).
+                if request_id not in self.ack_by_request:
+                    self.ack_by_request[request_id] = msg.data
 
     def _send(self, text):
         self.pub.publish(String(data=text))
