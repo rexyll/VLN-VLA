@@ -1373,13 +1373,16 @@ class Follower(Node):
                     if _ck is not None:
                         _blk = _los_blocked(rx, ry, _ck[0], _ck[1])
                 if _blk is not None:
+                    # P104: 先保存进入 PEEK 前的真实状态，再切换状态。
+                    # 原顺序先写 self._track='PEEK'，导致 _peek_from 恒为 PEEK，
+                    # 调试记录无法区分从 TRACK/GOTO/SCAN 哪条路径进入绕视。
+                    self._peek_from = self._track
                     self._track = 'PEEK'
                     self._peek_t0 = now
                     self._peek_xy = self._last_vis_xy
                     self._peek_obs = _blk
                     self._peek_vd = self._person_vdir()
                     self._peek_free_t = 0.0
-                    self._peek_from = self._track
                     self._peek_n += 1
                     # 从 GOTO/SCAN 转入时必须先把 Nav2 停下来, 否则两侧同
                     # 时下发 /cmd_vel —— 实测这一步漏掉会导致"绕视原地不动
