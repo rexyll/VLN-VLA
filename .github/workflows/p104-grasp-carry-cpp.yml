@@ -190,6 +190,19 @@ jobs:
           overflow_count=$(grep -Fc "queue-full" /tmp/grasp-carry-acks.log || true)
           test "$overflow_count" -ge 1
 
+          # Retry one terminally rejected request while physics is still paused.
+          # The same request_id must replay the cached queue-full ACK and must
+          # not become executable merely because a later retry arrived.
+          rejected_request_id=1700000000000000329
+          wait_ack "fail joint cup water_joint $rejected_request_id queue-full"
+          publish "joint cup water_joint 0.001 $rejected_request_id"
+          for _ in $(seq 1 30); do
+            retry_reject_count=$(grep -Fc "fail joint cup water_joint $rejected_request_id queue-full" /tmp/grasp-carry-acks.log || true)
+            if [ "$retry_reject_count" -ge 2 ]; then break; fi
+            sleep 0.2
+          done
+          test "$retry_reject_count" -eq 2
+
           # Resume physics and require every accepted transaction to drain
           # exactly once in FIFO order. The first 128 requests were accepted;
           # requests 129..160 must have been rejected while paused.
