@@ -141,14 +141,12 @@ class CarryBus(object):
         self.request_seq += 1
         request_id = self.request_seq
         with self._ack_lock:
-            with self._ack_lock:
             self.pending_requests.add(request_id)
         try:
             while time.time() - t0 < timeout:
                 emit(request_id)
                 self.node.spin_for(0.08)
                 with self._ack_lock:
-                    with self._ack_lock:
                     hit = self.ack_by_request.pop(request_id, None)
                 if hit and ok_pred(hit, request_id):
                     for _ in range(3):       # 补两针, 防止 gz 侧漏收
