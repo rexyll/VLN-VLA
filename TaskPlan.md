@@ -2180,3 +2180,15 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 **验证边界与后续：**
 - request_id 原子分配消除 waiter ID 重用竞态，但仍需继续审查取消、超时、ACK 到达与重发之间的状态转换，并在真实 Gazebo plugin transport 中验证。
 - P104-07 仍未完成；DrinkTask 外部 executor 生命周期集成与 Gazebo GraspCarry 端到端事务验证继续作为后续节点。
+
+### 8.53 HOME / HANG 安全门禁统一读取 CarryBus 持有物快照（2026-11-08）
+
+- 复查发现 DrinkTask 的递归动作原语 home() 与 hang() 仍直接检查 CarryBus.items，绕过 §8.51 新增的 _items_lock / holding() 保护；hang() 已修复，进一步复查后发现 home() 也存在同样的直接访问。
+- 两处门禁现统一先调用 CarryBus.holding() 获取受锁保护的持有物快照，再进行安全拒绝判断和日志输出；DrinkTask 不再直接读取 CarryBus.items。
+- 提交：391fe58af7bf601919937ae2e94dc19e5cf50e16（fix: use synchronized holdings in hang guard）；9c92f7bf08ed522cebda91c349ce4bf6f1acafd7（fix: use synchronized holdings in home guard）。
+- CI：391fe58 对应 Python run 42489855975 与 ROS 2 Jazzy run 42489855968 均 success；9c92f7b 对应 Python run 42490001664 与 ROS 2 Jazzy run 42490001592 均 success。
+
+**验证边界与后续：**
+- CarryBus.items 的业务读取目前已统一经 holding()，但 DrinkTask 的 _busy、_want_drink/_want_home/_want_hang、state 与 follower 状态仍需设计任务锁/状态快照；当前服务回调只排队，主循环执行同步任务的单线程模型继续保持。
+- 不切换外部 MultiThreadedExecutor，不从 ROS 回调中执行 run_drink/home/hang，也不允许主任务线程与 executor 回调共享未定义的状态所有权。
+- P104-07 继续未完成，下一步审查任务请求标志的原子 claim/consume、状态广播一致性及退出生命周期，再补充测试。
