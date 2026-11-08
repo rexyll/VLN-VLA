@@ -170,3 +170,22 @@ jobs:
           wait_ack "fail grab missing_model 1700000000000000004 no-model"
           publish "place missing_model 0 0 0.5 0 0 0 1 1700000000000000005"
           wait_ack "fail place missing_model 1700000000000000005 no-model"
+
+          # Pause physics so PreUpdate cannot drain the bounded queue. Flood
+          # unique transactions; after 128 accepted commands, overflow must
+          # produce an explicit queue-full rejection ACK.
+          timeout 5s gz service \
+            -s /world/grasp_carry_test/control \
+            --reqtype gz.msgs.WorldControl \
+            --reptype gz.msgs.Boolean \
+            --timeout 1000 --req 'pause: true'
+          for i in $(seq 1 160); do
+            request_id=$((1700000000000000200 + i))
+            publish "joint cup water_joint 0.001 $request_id"
+          done
+          for _ in $(seq 1 30); do
+            if grep -Fq "queue-full" /tmp/grasp-carry-acks.log; then break; fi
+            sleep 0.2
+          done
+          overflow_count=$(grep -Fc "queue-full" /tmp/grasp-carry-acks.log || true)
+          test "$overflow_count" -ge 1
