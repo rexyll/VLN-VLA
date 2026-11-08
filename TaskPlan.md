@@ -1783,3 +1783,20 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 本测试不替代 P104-07 要求的真实 ROS 2 executor 并发/迟到 ACK 联调，也不替代 P104-09 的三轮完整倒水递水验收。
 - P104-07/P104-08/P104-09 继续保持“正在进行中”。
 
+### 8.28 GraspCarry 队列/事务缓存独立 C++ 回归（2026-11-08）
+
+**P104-07 代码推进：** 将插件 transport 回调与仿真线程之间最关键的无锁业务原语（由调用方统一加锁的有界队列、in-flight 请求登记、完成 ACK 重放缓存）从仅依赖 headless Gazebo 压测，扩展为可单独运行的 C++ 单元回归。
+
+**新增测试目标 `vla_ws/src/vla_follow/gz_plugins/test_GraspCarryQueue.cc`：**
+- 验证同一对象的 `set` 只在队尾合并；中间存在 `joint` 事务时，后续 `set` 不得越过事务或回溯合并。
+- 验证相同 `request_id` 的排队事务被去重，避免重传重复执行。
+- 验证队列容量满时返回 `Full`，不静默覆盖既有事务。
+- 验证完成 ACK 缓存命中、容量淘汰及 in-flight 登记/结束生命周期。
+
+**构建集成：** `gz_plugins/CMakeLists.txt` 注册 `test_GraspCarryQueue` 与 CTest 测试 `GraspCarryQueue`。测试可执行文件本身只依赖 C++ 标准库；但 CMake 项目配置阶段仍会按现有插件工程要求查找 Gazebo 开发依赖。
+
+**状态与边界：**
+- 测试源文件和 CTest 注册已提交到 `main`：`6e0f4c0`、`5244036`。
+- 本轮未在本机容器中配置 ROS 2/Gazebo 开发环境，也未实际运行 CMake/CTest；因此测试结果标记为待执行，不计入通过数。
+- P104-07 仍为“正在进行中”：该测试覆盖队列/缓存原语，不等价于 ROS 2 executor 与 Gazebo transport 的真实并发集成验收。
+
