@@ -1351,7 +1351,7 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 
 
 **当前验证事实**：
-- GitHub 分支相对 `main`：79 个提交；当前比较结果为 12 个文件有改动。
+- GitHub 分支相对 `main`：当前比较为 ahead 111 / behind 2，涉及 14 个文件；分支保持独立开发，未合并。
 - 当前 GitHub Actions 包含 Python `py_compile` 与 P104 纯数学/几何/运动学单测两个作业；纯测试通过轻量导入占位运行，不调用 ROS/Gazebo。
 - GitHub Actions `P104 Python syntax` 已在最新提交 `9a3865a` 上通过 push run `42449595606` 与 PR run `42449598631`：`Compile changed Python modules` 成功，`Run P104 pure math and kinematics tests` 10/10 成功（日志 `Ran 10 tests ... OK`）。 本轮新增 CarryBus release ACK 未知态隔离后，最新分支代码提交 `784da0feaa1acfafabbb074a10321e514179bb34` 的 CI run `42452136019` 两个 job 均成功，P104 纯测试 11/11 通过；随后文档记录已同步至当前分支。本会话没有连接项目的 ROS 2 / Gazebo 运行时；P94/P97/P102/P103、遮挡/桌面碰撞 Gazebo 专项和三轮端到端回归仍未执行。
 - 因此本节代码修订目前是“语法 CI 与 10/10 纯函数/几何/运动学单测通过、待 ROS/Gazebo 运行时仿真验收”，不把代码写入、公式推导或静态审查冒充为运行通过。尤其掌部尺寸、手指简化包络、胶囊半径及 10/15mm 余量需与 Gazebo 可视/碰撞模型校准；若过保守会阻止合理动作，若不足则要按实测几何调整。
