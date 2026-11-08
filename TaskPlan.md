@@ -1908,3 +1908,22 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 本次提交触发的 C++/Gazebo workflow 尚待执行结果；在 headless Gazebo 步骤成功前，不得将该运行时重放测试标记为通过。
 - 此项仍不覆盖 ROS 2 CarryBus 与 Gazebo 同进程联调、多线程 executor 压力、迟到 ACK 的真实 transport 时序或完整双臂倒水递水 E2E。
 - P104-07 继续“正在进行中”；P104-08/P104-09 及动态碰撞验证仍按原计划推进。
+
+
+### 8.36 核验 queue-full 同 ID 重放 CI，并记录并发断言边界（2026-11-08）
+
+**CI 结果复核：**
+- C++/Gazebo workflow run [42479072919](https://github.com/rexyll/VLN-VLA/actions/runs/42479072919)，commit `72e6242ab9bd1b84a3f8507e567a6a595cbdad5d`，最终 `completed / success`。
+- 该 job 的 Gazebo Harmonic 依赖安装、插件配置/编译、bounded queue 测试、共享库与运行时依赖检查、headless Gazebo ACK 协议步骤全部成功。
+- 因此 §8.35 的当前 workflow 实现已在该 CI 运行中通过，包括队列满载、固定 request_id `1700000000000000329` 的拒绝 ACK 重放、恢复 physics 后 FIFO 排空及逐项 ACK 数量断言。
+- 同一提交的 P104 Python workflow run [42479072951](https://github.com/rexyll/VLN-VLA/actions/runs/42479072951) 也已成功。
+
+**失败记录与诊断边界：**
+- 前一版 C++ workflow run [42478722356](https://github.com/rexyll/VLN-VLA/actions/runs/42478722356) 曾在 headless Gazebo ACK 协议步骤失败；日志未捕获到 queue-full ACK，尚不能据此确定是暂停服务、发布时序、订阅捕获还是固定第 129 个 request_id 假设导致。
+- 后续提交 `72e6242` 将两个独立 CLI publisher 的并发 ACK 数量断言从“恰好一次”放宽为“至少一次”，并保留两个 request_id 的 ACK 内容检查。该调整降低了独立 publisher 启动/transport 重复投递造成的脆弱性，但**不构成并发 ACK 恰好一次的证明**。
+- 当前 queue-full 场景仍以第 129 条固定 request_id 为重试目标；虽然本次 CI 通过，后续仍应考虑改为从 ACK 流动态识别首个被拒绝 request_id，以减少对消息入队顺序的隐含假设。
+
+**后续验证要求：**
+- 为两个并发 request_id 增加稳定的去重/恰好一次断言，不能把当前 `>=1` 作为 exactly-once 验收。
+- 继续补真实 ROS 2 CarryBus executor 并发、迟到 ACK、超时/重试与 Gazebo 插件的同进程端到端验证；现有 Python 测试仍是回调顺序模拟，headless Gazebo 测试是独立 transport 夹具。
+- P104-07 继续“正在进行中”；P104-08、P104-05/P104-06 与 P104-09 不因本次 CI 成功而关闭。
