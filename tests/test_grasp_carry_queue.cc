@@ -42,6 +42,22 @@ vla::QueueInsertResult Push(Queue &queue, Command command)
   return queue.Push(std::move(command), CoalesceMatch, DuplicateMatch);
 }
 
+void TestInFlightRequestRetriesAreSuppressedUntilApplyCompletes()
+{
+  vla::InFlightRequestRegistry inFlight;
+  const std::string key = "joint|cup|water_joint|41";
+  assert(inFlight.Begin(key));
+  assert(inFlight.Contains(key));
+  // A retry arriving while Apply() is executing is rejected as a duplicate.
+  assert(!inFlight.Begin(key));
+  assert(inFlight.Contains(key));
+  inFlight.Finish(key);
+  assert(!inFlight.Contains(key));
+  // The key can be registered again after the execution window closes.
+  assert(inFlight.Begin(key));
+  inFlight.Finish(key);
+}
+
 void TestFifoAndCapacity()
 {
   Queue queue(128);
@@ -150,6 +166,7 @@ void TestStreamsAreScopedByModelAndOperation()
 
 int main()
 {
+  TestInFlightRequestRetriesAreSuppressedUntilApplyCompletes();
   TestFifoAndCapacity();
   TestAdjacentSetCoalescingPreservesQueuePosition();
   TestSetDoesNotCoalesceAcrossTransactionBarrier();
