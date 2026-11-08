@@ -10,6 +10,7 @@ import sys
 import threading
 import time
 import unittest
+from types import SimpleNamespace
 
 import numpy as np
 import rclpy
@@ -21,10 +22,52 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "vla_ws", "src", "vla_follow"))
 
 from vla_follow.carry import ACK_TOPIC, CarryBus  # noqa: E402
-from vla_follow.drink_task import CmdBus  # noqa: E402
+from vla_follow.drink_task import CmdBus, DrinkTask  # noqa: E402
 
 
 class TestCarryRos2Executor(unittest.TestCase):
+    def test_drink_task_joint_callback_publishes_coherent_snapshots(self):
+        state = SimpleNamespace(js={})
+        errors = []
+        start = threading.Barrier(3)
+
+        def writer():
+            try:
+                start.wait(timeout=3.0)
+                for value in range(1, 5001):
+                    msg = SimpleNamespace(
+                        name=("joint_a", "joint_b"),
+                        position=(float(value), float(value)))
+                    DrinkTask._js_cb(state, msg)
+            except Exception as exc:
+                errors.append(exc)
+
+        def reader():
+            try:
+                start.wait(timeout=3.0)
+                for _ in range(10000):
+                    snapshot = state.js
+                    if "joint_a" in snapshot and "joint_b" in snapshot:
+                        if snapshot["joint_a"] != snapshot["joint_b"]:
+                            errors.append(AssertionError(
+                                "joint callback exposed a partial update: %r"
+                                % snapshot))
+                            return
+            except Exception as exc:
+                errors.append(exc)
+
+        threads = [threading.Thread(target=writer),
+                   threading.Thread(target=reader)]
+        for thread in threads:
+            thread.start()
+        start.wait(timeout=3.0)
+        for thread in threads:
+            thread.join(timeout=5.0)
+            self.assertFalse(thread.is_alive(),
+                             "sensor snapshot worker did not finish")
+        self.assertFalse(errors, "sensor snapshot race: %r" % errors)
+        self.assertEqual(state.js, {"joint_a": 5000.0, "joint_b": 5000.0})
+
     def test_cmd_bus_atomic_multi_joint_snapshots(self):
         rclpy.init()
         node = Node("cmd_bus_concurrency_test")
