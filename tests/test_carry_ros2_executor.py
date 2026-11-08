@@ -166,6 +166,7 @@ class TestCarryRos2Executor(unittest.TestCase):
             # must prevent remaining duplicate ACK retransmits. Hold the second
             # emit at a deterministic barrier so cancel_waiters races that path
             # without relying on scheduler timing.
+            race_bus = CarryBus(node, executor_managed=True)
             race_ids = []
             retransmit_entered = threading.Event()
             allow_retransmit = threading.Event()
@@ -181,7 +182,7 @@ class TestCarryRos2Executor(unittest.TestCase):
                                     "retransmit barrier was not released")
 
             race_waiter = threading.Thread(target=lambda: race_result.setdefault(
-                "ok", bus._await(
+                "ok", race_bus._await(
                     race_emit,
                     lambda ack, rid: ack == "ok race %d" % rid,
                     3.0)))
@@ -192,7 +193,7 @@ class TestCarryRos2Executor(unittest.TestCase):
 
             def cancel_after_ack():
                 cancel_started.set()
-                bus.cancel_waiters()
+                race_bus.cancel_waiters()
 
             race_canceller = threading.Thread(target=cancel_after_ack)
             race_canceller.start()
@@ -207,10 +208,10 @@ class TestCarryRos2Executor(unittest.TestCase):
             self.assertEqual(race_result, {"ok": True})
             self.assertEqual(len(race_ids), 2,
                              "cancellation allowed post-race duplicate emits")
-            with bus._ack_lock:
-                self.assertNotIn(race_ids[0], bus.pending_requests)
-                self.assertNotIn(race_ids[0], bus.ack_by_request)
-                self.assertNotIn(race_ids[0], bus._ack_events)
+            with race_bus._ack_lock:
+                self.assertNotIn(race_ids[0], race_bus.pending_requests)
+                self.assertNotIn(race_ids[0], race_bus.ack_by_request)
+                self.assertNotIn(race_ids[0], race_bus._ack_events)
 
             # Executor owner cancellation must wake a waiter immediately,
             # rather than leaving it blocked until its transaction timeout.
