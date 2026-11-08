@@ -1558,7 +1558,7 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 **本轮修改：**
 - 新增有界 `CompletedRequestAckCache`（默认 256 项），按事务身份缓存完成时的成功或失败 ACK。
 - Apply 产生终态 ACK 时先缓存再发布；缓存与 pending/in-flight 状态由同一把 mutex 保护。
-- Enqueue 先检查 in-flight，再检查 completed cache：在途重复请求被抑制；已完成请求不再进入 FIFO，而是重发缓存的原 ACK。
+- Enqueue 优先检查 completed cache，再检查 in-flight：已完成请求（包括 ACK 已缓存但 Apply 尚未返回的窗口）直接重发原 ACK；尚无终态 ACK 的在途重复请求才被抑制，不再进入 FIFO。
 - 队列满载拒绝 ACK 不写入 completed cache，允许客户端在队列恢复容量后以相同 request_id 重试。
 - 新增缓存命中、ACK 内容重放和容量淘汰测试；连同原 6 组 FIFO 测试与 in-flight 测试，当前共 **8 组 C++ 测试**。
 
