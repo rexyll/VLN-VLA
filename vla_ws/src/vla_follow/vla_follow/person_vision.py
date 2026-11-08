@@ -70,6 +70,7 @@ DEPTH_MAX = 7.0   # P36: 11.5→7.0, 更远处 5px 的暗斑会被误判成人
 # sensor 更新率为 10Hz；0.40s 已容忍数帧抖动，但不会把断流旧帧继续当新目标。
 MAX_SENSOR_AGE_S = 0.40
 MAX_RGB_DEPTH_SKEW_S = 0.18
+MAX_POSE_RGBD_SKEW_S = 0.12
 TRACK_ASSOC_MAX_AGE_S = 2.5
 TRACK_ASSOC_BASE_GATE_M = 0.85
 TRACK_ASSOC_SPEED_MPS = 0.85
@@ -96,6 +97,19 @@ def sensor_pair_fresh(rgb_t, dep_t, now,
     if not timestamp_fresh(dep_t, now, max_age):
         return False
     return abs(float(rgb_t) - float(dep_t)) <= float(max_skew)
+
+
+def sensor_pose_pair_fresh(rgb_t, dep_t, pose_t, now,
+                             max_age=MAX_SENSOR_AGE_S,
+                             max_rgbd_skew=MAX_RGB_DEPTH_SKEW_S,
+                             max_pose_skew=MAX_POSE_RGBD_SKEW_S):
+    """RGB/Depth 与底盘位姿都新鲜，且机器人位姿时间接近图像帧对。"""
+    if not sensor_pair_fresh(rgb_t, dep_t, now, max_age, max_rgbd_skew):
+        return False
+    if not timestamp_fresh(pose_t, now, max_age):
+        return False
+    obs_t = 0.5 * (float(rgb_t) + float(dep_t))
+    return abs(float(pose_t) - obs_t) <= float(max_pose_skew)
 
 
 def association_gate(age):
@@ -295,11 +309,9 @@ class PersonVision(Node):
         if rgb is None or dep is None or tr <= 0.0 or td <= 0.0:
             return miss
         # P104: 不能将相机断流前的旧图与另一条新深度帧拼成“检出”。
-        if not sensor_pair_fresh(tr, td, now):
-            return miss
-        # 世界坐标转换依赖同步底盘位姿；位姿流断更时不把旧位姿下的像素
-        # 投成新的世界点，避免跨帧关联把机器人运动误当成目标运动。
-        if not timestamp_fresh(pose_t, now):
+        # 世界坐标投影要求 RGB、Depth 与底盘位姿都新鲜，且位姿采样时刻
+        # 靠近图像帧对；底盘移动期间不能拿“刚刚但不同步”的 pose 投影旧帧。
+        if not sensor_pose_pair_fresh(tr, td, pose_t, now):
             return miss
         obs_t = 0.5 * (tr + td)
         if rgb.shape[:2] != dep.shape:
