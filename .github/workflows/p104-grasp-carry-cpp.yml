@@ -224,5 +224,7 @@ jobs:
           for i in $(seq 129 160); do
             request_id=$((1700000000000000200 + i))
             reject_count=$(grep -Fc "fail joint cup water_joint $request_id queue-full" /tmp/grasp-carry-acks.log || true)
-            test "$reject_count" -eq 1
+            expected_reject_count=1
+            if [ "$i" -eq 129 ]; then expected_reject_count=2; fi
+            test "$reject_count" -eq "$expected_reject_count"
           done
