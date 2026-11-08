@@ -79,18 +79,23 @@ CAMS = (('front', 0.0), ('left', 1.5707963),
 CAM_CN = {'front': '前', 'left': '左', 'right': '右', 'back': '后'}
 
 
+def timestamp_fresh(stamp, now, max_age=MAX_SENSOR_AGE_S):
+    """判断单路时钟戳是否为有效的非未来新鲜观测。"""
+    if stamp is None:
+        return False
+    stamp, now = float(stamp), float(now)
+    return stamp > 0.0 and 0.0 <= now - stamp <= float(max_age)
+
+
 def sensor_pair_fresh(rgb_t, dep_t, now,
                       max_age=MAX_SENSOR_AGE_S,
                       max_skew=MAX_RGB_DEPTH_SKEW_S):
     """判断 RGB/Depth 是否都是新帧且来自足够接近的采样时刻。"""
-    if rgb_t is None or dep_t is None:
+    if not timestamp_fresh(rgb_t, now, max_age):
         return False
-    rgb_t, dep_t, now = float(rgb_t), float(dep_t), float(now)
-    if rgb_t <= 0.0 or dep_t <= 0.0:
+    if not timestamp_fresh(dep_t, now, max_age):
         return False
-    return (0.0 <= now - rgb_t <= float(max_age)
-            and 0.0 <= now - dep_t <= float(max_age)
-            and abs(rgb_t - dep_t) <= float(max_skew))
+    return abs(float(rgb_t) - float(dep_t)) <= float(max_skew)
 
 
 def association_gate(age):
@@ -294,7 +299,7 @@ class PersonVision(Node):
             return miss
         # 世界坐标转换依赖同步底盘位姿；位姿流断更时不把旧位姿下的像素
         # 投成新的世界点，避免跨帧关联把机器人运动误当成目标运动。
-        if pose_t <= 0.0 or now - pose_t > MAX_SENSOR_AGE_S:
+        if not timestamp_fresh(pose_t, now):
             return miss
         obs_t = 0.5 * (tr + td)
         if rgb.shape[:2] != dep.shape:
