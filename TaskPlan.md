@@ -1288,9 +1288,9 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 | P104-04 | 修复 PEEK 状态转移并强化绕障重捕获 | 正在进行中（入口/退出状态静态核对通过，待遮挡仿真） | 进入/退出 PEEK 状态可追踪；有检出时取消 Nav2 搜索；遮挡后重新锁定同一轨迹 |
 | P104-05 | 建立桌面/桌腿几何碰撞检测与逐路点路径门控 | 正在进行中（FK 胶囊+掌部 OBB/SAT+逐指胶囊纯测试通过；待 Gazebo 几何校准） | FK 生成的臂/手指扫掠线段无桌面、桌腿 AABB 相交；碰撞路径不下发 |
 | P104-06 | 放杯后立即启动安全预收臂，净空后完成自然悬垂 | 正在进行中（三阶段逻辑单测通过；待 Gazebo 轨迹碰撞验证） | 放杯成功后先抬手离杯，再尽早执行安全折肘；在肩部收回前达到臂长净空；全过程不穿桌、不碰杯 |
-| P104-07 | 修复 PUT_BACK 未落稳仍松手、任务继续执行等状态机错误 | 正在进行中（release ACK/未知态隔离、release pending 门控、插件 in-flight 去重与完成 ACK 重放已实现；待 Gazebo 丢包/迟到/重复 ACK 故障注入） | 未落稳/复核失败时不 release、不撤离；关键抓取/递交/接回失败不会被忽略 |
+| P104-07 | 修复 PUT_BACK 未落稳仍松手、任务继续执行等状态机错误 | 正在进行中（release ACK/未知态隔离、release pending 门控、插件 in-flight 去重与完成 ACK 重放已实现；headless Gazebo 已验证 grab/joint/release 与拒绝 ACK；待丢包/迟到/并发故障注入） | 未落稳/复核失败时不 release、不撤离；关键抓取/递交/接回失败不会被忽略 |
 | P104-08 | 扩展遮挡、目标关联、桌面碰撞和失败分支测试 | 正在进行中（最新 CI 14/14 纯数学/几何/运动学及 CarryBus ACK 身份测试通过；待 ROS/Gazebo 场景与故障注入） | 新增专项测试并能输出逐阶段证据；已有 P102/P103/P97/P94 回归不退化 |
-| P104-09 | 全面逻辑审查、文档与回归结果记录 | 正在进行中（Python CI 通过；GraspCarry C++ 编译/链接、8/8 独立测试通过；headless Gazebo 最小协议冒烟工作流已加入，首次运行未通过，正在排查启动/Transport 发现问题；完整回归未完成） | 对关键动作返回值、状态转移、超时、资源/消息生命周期做审查；更新 README/测试指引与本节结论 |
+| P104-09 | 全面逻辑审查、文档与回归结果记录 | 正在进行中（Python CI、GraspCarry C++ 编译/链接、8/8 独立测试及 headless Gazebo 插件协议冒烟均已通过；ROS 2 CarryBus 联调、完整 work_area 场景和端到端回归未完成） | 对关键动作返回值、状态转移、超时、资源/消息生命周期做审查；更新 README/测试指引与本节结论 |
 
 ### 8.3 验收门槛
 
@@ -1580,9 +1580,14 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 运行时检查 `grab`、同 request_id 的完成后重试 ACK 重放、`joint`、`release`，以及 `grab/place` 目标不存在时的拒绝 ACK。
 - 该工作流将验证插件确实被 Gazebo 加载并执行 PreUpdate/ECM 相关命令，而不只是链接共享库。
 
+**验收结果（2026-11-08）：**
+- GitHub Actions [P104 GraspCarry C++ build run 42469290087](https://github.com/rexyll/VLN-VLA/actions/runs/42469290087)，head `6407c0bf304cc85b2e5e2dbfe470e4ef40f76db4`：Gazebo Harmonic 依赖安装、CMake 配置、插件编译、8/8 C++ 测试、共享库检查、`ldd -r` 和 headless Gazebo 运行时协议冒烟全部成功。
+- headless 场景实际加载 `libGraspCarry.so`，Gazebo Transport 命令/ACK 检查通过：`grab cup 501`；相同 request_id 完成后重试收到第二个缓存 ACK；`joint cup water_joint 502`；`release cup 503`；缺失模型的 `grab` 与 `place` 均收到精确 `fail ... no-model`。
+- 同 head 的 Python CI run `42469290098` 通过。
+- 早期 headless 尝试 run `42469112519` / `42469131346` / `42469149304` 曾失败；随后将启动就绪判断改为 ACK topic discovery、给 Transport 发布增加 5 秒超时并增加失败日志输出，最终 run `42469290087` 通过。保留这些失败记录，不把最终通过覆盖历史失败。
+
 **验收边界：**
-- 新增 workflow 步骤后等待首次 CI 真实结果；在 CI 通过前不宣称运行时协议测试成功。
-- 该最小场景只验证插件加载和 Gazebo Transport ACK 协议，不包含 ROS 2 CarryBus、完整 `work_area.sdf`、视觉遮挡/碰撞、暂停恢复或倒水递水 E2E。
+- 该最小场景只验证插件加载、PreUpdate 命令执行和 Gazebo Transport ACK 协议，不包含 ROS 2 CarryBus、完整 `work_area.sdf`、视觉遮挡/碰撞、仿真暂停恢复或倒水递水 E2E。
 - P104-07/P104-08/P104-09 仍为“正在进行中”。
 
 - **重放竞态补充：** Enqueue 优先查 completed ACK cache，再检查 in-flight。这样 ACK 已写入缓存但 `Apply()` 尚未返回、in-flight 尚未清除的极短窗口内，重试也会立即重放 ACK，不会被误当作仍未完成请求而静默抑制。
