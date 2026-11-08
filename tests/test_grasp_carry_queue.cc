@@ -58,6 +58,24 @@ void TestInFlightRequestRetriesAreSuppressedUntilApplyCompletes()
   inFlight.Finish(key);
 }
 
+void TestCompletedAckCacheReplaysAndEvictsOldest()
+{
+  vla::CompletedRequestAckCache cache(2);
+  std::string ack;
+  assert(!cache.Find("request-1", ack));
+  cache.Remember("request-1", "ok joint cup water_joint 1");
+  assert(cache.Find("request-1", ack));
+  assert(ack == "ok joint cup water_joint 1");
+  cache.Remember("request-2", "ok release cup 2");
+  cache.Remember("request-3", "fail grab kettle 3 no-model");
+  assert(!cache.Find("request-1", ack));
+  assert(cache.Find("request-2", ack) && ack == "ok release cup 2");
+  assert(cache.Find("request-3", ack) && ack == "fail grab kettle 3 no-model");
+  // Updating an existing key must not consume another cache slot.
+  cache.Remember("request-2", "ok release cup 2");
+  assert(cache.Find("request-2", ack));
+}
+
 void TestFifoAndCapacity()
 {
   Queue queue(128);
@@ -167,6 +185,7 @@ void TestStreamsAreScopedByModelAndOperation()
 int main()
 {
   TestInFlightRequestRetriesAreSuppressedUntilApplyCompletes();
+  TestCompletedAckCacheReplaysAndEvictsOldest();
   TestFifoAndCapacity();
   TestAdjacentSetCoalescingPreservesQueuePosition();
   TestSetDoesNotCoalesceAcrossTransactionBarrier();
