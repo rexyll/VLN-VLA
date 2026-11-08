@@ -1590,3 +1590,5 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - **场景配置补充：** 最小 world 显式加载 Gazebo Harmonic Physics system，确保 `JointPositionReset` 与模型位姿命令由仿真物理系统消费；冒烟测试仍只按 ACK 验收，不据此声称关节运动数值已达标。
 
 - **CI 故障诊断强化：** 每条 Gazebo Transport 发布命令增加 5 秒超时；运行时冒烟步骤失败时自动输出 ACK 订阅日志和 Gazebo server 日志，避免 transport 连接异常导致 CI 无限等待且缺少诊断信息。
+
+- **启动就绪判据调整：** headless server 的 readiness 不再依赖插件日志文本，而是轮询 Gazebo Transport topic discovery，确认 `/drink/carry/ack` 已实际注册后才启动订阅和发送命令；这同时验证插件 ACK publisher 已被发现。
