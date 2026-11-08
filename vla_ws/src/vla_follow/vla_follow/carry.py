@@ -99,6 +99,9 @@ class CarryBus(object):
         self._waiters_cancelled = False
         # model -> {'side': 'R'/'L', 'offset': 4x4}
         self.items = {}
+        # The 50 Hz update timer and synchronous task sequence may execute on
+        # different threads under an external executor.
+        self._items_lock = threading.RLock()
         self.pub_count = 0
 
     # ------------------------------------------------------------ 内部
@@ -293,7 +296,8 @@ class CarryBus(object):
             return False
         off = np.linalg.inv(Tp) @ To
         # 先登记(带 offset), 之后 update() 只需用当前掌心位姿乘这个常量
-        self.items[model] = {'side': side, 'offset': off}
+        with self._items_lock:
+            self.items[model] = {'side': side, 'offset': off}
 
         state = {'first': True}
 
@@ -311,7 +315,8 @@ class CarryBus(object):
 
         ok = self._await(emit, lambda a, rid: a == 'ok grab %s %d' % (model, rid), timeout)
         if not ok:
-            self.items.pop(model, None)
+            with self._items_lock:
+                self.items.pop(model, None)
             self.node.get_logger().error('grab %s 无 ack' % model)
             return False
         d = float(np.linalg.norm(off[:3, 3]))
@@ -360,28 +365,31 @@ class CarryBus(object):
         name = model or 'all'
         # 等待 release ACK 的整个窗口内禁止 update() 再发 set；否则并发的
         # 50Hz 跟随更新可能排在 release 后面，把刚释放的目标重新激活。
-        targets = list(self.items) if model is None else [model]
-        for target in targets:
-            if target in self.items:
-                self.items[target]['release_pending'] = True
+        with self._items_lock:
+            targets = list(self.items) if model is None else [model]
+            for target in targets:
+                if target in self.items:
+                    self.items[target]['release_pending'] = True
         ok = self._await(
             lambda rid: self._send('release %s %d' % (name, rid)),
             lambda a, rid: a == 'ok release %s %d' % (name, rid), timeout)
         if ok:
-            if model is None:
-                self.items.clear()
-            else:
-                self.items.pop(model, None)
+            with self._items_lock:
+                if model is None:
+                    self.items.clear()
+                else:
+                    self.items.pop(model, None)
             self.node.get_logger().info('release %s' % name)
         else:
             # ACK 丢失时，插件端可能已经释放，也可能仍在附着。
             # 保留本地记录用于显式重试，但 update() 必须停止 set，
             # 否则插件若已执行 release，后续 set 会重新激活该目标。
-            targets = list(self.items) if model is None else [model]
-            for target in targets:
-                if target in self.items:
-                    self.items[target]['release_unknown'] = True
-                    self.items[target].pop('release_pending', None)
+            with self._items_lock:
+                targets = list(self.items) if model is None else [model]
+                for target in targets:
+                    if target in self.items:
+                        self.items[target]['release_unknown'] = True
+                        self.items[target].pop('release_pending', None)
             self.node.get_logger().warn(
                 'release %s 无 ack，附着状态未知；已暂停自动 set，可显式重试 release'
                 % name)
@@ -395,22 +403,26 @@ class CarryBus(object):
           * 别人(比如人的手): 位姿 = host 世界位姿 × 冻结偏移 —— 交接之后
             物体就跟着对方的手走，我们这边只管继续钉住。
         """
-        for model, it in self.items.items():
-            # release ACK 丢失后，不能继续 set：若插件端已解除附着，
-            # set 会把 inactive target 重新激活。显式 release 重试成功后再移除。
-            if it.get('release_unknown') or it.get('release_pending'):
-                continue
-            if it.get('host'):
-                Tb = self.host_world(it['host'], it.get('link'),
-                                     it.get('local_off'))
-                if Tb is None:
+        # Keep the lock through the decision and publish: release() first marks
+        # release_pending under this same lock, so no stale set can overtake the
+        # release request after that state transition.
+        with self._items_lock:
+            for model, it in self.items.items():
+                # release ACK 丢失后，不能继续 set：若插件端已解除附着，
+                # set 会把 inactive target 重新激活。显式 release 重试成功后再移除。
+                if it.get('release_unknown') or it.get('release_pending'):
                     continue
-                self._send_pose('set', model, Tb @ it['offset'])
-                continue
-            Tp = self.palm_world(it['side'])
-            if Tp is None:
-                continue
-            self._send_pose('set', model, Tp @ it['offset'])
+                if it.get('host'):
+                    Tb = self.host_world(it['host'], it.get('link),
+                                         it.get('local_off'))
+                    if Tb is None:
+                        continue
+                    self._send_pose('set', model, Tb @ it['offset'])
+                    continue
+                Tp = self.palm_world(it['side'])
+                if Tp is None:
+                    continue
+                self._send_pose('set', model, Tp @ it['offset'])
 
     def hand_to(self, model, host, link=None, local_off=None):
         """"交给"对方(比如人的手): 换持有者, 但**不松钉**。
@@ -432,13 +444,15 @@ class CarryBus(object):
                 'hand_to %s <- %s 失败: host=%s obj=%s'
                 % (model, host, T_host is not None, To is not None))
             return False
-        self.items[model] = {'side': None, 'host': host, 'link': link,
-                             'local_off': local_off,
-                             'offset': np.linalg.inv(T_host) @ To}
+        with self._items_lock:
+            self.items[model] = {'side': None, 'host': host, 'link': link,
+                                 'local_off': local_off,
+                                 'offset': np.linalg.inv(T_host) @ To}
         self.node.get_logger().info(
             'hand_to: %s 交给 %s%s' % (model, host,
                                        ('' if link is None else '/' + link)))
         return True
 
     def holding(self):
-        return list(self.items.keys())
+        with self._items_lock:
+            return list(self.items.keys())
