@@ -117,19 +117,19 @@ jobs:
             return 1
           }
 
-          publish "grab cup 0 0 0.5 0 0 0 1 501"
-          wait_ack "ok grab cup 501"
+          publish "grab cup 0 0 0.5 0 0 0 1 1700000000000000001"
+          wait_ack "ok grab cup 1700000000000000001"
           # Retry the completed request: the plugin must replay its cached ACK.
-          publish "grab cup 0 0 0.5 0 0 0 1 501"
+          publish "grab cup 0 0 0.5 0 0 0 1 1700000000000000001"
           sleep 1
-          count=$(grep -Fc "ok grab cup 501" /tmp/grasp-carry-acks.log || true)
+          count=$(grep -Fc "ok grab cup 1700000000000000001" /tmp/grasp-carry-acks.log || true)
           test "$count" -ge 2
 
-          publish "joint cup water_joint 0.012 502"
-          wait_ack "ok joint cup water_joint 502"
-          publish "release cup 503"
-          wait_ack "ok release cup 503"
-          publish "grab missing_model 0 0 0.5 0 0 0 1 504"
-          wait_ack "fail grab missing_model 504 no-model"
-          publish "place missing_model 0 0 0.5 0 0 0 1 505"
-          wait_ack "fail place missing_model 505 no-model"
+          publish "joint cup water_joint 0.012 1700000000000000002"
+          wait_ack "ok joint cup water_joint 1700000000000000002"
+          publish "release cup 1700000000000000003"
+          wait_ack "ok release cup 1700000000000000003"
+          publish "grab missing_model 0 0 0.5 0 0 0 1 1700000000000000004"
+          wait_ack "fail grab missing_model 1700000000000000004 no-model"
+          publish "place missing_model 0 0 0.5 0 0 0 1 1700000000000000005"
+          wait_ack "fail place missing_model 1700000000000000005 no-model"
