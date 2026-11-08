@@ -26,6 +26,53 @@ from vla_follow.drink_task import CmdBus, DrinkTask  # noqa: E402
 
 
 class TestCarryRos2Executor(unittest.TestCase):
+    def test_follower_status_and_timestamp_are_one_snapshot(self):
+        state = SimpleNamespace(_follower_status_snapshot=({}, 0.0))
+        msg = SimpleNamespace(data='{"state":"FOLLOW","track":7,"lost":false}')
+        DrinkTask._follower_status_cb(state, msg)
+        payload, received_at = state._follower_status_snapshot
+        self.assertEqual(payload["state"], "FOLLOW")
+        self.assertEqual(payload["track"], 7)
+        self.assertGreater(received_at, 0.0)
+        previous = state._follower_status_snapshot
+        DrinkTask._follower_status_cb(
+            state, SimpleNamespace(data="{malformed"))
+        self.assertIs(state._follower_status_snapshot, previous)
+
+    def test_shutdown_cancels_waiters_before_destroying_node(self):
+        events = []
+
+        class FakeCarry:
+            def cancel_waiters(self):
+                events.append("cancel_waiters")
+
+        class FakeNode:
+            carry = FakeCarry()
+
+            def destroy_node(self):
+                events.append("destroy_node")
+
+        DrinkTask._shutdown_node(FakeNode())
+        self.assertEqual(events, ["cancel_waiters", "destroy_node"])
+
+    def test_shutdown_destroys_node_even_if_waiter_cancel_raises(self):
+        events = []
+
+        class FakeCarry:
+            def cancel_waiters(self):
+                events.append("cancel_waiters")
+                raise RuntimeError("cancel failed")
+
+        class FakeNode:
+            carry = FakeCarry()
+
+            def destroy_node(self):
+                events.append("destroy_node")
+
+        with self.assertRaisesRegex(RuntimeError, "cancel failed"):
+            DrinkTask._shutdown_node(FakeNode())
+        self.assertEqual(events, ["cancel_waiters", "destroy_node"])
+
     def test_drink_task_pending_action_claim_is_atomic(self):
         state = SimpleNamespace(
             _task_lock=threading.RLock(),
