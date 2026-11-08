@@ -1454,7 +1454,20 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 **本轮修改：**
 - `_await()` 在确认失败 ACK 的 request_id 属于当前等待者后立即返回失败并记录错误；不会把其他事务的失败 ACK 当成本事务结果。
 - 新增测试模拟 `fail joint cup water_joint 31 queue-full`，验证只发送一次、收到失败 ACK 后立即退出，并清理在途 request_id。
-- P104 纯测试现扩展为 **14 项**。提交 `9eef048` 的 run `42459835660` 曾失败：失败 ACK 的原因后缀 `queue-full` 导致解析器把原因当作 request_id，测试捕获后已修复。
+- P104 纯测试现为 **14 项**。提交 `9eef048` 的 run `42459835660` 曾失败：失败 ACK 的原因后缀 `queue-full` 导致解析器把原因当作 request_id；测试捕获后，已改为从 ACK 尾部向前解析最后一个数字字段。
 - 修复提交 `1e0afc2a39db49bae23331e5224e16aeeba30e4b` 的 run `42459920782` 成功：Python 编译 job 通过，纯测试 **14/14**（日志 `Ran 14 tests ... OK`）。
 
 **边界：** 此处只验证 ROS 侧协议处理；仍需真实 Gazebo 队列满载与拒绝 ACK 故障注入。P104-07/P104-08/P104-09 继续“正在进行中”，PR 保持 Draft。
+
+
+### 8.11 Release 等待期间阻止并发 set 重新激活目标（2026-11-08）
+
+**静态审查发现：** `release()` 只在 ACK 失败后标记 `release_unknown`。在等待 ACK 的 2.5s 窗口内，若 50Hz `update()` 与 release 事务并发，仍可能发送 `set` 并排在插件端 release 之后，导致已释放目标被重新激活。插件 FIFO 不能替代 ROS 侧的持有状态门控。
+
+**本轮修改：**
+- 发出 release 前，对受影响对象设置 `release_pending`；`CarryBus.update()` 在 pending 或 unknown 状态均跳过 set。
+- release ACK 成功后按原逻辑清理对象；失败时转为 `release_unknown` 并清除 pending 标记，只有显式 release 重试成功才能清理。
+- 扩展 release ACK 丢失测试：在 `_await()` 内模拟并发调用 `update()`，确认等待期间与失败后均不发 set。
+- 该改动不增加测试项数，仍为 14 项；提交 `d0854046ac24736bc460b0cdbf933a8f45398a08` 的 CI run `42460165722` 待确认。
+
+**边界：** Python 状态门控和纯单测不能证明真实 executor 调度下不存在其他发布路径；仍需 ROS 2/Gazebo 并发故障注入。P104-07/P104-08/P104-09 保持“正在进行中”，PR 继续 Draft。
