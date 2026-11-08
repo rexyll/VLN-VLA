@@ -405,13 +405,20 @@ class DrinkTask(Node):
         `extra` 是附加到同一条消息里的过程数据(P94: 递杯补位结果), 免得
         只读的验收脚本为了拿一个数字再去翻日志。
         """
-        if s == self.state and extra is None:
-            return
-        self.state = s
-        payload = {'state': s}
-        if extra:
-            payload.update(extra)
+        with self._task_lock:
+            if s == self.state and extra is None:
+                return
+            self.state = s
+            payload = {'state': s}
+            if extra:
+                payload.update(extra)
+        # Do not hold the task lock across ROS publication.
         self.pub_state.publish(String(data=json.dumps(payload)))
+
+    def _task_status_snapshot(self):
+        """Return a coherent (state, busy) view of the task runner."""
+        with self._task_lock:
+            return self.state, self._busy
 
     def _tell_person(self, action):
         self.pub_person.publish(String(data=json.dumps({'action': action})))
@@ -1176,8 +1183,10 @@ class DrinkTask(Node):
         finally:
             with self._task_lock:
                 self._busy = False
+                final_state = self.state
+            # Publish the final state/result after releasing the task lock.
             self.pub_state.publish(String(data=json.dumps(
-                {'state': self.state, 'result': res}, ensure_ascii=False)))
+                {'state': final_state, 'result': res}, ensure_ascii=False)))
 
     def _tick(self):
         # 一旦锁定真值来源, 就每拍把 base 跟到模型世界位姿上 —— 机器人走动、
@@ -1193,16 +1202,18 @@ class DrinkTask(Node):
         # 在这里做。任务执行中(_busy)不动场景。
         if now - getattr(self, '_last_scene_chk', 0.0) > 5.0:
             self._last_scene_chk = now
-            if not self._busy and ('kettle' not in self.links
-                                   or 'cup' not in self.links):
+            _, task_busy = self._task_status_snapshot()
+            if not task_busy and ('kettle' not in self.links
+                                  or 'cup' not in self.links):
                 try:
                     _liquid_mod.ensure_scene(self)
                 except Exception as e:      # 自愈失败不影响主循环
                     self.get_logger().warn('LIQUID 道具自愈异常: %r' % e)
         if now - self._last_hb >= 5.0:
             self._last_hb = now
+            task_state, _ = self._task_status_snapshot()
             self.pub_state.publish(String(data=json.dumps({
-                'state': self.state,
+                'state': task_state,
                 'hz': round(self.bus.hz(), 1),
                 'frames': self.bus.count,
                 'base': [round(v, 3) for v in self.base],
