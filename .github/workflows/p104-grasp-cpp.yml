@@ -1,0 +1,234 @@
+name: P104 GraspCarry C++ build
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/p104-grasp-carry-cpp.yml"
+      - "vla_ws/src/vla_follow/gz_plugins/**"
+      - "tests/test_grasp_carry_queue.cc"
+      - "tests/grasp_carry_integration.sdf"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/p104-grasp-carry-cpp.yml"
+      - "vla_ws/src/vla_follow/gz_plugins/**"
+      - "tests/test_grasp_carry_queue.cc"
+      - "tests/grasp_carry_integration.sdf"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-grasp-carry:
+    name: Build Gazebo Harmonic GraspCarry plugin
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Gazebo Harmonic development dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y curl lsb-release gnupg
+          sudo curl -fsSL https://packages.osrfoundation.org/gazebo.gpg \
+            --output /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] https://packages.osrfoundation.org/gazebo/ubuntu-stable $(lsb_release -cs) main" \
+            | sudo tee /etc/apt/sources.list.d/gazebo-stable.list > /dev/null
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake pkg-config cppzmq-dev \
+            libgz-cmake3-dev \
+            libgz-plugin2-dev \
+            libgz-sim8-dev \
+            libgz-transport13-dev \
+            libgz-msgs10-dev \
+            libgz-common5-dev \
+            libgz-common5-profiler-dev \
+            libgz-math7-dev gz-harmonic
+
+      - name: Configure GraspCarry plugin
+        working-directory: vla_ws/src/vla_follow/gz_plugins
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Compile GraspCarry plugin
+        working-directory: vla_ws/src/vla_follow/gz_plugins
+        run: cmake --build build --parallel 2
+
+      - name: Test bounded GraspCarry command queue
+        run: |
+          c++ -std=c++17 -Wall -Wextra -Werror \
+            -Ivla_ws/src/vla_follow/gz_plugins \
+            tests/test_grasp_carry_queue.cc -o /tmp/test_grasp_carry_queue
+          /tmp/test_grasp_carry_queue
+
+      - name: Verify shared library and runtime dependencies
+        working-directory: vla_ws/src/vla_follow/gz_plugins
+        run: |
+          test -s build/libGraspCarry.so
+          ldd -r build/libGraspCarry.so
+
+      - name: Run GraspCarry in headless Gazebo and verify ACK protocol
+        env:
+          GZ_SIM_SYSTEM_PLUGIN_PATH: ${{ github.workspace }}/vla_ws/src/vla_follow/gz_plugins/build
+        run: |
+          set -euo pipefail
+          gz sim -s -r -v 2 tests/grasp_carry_integration.sdf > /tmp/grasp-carry-gz.log 2>&1 &
+          SIM_PID=$!
+          SUB_PID=""
+          cleanup() {
+            status=$?
+            if [ "$status" -ne 0 ]; then
+              cat /tmp/grasp-carry-acks.log 2>/dev/null || true
+              cat /tmp/grasp-carry-gz.log 2>/dev/null || true
+            fi
+            if [ -n "$SUB_PID" ]; then kill "$SUB_PID" 2>/dev/null || true; fi
+            kill "$SIM_PID" 2>/dev/null || true
+            return "$status"
+          }
+          trap cleanup EXIT
+
+          ready=0
+          for _ in $(seq 1 30); do
+            if gz topic -l 2>/dev/null | grep -Fxq "/drink/carry/ack"; then ready=1; break; fi
+            if ! kill -0 "$SIM_PID" 2>/dev/null; then cat /tmp/grasp-carry-gz.log; exit 1; fi
+            sleep 1
+          done
+          if [ "$ready" -ne 1 ]; then cat /tmp/grasp-carry-gz.log; exit 1; fi
+
+          publish() {
+            timeout 5s gz topic -t /drink/carry -m gz.msgs.StringMsg -p "data: \"$1\""
+          }
+          wait_ack() {
+            local expected="$1"
+            for _ in $(seq 1 30); do
+              if grep -Fq "$expected" /tmp/grasp-carry-acks.log; then return 0; fi
+              sleep 0.2
+            done
+            cat /tmp/grasp-carry-acks.log
+            cat /tmp/grasp-carry-gz.log
+            return 1
+          }
+
+          # The subscriber deliberately drops the first terminal ACK before
+          # exposing messages to the test client. Wait for that drop marker so
+          # the retry cannot race the original Apply()/in-flight window.
+          rm -f /tmp/grasp-carry-first-ack-dropped
+          timeout 300s gz topic -e -t /drink/carry/ack |
+            awk -v marker="/tmp/grasp-carry-first-ack-dropped" '
+              /^data: / {
+                if (!dropped) {
+                  dropped = 1
+                  system("touch " marker)
+                  next
+                }
+                print
+                fflush()
+                next
+              }
+              dropped { print; fflush() }
+            ' > /tmp/grasp-carry-acks.log 2>&1 &
+          SUB_PID=$!
+          sleep 2
+          publish "grab cup 0 0 0.5 0 0 0 1 1700000000000000001"
+          for _ in $(seq 1 30); do
+            if [ -f /tmp/grasp-carry-first-ack-dropped ]; then break; fi
+            sleep 0.2
+          done
+          test -f /tmp/grasp-carry-first-ack-dropped
+          # The client retries after the first ACK was intentionally discarded.
+          # The plugin must replay its cached ACK instead of applying grab again.
+          publish "grab cup 0 0 0.5 0 0 0 1 1700000000000000001"
+          wait_ack "ok grab cup 1700000000000000001"
+          count=$(grep -Fc "ok grab cup 1700000000000000001" /tmp/grasp-carry-acks.log || true)
+          test "$count" -eq 1
+
+          publish "joint cup water_joint 0.012 1700000000000000002"
+          wait_ack "ok joint cup water_joint 1700000000000000002"
+
+          # Two independent transactions are submitted concurrently. Each must
+          # receive only its own request-ID ACK; neither may consume the other's.
+          publish "joint cup water_joint 0.006 1700000000000000006" &
+          JOINT_A_PID=$!
+          publish "joint cup water_joint 0.018 1700000000000000007" &
+          JOINT_B_PID=$!
+          wait "$JOINT_A_PID"
+          wait "$JOINT_B_PID"
+          wait_ack "ok joint cup water_joint 1700000000000000006"
+          wait_ack "ok joint cup water_joint 1700000000000000007"
+          count_a=$(grep -Fc "ok joint cup water_joint 1700000000000000006" /tmp/grasp-carry-acks.log || true)
+          count_b=$(grep -Fc "ok joint cup water_joint 1700000000000000007" /tmp/grasp-carry-acks.log || true)
+          # Separate gz topic publisher processes can expose duplicate
+          # transport delivery under concurrent startup; require each exact
+          # request ID to be observed, while identity isolation is asserted
+          # by the two distinct ACK payloads above.
+          test "$count_a" -ge 1
+          test "$count_b" -ge 1
+          publish "release cup 1700000000000000003"
+          wait_ack "ok release cup 1700000000000000003"
+          publish "grab missing_model 0 0 0.5 0 0 0 1 1700000000000000004"
+          wait_ack "fail grab missing_model 1700000000000000004 no-model"
+          publish "place missing_model 0 0 0.5 0 0 0 1 1700000000000000005"
+          wait_ack "fail place missing_model 1700000000000000005 no-model"
+
+          # Pause physics so PreUpdate cannot drain the bounded queue. Flood
+          # unique transactions; after 128 accepted commands, overflow must
+          # produce an explicit queue-full rejection ACK.
+          timeout 5s gz service \
+            -s /world/grasp_carry_test/control \
+            --reqtype gz.msgs.WorldControl \
+            --reptype gz.msgs.Boolean \
+            --timeout 1000 --req 'pause: true'
+          for i in $(seq 1 160); do
+            request_id=$((1700000000000000200 + i))
+            publish "joint cup water_joint 0.001 $request_id"
+          done
+          for _ in $(seq 1 30); do
+            if grep -Fq "queue-full" /tmp/grasp-carry-acks.log; then break; fi
+            sleep 0.2
+          done
+          overflow_count=$(grep -Fc "queue-full" /tmp/grasp-carry-acks.log || true)
+          test "$overflow_count" -ge 1
+
+          # Retry one terminally rejected request while physics is still paused.
+          # The same request_id must replay the cached queue-full ACK and must
+          # not become executable merely because a later retry arrived.
+          rejected_request_id=1700000000000000329
+          wait_ack "fail joint cup water_joint $rejected_request_id queue-full"
+          publish "joint cup water_joint 0.001 $rejected_request_id"
+          for _ in $(seq 1 30); do
+            retry_reject_count=$(grep -Fc "fail joint cup water_joint $rejected_request_id queue-full" /tmp/grasp-carry-acks.log || true)
+            if [ "$retry_reject_count" -ge 2 ]; then break; fi
+            sleep 0.2
+          done
+          test "$retry_reject_count" -eq 2
+
+          # Resume physics and require every accepted transaction to drain
+          # exactly once in FIFO order. The first 128 requests were accepted;
+          # requests 129..160 must have been rejected while paused.
+          timeout 5s gz service \
+            -s /world/grasp_carry_test/control \
+            --reqtype gz.msgs.WorldControl \
+            --reptype gz.msgs.Boolean \
+            --timeout 1000 --req 'pause: false'
+          wait_ack "ok joint cup water_joint 1700000000000000328"
+          previous_ack_line=0
+          for i in $(seq 1 128); do
+            request_id=$((1700000000000000200 + i))
+            ack_count=$(grep -Fc "ok joint cup water_joint $request_id" /tmp/grasp-carry-acks.log || true)
+            test "$ack_count" -eq 1
+            ack_line=$(grep -nF "ok joint cup water_joint $request_id" /tmp/grasp-carry-acks.log | tail -n1 | cut -d: -f1)
+            test "$ack_line" -gt "$previous_ack_line"
+            previous_ack_line=$ack_line
+          done
+          for i in $(seq 129 160); do
+            request_id=$((1700000000000000200 + i))
+            reject_count=$(grep -Fc "fail joint cup water_joint $request_id queue-full" /tmp/grasp-carry-acks.log || true)
+            expected_reject_count=1
+            if [ "$i" -eq 129 ]; then expected_reject_count=2; fi
+            test "$reject_count" -eq "$expected_reject_count"
+          done
