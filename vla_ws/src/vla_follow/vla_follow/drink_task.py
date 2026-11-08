@@ -250,8 +250,7 @@ class DrinkTask(Node):
         self.pub_cmd = self.create_publisher(String, '/robot/command', 10)
         self.create_subscription(String, '/robot/command', self._cmd_cb, 10)
         # P104: 订阅 follower 状态，在交权后确认 FOLLOW 指令确已被接收。
-        self._follower_status = {}
-        self._follower_status_t = 0.0
+        self._follower_status_snapshot = ({}, 0.0)
         self.create_subscription(String, '/follower/status',
                                  self._follower_status_cb, 10)
         # ---- 底盘速度(原地转身/驶入/撤离)。P102: 走**独立话题** /drink/cmd_vel,
@@ -287,8 +286,11 @@ class DrinkTask(Node):
         try:
             # Publish a fresh immutable-by-convention snapshot; readers may
             # safely retain the previous dictionary while callbacks continue.
-            self._follower_status = json.loads(msg.data)
-            self._follower_status_t = time.monotonic()
+            snapshot = (json.loads(msg.data), time.monotonic())
+            # Status and receive time form one logical observation. Publish
+            # them together so task code cannot pair a new state with an old
+            # timestamp (or vice versa).
+            self._follower_status_snapshot = snapshot
         except Exception:
             pass
 
@@ -1112,15 +1114,17 @@ class DrinkTask(Node):
             _handback_sent_t = time.monotonic()
             self._tell_robot('FOLLOW')
             self.spin_for(1.0)
-            _fs = dict(self._follower_status or {})
+            _fs_raw, _fs_t = self._follower_status_snapshot
+            _fs = dict(_fs_raw or {})
+            _fs_age = time.monotonic() - _fs_t
             handback_ok = (_fs.get('state') == 'FOLLOW'
-                           and self._follower_status_t >= _handback_sent_t
-                           and time.monotonic() - self._follower_status_t < 1.5)
+                           and _fs_t >= _handback_sent_t
+                           and 0.0 <= _fs_age < 1.5)
             res['follower'] = {
                 'state': _fs.get('state'),
                 'track': _fs.get('track'),
                 'lost': bool(_fs.get('lost', False)),
-                'fresh': bool(time.monotonic() - self._follower_status_t < 1.5),
+                'fresh': bool(0.0 <= _fs_age < 1.5),
             }
             if not handback_ok:
                 self._set_state('FAIL_HANDBACK')
@@ -1446,6 +1450,14 @@ class DrinkTask(Node):
         return resp
 
 
+def _shutdown_node(node):
+    """Stop transaction waiters before tearing down their ROS transport."""
+    try:
+        node.carry.cancel_waiters()
+    finally:
+        node.destroy_node()
+
+
 def main():
     once = '--once' in sys.argv
     rclpy.init()
@@ -1505,9 +1517,11 @@ def main():
     except KeyboardInterrupt:
         pass
     finally:
-        node.destroy_node()
-        if rclpy.ok():
-            rclpy.shutdown()
+        try:
+            _shutdown_node(node)
+        finally:
+            if rclpy.ok():
+                rclpy.shutdown()
     return 0
 
 
