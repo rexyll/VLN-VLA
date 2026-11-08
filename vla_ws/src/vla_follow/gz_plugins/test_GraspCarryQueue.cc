@@ -34,11 +34,11 @@ bool Duplicate(const Command &queued, const Command &incoming)
 void TestFifoDoesNotCoalesceAcrossTransaction()
 {
   vla::BoundedCommandQueue<Command> queue(4);
-  CHECK(queue.Push(Command{"set", "cup", 0}, Coalesce, Duplicate) ==
+  CHECK(queue.Push(Command{"set", "cup", "", 0}, Coalesce, Duplicate) ==
          vla::QueueInsertResult::Enqueued);
-  CHECK(queue.Push(Command{"joint", "cup", 7}, Coalesce, Duplicate) ==
+  CHECK(queue.Push(Command{"joint", "cup", "", 7}, Coalesce, Duplicate) ==
          vla::QueueInsertResult::Enqueued);
-  CHECK(queue.Push(Command{"set", "cup", 0}, Coalesce, Duplicate) ==
+  CHECK(queue.Push(Command{"set", "cup", "", 0}, Coalesce, Duplicate) ==
          vla::QueueInsertResult::Enqueued);
 
   Command out;
@@ -51,14 +51,14 @@ void TestFifoDoesNotCoalesceAcrossTransaction()
 void TestTailCoalescingAndTransactionDeduplication()
 {
   vla::BoundedCommandQueue<Command> queue(3);
-  CHECK(queue.Push(Command{"set", "cup", 0}, Coalesce, Duplicate) ==
+  CHECK(queue.Push(Command{"set", "cup", "", 0}, Coalesce, Duplicate) ==
          vla::QueueInsertResult::Enqueued);
-  CHECK(queue.Push(Command{"set", "cup", 0}, Coalesce, Duplicate) ==
+  CHECK(queue.Push(Command{"set", "cup", "", 0}, Coalesce, Duplicate) ==
          vla::QueueInsertResult::Coalesced);
   CHECK(queue.Size() == 1);
-  CHECK(queue.Push(Command{"grab", "cup", 42}, Coalesce, Duplicate) ==
+  CHECK(queue.Push(Command{"grab", "cup", "", 42}, Coalesce, Duplicate) ==
          vla::QueueInsertResult::Enqueued);
-  CHECK(queue.Push(Command{"grab", "cup", 42}, Coalesce, Duplicate) ==
+  CHECK(queue.Push(Command{"grab", "cup", "", 42}, Coalesce, Duplicate) ==
          vla::QueueInsertResult::Duplicate);
   CHECK(queue.Size() == 2);
 }
@@ -66,9 +66,9 @@ void TestTailCoalescingAndTransactionDeduplication()
 void TestCapacityAndAckReplayCache()
 {
   vla::BoundedCommandQueue<Command> queue(1);
-  CHECK(queue.Push(Command{"release", "all", 9}, Coalesce, Duplicate) ==
+  CHECK(queue.Push(Command{"release", "all", "", 9}, Coalesce, Duplicate) ==
          vla::QueueInsertResult::Enqueued);
-  CHECK(queue.Push(Command{"grab", "cup", 10}, Coalesce, Duplicate) ==
+  CHECK(queue.Push(Command{"grab", "cup", "", 10}, Coalesce, Duplicate) ==
          vla::QueueInsertResult::Full);
 
   vla::CompletedRequestAckCache cache(2);
