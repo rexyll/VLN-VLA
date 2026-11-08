@@ -139,4 +139,24 @@ private:
   std::deque<Command> pending_;
 };
 
+
+template <typename Command, typename CoalesceMatch, typename DuplicateMatch,
+          typename AckBuilder>
+QueueInsertResult PushAndRememberFull(
+    BoundedCommandQueue<Command> &queue, Command &&command,
+    CoalesceMatch coalesceMatch, DuplicateMatch duplicateMatch,
+    CompletedRequestAckCache &completedAcks, const std::string &transactionKey,
+    AckBuilder buildFailureAck, std::string &failureAck)
+{
+  const auto result = queue.Push(std::forward<Command>(command),
+                                 coalesceMatch, duplicateMatch);
+  if (result == QueueInsertResult::Full && !transactionKey.empty())
+  {
+    failureAck = buildFailureAck(command);
+    if (!failureAck.empty())
+      completedAcks.Remember(transactionKey, failureAck);
+  }
+  return result;
+}
+
 }  // namespace vla
