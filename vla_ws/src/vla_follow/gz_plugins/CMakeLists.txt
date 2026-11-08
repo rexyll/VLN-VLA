@@ -16,6 +16,9 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(gz-cmake3 REQUIRED)
+# gz-transport13 exports CPPZMQ::CPPZMQ in its public link interface.
+# Ubuntu 24.04 ships this imported target via cppzmq-dev.
+find_package(CPPZMQ REQUIRED)
 find_package(gz-plugin2 REQUIRED COMPONENTS register)
 # 不要 COMPONENTS gz: 那个组件会把 gz-gui8 拉进来(gz-sim8-gz 依赖 Qt),
 # 本机没装 GUI 的开发头, 一找就 NOT FOUND。插件只需要核心 sim8 库。
