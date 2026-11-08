@@ -3108,7 +3108,7 @@ class Follower(Node):
         self._pub_status_t = now
         vv = self.vis or {}
         det = bool(vv.get('detected'))
-        st = {'track': self._track, 'src': self._src_prev,
+        st = {'state': self.state, 'track': self._track, 'src': self._src_prev,
               'lost': bool(self._lost),
               'lost_s': round(now - self._lost_at, 2) if self._lost else 0.0,
               'scan_round': int(self._scan_round),
