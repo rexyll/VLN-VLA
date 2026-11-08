@@ -78,6 +78,35 @@ CAMS = (('front', 0.0), ('left', 1.5707963),
         ('right', -1.5707963), ('back', 3.1415926))
 CAM_CN = {'front': '前', 'left': '左', 'right': '右', 'back': '后'}
 
+
+def sensor_pair_fresh(rgb_t, dep_t, now,
+                      max_age=MAX_SENSOR_AGE_S,
+                      max_skew=MAX_RGB_DEPTH_SKEW_S):
+    """判断 RGB/Depth 是否都是新帧且来自足够接近的采样时刻。"""
+    if rgb_t is None or dep_t is None:
+        return False
+    rgb_t, dep_t, now = float(rgb_t), float(dep_t), float(now)
+    if rgb_t <= 0.0 or dep_t <= 0.0:
+        return False
+    return (0.0 <= now - rgb_t <= float(max_age)
+            and 0.0 <= now - dep_t <= float(max_age)
+            and abs(rgb_t - dep_t) <= float(max_skew))
+
+
+def association_gate(age):
+    """遮挡期间连续性门限随年龄渐进放宽，上限 1.8m。"""
+    return min(1.80, TRACK_ASSOC_BASE_GATE_M
+               + 0.65 * max(0.0, float(age)))
+
+
+def association_error(world_xy, predicted):
+    """候选人体世界位置与预测位置的欧氏误差；无预测时返回 None。"""
+    if predicted is None:
+        return None
+    return math.hypot(float(world_xy[0]) - float(predicted[0]),
+                      float(world_xy[1]) - float(predicted[1]))
+
+
 CONFIG_PATH = os.path.join(
     os.environ.get('VLA_HOME', '/home/earl/workspace/VLA'),
     'vla_demo', 'vision_config.json')
@@ -258,9 +287,7 @@ class PersonVision(Node):
         if rgb is None or dep is None or tr <= 0.0 or td <= 0.0:
             return miss
         # P104: 不能将相机断流前的旧图与另一条新深度帧拼成“检出”。
-        if now - tr > MAX_SENSOR_AGE_S or now - td > MAX_SENSOR_AGE_S:
-            return miss
-        if abs(tr - td) > MAX_RGB_DEPTH_SKEW_S:
+        if not sensor_pair_fresh(tr, td, now):
             return miss
         if rgb.shape[:2] != dep.shape:
             dep = cv2.resize(dep, (rgb.shape[1], rgb.shape[0]))
@@ -303,10 +330,10 @@ class PersonVision(Node):
             track_error = None
             if predicted is not None:
                 px, py, age = predicted
-                track_error = math.hypot(wx - px, wy - py)
+                track_error = association_error((wx, wy), predicted)
                 # 门限随遮挡时间增长；不允许连续跟踪时跳到远处背景暗物体，
                 # 但人已被遮挡较久时仍逐渐放宽，避免锁死旧目标。
-                gate = min(1.80, TRACK_ASSOC_BASE_GATE_M + 0.65 * age)
+                gate = association_gate(age)
                 if age <= TRACK_ASSOC_MAX_AGE_S and track_error > gate:
                     continue
             candidates.append({
