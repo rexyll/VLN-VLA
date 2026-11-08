@@ -189,6 +189,7 @@ private:
     std::string model;
     std::string joint;       // 仅 joint 指令用
     double value{0.0};       // 仅 joint 指令用
+    uint64_t requestId{0};
     gz::math::Pose3d pose;
   };
 
@@ -215,6 +216,7 @@ private:
     iss >> c.op >> c.model;
     if (c.op == "release")
     {
+      iss >> c.requestId;  // 兼容旧客户端：缺省为 0
       std::lock_guard<std::mutex> lk(this->mtx);
       this->pending = c;
       this->hasPending = true;
@@ -228,6 +230,7 @@ private:
               << std::endl;
         return;
       }
+      iss >> c.requestId;  // 兼容旧客户端：缺省为 0
       std::lock_guard<std::mutex> lk(this->mtx);
       this->pending = c;
       this->hasPending = true;
@@ -270,13 +273,13 @@ private:
         for (auto &kv : this->targets)
           kv.second.active = false;
         gzmsg << "[GraspCarry] release all" << std::endl;
-        this->SendAck("ok release all");
+        this->SendAck("ok release all " + std::to_string(_c.requestId));
         return;
       }
       auto it = this->targets.find(_c.model);
       if (it != this->targets.end())
         it->second.active = false;
-      this->SendAck("ok release " + _c.model);
+      this->SendAck("ok release " + _c.model + " " + std::to_string(_c.requestId));
       return;
     }
 
@@ -291,7 +294,7 @@ private:
       {
         gzerr << "[GraspCarry] joint: 找不到模型 '" << _c.model << "'"
               << std::endl;
-        this->SendAck("fail " + _c.joint + " no-model");
+        this->SendAck("fail joint " + _c.model + " " + _c.joint + " " + std::to_string(_c.requestId) + " no-model");
         return;
       }
       gz::sim::Entity je = gz::sim::kNullEntity;
@@ -309,7 +312,7 @@ private:
       {
         gzerr << "[GraspCarry] joint: 模型 '" << _c.model << "' 下没有关节 '"
               << _c.joint << "'" << std::endl;
-        this->SendAck("fail " + _c.joint + " no-joint");
+        this->SendAck("fail joint " + _c.model + " " + _c.joint + " " + std::to_string(_c.requestId) + " no-joint");
         return;
       }
       if (!_ecm.Component<gz::sim::components::JointPositionReset>(je))
@@ -320,7 +323,7 @@ private:
       jt.value = _c.value;
       // 用 model::joint 做键, 免得不同模型下的同名关节互相覆盖
       this->joints[_c.model + "::" + _c.joint] = jt;
-      this->SendAck("ok joint " + _c.joint);
+      this->SendAck("ok joint " + _c.model + " " + _c.joint + " " + std::to_string(_c.requestId));
       return;
     }
 
@@ -346,7 +349,7 @@ private:
     if (_c.op == "place")
     {
       gz::sim::Model(it->second.entity).SetWorldPoseCmd(_ecm, _c.pose);
-      this->SendAck("ok place " + _c.model);
+      this->SendAck("ok place " + _c.model + " " + std::to_string(_c.requestId));
       return;
     }
     if (_c.op == "grab")
@@ -354,7 +357,7 @@ private:
       gzmsg << "[GraspCarry] grab " << _c.model << " @ ("
             << _c.pose.Pos().X() << " " << _c.pose.Pos().Y() << " "
             << _c.pose.Pos().Z() << ")" << std::endl;
-      this->SendAck("ok grab " + _c.model);
+      this->SendAck("ok grab " + _c.model + " " + std::to_string(_c.requestId));
     }
   }
 
