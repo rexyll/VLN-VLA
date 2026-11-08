@@ -389,11 +389,18 @@ def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
                 node.get_logger().warn(
                     'REACH %s 被桌面碰撞门控拦截: %s' % (side, _hit))
                 return False, res, 'table-collision'
-        node.arm[side].move(
+        ok_move, joint_err = node.arm[side].move(
             q, timeout=timeout,
             tol_deg=(tol_deg if tol_deg is not None
                      else TOL_SCHED[min(it, len(TOL_SCHED) - 1)]))
         res = pos_err_mm(wrist(node, side), T_world)
+        if not ok_move:
+            node.get_logger().warn(
+                'REACH %s 伺服未确认到位，停止补位: 残差 %.1fmm 最大关节误差 %.2f°'
+                % (side, res,
+                   float(np.max(np.abs(np.degrees(joint_err))))
+                   if np.all(np.isfinite(joint_err)) else 9e9))
+            return False, res, how
         if os.environ.get('REACH_DEBUG'):
             _qm = q_meas(node, side)
             node.get_logger().info(
@@ -601,24 +608,37 @@ def grasp(node, side, model, palm_fn, grip, approach=0.10, verbose=True):
     流程：张手 → 退到接近位 → 到抓取位 → 闭五指 → 钉住（ack 确认）。
     返回 (是否成功, 抓取位残差 mm)。
     """
-    open_hand(node, side)
+    ok_open, _ = open_hand(node, side)
+    if not ok_open:
+        node.get_logger().error(
+            'grasp %s (%s): 张手伺服失败，禁止靠近和附着' % (model, side))
+        return False, 9e9
     Tk = object_pose(node, model)
     if Tk is None:
         return False, 9e9
     T_grasp = palm_fn(Tk)
     T_pre = T_grasp @ K.trans((0.0, 0.0, approach))
-    reach(node, side, T_pre, tol_mm=8.0)
+    ok_pre, res_pre, _ = reach(node, side, T_pre, tol_mm=8.0)
+    if not ok_pre:
+        node.get_logger().error(
+            'grasp %s (%s): 接近位未到达 %.1fmm，禁止继续伸入' %
+            (model, side, res_pre))
+        return False, res_pre
     ok, res, how = reach(node, side, T_grasp, tol_mm=GRASP_TOL_MM)
     # P98 补: reach 严重未到位还照旧 attach, 会把物体钉到 0.3m 外(实测把杯
     # 钉飞、场景全污)。阈值取 3x 容差: 边缘差几毫米照常抓(IK 已收敛, 手指
     # 闭合余量足够), 300mm 级的灾难失败才拒绝, 让上游走 FAIL 路径。
-    if res > GRASP_TOL_MM * 3.0:
+    if not ok or res > GRASP_TOL_MM * 3.0:
         if verbose:
             node.get_logger().warn(
                 'grasp %s (%s): reach 未到位 %.1fmm (IK=%s), 跳过 attach'
                 % (model, side, res, how))
         return False, res
-    close_hand(node, side, grip)
+    ok_close, _ = close_hand(node, side, grip)
+    if not ok_close:
+        node.get_logger().error(
+            'grasp %s (%s): 闭手未确认到位，禁止 attach' % (model, side))
+        return False, res
     ok_a = node.carry.grab(model, side)
     if verbose:
         node.get_logger().info(
@@ -712,9 +732,15 @@ def place_held(node, side, model, T_obj_goal, tol_mm=PLACE_TOL_MM,
                     np.asarray(T_obj_goal)[:3, 3], 3),
                    pos_err_mm(Tk, T_obj_goal), axis_angle_deg(Tk, T_obj_goal),
                    np.round((dT @ Tp)[:3, 3], 3)))
-        reach(node, side, dT @ Tp,
-              tol_mm=(max(tol_mm, 2.0) if reach_tol_mm is None
-                      else reach_tol_mm), elbow=elbow)
+        ok_reach, reach_res, _how = reach(
+            node, side, dT @ Tp,
+            tol_mm=(max(tol_mm, 2.0) if reach_tol_mm is None
+                    else reach_tol_mm), elbow=elbow)
+        if not ok_reach:
+            node.get_logger().warn(
+                'PLACE %s: 本轮补位伺服/IK 未确认（掌心 %.1fmm），保持当前抓持并停止闭环'
+                % (model, reach_res))
+            return False, res
     return (res < tol_mm and ang < tol_deg), res
 
 
@@ -726,8 +752,9 @@ def put_down(node, side, model, T_obj_goal, retreat=0.10,
         node.get_logger().error(
             'PUT_DOWN %s 落位闭环失败 %.1fmm，保持抓持，不松手' % (model, res))
         return False, res
-    if not open_hand(node, side):
-        node.get_logger().error('PUT_DOWN %s 张手失败，保持抓持' % model)
+    ok_open, _ = open_hand(node, side)
+    if not ok_open:
+        node.get_logger().error('PUT_DOWN %s 张手伺服失败，保持抓持' % model)
         return False, res
     node.spin_for(0.2)
     # 张手后再对一次位：此时手指已离开物体，收敛到的是"无接触"状态
@@ -876,10 +903,12 @@ def put_down_two(node, model, T_obj_goal, tol_mm=PLACE_TOL_MM, steps=4,
                                         for k, v in d_axis.items()))
     # 同时张开(指头离开杯壁), 再收一次位, 然后才松钉。
     # 张手任何一侧失败都不能解除附着。
-    open_l = open_hand(node, 'L')
-    open_r = open_hand(node, 'R')
+    open_l, _err_l = open_hand(node, 'L')
+    open_r, _err_r = open_hand(node, 'R')
     if not (open_l and open_r):
-        node.get_logger().error('PUT_DOWN_TWO 张手失败，保持杯子附着')
+        node.get_logger().error(
+            'PUT_DOWN_TWO 张手伺服失败（L=%s R=%s），保持杯子附着'
+            % (open_l, open_r))
         if info is not None:
             info['release_blocked'] = True
             info['release_block_reason'] = 'hand_open_failed'
@@ -970,12 +999,22 @@ def hands_off(node, model, out=0.12, up=0.12, tol_mm=10.0, elbow=None,
         for i, s in enumerate(('L', 'R')):
             Tp = wrist(node, s)
             if Tp is None:
-                continue
+                node.get_logger().error(
+                    'HANDS_OFF[%s] 缺少掌心真值，停止撤手' % s)
+                return False, 9e9
             T = np.asarray(Tp, float).copy()
             T[:3, 3] = T[:3, 3] + lifts[i][k]
             _ok, e, _how = reach(node, s, T, tol_mm=tol_mm, elbow=elbow,
                                  check_table=True)
             worst = max(worst, float(e))
+            if not _ok:
+                node.get_logger().error(
+                    'HANDS_OFF[%s] 第%d段未完成 %.1fmm，停止后续撤手' %
+                    (s, k + 1, e))
+                if info is not None:
+                    info.update(ok=False, failed_side=s, failed_stage=k + 1,
+                                residual_mm=round(float(e), 1))
+                return False, worst
     if info is not None:
         info['handoff_mm'] = round(worst, 1)
         info['handoff_up_mm'] = round(up * 1e3, 1)
@@ -1216,7 +1255,13 @@ def hand_onto(node, side, model, palm_fn, tol_mm=5.0, elbow='human'):
     T_obj = object_pose(node, model)
     if T_obj is None:
         return None
-    reach(node, side, palm_fn(T_obj), tol_mm=tol_mm, elbow=elbow)
+    ok_reach, reach_res, _how = reach(
+        node, side, palm_fn(T_obj), tol_mm=tol_mm, elbow=elbow)
+    if not ok_reach:
+        node.get_logger().warn(
+            'HAND_ONTO[%s] 未贴合到位 %.1fmm，不冻结双手相对偏移' %
+            (side, reach_res))
+        return None
     settle_sim(node, 0.30)                      # 等停稳再冻结, 否则量到滑行中的值
     T_obj = object_pose(node, model)
     Tp = wrist(node, side)
