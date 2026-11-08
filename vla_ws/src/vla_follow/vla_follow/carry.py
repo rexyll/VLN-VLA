@@ -142,6 +142,9 @@ class CarryBus(object):
                         self.node.spin_for(0.03)
                     self.node.get_logger().info('ack: %s' % hit)
                     return True
+                if hit and hit.startswith('fail '):
+                    self.node.get_logger().error('命令被插件拒绝: %s' % hit)
+                    return False
             return False
         finally:
             self.pending_requests.discard(request_id)
