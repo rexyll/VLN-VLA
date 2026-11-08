@@ -1468,6 +1468,6 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 发出 release 前，对受影响对象设置 `release_pending`；`CarryBus.update()` 在 pending 或 unknown 状态均跳过 set。
 - release ACK 成功后按原逻辑清理对象；失败时转为 `release_unknown` 并清除 pending 标记，只有显式 release 重试成功才能清理。
 - 扩展 release ACK 丢失测试：在 `_await()` 内模拟并发调用 `update()`，确认等待期间与失败后均不发 set。
-- 该改动不增加测试项数，仍为 14 项；提交 `d0854046ac24736bc460b0cdbf933a8f45398a08` 的 CI run `42460165722` 待确认。
+- 该改动不增加测试项数，仍为 14 项；提交 `d0854046ac24736bc460b0cdbf933a8f45398a08` 的 CI run `42460165722` 成功：Python 编译与纯测试均通过，日志 `Ran 14 tests ... OK`。
 
 **边界：** Python 状态门控和纯单测不能证明真实 executor 调度下不存在其他发布路径；仍需 ROS 2/Gazebo 并发故障注入。P104-07/P104-08/P104-09 保持“正在进行中”，PR 继续 Draft。
