@@ -114,15 +114,34 @@ jobs:
             return 1
           }
 
-          # Deliberately publish the first transaction with no ACK subscriber:
-          # its terminal ACK is lost from the client's perspective.
-          publish "grab cup 0 0 0.5 0 0 0 1 1700000000000000001"
-          sleep 1
-          # The client reconnects and retries the same request ID. The plugin
-          # must replay the cached terminal ACK instead of applying grab again.
-          timeout 20s gz topic -e -t /drink/carry/ack > /tmp/grasp-carry-acks.log 2>&1 &
+          # The subscriber deliberately drops the first terminal ACK before
+          # exposing messages to the test client. Wait for that drop marker so
+          # the retry cannot race the original Apply()/in-flight window.
+          rm -f /tmp/grasp-carry-first-ack-dropped
+          timeout 20s gz topic -e -t /drink/carry/ack |
+            awk -v marker="/tmp/grasp-carry-first-ack-dropped" '
+              /^data: / {
+                if (!dropped) {
+                  dropped = 1
+                  system("touch " marker)
+                  next
+                }
+                print
+                fflush()
+                next
+              }
+              dropped { print; fflush() }
+            ' > /tmp/grasp-carry-acks.log 2>&1 &
           SUB_PID=$!
           sleep 2
+          publish "grab cup 0 0 0.5 0 0 0 1 1700000000000000001"
+          for _ in $(seq 1 30); do
+            if [ -f /tmp/grasp-carry-first-ack-dropped ]; then break; fi
+            sleep 0.2
+          done
+          test -f /tmp/grasp-carry-first-ack-dropped
+          # The client retries after the first ACK was intentionally discarded.
+          # The plugin must replay its cached ACK instead of applying grab again.
           publish "grab cup 0 0 0.5 0 0 0 1 1700000000000000001"
           wait_ack "ok grab cup 1700000000000000001"
           count=$(grep -Fc "ok grab cup 1700000000000000001" /tmp/grasp-carry-acks.log || true)
