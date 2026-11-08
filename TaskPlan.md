@@ -1969,3 +1969,20 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 该用例验证 ACK 状态机的 request_id 隔离，不等同于真实 ROS 2 executor、DDS transport 或 Gazebo 同进程联调。
 - DrinkTask.spin_for() 当前通过 rclpy.spin_once(self) 推进单节点事件；主任务编排在节点主循环中执行，订阅/服务回调只排队置位。后续若引入 MultiThreadedExecutor，必须明确 executor 所有权与 callback group，不能让多个事务等待者各自并发驱动同一节点的 spin_once()。
 - 下一步继续验证超时边界、重试期间同一 request_id 的稳定性，以及真实 ROS 2 executor 下迟到 ACK/并发事务行为；P104-07 仍保持“正在进行中”。
+
+
+### 8.39 覆盖事务超时后迟到 ACK 的隔离边界（2026-11-08）
+
+**本轮继续推进 P104-07：**
+- 新增 test_carry_ack_arriving_after_timeout_is_quarantined，明确构造零等待窗口的事务超时，验证等待者 finally 清理 pending 状态后才到达的 ACK 不会进入 ack_by_request。
+- 随后注册一个新的 pending request_id，再次注入旧 request_id 的 ACK，验证旧 ACK 仍不能完成或污染新事务。
+- 顺带清理既有测试夹具中重复初始化 _ack_lock 的冗余行。
+
+**提交与 CI：**
+- a168d53：新增超时后 ACK 隔离回归并清理测试夹具。
+- Python workflow run [42481520683](https://github.com/rexyll/VLN-VLA/actions/runs/42481520683) 最终 completed / success；P104 纯测试与 Python 模块编译两个 job 均通过。
+
+**验证边界：**
+- 该测试覆盖 _await 超时清理后的状态机行为，但采用纯 Python 夹具和零等待超时，不是 DDS 消息真实迟到时序或 ROS 2 executor 集成测试。
+- 现有 CarryBus._await 仍通过 node.spin_for() 推进回调；在 DrinkTask 单线程主循环模式下有明确调用者，但真实 MultiThreadedExecutor 下事务等待、callback group 与 executor 生命周期仍未集成验证。
+- 下一步继续做可控时钟/屏障驱动的 timeout-vs-ACK 竞态测试，并规划真实 ROS 2 executor 测试入口；P104-07 保持“正在进行中”。
