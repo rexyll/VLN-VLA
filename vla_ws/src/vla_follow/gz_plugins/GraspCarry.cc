@@ -150,9 +150,19 @@ public:
     {
       std::lock_guard<std::mutex> lk(this->mtx);
       hasNext = this->pending.Pop(next);
+      // Atomically mark the popped transaction before transport retries can arrive.
+      if (hasNext && next.requestId != 0)
+        this->inFlight.Begin(TransactionKey(next));
     }
     if (hasNext)
+    {
       this->Apply(next, _ecm);
+      if (next.requestId != 0)
+      {
+        std::lock_guard<std::mutex> lk(this->mtx);
+        this->inFlight.Finish(TransactionKey(next));
+      }
+    }
 
     // 2) 每 tick 重发一次目标位姿
     for (auto &kv : this->targets)
@@ -196,6 +206,12 @@ private:
     uint64_t requestId{0};
     gz::math::Pose3d pose;
   };
+
+  static std::string TransactionKey(const Cmd &_c)
+  {
+    return _c.op + "|" + _c.model + "|" + _c.joint + "|" +
+           std::to_string(_c.requestId);
+  }
 
   struct JointTarget
   {
@@ -266,6 +282,9 @@ private:
   void Enqueue(Cmd &&_c)
   {
     std::lock_guard<std::mutex> lk(this->mtx);
+    // A retry between Pop() and ACK must not create a second queued execution.
+    if (_c.requestId != 0 && this->inFlight.Contains(TransactionKey(_c)))
+      return;
     const auto result = this->pending.Push(
         std::move(_c),
         [](const Cmd &queued, const Cmd &incoming)
@@ -409,6 +428,7 @@ private:
   gz::transport::Node::Publisher ackPub;
   std::mutex mtx;
   BoundedCommandQueue<Cmd> pending{128};
+  InFlightRequestRegistry inFlight;
   std::map<std::string, Target> targets;
   // 踩坑记录(P87): jet/water 是**速度模式** JointPositionController, 所属模型
   // 被本插件每 1ms teleport 时, 速度指令会被 teleport 的清零抢走 —— 同一命令
