@@ -47,6 +47,16 @@ class TestP104(unittest.TestCase):
             'L': {'bad': []}, 'R': {'bad': ['R5前臂扭转']}}))
         self.assertFalse(M.human_kinematics_ok({'L': {'bad': []}}))
         self.assertFalse(M.human_kinematics_ok({}))
+        self.assertTrue(M.human_kinematics_ok(
+            {'L': {'bad': [], 'out_line_mm': 120,
+                   'droop_mm': 30, 'twist': 1.2}},
+            min_out_line_mm={'L': 100},
+            max_abs_droop_mm={'L': 120},
+            max_abs_twist={'L': 2.2}))
+        self.assertFalse(M.human_kinematics_ok(
+            {'L': {'bad': [], 'out_line_mm': 70,
+                   'droop_mm': 30, 'twist': 1.2}},
+            min_out_line_mm={'L': 100}))
 
     def test_segment_aabb_guard_detects_crossing_and_clear_path(self):
         lo = (0.0, 0.0, 0.0)
