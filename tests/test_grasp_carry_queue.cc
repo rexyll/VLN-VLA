@@ -64,23 +64,37 @@ void TestFifoAndCapacity()
   assert(!queue.Pop(out));
 }
 
-void TestSetCoalescingPreservesQueuePosition()
+void TestAdjacentSetCoalescingPreservesQueuePosition()
 {
   Queue queue(8);
   assert(Push(queue, {"grab", "kettle", "", 1, 10}) ==
          vla::QueueInsertResult::Enqueued);
   assert(Push(queue, {"set", "cup", "", 0, 20}) ==
          vla::QueueInsertResult::Enqueued);
-  assert(Push(queue, {"joint", "cup", "water_joint", 2, 30}) ==
-         vla::QueueInsertResult::Enqueued);
   assert(Push(queue, {"set", "cup", "", 0, 40}) ==
          vla::QueueInsertResult::Coalesced);
-  assert(queue.Size() == 3);
+  assert(queue.Size() == 2);
 
   Command out;
   assert(queue.Pop(out) && out.op == "grab" && out.value == 10);
   assert(queue.Pop(out) && out.op == "set" && out.value == 40);
-  assert(queue.Pop(out) && out.op == "joint" && out.value == 30);
+}
+
+void TestSetDoesNotCoalesceAcrossTransactionBarrier()
+{
+  Queue queue(8);
+  assert(Push(queue, {"set", "cup", "", 0, 10}) ==
+         vla::QueueInsertResult::Enqueued);
+  assert(Push(queue, {"joint", "cup", "water_joint", 2, 20}) ==
+         vla::QueueInsertResult::Enqueued);
+  assert(Push(queue, {"set", "cup", "", 0, 30}) ==
+         vla::QueueInsertResult::Enqueued);
+  assert(queue.Size() == 3);
+
+  Command out;
+  assert(queue.Pop(out) && out.op == "set" && out.value == 10);
+  assert(queue.Pop(out) && out.op == "joint" && out.value == 20);
+  assert(queue.Pop(out) && out.op == "set" && out.value == 30);
 }
 
 void TestTransactionDeduplicationUsesFullIdentity()
@@ -102,9 +116,9 @@ void TestTransactionDeduplicationUsesFullIdentity()
 void TestCoalescingAndDeduplicationStillWorkAtCapacity()
 {
   Queue queue(2);
-  assert(Push(queue, {"set", "cup", "", 0, 1}) ==
-         vla::QueueInsertResult::Enqueued);
   assert(Push(queue, {"grab", "kettle", "", 9, 2}) ==
+         vla::QueueInsertResult::Enqueued);
+  assert(Push(queue, {"set", "cup", "", 0, 1}) ==
          vla::QueueInsertResult::Enqueued);
   assert(Push(queue, {"set", "cup", "", 0, 3}) ==
          vla::QueueInsertResult::Coalesced);
@@ -114,8 +128,8 @@ void TestCoalescingAndDeduplicationStillWorkAtCapacity()
          vla::QueueInsertResult::Full);
 
   Command out;
-  assert(queue.Pop(out) && out.op == "set" && out.value == 3);
   assert(queue.Pop(out) && out.op == "grab" && out.value == 2);
+  assert(queue.Pop(out) && out.op == "set" && out.value == 3);
 }
 
 void TestStreamsAreScopedByModelAndOperation()
@@ -128,8 +142,8 @@ void TestStreamsAreScopedByModelAndOperation()
   assert(Push(queue, {"place", "cup", "", 0, 3}) ==
          vla::QueueInsertResult::Enqueued);
   assert(Push(queue, {"set", "cup", "", 0, 4}) ==
-         vla::QueueInsertResult::Coalesced);
-  assert(queue.Size() == 3);
+         vla::QueueInsertResult::Enqueued);
+  assert(queue.Size() == 4);
 }
 
 }  // namespace
@@ -137,10 +151,11 @@ void TestStreamsAreScopedByModelAndOperation()
 int main()
 {
   TestFifoAndCapacity();
-  TestSetCoalescingPreservesQueuePosition();
+  TestAdjacentSetCoalescingPreservesQueuePosition();
+  TestSetDoesNotCoalesceAcrossTransactionBarrier();
   TestTransactionDeduplicationUsesFullIdentity();
   TestCoalescingAndDeduplicationStillWorkAtCapacity();
   TestStreamsAreScopedByModelAndOperation();
-  std::cout << "GraspCarry queue tests: 5/5 passed\n";
+  std::cout << "GraspCarry queue tests: 6/6 passed\n";
   return 0;
 }
