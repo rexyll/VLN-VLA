@@ -209,6 +209,9 @@ private:
 
   static std::string TransactionKey(const Cmd &_c)
   {
+    // Request ID 0 is the legacy fire-and-forget protocol, not a cacheable transaction.
+    if (_c.requestId == 0)
+      return {};
     return _c.op + "|" + _c.model + "|" + _c.joint + "|" +
            std::to_string(_c.requestId);
   }
@@ -420,8 +423,10 @@ private:
       if (e == gz::sim::kNullEntity)
       {
         gzerr << "[GraspCarry] 找不到模型 '" << _c.model << "'" << std::endl;
-        if (_c.op == "grab")
-          this->SendAck("fail grab " + _c.model + " " + std::to_string(_c.requestId) + " no-model", TransactionKey(_c));
+        if (_c.op == "grab" || _c.op == "place")
+          this->SendAck("fail " + _c.op + " " + _c.model + " " +
+                        std::to_string(_c.requestId) + " no-model",
+                        TransactionKey(_c));
         return;
       }
       Target t;
