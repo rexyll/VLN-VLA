@@ -81,8 +81,14 @@ jobs:
           SIM_PID=$!
           SUB_PID=""
           cleanup() {
+            status=$?
+            if [ "$status" -ne 0 ]; then
+              cat /tmp/grasp-carry-acks.log 2>/dev/null || true
+              cat /tmp/grasp-carry-gz.log 2>/dev/null || true
+            fi
             if [ -n "$SUB_PID" ]; then kill "$SUB_PID" 2>/dev/null || true; fi
             kill "$SIM_PID" 2>/dev/null || true
+            return "$status"
           }
           trap cleanup EXIT
 
@@ -98,7 +104,7 @@ jobs:
           SUB_PID=$!
           sleep 2
           publish() {
-            gz topic -t /drink/carry -m gz.msgs.StringMsg -p "data: \"$1\""
+            timeout 5s gz topic -t /drink/carry -m gz.msgs.StringMsg -p "data: \"$1\""
           }
           wait_ack() {
             local expected="$1"
