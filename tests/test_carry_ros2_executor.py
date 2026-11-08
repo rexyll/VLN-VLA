@@ -160,6 +160,44 @@ class TestCarryRos2Executor(unittest.TestCase):
                 1.0))
             self.assertEqual(len(queue_full_ids), 1)
 
+            # Executor owner cancellation must wake a waiter immediately,
+            # rather than leaving it blocked until its transaction timeout.
+            cancelled_ids = []
+            cancelled_results = []
+            waiter_started = threading.Event()
+
+            def wait_until_cancelled():
+                def emit_cancel(request_id):
+                    cancelled_ids.append(request_id)
+                    waiter_started.set()
+                cancelled_results.append(bus._await(
+                    emit_cancel,
+                    lambda ack, rid: ack == "ok cancel %d" % rid,
+                    10.0))
+
+            cancelled_waiter = threading.Thread(target=wait_until_cancelled)
+            cancelled_waiter.start()
+            self.assertTrue(waiter_started.wait(timeout=2.0),
+                            "cancellable waiter did not start")
+            cancel_deadline = time.monotonic() + 2.0
+            while True:
+                with bus._ack_lock:
+                    registered = bool(bus._ack_events)
+                if registered:
+                    break
+                self.assertLess(time.monotonic(), cancel_deadline,
+                                "waiter Event was not registered")
+                time.sleep(0.005)
+            bus.cancel_waiters()
+            cancelled_waiter.join(timeout=1.0)
+            self.assertFalse(cancelled_waiter.is_alive(),
+                             "cancel_waiters did not wake executor-managed waiter")
+            self.assertEqual(cancelled_results, [False])
+            with bus._ack_lock:
+                self.assertFalse(bus.pending_requests)
+                self.assertFalse(bus.ack_by_request)
+                self.assertFalse(bus._ack_events)
+
             # Expire 9101, register a different waiter, then deliver its late ACK.
             with bus._ack_lock:
                 bus.pending_requests.discard(9101)
