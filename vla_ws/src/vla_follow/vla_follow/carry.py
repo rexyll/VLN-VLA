@@ -125,7 +125,7 @@ class CarryBus(object):
         while time.time() - t0 < timeout:
             emit(request_id)
             self.node.spin_for(0.08)
-            hit = next((a for a in reversed(self.acks) if ok_pred(a)), None)
+            hit = next((a for a in reversed(self.acks) if ok_pred(a, request_id)), None)
             if hit:
                 for _ in range(3):           # 补两针, 防止 gz 侧漏收
                     emit(request_id)
@@ -186,7 +186,7 @@ class CarryBus(object):
         """一次性把 model 摆到 T(测试布景用, 不持续钉住)。"""
         ok = self._await(
             lambda rid: self._send_pose('place', model, T, rid),
-            lambda a: a == 'ok place %s %d' % (model, self.request_seq), timeout)
+            lambda a, rid: a == 'ok place %s %d' % (model, rid), timeout)
         if ok:
             self.node.get_logger().info('place %s 完成' % model)
         else:
@@ -230,7 +230,7 @@ class CarryBus(object):
             self._send_pose('grab', model, Tp_now @ off, request_id)
             state['first'] = False
 
-        ok = self._await(emit, lambda a: a == 'ok grab %s %d' % (model, self.request_seq), timeout)
+        ok = self._await(emit, lambda a, rid: a == 'ok grab %s %d' % (model, rid), timeout)
         if not ok:
             self.items.pop(model, None)
             self.node.get_logger().error('grab %s 无 ack' % model)
@@ -261,7 +261,7 @@ class CarryBus(object):
         # jet 的 ack(反之亦然)。
         ok = self._await(
             lambda rid: self._send('joint %s %s %.6f %d' % (model, joint, value, rid)),
-            lambda a: a == 'ok joint %s %s %d' % (model, joint, self.request_seq), timeout)
+            lambda a, rid: a == 'ok joint %s %s %d' % (model, joint, rid), timeout)
         if not ok:
             self.node.get_logger().warn('joint %s=%s 无 ack' % (joint, value))
         return ok
@@ -281,7 +281,7 @@ class CarryBus(object):
         name = model or 'all'
         ok = self._await(
             lambda rid: self._send('release %s %d' % (name, rid)),
-            lambda a: a == 'ok release %s %d' % (name, self.request_seq), timeout)
+            lambda a, rid: a == 'ok release %s %d' % (name, rid), timeout)
         if ok:
             if model is None:
                 self.items.clear()
