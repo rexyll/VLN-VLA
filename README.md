@@ -249,8 +249,11 @@ python3 tests/test_p103.py   # 全程关节姿态是否符合人体运动规则�
 # 标准评测：120 s 随机行走 ×3 次，输出中位数（推荐，单次波动可达 ±6pt）
 bash tests/eval_repeat.sh 3 mytag 120
 
+# P104 纯函数/几何单元测试（需 ROS 2 Python 与工作区依赖；无需启动 Gazebo）
+python3 tests/test_p104.py             # RGB-D 新鲜度/同步、目标关联门限、AABB 碰撞几何、三段收臂
+
 # 受控场景（需先启动 demo）
-python3 tests/test_orbit.py r1 70      # 绕柱：检出率 / 丢失次数 / 方位偏差
+python3 tests/test_orbit.py r1 70      # 绕柱：检出率 / 丢失次数 / 方位偏差 / 目标关联误差
 python3 tests/test_hide.py  h1 35      # 躲柱：重捕获耗时
 python3 tests/test_stick.py s1 25      # 贴身：ESCP 能否拉开距离
 ```
