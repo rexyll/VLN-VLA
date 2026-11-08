@@ -1532,3 +1532,20 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 修复后的 C++ CI run `42463525582`（head `d0613a8e0d509f022ddb5f858e5b7ca45fbe12b5`）已成功：Gazebo Harmonic 依赖安装、CMake configure、GraspCarry 插件编译、队列测试 **6/6 passed**、共享库检查和 `ldd -r` 全部通过。工作流链接：`https://github.com/rexyll/VLN-VLA/actions/runs/42463525582`。
 - 同一代码阶段的 Python CI run `42463527598` 通过（Python 源码编译及 P104 纯数学/运动学测试均成功）。较早的 C++ run `42463457976` 因仍使用旧测试断言（错误地期待 set 能跨越 joint 事务合并）失败；这正好暴露了旧测试与严格 FIFO 新语义不一致。更新后的 run `42463525582` 已包含修正后的 6 组测试并全部通过。
 - P104-07/P104-08/P104-09 仍保持“正在进行中”。
+
+
+### 8.15 防止 GraspCarry 命令 Pop 后、ACK 前的重复事务重新入队（2026-11-08）
+
+**复核发现：** §8.13/§8.14 的去重只扫描 pending FIFO。PreUpdate 在 mutex 内 Pop 命令后会在锁外执行 Apply()；在 Apply() 完成并发送 ACK 前，transport 回调若收到同 request_id 重试，pending 队列已不含原命令，重复事务会再次入队。
+
+**本轮修改：**
+- 新增 `InFlightRequestRegistry`，以 `op/model/joint/request_id` 组合键追踪已出队但尚未完成 Apply 的事务。
+- PreUpdate 在同一把 mutex 内完成 Pop 与 in-flight 登记，消除“已出队但尚未登记”的竞态窗口。
+- Enqueue 在 pending 入队前检查 in-flight；命中相同事务重试时直接抑制，不产生第二条命令。
+- Apply 返回后，在 mutex 内注销 in-flight；pending 阶段仍由原队列负责重复去重，FIFO 与 tail-only coalescing 语义不变。
+- 新增 C++ 单元测试模拟 Pop→Apply→ACK 窗口，验证同一 key 在执行中不能再次登记，完成后可重新登记。该测试验证 registry 机制，不模拟真实 Gazebo transport 线程。
+
+**验证边界：**
+- 本轮代码已提交到 `main`，等待新的 Gazebo Harmonic C++ CI 验证插件编译与测试。
+- 该机制覆盖“事务仍在执行时收到重试”；事务已完成但 ACK 丢失后的迟到重试仍可能再次执行。下一步需建立 completed-request ACK replay cache，避免重复执行并重发原结果。
+- 尚未执行真实 ROS 2/Gazebo 并发故障注入、暂停/恢复测试或完整 E2E。P104-07/P104-08/P104-09 均保持“正在进行中”。
