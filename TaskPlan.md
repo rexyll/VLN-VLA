@@ -2192,3 +2192,20 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - CarryBus.items 的业务读取目前已统一经 holding()，但 DrinkTask 的 _busy、_want_drink/_want_home/_want_hang、state 与 follower 状态仍需设计任务锁/状态快照；当前服务回调只排队，主循环执行同步任务的单线程模型继续保持。
 - 不切换外部 MultiThreadedExecutor，不从 ROS 回调中执行 run_drink/home/hang，也不允许主任务线程与 executor 回调共享未定义的状态所有权。
 - P104-07 继续未完成，下一步审查任务请求标志的原子 claim/consume、状态广播一致性及退出生命周期，再补充测试。
+
+### 8.54 DrinkTask 请求队列原子领取与单一任务执行槽（2026-11-08）
+
+- 新增 _task_lock，保护 DRINK 请求入队、HOME/HANG 服务请求标志和 _busy 任务执行槽。
+- 新增 _take_pending_action()：主循环在同一临界区检查 busy、消费一个待处理标志并预先占用执行槽，避免回调与主循环之间发生 check-then-act 竞态或同一请求被重复领取。
+- 新增 _finish_pending_action()；HOME/HANG 在主循环执行后通过 finally 释放执行槽，DRINK 继续由 run_drink() 自己在 finally 释放。
+- _cmd_cb() 对 DRINK 的 busy 检查和入队现在原子化；_srv_home() / _srv_hang() 在锁内置位。main() 已改为统一使用 action claim helper，而不是直接读写三个标志。
+- 新增并发测试：两个线程同时领取一个 DRINK 请求，只允许一个得到 action='drink'，另一个得到 None；断言 busy 已预占、DRINK 标志已消费、HOME 标志仍排队，并验证 finish helper 释放执行槽。
+
+**提交与 CI：**
+- 21f18da7d8983dc1b9e6571735618aba54754b1e — fix: atomically claim DrinkTask queued actions；Python run 42490412502 completed / success；ROS 2 run 42490412332 completed / success。
+- b274ff23cc76d2318dbdb429677d18df7b8de6b2 — test: cover atomic DrinkTask action claiming；Python run 42490457753 completed / success；ROS 2 Jazzy run 42490457818 completed / success。
+
+**验证边界与后续：**
+- 这一步建立的是请求标志和任务执行槽的原子状态转换，不表示同步任务已能在 executor 回调线程运行。run_drink/home/hang 仍包含 spin_for()，只能由主任务线程执行；ROS 回调仍只入队。
+- _set_state()、_tick() 的状态快照、follower 状态与时间戳、shutdown 时取消 waiter / 停止定时器 / 销毁节点顺序仍待审查。
+- P104-07 继续未完成；下一步补充任务状态广播一致性和 shutdown 生命周期测试，再决定是否调整 executor 所有权。
