@@ -118,6 +118,23 @@ class TestP104(unittest.TestCase):
         self.assertFalse(V.sensor_pose_pair_fresh(
             9.50, 10.04, 10.06, 10.10))
 
+    def test_person_occlusion_prediction_is_speed_capped_and_expires(self):
+        vision = object.__new__(V.PersonVision)
+        vision.hist = [
+            {'t': 9.0, 'wx': 0.0, 'wy': 0.0},
+            {'t': 10.0, 'wx': 1.2, 'wy': 0.0},
+        ]
+        predicted = vision._predict_world(11.0)
+        self.assertIsNotNone(predicted)
+        # Raw speed is 1.2 m/s; association prediction must cap it at 0.85 m/s.
+        self.assertAlmostEqual(predicted[0], 2.05, places=6)
+        self.assertAlmostEqual(predicted[1], 0.0, places=6)
+        self.assertAlmostEqual(predicted[2], 1.0, places=6)
+        # Once the occlusion exceeds the association window, reacquisition is
+        # unanchored instead of forcing the tracker to follow a stale position.
+        self.assertIsNone(vision._predict_world(
+            10.0 + V.TRACK_ASSOC_MAX_AGE_S + 0.01))
+
     def test_person_association_gate_is_bounded_and_age_monotonic(self):
         self.assertGreater(V.association_gate(1.0), V.association_gate(0.0))
         self.assertLessEqual(V.association_gate(20.0), 1.80)
