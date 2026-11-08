@@ -83,7 +83,10 @@ class CarryBus(object):
         self.ack = None
         self.acks = []              # 有界诊断历史；事务匹配使用 request_id
         self.ack_t = 0.0
-        self.request_seq = 0
+        # Seed IDs from wall-clock nanoseconds so a ROS-side process restart does
+        # not reuse IDs still present in the Gazebo plugin's completed-ACK cache.
+        # The plugin parses request_id as uint64; current epoch-ns values fit.
+        self.request_seq = time.time_ns()
         self.pending_requests = set()
         self.ack_by_request = {}
         # model -> {'side': 'R'/'L', 'offset': 4x4}
