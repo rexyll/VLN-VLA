@@ -391,16 +391,20 @@ class TestP104(unittest.TestCase):
         bus.items = {
             'cup': {'side': 'L', 'offset': np.eye(4)},
         }
-        bus._await = lambda *_args, **_kwargs: False
-
-        self.assertFalse(bus.release('cup'))
-        self.assertIn('cup', bus.items)
-        self.assertTrue(bus.items['cup']['release_unknown'])
         sent = []
         bus._send_pose = lambda *args: sent.append(args)
         bus.palm_world = lambda _side: np.eye(4)
-        bus.update()
-        self.assertEqual(sent, [])  # unknown target must not be reactivated by set
+
+        def lose_release_ack(*_args, **_kwargs):
+            # Simulate a concurrent 50Hz update while release is awaiting ACK.
+            bus.update()
+            return False
+        bus._await = lose_release_ack
+        self.assertFalse(bus.release('cup'))
+        self.assertIn('cup', bus.items)
+        self.assertTrue(bus.items['cup']['release_unknown'])
+        self.assertNotIn('release_pending', bus.items['cup'])
+        self.assertEqual(sent, [])  # no set during release or after unknown outcome
 
         # A later explicit release retry with a matching ACK clears the quarantine.
         bus._await = lambda *_args, **_kwargs: True
