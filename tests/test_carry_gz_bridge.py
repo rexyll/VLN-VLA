@@ -61,7 +61,7 @@ class TestCarryGazeboBridge(unittest.TestCase):
             deadline = time.monotonic() + 20.0
             while time.monotonic() < deadline:
                 if (bus.pub.get_subscription_count() > 0 and
-                        relay.count_publishers(ACK_TOPIC) >= 1 and
+                        relay.count_publishers(RAW_ACK_TOPIC) >= 1 and
                         relay.count_subscribers(RAW_ACK_TOPIC) >= 1):
                     break
                 time.sleep(0.1)
