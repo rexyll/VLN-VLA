@@ -1869,3 +1869,14 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 本轮提交后需等待 P104 GraspCarry C++ workflow 对插件编译、CTest 和 headless Gazebo 测试的实际结果；在结果返回前不得标记通过。
 - 新测试验证共享事务原语，不替代真实 Gazebo transport 对同一 request_id 重发的时序故障注入，也不替代 ROS 2 executor 并发联调。
 - P104-07 继续保持“正在进行中”。
+
+
+### 8.33 修正共享队列回归测试的 Command 聚合初始化兼容性（2026-11-08）
+
+**CI 首轮反馈：** 新增 joint 字段后，测试结构体将 joint 插入 requestId 之前，导致原有 Command{op, model, requestId} 聚合初始化全部发生类型错位，C++ workflow 在测试目标编译阶段失败；GraspCarry 插件本身已成功编译。
+
+**修复：** 将测试结构体的 joint 字段移到 requestId 之后，保持既有三个字段聚合初始化布局不变；新 joint 用例按 op/model/requestId/joint 顺序显式初始化。
+
+**提交：** ae57901。
+
+**验证边界：** 该修复已提交 main，等待新一轮 C++ workflow。之前失败 run 42477568464 不能计为通过；在后续 C++ 编译、CTest 与 headless Gazebo 步骤全部成功前，不关闭该回归项。P104-07 继续进行中。
