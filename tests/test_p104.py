@@ -257,6 +257,33 @@ class TestP104(unittest.TestCase):
                         float(np.max(np.abs(q - previous))), 0.300001)
                 previous = q
 
+    def test_carry_ack_requires_exact_operation_model_and_request_id(self):
+        class Node:
+            def __init__(self):
+                self.bus = None
+                self.calls = 0
+            def spin_for(self, _duration):
+                self.calls += 1
+                if self.calls == 1:
+                    self.bus._on_ack(type('Msg', (), {'data': 'ok release cup 41'})())
+                elif self.calls == 2:
+                    self.bus._on_ack(type('Msg', (), {'data': 'ok release all 7'})())
+        node = Node()
+        bus = object.__new__(C.CarryBus)
+        bus.node = node
+        bus.request_seq = 6
+        bus.ack = None
+        bus.acks = []
+        bus.ack_t = 0.0
+        node.bus = bus
+        emitted = []
+        ok = bus._await(
+            lambda rid: emitted.append(rid),
+            lambda ack, rid: ack == 'ok release all %d' % rid,
+            0.5)
+        self.assertTrue(ok)
+        self.assertEqual(emitted, [7, 7, 7, 7, 7])
+        self.assertEqual(bus.acks[-1], 'ok release all 7')
     def test_release_ack_loss_quarantines_target_until_explicit_retry(self):
         class Logger:
             def info(self, *_args):
