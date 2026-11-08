@@ -30,6 +30,7 @@ jobs:
             tests/test_orbit.py \
             tests/random_eval.py \
             vla_ws/src/vla_follow/vla_follow/arm_kin.py \
+            vla_ws/src/vla_follow/vla_follow/carry.py \
             vla_ws/src/vla_follow/vla_follow/drink_motion.py \
             vla_ws/src/vla_follow/vla_follow/drink_task.py \
             vla_ws/src/vla_follow/vla_follow/follower.py \
