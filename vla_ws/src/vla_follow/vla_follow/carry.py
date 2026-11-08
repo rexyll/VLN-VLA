@@ -166,10 +166,13 @@ class CarryBus(object):
         绝不再次调用 spin_once()/spin_for()。
         """
         deadline = time.monotonic() + max(0.0, float(timeout))
-        self.request_seq += 1
-        request_id = self.request_seq
         ack_event = threading.Event()
         with self._ack_lock:
+            # Sequence allocation and registration are one atomic operation.
+            # Otherwise two executor-managed waiters could reuse an ID and
+            # overwrite each other's Event / ACK ownership.
+            self.request_seq += 1
+            request_id = self.request_seq
             self.pending_requests.add(request_id)
             if getattr(self, 'executor_managed', False):
                 self._ack_events[request_id] = ack_event
