@@ -363,6 +363,59 @@ class TestP104(unittest.TestCase):
         self.assertEqual(bus.pending_requests, set())
         self.assertEqual(bus.ack_by_request, {})
 
+    def test_carry_delayed_ack_ignores_stale_and_post_timeout_ids(self):
+        class Logger:
+            def info(self, *_args):
+                pass
+            def error(self, *_args):
+                pass
+
+        class Node:
+            def __init__(self):
+                self.bus = None
+                self.calls = 0
+            def get_logger(self):
+                return Logger()
+            def spin_for(self, _duration):
+                self.calls += 1
+                request_id = self.bus.request_seq
+                if self.calls == 1:
+                    # A delayed ACK from an older transaction must not satisfy
+                    # the current waiter even when the operation is similar.
+                    self.bus._on_ack(type(
+                        'Msg', (), {'data': 'ok joint cup water_joint %d'
+                                   % (request_id - 1)})())
+                elif self.calls == 2:
+                    self.bus._on_ack(type(
+                        'Msg', (), {'data': 'ok joint cup water_joint %d'
+                                   % request_id})())
+
+        node = Node()
+        bus = object.__new__(C.CarryBus)
+        bus.node = node
+        bus.request_seq = 400
+        bus.ack = None
+        bus.acks = []
+        bus.ack_t = 0.0
+        bus.pending_requests = set()
+        bus.ack_by_request = {}
+        node.bus = bus
+        emitted = []
+        ok = bus._await(
+            lambda rid: emitted.append(rid),
+            lambda ack, rid: ack == 'ok joint cup water_joint %d' % rid,
+            1.0)
+        self.assertTrue(ok)
+        self.assertEqual(node.calls, 5)  # 2 polls + 3 confirmed retransmits
+        self.assertEqual(emitted, [401, 401, 401, 401, 401])
+        self.assertEqual(bus.pending_requests, set())
+        self.assertEqual(bus.ack_by_request, {})
+
+        # A duplicate ACK arriving after the waiter has completed is ignored.
+        bus._on_ack(type(
+            'Msg', (), {'data': 'ok joint cup water_joint 401'})())
+        self.assertNotIn(401, bus.ack_by_request)
+
     def test_carry_ack_matching_rejection_fails_without_retrying_to_timeout(self):
         class Logger:
             def error(self, *_args):
