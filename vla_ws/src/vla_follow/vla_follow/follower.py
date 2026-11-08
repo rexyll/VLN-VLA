@@ -3116,6 +3116,9 @@ class Follower(Node):
               'cam': str(vv.get('cam', '')) if det else '',
               'vis_dist': (round(float(vv.get('dist', -1.0)), 3)
                            if det else -1.0),
+              'assoc_err_m': (
+                  round(float(vv['track_error']), 3)
+                  if det and vv.get('track_error') is not None else None),
               'bearing_deg': (round(math.degrees(float(vv.get('bearing', 0.0))), 1)
                               if det else None),
               'goto': ([round(float(self._search_target[0]), 2),
