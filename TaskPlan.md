@@ -2100,3 +2100,23 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 已恢复构造函数的真实字段赋值 `self.executor_managed = bool(executor_managed)`，仅在读取历史轻量测试夹具时使用缺省读取。
 - 修复提交：`d35cc985ae4a40fad39cb5d74e87526560d95fa9`。
 - 该提交触发的 CI 尚待完成；此前提交的失败均保留为失败记录，不作为通过依据。
+
+
+### 8.48 增加 executor-managed waiter 主动取消与关闭前唤醒（2026-11-08）
+
+- CarryBus 新增终态 cancel_waiters()：外部 executor 所有者在调用 executor.shutdown() 前调用该方法，原子设置取消状态并唤醒所有已注册 ACK Event；当前及后续事务等待均返回失败，不再无限等待事务超时。
+- _await() 在发送前及 Event 唤醒后检查取消状态，并沿既有 finally 路径清理当前 request_id 的 pending、ACK 缓存和 Event。
+- ROS 2 Jazzy 集成测试新增 10 秒事务等待被主动取消后 1 秒内退出的检查。测试还验证只清理被取消事务，不错误要求清空测试中其他手动登记的 request_id。
+- 两次 CI 失败均已按日志修正测试假设：第一次 queue-full ACK 在 DDS 延迟下允许 80ms 窗口内有限重发，因此验证 request_id 稳定而非硬编码发送次数；第二次测试错误地要求取消一个 waiter 后清空测试预先手动登记的 request_id，现改为只断言被取消 waiter 的状态清理，并在迟到 ACK 测试后清理手动登记项。
+- 提交：
+  - fdc3dc2d7084aba108e5a11ec7686bfca74187ab — 增加 waiter 主动取消 API。
+  - 56791a9567625f2d6bdaf3c7a45eea7acddaae9b — 增加真实 ROS 2 取消唤醒测试（首次 CI 暴露 queue-full 重发断言过严）。
+  - 56060f69c3f1e956090f8196267302c801d5d6c8 — 放宽 queue-full 重发次数断言（CI 进一步暴露测试夹具残留状态断言问题）。
+  - 8f1a432802fef29770702de6b7272a7dd48b80f4 — 修正取消测试只检查本事务清理。
+- CI：
+  - 42485362779（Python，代码提交 fdc3dc2）completed / success。
+  - 42485362724（ROS 2 Jazzy，代码提交 fdc3dc2）completed / success，覆盖取消 API 前的并发事务、超时、迟到 ACK 与 queue-full 行为。
+  - 42485530773（Python，56060f6）completed / success；42485530807（ROS 2 Jazzy，56060f6）completed / failure，原因是测试断言把预先手动登记的 request_id 也要求全部清空，已修正。
+  - 42485696015（Python，8f1a432）completed / success。
+  - 42485695987（ROS 2 Jazzy，8f1a432）在本记录时仍 in_progress，尚未取得最终结论。
+- 验证边界：cancel_waiters() 是 executor 所有者必须显式调用的关闭前协议；不会声称 executor.shutdown() 自动回调 CarryBus。ROS 2 取消唤醒测试需待 run 42485695987 成功后才能算通过。P104-07 仍为“正在进行中”。
