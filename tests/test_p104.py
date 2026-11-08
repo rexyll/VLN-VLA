@@ -257,6 +257,26 @@ class TestP104(unittest.TestCase):
                         float(np.max(np.abs(q - previous))), 0.300001)
                 previous = q
 
+    def test_carry_request_ids_are_fresh_across_bus_restarts(self):
+        class Node:
+            def create_publisher(self, *_args):
+                return object()
+            def create_subscription(self, *_args):
+                return object()
+
+        seeds = iter((1700000000000000000, 1700000000000000001))
+        original_time_ns = C.time.time_ns
+        C.time.time_ns = lambda: next(seeds)
+        try:
+            first = C.CarryBus(Node())
+            second = C.CarryBus(Node())
+        finally:
+            C.time.time_ns = original_time_ns
+
+        self.assertEqual(first.request_seq, 1700000000000000000)
+        self.assertEqual(second.request_seq, 1700000000000000001)
+        self.assertLess(second.request_seq, 2 ** 64 - 1)
+
     def test_carry_ack_requires_exact_operation_model_and_request_id(self):
         class Logger:
             def info(self, *_args):
