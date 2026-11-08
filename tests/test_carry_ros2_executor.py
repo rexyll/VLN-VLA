@@ -41,6 +41,75 @@ class TestCarryRos2Executor(unittest.TestCase):
             state, SimpleNamespace(data="{malformed"))
         self.assertIs(state._follower_status_snapshot, previous)
 
+    def test_drink_task_state_updates_publish_outside_task_lock(self):
+        lock = threading.RLock()
+        published = []
+
+        class Publisher:
+            def publish(self, message):
+                # ROS publication must not execute while task state is locked.
+                acquired = lock.acquire(blocking=False)
+                if not acquired:
+                    raise AssertionError("publish called while task lock held")
+                lock.release()
+                published.append(message.data)
+
+        state = SimpleNamespace(
+            _task_lock=lock,
+            state="BOOT",
+            _busy=False,
+            pub_state=Publisher())
+        DrinkTask._set_state(state, "IDLE")
+        self.assertEqual(published, ['{"state": "IDLE"}'])
+        self.assertEqual(DrinkTask._task_status_snapshot(state), ("IDLE", False))
+        DrinkTask._set_state(state, "IDLE")
+        self.assertEqual(len(published), 1,
+                         "unchanged state should not emit a duplicate update")
+
+    def test_drink_task_status_snapshot_never_tears_state_and_busy(self):
+        state = SimpleNamespace(
+            _task_lock=threading.RLock(),
+            state="IDLE",
+            _busy=False)
+        start = threading.Barrier(3)
+        errors = []
+
+        def writer():
+            try:
+                start.wait(timeout=3.0)
+                for _ in range(5000):
+                    with state._task_lock:
+                        state.state = "RUNNING"
+                        state._busy = True
+                    with state._task_lock:
+                        state.state = "IDLE"
+                        state._busy = False
+            except Exception as exc:
+                errors.append(exc)
+
+        def reader():
+            try:
+                start.wait(timeout=3.0)
+                for _ in range(10000):
+                    snapshot = DrinkTask._task_status_snapshot(state)
+                    if snapshot not in (("IDLE", False), ("RUNNING", True)):
+                        errors.append(AssertionError(
+                            "observed torn task status: %r" % (snapshot,)))
+                        return
+            except Exception as exc:
+                errors.append(exc)
+
+        workers = [threading.Thread(target=writer),
+                   threading.Thread(target=reader)]
+        for worker in workers:
+            worker.start()
+        start.wait(timeout=3.0)
+        for worker in workers:
+            worker.join(timeout=5.0)
+            self.assertFalse(worker.is_alive(),
+                             "task status snapshot worker did not finish")
+        self.assertFalse(errors, "task status snapshot race: %r" % errors)
+
     def test_shutdown_cancels_waiters_before_destroying_node(self):
         events = []
 
