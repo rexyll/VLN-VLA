@@ -1224,10 +1224,11 @@ class DrinkTask(Node):
         # 于是 5s 心跳把"正在倒水"广播成了 IDLE, 验收脚本的状态序列出现
         # `PREPARE → IDLE → PRESENT` 这种跳变。阶段由 `_set_state()` 独占
         # 管理, home() 只是个动作。`self.state` 初值在 __init__ 里给(BOOT)。
-        if self.carry.items:
+        held_items = self.carry.holding()
+        if held_items:
             self.get_logger().error(
                 'HOME 被拒绝：仍抓持 %s；禁止自动 release，必须先完成安全放置/人工恢复'
-                % ','.join(sorted(self.carry.holding())))
+                % ','.join(sorted(held_items)))
             return False
         self.sync_to_measured()
         # P96: 这几路跟左右臂无关, 原来却写在 for 里被发了两遍 —— 趁改这行
