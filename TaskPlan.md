@@ -1586,3 +1586,5 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - P104-07/P104-08/P104-09 仍为“正在进行中”。
 
 - **重放竞态补充：** Enqueue 优先查 completed ACK cache，再检查 in-flight。这样 ACK 已写入缓存但 `Apply()` 尚未返回、in-flight 尚未清除的极短窗口内，重试也会立即重放 ACK，不会被误当作仍未完成请求而静默抑制。
+
+- **场景配置补充：** 最小 world 显式加载 Gazebo Harmonic Physics system，确保 `JointPositionReset` 与模型位姿命令由仿真物理系统消费；冒烟测试仍只按 ACK 验收，不据此声称关节运动数值已达标。
