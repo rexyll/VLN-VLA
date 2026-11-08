@@ -258,6 +258,7 @@ private:
     // 这里显式构造, 避开参数顺序歧义。
     c.pose = gz::math::Pose3d(gz::math::Vector3d(x, y, z),
                               gz::math::Quaterniond(qw, qx, qy, qz));
+    iss >> c.requestId;  // 兼容旧客户端：缺省为 0
     std::lock_guard<std::mutex> lk(this->mtx);
     this->pending = c;
     this->hasPending = true;
@@ -336,7 +337,7 @@ private:
       {
         gzerr << "[GraspCarry] 找不到模型 '" << _c.model << "'" << std::endl;
         if (_c.op == "grab")
-          this->SendAck("fail " + _c.model + " no-model");
+          this->SendAck("fail grab " + _c.model + " " + std::to_string(_c.requestId) + " no-model");
         return;
       }
       Target t;
