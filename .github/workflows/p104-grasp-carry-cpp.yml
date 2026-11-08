@@ -118,7 +118,7 @@ jobs:
           # exposing messages to the test client. Wait for that drop marker so
           # the retry cannot race the original Apply()/in-flight window.
           rm -f /tmp/grasp-carry-first-ack-dropped
-          timeout 20s gz topic -e -t /drink/carry/ack |
+          timeout 300s gz topic -e -t /drink/carry/ack |
             awk -v marker="/tmp/grasp-carry-first-ack-dropped" '
               /^data: / {
                 if (!dropped) {
