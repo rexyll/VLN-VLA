@@ -8,6 +8,7 @@ on:
       - ".github/workflows/p104-grasp-carry-cpp.yml"
       - "vla_ws/src/vla_follow/gz_plugins/**"
       - "tests/test_grasp_carry_queue.cc"
+      - "tests/grasp_carry_integration.sdf"
   pull_request:
     branches:
       - main
@@ -24,7 +25,7 @@ jobs:
   build-grasp-carry:
     name: Build Gazebo Harmonic GraspCarry plugin
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -47,7 +48,7 @@ jobs:
             libgz-msgs10-dev \
             libgz-common5-dev \
             libgz-common5-profiler-dev \
-            libgz-math7-dev
+            libgz-math7-dev gz-harmonic
 
       - name: Configure GraspCarry plugin
         working-directory: vla_ws/src/vla_follow/gz_plugins
@@ -69,3 +70,59 @@ jobs:
         run: |
           test -s build/libGraspCarry.so
           ldd -r build/libGraspCarry.so
+
+      - name: Run GraspCarry in headless Gazebo and verify ACK protocol
+        env:
+          GZ_SIM_SYSTEM_PLUGIN_PATH: ${{ github.workspace }}/vla_ws/src/vla_follow/gz_plugins/build
+        run: |
+          set -euo pipefail
+          gz sim -s -r -v 2 tests/grasp_carry_integration.sdf > /tmp/grasp-carry-gz.log 2>&1 &
+          SIM_PID=$!
+          SUB_PID=""
+          cleanup() {
+            if [ -n "$SUB_PID" ]; then kill "$SUB_PID" 2>/dev/null || true; fi
+            kill "$SIM_PID" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          ready=0
+          for _ in $(seq 1 30); do
+            if grep -q "监听 /drink/carry" /tmp/grasp-carry-gz.log; then ready=1; break; fi
+            if ! kill -0 "$SIM_PID" 2>/dev/null; then cat /tmp/grasp-carry-gz.log; exit 1; fi
+            sleep 1
+          done
+          if [ "$ready" -ne 1 ]; then cat /tmp/grasp-carry-gz.log; exit 1; fi
+
+          timeout 20s gz topic -e -t /drink/carry/ack > /tmp/grasp-carry-acks.log 2>&1 &
+          SUB_PID=$!
+          sleep 2
+          publish() {
+            gz topic -t /drink/carry -m gz.msgs.StringMsg -p "data: \\"$1\\""
+          }
+          wait_ack() {
+            local expected="$1"
+            for _ in $(seq 1 30); do
+              if grep -Fq "$expected" /tmp/grasp-carry-acks.log; then return 0; fi
+              sleep 0.2
+            done
+            cat /tmp/grasp-carry-acks.log
+            cat /tmp/grasp-carry-gz.log
+            return 1
+          }
+
+          publish "grab cup 0 0 0.5 0 0 0 1 501"
+          wait_ack "ok grab cup 501"
+          # Retry the completed request: the plugin must replay its cached ACK.
+          publish "grab cup 0 0 0.5 0 0 0 1 501"
+          sleep 1
+          count=$(grep -Fc "ok grab cup 501" /tmp/grasp-carry-acks.log || true)
+          test "$count" -ge 2
+
+          publish "joint cup water_joint 0.012 502"
+          wait_ack "ok joint cup water_joint 502"
+          publish "release cup 503"
+          wait_ack "ok release cup 503"
+          publish "grab missing_model 0 0 0.5 0 0 0 1 504"
+          wait_ack "fail grab missing_model 504 no-model"
+          publish "place missing_model 0 0 0.5 0 0 0 1 505"
+          wait_ack "fail place missing_model 505 no-model"
