@@ -2120,3 +2120,14 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
   - 42485696015（Python，8f1a432）completed / success。
   - 42485695987（ROS 2 Jazzy，8f1a432）在本记录时仍 in_progress，尚未取得最终结论。
 - 验证边界：cancel_waiters() 是 executor 所有者必须显式调用的关闭前协议；不会声称 executor.shutdown() 自动回调 CarryBus。ROS 2 取消唤醒测试需待 run 42485695987 成功后才能算通过。P104-07 仍为“正在进行中”。
+
+
+### 8.49 多 waiter 并发取消与重复取消的真实 ROS 2 Executor 验证（2026-11-08）
+
+- 扩展 tests/test_carry_ros2_executor.py：在真实 ROS 2 Jazzy MultiThreadedExecutor 正常 spin 时，同时启动两个独立 CarryBus._await() 事务线程，分别注册 request-specific Event。
+- 外部 executor 所有者连续调用两次 cancel_waiters()；两个 waiter 均须在 1 秒内退出并返回 False，且各自 request_id 从 pending_requests / ack_by_request 清理，Event map 为空。
+- 这验证 cancel_waiters() 对多个并发 waiter 的广播唤醒及重复调用幂等性；取消依旧是 CarryBus 实例终态。
+- 提交：e9ad878611b287a564980ce452602fe82186f7d6（test: cover concurrent CarryBus waiter cancellation）。
+- CI：Python run 42486145602 completed / success；ROS 2 Jazzy executor integration run 42486145678 completed / success。
+- 前一轮 TaskPlan 提交 ac02baabf8880c122fb9b3b4157e54c450393ef9 的 Python run 42485862119 与 ROS 2 run 42485862270 均 completed / success。
+- 当前判断：并发取消及重复取消测试通过，但 DrinkTask 仍以 CarryBus(self) 默认单线程 spin 模式构造；尚未将外部 executor 模式接入真实任务编排/关闭生命周期，也未完成 Gazebo GraspCarry 端到端事务验收。因此 P104-07 继续保持“正在进行中”，不得据此标记完成。
