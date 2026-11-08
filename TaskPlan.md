@@ -1584,3 +1584,5 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 新增 workflow 步骤后等待首次 CI 真实结果；在 CI 通过前不宣称运行时协议测试成功。
 - 该最小场景只验证插件加载和 Gazebo Transport ACK 协议，不包含 ROS 2 CarryBus、完整 `work_area.sdf`、视觉遮挡/碰撞、暂停恢复或倒水递水 E2E。
 - P104-07/P104-08/P104-09 仍为“正在进行中”。
+
+- **重放竞态补充：** Enqueue 优先查 completed ACK cache，再检查 in-flight。这样 ACK 已写入缓存但 `Apply()` 尚未返回、in-flight 尚未清除的极短窗口内，重试也会立即重放 ACK，不会被误当作仍未完成请求而静默抑制。
