@@ -2131,3 +2131,20 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - CI：Python run 42486145602 completed / success；ROS 2 Jazzy executor integration run 42486145678 completed / success。
 - 前一轮 TaskPlan 提交 ac02baabf8880c122fb9b3b4157e54c450393ef9 的 Python run 42485862119 与 ROS 2 run 42485862270 均 completed / success。
 - 当前判断：并发取消及重复取消测试通过，但 DrinkTask 仍以 CarryBus(self) 默认单线程 spin 模式构造；尚未将外部 executor 模式接入真实任务编排/关闭生命周期，也未完成 Gazebo GraspCarry 端到端事务验收。因此 P104-07 继续保持“正在进行中”，不得据此标记完成。
+
+
+### 8.50 ACK 成功与 executor 取消竞态的线性化语义（2026-11-08）
+
+- 明确 CarryBus._await() 的事务终态边界：waiter 在 _ack_lock 内消费到首个终态成功 ACK，即为成功事务的线性化点；之后发生的 cancel_waiters() 不撤销已确认的成功结果。
+- 修复成功 ACK 后的重复确认发送：每次重复 emit 前均在同一把锁内检查终态取消状态，并在锁内完成 emit。若取消先取得锁，则不再发送后续重复 ACK；若成功 ACK 已先被消费，事务仍返回成功，但取消会阻止剩余重复发送。
+- 新增真实 ROS 2 Jazzy MultiThreadedExecutor 集成竞态测试：通过 Event 屏障确定性暂停第二次 emit，在该时刻触发取消，再释放屏障；断言事务结果仍为成功、总 emit 数为 2（初始发送 + 已进入的第二次发送），不会继续发送第三次及后续重复确认，并且 request_id 的 pending / ACK / Event 状态均清理。
+- 测试使用独立 CarryBus 实例隔离终态取消状态，避免污染同一集成测试后续的多 waiter 取消用例。
+
+**提交与 CI：**
+- 69c0b45c418f37f742f4429896a976fd8a7ac59e — fix: stop CarryBus ACK retransmits after cancellation；Python run [42486976433](https://github.com/rexyll/VLN-VLA/actions/runs/42486976433) 与 ROS 2 Jazzy run [42486976434](https://github.com/rexyll/VLN-VLA/actions/runs/42486976434) 均 completed / success。
+- ceedebf07ba69c6d2b087028e483fa2627705488 — test: isolate CarryBus ACK cancellation race；Python run [42487065499](https://github.com/rexyll/VLN-VLA/actions/runs/42487065499) 与 ROS 2 Jazzy run [42487065508](https://github.com/rexyll/VLN-VLA/actions/runs/42487065508) 均 completed / success。ROS 2 job 的真实 executor 集成测试步骤已成功完成。
+
+**验证边界与后续：**
+- 本轮只验证 CarryBus waiter 的 ACK/取消竞态，不代表 DrinkTask 已接入外部 executor。DrinkTask 仍由主线程通过 spin_for()/spin_sim()/rclpy.spin_once() 推进回调；在明确任务编排线程、定时器回调组、服务回调排队、启动入口和 shutdown/join 顺序之前，不切换 executor_managed=True。
+- 下一步继续审查 DrinkTask 的全部同步等待调用点及启动/测试/launch 入口，先补充 executor 生命周期兼容测试，再决定是否引入外部 MultiThreadedExecutor。
+- P104-07 仍为“正在进行中”：真实 Gazebo GraspCarry 事务 E2E、transport 故障注入和完整任务编排尚未完成。
