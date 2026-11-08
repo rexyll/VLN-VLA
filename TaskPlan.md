@@ -2226,3 +2226,23 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 当前生产 DrinkTask 仍是单一主任务线程持有 run_drink/home/hang；回调只入队，主循环通过 `spin_once` 驱动。`_set_state()` 与 `_tick()` 的状态广播仍依赖这一单线程所有权；未宣称可由多个 executor 线程并发调用。
 - `_shutdown_node()` 已建立当前单线程架构下 waiter → node 的销毁顺序；将来引入外部 executor 时，还必须先停止接收新任务、取消 waiter、shutdown executor、join executor 线程，再 remove/destroy node，最后 `rclpy.shutdown()`。当前尚未引入外部 executor。
 - P104-07 仍未完成：尚缺真实 Gazebo GraspCarry 插件 transport 故障注入与完整 ROS 2/Gazebo 事务 E2E。
+
+### 8.56 DrinkTask 状态与执行槽一致性快照（2026-11-08）
+
+- 将 `_set_state()` 的状态比较、状态更新和消息 payload 构造统一放入 `_task_lock` 临界区；ROS publisher 调用放在锁外，避免持有任务锁执行外部回调。
+- 新增 `_task_status_snapshot()`，以同一把锁读取 `(state, busy)` 一致快照。
+- `run_drink()` 的 finally 在锁内释放 `_busy` 并捕获最终状态，锁外发布结果；避免结果消息直接读取未同步的 `self.state`。
+- `_tick()` 的场景自愈门禁改为读取锁保护的 busy 快照；心跳状态字段改为读取状态快照，不再直接访问 `self.state` / `self._busy`。
+- 新增测试：
+  - `test_drink_task_state_updates_publish_outside_task_lock`：验证状态更新后消息发布发生在锁外、状态不变时不重复广播。
+  - `test_drink_task_status_snapshot_never_tears_state_and_busy`：并发切换状态与 busy，验证读取端只能观察到完整配对，不出现撕裂组合。
+
+**提交与 CI：**
+- `c10299813d1ee21ea6ac0335c2e16f4a7e8fc430` — `fix: synchronize DrinkTask state snapshots`；Python run [42491740383](https://github.com/rexyll/VLN-VLA/actions/runs/42491740383) success；ROS 2 Jazzy run [42491740347](https://github.com/rexyll/VLN-VLA/actions/runs/42491740347) success。
+- `1b4710d3c33709470d843a47d06b3b39395ac0ac` — `test: cover atomic DrinkTask status snapshots`；Python run [42491805953](https://github.com/rexyll/VLN-VLA/actions/runs/42491805953) success；ROS 2 Jazzy run [42491805919](https://github.com/rexyll/VLN-VLA/actions/runs/42491805919) success，真实 ROS 2 executor 集成测试 job 全部通过。
+
+**验证边界与后续：**
+- 本次收口的是任务状态与 busy 标志的同步读取/更新；没有把 `DrinkTask` 切换到外部 MultiThreadedExecutor，也没有允许任务动作从 ROS 回调线程执行。
+- `base`、`links`、`js` 的跨字段一致性及 timer/callback 生命周期仍需结合真实节点入口继续审查。
+- P104-07 仍未完成：真实 Gazebo GraspCarry 插件 transport 故障注入，以及 CarryBus ↔ ROS 2 ↔ Gazebo 插件完整事务 E2E 尚未验收。
+
