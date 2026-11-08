@@ -1406,25 +1406,50 @@ def pour_into_cup(node, fill=0.65, jet_len=0.16, ramp=True):
             'POUR 倒水位形未达成、左右臂违反人体关节规则或右肘外扩线小于60mm；'
             '禁止启动水柱')
         return out
-    # 水柱先伸出, 水位再升 —— 顺序反了会先看见"杯里有水但没水柱"
-    # P98: 有液面控制器时水位由体积积分驱动(水柱由 liquid 逐帧铺),
-    # 没有时(离线单点脚本)退回原来的行程插值。
+    # 水柱先伸出并确认目标指令已被插件接收，再启动水量积分。
+    # ramp ACK 丢失时用一次性 joint ACK 重试；两条都失败就不启动水流，
+    # 避免“杯内水位上涨但水柱没有伸出”或倒水半途继续执行。
     liq = getattr(node, 'liquid', None)
+    if ramp:
+        jet_ok = node.carry.joint_ramp(
+            'kettle', 'jet_joint', jet_len, dur=0.5)
+        if not jet_ok:
+            jet_ok = node.carry.joint('kettle', 'jet_joint', jet_len)
+        if not jet_ok:
+            node.get_logger().error(
+                'POUR 水柱伸出指令无 ACK；不启动液体积分，保持道具抓持')
+            out['reason'] = 'jet_extend_unconfirmed'
+            return out
+        if liq is None:
+            water_ok = node.carry.joint_ramp(
+                'cup', 'water_joint', L.CUP_WATER_MAX * fill, dur=1.2)
+            if not water_ok:
+                water_ok = node.carry.joint(
+                    'cup', 'water_joint', L.CUP_WATER_MAX * fill)
+            if not water_ok:
+                node.carry.joint('kettle', 'jet_joint', 0.0)
+                node.get_logger().error(
+                    'POUR 杯内水位驱动无 ACK；已请求收回水柱，不报告倒水成功')
+                out['reason'] = 'water_level_unconfirmed'
+                return out
+    else:
+        jet_ok = node.carry.joint('kettle', 'jet_joint', jet_len)
+        if not jet_ok:
+            node.get_logger().error(
+                'POUR 水柱目标未确认，不启动倒水')
+            out['reason'] = 'jet_extend_unconfirmed'
+            return out
+        if liq is None:
+            water_ok = node.carry.joint(
+                'cup', 'water_joint', L.CUP_WATER_MAX * fill)
+            if not water_ok:
+                node.carry.joint('kettle', 'jet_joint', 0.0)
+                node.get_logger().error(
+                    'POUR 杯内水位目标未确认，已请求收回水柱')
+                out['reason'] = 'water_level_unconfirmed'
+                return out
     if liq is not None:
         liq.pour_start(fill)
-    if ramp:
-        if not node.carry.joint_ramp('kettle', 'jet_joint', jet_len, dur=0.5):
-            # P98: ramp 的 ack 在通道拥塞时可能超时(指令本身多半已到达),
-            # 补一发直达终值; 插件每 tick 重发目标, 丢一帧无碍。
-            node.carry._send('joint kettle jet_joint %.6f' % jet_len)
-        if liq is None:
-            node.carry.joint_ramp('cup', 'water_joint',
-                                  L.CUP_WATER_MAX * fill, dur=1.2)
-    else:
-        node.carry.joint('kettle', 'jet_joint', jet_len)
-        if liq is None:
-            node.carry.joint('cup', 'water_joint', L.CUP_WATER_MAX * fill)
-    if liq is not None:
         liq.pour_wait()
     node.spin_for(0.6)
     out.update({'cup': Tcup_pour, 'kettle': Tk_pour, 'tip': tip_tgt,
@@ -1521,10 +1546,18 @@ def prepare_present(node, fill=0.65, verbose=True):
     out.update(pour)
     if not pour['ok']:
         return out
-    # 收水: 水柱缩回, 水位保持
-    node.carry.joint_ramp('kettle', 'jet_joint', 0.0, dur=0.5)
+    # 收水: 先确认水柱缩回命令，再结束液体积分；无 ACK 时不移动水壶。
+    jet_retract_ok = node.carry.joint_ramp(
+        'kettle', 'jet_joint', 0.0, dur=0.5)
+    if not jet_retract_ok:
+        jet_retract_ok = node.carry.joint('kettle', 'jet_joint', 0.0)
+    if not jet_retract_ok:
+        out['reason'] = 'jet_retract_unconfirmed'
+        node.get_logger().error(
+            'PREPARE 水柱无法确认缩回，保持水壶抓持，不执行放壶/转身')
+        return out
     if getattr(node, 'liquid', None) is not None:
-        node.liquid.pour_stop()      # P98: 收水完成, 水柱熄灭
+        node.liquid.pour_stop()      # P98: 水柱已回收, 再停止液体积分
     ok_d, res_d = put_down(node, 'R', 'kettle', Tk_home)
     out['res']['kettle_back'] = res_d
     if not ok_d:
