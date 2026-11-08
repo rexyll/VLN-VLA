@@ -1927,3 +1927,28 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 为两个并发 request_id 增加稳定的去重/恰好一次断言，不能把当前 `>=1` 作为 exactly-once 验收。
 - 继续补真实 ROS 2 CarryBus executor 并发、迟到 ACK、超时/重试与 Gazebo 插件的同进程端到端验证；现有 Python 测试仍是回调顺序模拟，headless Gazebo 测试是独立 transport 夹具。
 - P104-07 继续“正在进行中”；P104-08、P104-05/P104-06 与 P104-09 不因本次 CI 成功而关闭。
+
+
+### 8.37 CarryBus ACK 状态增加线程锁保护，并修复首轮锁接入缩进错误（2026-11-08）
+
+**问题与改动：**
+- P104-07 的 CarryBus ACK 回调可能由 ROS 2 MultiThreadedExecutor 工作线程触发，而事务等待者同时读取/移除 `ack_by_request` 并注册/清理 `pending_requests`；原实现对这些复合状态操作没有统一同步保护。
+- 在 CarryBus 中增加 `threading.RLock`，将 ACK 回调的诊断队列更新、pending 检查与 request_id 结果登记放入同一临界区；等待者的 request_id 注册、ACK 结果读取/弹出和 finally 清理也使用同一把锁。
+- 新增 24 个独立 request_id 的并发 ACK 回调回归测试，验证线程并发执行后所有 request_id 均得到各自匹配的 ACK。
+- 首轮接入锁时，字符串替换造成重复嵌套 `with` 和缩进错误。CI run 42480579289 明确报出 `carry.py:145 IndentationError`。随后在提交 `d40afef` 修复重复嵌套和缩进。
+
+**提交：**
+- 初始 ACK 回调锁：`bf0febd`。
+- 并发 ACK 回归测试：`a217d23`。
+- 等待者注册/读取保护：`989b82e`。
+- 测试夹具初始化锁：`b932a96`。
+- 缩进修复：`d40afef`。
+
+**CI 结果：**
+- 中间提交对应 Python workflow runs 42480427686、42480430831、42480574301、42480579289 均失败；日志确认后两轮的阻断原因是 `carry.py` 中重复嵌套锁导致的 IndentationError，不能计为通过。
+- 最终提交 `d40afef159366e36288e68bf7c09bd94b7a8e2dd` 对应 Python workflow run [42480757144](https://github.com/rexyll/VLN-VLA/actions/runs/42480757144) 成功：P104 纯测试和变更 Python 模块编译两个 job 均通过。
+
+**验证边界与下一步：**
+- 本次新增的是 Python 多线程直接调用 ACK callback 的并发单测，证明共享字典/集合的临界区保护；它**不是**真实 ROS 2 MultiThreadedExecutor 集成测试，也没有覆盖 ROS callback group、executor 生命周期、真实 transport 迟到 ACK 或并发 `spin_for()`。
+- 仍需设计单一 executor 所有权的事务等待模型，再通过真实 ROS 2 executor 测试不同 request_id 隔离、迟到 ACK 不误完成新事务、超时后相同 transaction identity 的重试和终态幂等。
+- P104-07 继续“正在进行中”，不因纯 Python CI 通过而关闭；P104-08、P104-05/P104-06 和 P104-09 状态保持不变。
