@@ -81,7 +81,7 @@ class CarryBus(object):
         self.node = node
         # External executors own callback progress; waiters only await Events.
         # Default mode preserves DrinkTask's current owner-spin behavior.
-        getattr(self, 'executor_managed', False) = bool(executor_managed)
+        self.executor_managed = bool(executor_managed)
         self.pub = node.create_publisher(String, CARRY_TOPIC, 10)
         node.create_subscription(String, ACK_TOPIC, self._on_ack, 50)
         self.ack = None
