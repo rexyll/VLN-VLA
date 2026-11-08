@@ -42,6 +42,7 @@ import json
 import math
 import sys
 import time
+import threading
 
 import numpy as np
 import rclpy
@@ -139,28 +140,39 @@ class CmdBus(object):
         self.val = {n: float(base.get(n, 0.0)) for n in self.names}
         self.count = 0            # 累计发布帧数(测速用)
         self.t0 = time.time()
+        # The main task thread writes targets while an executor timer may
+        # publish them. Keep multi-joint updates and reads coherent.
+        self._lock = threading.RLock()
 
     def set(self, names, values):
-        for n, v in zip(names, values):
-            if n in self.val:
-                self.val[n] = float(v)
+        with self._lock:
+            for n, v in zip(names, values):
+                if n in self.val:
+                    self.val[n] = float(v)
 
     def get(self, name):
-        return self.val.get(name, 0.0)
+        with self._lock:
+            return self.val.get(name, 0.0)
 
     def get_many(self, names):
-        return np.array([self.val.get(n, 0.0) for n in names], float)
+        with self._lock:
+            return np.array([self.val.get(n, 0.0) for n in names], float)
 
     def publish_all(self):
+        # Never hold the state lock while calling into ROS middleware.
+        with self._lock:
+            snapshot = dict(self.val)
+            self.count += 1
         for n, p in self.pub.items():
             m = Float64()
-            m.data = self.val[n]
+            m.data = snapshot[n]
             p.publish(m)
-        self.count += 1
 
     def hz(self):
+        with self._lock:
+            count = self.count
         dt = time.time() - self.t0
-        return self.count / dt if dt > 0 else 0.0
+        return count / dt if dt > 0 else 0.0
 
 
 # ---------------------------------------------------------------- 位姿小工具
@@ -1291,11 +1303,15 @@ class DrinkTask(Node):
         一条谁都没打算发的指令。先用实测值兜住, 再写新目标。
         """
         n = 0
-        for name, v in self.js.items():
-            if name in self.bus.val and not math.isnan(v):
-                self.bus.val[name] = float(v)
-                n += 1
-        return n
+        # Sensor callbacks may be serviced by a different executor thread.
+        measured = dict(self.js)
+        names, values = [], []
+        for name, value in measured.items():
+            if name in self.bus.val and not math.isnan(value):
+                names.append(name)
+                values.append(float(value))
+        self.bus.set(names, values)
+        return len(names)
 
     def sync_base_from_truth(self, quiet=False):
         """用 gz 真值改写底盘位姿, 并锁定 base 来源(之后 odom 不再覆盖)。
