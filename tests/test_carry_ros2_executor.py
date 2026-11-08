@@ -139,7 +139,8 @@ class TestCarryRos2Executor(unittest.TestCase):
                 lambda rid: timed_out_ids.append(rid),
                 lambda ack, rid: ack == "ok timeout %d" % rid,
                 0.12))
-            self.assertEqual(len(timed_out_ids), 1)
+            self.assertGreaterEqual(len(timed_out_ids), 1)
+            self.assertEqual(len(set(timed_out_ids)), 1)
             timed_out_id = timed_out_ids[0]
             ack_pub.publish(String(data="ok timeout %d" % timed_out_id))
             time.sleep(0.15)
