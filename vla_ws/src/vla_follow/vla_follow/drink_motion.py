@@ -594,12 +594,16 @@ def place_robot(node, T_goal, tol_mm=8.0, tries=3, settle=0.25):
         if res < tol_mm and yaw_err < math.radians(2.0):
             break
     node.sync_base_from_truth(quiet=True)
-    if not ack_ok or res >= tol_mm or yaw_err >= math.radians(2.0):
+    if (not ack_ok or not math.isfinite(float(res))
+            or not math.isfinite(float(yaw_err))
+            or res >= tol_mm or yaw_err >= math.radians(2.0)):
         node.get_logger().error(
             'PLACE_ROBOT 未收敛: ack=%s position=%.1fmm yaw=%.2f° '
             '(limits %.1fmm/2.00°)'
             % (ack_ok, res, math.degrees(yaw_err), tol_mm))
         # 保留历史返回“残差mm”的接口；失败时保证严格大于调用方 tol_mm。
+        if not math.isfinite(float(res)):
+            return 9e9
         return max(float(res), float(tol_mm) + 1.0)
     return float(res)
 
