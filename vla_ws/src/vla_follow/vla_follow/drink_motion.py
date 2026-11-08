@@ -231,8 +231,44 @@ def _table_collision_boxes():
     return boxes
 
 
-def _arm_capsules_world(side, q, base):
-    """由 FK 生成肩-肘-腕-掌-指尖包络；半径包含可见几何与安全余量。"""
+def _obb_hits_aabb(center, rotation, half_extents, lo, hi, margin=0.015):
+    """OBB-AABB SAT 相交测试；margin 只扩张桌面盒，避免球形手掌假碰撞。"""
+    c_a = np.asarray(center, float)
+    axes = np.asarray(rotation, float)
+    h_a = np.asarray(half_extents, float)
+    lo = np.asarray(lo, float) - float(margin)
+    hi = np.asarray(hi, float) + float(margin)
+    c_b = 0.5 * (lo + hi)
+    h_b = 0.5 * (hi - lo)
+    # SAT: 3 个 OBB 轴、3 个 AABB 轴、9 个叉积轴。
+    R = axes
+    abs_R = np.abs(R) + 1e-9
+    t_world = c_b - c_a
+    t = R.T @ t_world
+    for i in range(3):
+        ra = h_a[i]
+        rb = float(h_b @ abs_R[i, :])
+        if abs(t[i]) > ra + rb:
+            return False
+    for j in range(3):
+        ra = float(h_a @ abs_R[:, j])
+        rb = h_b[j]
+        if abs(float(t_world[j])) > ra + rb:
+            return False
+    for i in range(3):
+        for j in range(3):
+            i1, i2 = (i + 1) % 3, (i + 2) % 3
+            j1, j2 = (j + 1) % 3, (j + 2) % 3
+            ra = h_a[i1] * abs_R[i2, j] + h_a[i2] * abs_R[i1, j]
+            rb = h_b[j1] * abs_R[i, j2] + h_b[j2] * abs_R[i, j1]
+            value = abs(t[i2] * R[i1, j] - t[i1] * R[i2, j])
+            if value > ra + rb:
+                return False
+    return True
+
+
+def _arm_geometry_world(side, q, base):
+    """由 FK 生成连杆胶囊、掌部 OBB 与逐指胶囊，避免把手指按 55mm 球体膨胀。"""
     Tb = K.base_pose(*base)
     Tp = K.fk(side, np.asarray(q, float))
     R = Tp[:3, :3]
@@ -243,16 +279,32 @@ def _arm_capsules_world(side, q, base):
     to_world = lambda p: (Tb @ K.trans(p))[:3, 3]
     sh, el, wr, palm = [to_world(p) for p in
                         (p_shoulder, p_elbow, p_wrist, p_palm)]
-    # 手指全包络：从掌心延伸至最远指尖；半径覆盖四指及拇指。
-    tip_local = np.array([0.0, 0.0,
-                          K.FINGER_BASE_Z - K.PROX_LEN - K.DIST_LEN])
-    tip = to_world(p_palm + R @ tip_local)
-    return [
-        ('upper_arm', sh, el, 0.043),
-        ('forearm', el, wr, 0.038),
-        ('wrist', wr, palm, 0.034),
-        ('hand_fingers', palm, tip, 0.055),
+    T_palm_center = to_world(p_palm + R @ np.asarray(K.PALM_CENTER, float))
+    R_world = Tb[:3, :3] @ R
+
+    segments = [
+        ('upper_arm', sh, el, 0.034),
+        ('forearm', el, wr, 0.030),
+        ('wrist', wr, palm, 0.030),
     ]
+    # Shadow Hand 的四指分别按几何轴线检查，半径按实际 14mm 指宽取值。
+    for index, x in enumerate(K.FINGER_X):
+        p0 = p_palm + R @ np.array([float(x), 0.0, K.FINGER_BASE_Z])
+        p1 = p_palm + R @ np.array([
+            float(x), 0.0,
+            K.FINGER_BASE_Z - K.PROX_LEN - K.DIST_LEN])
+        segments.append(('finger_%d' % index, to_world(p0), to_world(p1),
+                         K.FINGER_W / 2.0))
+    # 拇指另算，避免四指包络忽略掌侧的拇指扫掠。
+    thx = float(K.THUMB_X[side])
+    th0 = p_palm + R @ np.array([thx, K.THUMB_BASE[1],
+                                 K.THUMB_BASE[2]])
+    th1 = p_palm + R @ np.array([
+        thx, K.THUMB_BASE[1],
+        K.THUMB_BASE[2] - K.PROX_LEN - K.DIST_LEN])
+    segments.append(('thumb', to_world(th0), to_world(th1), 0.012))
+    palm_obb = (T_palm_center, R_world, 0.5 * np.asarray(K.PALM_SIZE, float))
+    return segments, palm_obb
 
 
 def arm_path_table_clear(node, side, path_q, base=None,
@@ -276,9 +328,14 @@ def arm_path_table_clear(node, side, path_q, base=None,
         samples.insert(0, np.asarray(q0, float))
     boxes = _table_collision_boxes()
     for i, q in enumerate(samples):
-        for seg_name, p0, p1, radius in _arm_capsules_world(side, q, base):
-            for box_name, lo, hi in boxes:
-                if _segment_hits_aabb(p0, p1, lo, hi, radius + 0.015):
+        segments, palm = _arm_geometry_world(side, q, base)
+        pc, pr, ph = palm
+        for box_name, lo, hi in boxes:
+            if _obb_hits_aabb(pc, pr, ph, lo, hi, margin=0.015):
+                return False, {'sample': i, 'segment': 'palm_obb',
+                               'box': box_name}
+            for seg_name, p0, p1, radius in segments:
+                if _segment_hits_aabb(p0, p1, lo, hi, radius + 0.010):
                     return False, {'sample': i, 'segment': seg_name,
                                    'box': box_name, 'radius_m': radius}
     return True, None
