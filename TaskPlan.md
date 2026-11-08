@@ -1328,7 +1328,7 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 | `drink_task.py` | 入场摆位与 home、递杯补位、两手迎杯、接回、放杯、杯子原位恢复、水位归零及 FOLLOW 交权均有结果门控；准备流程在最终全部成功前保持 `ok=False`；放杯后立即尝试安全折肘，0.80m 净空完成肩部/伸肘，必要时退至 1.15m；最终交权要求悬垂完成及桌边净空至少为臂长+80mm |
 | `drink_motion.py` / `drink_task.py` | 倒水链抓杯、举杯、抓壶和倒水各站新增 P103 R1/R2/R4/R5/R6/R7 运行时硬门控；任何侧关节姿态缺失或违规都禁止启动水柱 |
 | `scene_layout.py` | 新增 0.80m 收臂净空位 `RETREAT_FOLD_XY` |
-| `tests/test_p104.py` | 10 个单元测试覆盖：RGB-D/底盘位姿 freshness 与同步、目标关联门限、P103 姿态与必需侧门控、人体手心间距开合验收、底盘有限位姿收敛、OBB-AABB SAT（含任意 3D 旋转）、线段-AABB、手掌/手指几何、三阶段收臂顺序/单步增量、桌面与四桌腿 AABB |
+| `tests/test_p104.py` | 11 个单元测试覆盖：RGB-D/底盘位姿 freshness 与同步、目标关联门限、P103 姿态与必需侧门控、人体手心间距开合验收、底盘有限位姿收敛、OBB-AABB SAT（含任意 3D 旋转）、线段-AABB、手掌/手指几何、三阶段收臂顺序/单步增量、桌面与四桌腿 AABB |
 
 静态审查补充确认：
 - `put_down_two()` 原来存在“resting=False 但仍张手并 release”的真实控制流缺陷，现已改成提前返回。
@@ -1340,7 +1340,7 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 修复相机切换 hysteresis 累计非连续帧的潜在问题：只有连续两帧同一新相机候选才切换；PEEK 入口在 last-visible 缓存缺失时回退推测目标点。
 - 底盘摆正现在要求 `carry.place` ACK、真值位置误差和航向误差同时通过；位置/航向含 NaN/Inf 或真值缺失时 fail-closed。
 - 倒水动作的水柱伸出、杯内水位设置与水柱缩回均要求命令 ACK；无 ACK 时仅作一次明确直达重试，仍失败则保持道具抓持并中止。
-- 杯子或水壶落位后，release ACK 未确认不再继续撤手；本地持有状态虽已被 CarryBus 释放逻辑清理，但状态机不执行任何后续移动。
+- 杯子或水壶落位后，release ACK 未确认不再继续撤手；CarryBus 对未确认的 release 保留“结果未知”记录并暂停该物体的自动 set，避免 ACK 丢失后 set 重新激活插件目标；显式 release 重试收到 ACK 后才清理记录。
 - 递杯前先验证补位底盘动作和最终人手距离；人手张开/合拢通过 Gazebo 真值手心间距验收；杯子漂移恢复必须同时收到 place ACK 并复测位置。
 - 修复 `prepare_present()` 的结果聚合：倒水子步骤成功后总 `ok` 仍保持 False，直至放壶、回位、双手捧杯、转身和基座复位全部通过。
 
@@ -1358,3 +1358,25 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 
 
 **执行纪律**：按 P104-02 → P104-09 顺序推进；每改一段先做静态/单元验证，再做相应仿真。不能将“已写代码”自动记为“已修复”，不能将未执行的仿真记为通过。
+
+### 8.6 CarryBus release ACK 丢失的未知态隔离（2026-11-08）
+
+**静态审查发现：** CarryBus.release() 原先无论 ACK 是否收到，都会立即从本地 items 删除目标。调用方虽然会因 release 失败而停止后续机械臂动作，但系统没有保留“插件端是否已解除附着”的状态，无法显式重试或诊断。
+
+进一步核对 GraspCarry.cc 的真实行为后，确认：
+- release <model> 在仿真线程将对应 target 的 active=false，然后发送 ok release <model>；
+- set <model> ... 对已存在 target 会更新 pose 并重新设置 active=true；
+- 因此 ACK 丢失时，插件可能已经释放，也可能尚未收到 release。若继续常规 update()，后续 set 可能把已释放目标重新激活。
+
+**本轮修复：**
+- release ACK 成功：按原逻辑清理单个目标或全部目标。
+- release ACK 未确认：保留本地 item，并标记 release_unknown=True；对调用方返回失败，状态机必须停在失败态。
+- CarryBus.update() 跳过所有 release_unknown 目标，禁止自动 set，避免“释放成功但 ACK 丢失”时重新激活插件目标。
+- 后续可显式再次调用 release；只有重试获得匹配 ACK 后才清除本地记录。
+- 新增 test_release_ack_loss_quarantines_target_until_explicit_retry，覆盖单目标 release ACK 丢失、未知态 update 不发 set、显式重试成功清理，以及 release-all ACK 丢失时全部隔离。
+
+**验证结果：**
+- 最新代码提交：ed2de370359813e854382c95ac14c585ce396f3a。
+- GitHub Actions: [P104 Python syntax run 42451744120](https://github.com/rexyll/VLN-VLA/actions/runs/42451744120)，两个 job 均成功：Python 编译成功；P104 纯测试成功，现为 **11/11**。
+- 本修复仍未经过 ROS 2/Gazebo 故障注入；尤其“release 已执行但 ACK 丢失”与“release 指令本身丢失”两种运行时分支需要在仿真中分别注入确认。
+- 该改动只完善 CarryBus 本地未知态隔离，不证明物理对象已释放，也不替代 Gazebo 真值核对；P104-07/P104-08/P104-09 仍保持“正在进行中”。
