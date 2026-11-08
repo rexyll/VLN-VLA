@@ -154,6 +154,13 @@ def log_arm(node, tag, sides=('L', 'R')):
     return out
 
 
+def human_kinematics_ok(states):
+    """关键搬运动作必须有每侧实测姿态，且 P103 R1/R2/R4/R5/R6/R7 全部合规。"""
+    return bool(states) and all(
+        isinstance(st, dict) and not st.get('bad')
+        for st in states.values())
+
+
 # ---------------------------------------------------------------- 桌面/桌腿碰撞门控（P104）
 def _segment_hits_aabb(p0, p1, lo, hi, radius=0.0):
     """胶囊线段与 AABB 的保守相交：将盒子按半径外扩后做 slab 检查。"""
@@ -1180,7 +1187,9 @@ def pour_into_cup(node, fill=0.65, jet_len=0.16, ramp=True):
     # 直接塞进 out['arm'] 会让验收脚本把它当成 {side: state} 去遍历, 拿 q 的
     # list 当字典调 .get() 而崩(AttributeError: 'list' object has no attribute 'get')。
     out['arm']['grasp_cup'] = log_arm(node, '抓杯', ('L',))
-    if not ok_c:
+    if not ok_c or not human_kinematics_ok(out['arm']['grasp_cup']):
+        node.get_logger().error(
+            'POUR 抓杯阶段未达成或手臂违反人体关节规则，停止后续倒水')
         return out
     Tcup_pour = P.cup_for_pour()
     # P103: 举杯要走"肘朝外"的解 —— 与捧杯/递杯同一套(P101 的经验)。默认的
@@ -1188,17 +1197,24 @@ def pour_into_cup(node, fill=0.65, jet_len=0.16, ramp=True):
     ok_l, res_l = place_held(node, 'L', 'cup', Tcup_pour, tol_mm=3.0)
     out['res']['lift_cup'] = res_l
     out['arm']['lift_cup'] = log_arm(node, '举杯', ('L',))
-    if not ok_l:
+    if not ok_l or not human_kinematics_ok(out['arm']['lift_cup']):
+        node.get_logger().error(
+            'POUR 举杯阶段未达成或手臂违反人体关节规则，停止后续倒水')
         return out
     ok_k, res_k = grasp(node, 'R', 'kettle', P.kettle_grasp_palm, K.GRIP_KETTLE)
     out['res']['grasp_kettle'] = res_k
-    if not ok_k:
+    out['arm']['grasp_kettle'] = log_arm(node, '抓壶', ('R',))
+    if not ok_k or not human_kinematics_ok(out['arm']['grasp_kettle']):
+        node.get_logger().error(
+            'POUR 抓壶阶段未达成或手臂违反人体关节规则，停止后续倒水')
         return out
     Tk_pour, tip_tgt = P.kettle_for_pour(object_pose(node, 'cup'))
     ok_p, res_p = place_held(node, 'R', 'kettle', Tk_pour, tol_mm=4.0)
     out['res']['kettle_pour'] = res_p
     out['arm']['pour'] = log_arm(node, '倒水', ('L', 'R'))
-    if not ok_p:
+    if not ok_p or not human_kinematics_ok(out['arm']['pour']):
+        node.get_logger().error(
+            'POUR 倒水位形未达成或左右臂违反人体关节规则；禁止启动水柱')
         return out
     # 水柱先伸出, 水位再升 —— 顺序反了会先看见"杯里有水但没水柱"
     # P98: 有液面控制器时水位由体积积分驱动(水柱由 liquid 逐帧铺),
