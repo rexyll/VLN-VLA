@@ -1137,7 +1137,10 @@ class DrinkTask(Node):
         # `PREPARE → IDLE → PRESENT` 这种跳变。阶段由 `_set_state()` 独占
         # 管理, home() 只是个动作。`self.state` 初值在 __init__ 里给(BOOT)。
         if self.carry.items:
-            self.carry.release(None)
+            self.get_logger().error(
+                'HOME 被拒绝：仍抓持 %s；禁止自动 release，必须先完成安全放置/人工恢复'
+                % ','.join(sorted(self.carry.items.keys())))
+            return False
         self.sync_to_measured()
         # P96: 这几路跟左右臂无关, 原来却写在 for 里被发了两遍 —— 趁改这行
         # 把它提出来, 顺带把两只手一起归到合拢位。
@@ -1145,10 +1148,12 @@ class DrinkTask(Node):
                       'person_arm_l_joint', 'person_arm_r_joint'],
                      [0.0, 0.0, 0.0,
                       L.PERSON_HAND_CLOSE, -L.PERSON_HAND_CLOSE])
+        home_ok = True
         for s in ('R', 'L'):
-            ok_h, err_h = self.hand[s].move(K.grip_values(s, K.GRIP_OPEN),
-                                            timeout=5.0)
+            ok_h, err_h = self.hand[s].move(
+                K.grip_values(s, K.GRIP_OPEN), timeout=5.0)
             ok_a, err_a = self.arm[s].move(K.Q_REST, timeout=10.0)
+            home_ok = home_ok and bool(ok_h and ok_a)
             if verbose:
                 self.get_logger().info(
                     '%s 侧 home: 臂 %s (最大残差 %.1f°)  手 %s (%.1f°)'
@@ -1157,7 +1162,13 @@ class DrinkTask(Node):
                        '到位' if ok_h else '超时',
                        math.degrees(np.nanmax(np.abs(err_h)))))
         self.spin_for(0.3)
-        return True
+        self._home_motion_ok = bool(home_ok)
+        all_ok = all(
+            bool(self.js.get('%s_%s_joint' % (s, j[0])) is not None)
+            for s in ('R', 'L') for j in K.JOINTS)
+        # move() 的布尔结果是复位动作的权威确认；上面只检查状态流仍然存在。
+        # 由循环收集本侧关节/手部伺服结果，任何失败都不报告 home 成功。
+        return bool(all_ok and getattr(self, '_home_motion_ok', False))
 
     def hang(self, verbose=True):
         """P98: 悬垂待命 —— 双臂沿体侧竖直向下, 手指并拢伸直与臂同向。
@@ -1167,13 +1178,27 @@ class DrinkTask(Node):
         不受影响 —— run_drink 的 prepare_present 第一动作就是 home()。
         """
         if self.carry.items:
-            self.carry.release(None)
+            self.get_logger().error(
+                'HANG 被拒绝：仍抓持 %s；禁止自动 release，必须先完成安全放置/人工恢复'
+                % ','.join(sorted(self.carry.items.keys())))
+            return False
         self.sync_to_measured()
+        hang_ok = True
         for s in ('R', 'L'):
-            self.arm[s].move(K.Q_HANG, timeout=12.0)
+            ok_arm, _ = self.arm[s].move(K.Q_HANG, timeout=12.0)
+            hang_ok = hang_ok and bool(ok_arm)
+        if not hang_ok:
+            self.get_logger().error(
+                'HANG 至少一侧手臂未确认悬垂；不继续下发手型归位')
+            return False
         for s in ('R', 'L'):
-            self.hand[s].move(K.grip_values(s, K.GRIP_HANG), timeout=8.0)
+            ok_hand, _ = self.hand[s].move(
+                K.grip_values(s, K.GRIP_HANG), timeout=8.0)
+            hang_ok = hang_ok and bool(ok_hand)
         self.sync_to_measured()
+        if not hang_ok:
+            self.get_logger().error('HANG 至少一侧灵巧手未确认悬垂手型')
+            return False
         if verbose:
             for s in ('R', 'L'):
                 names = ['%s_%s_joint' % (s, j[0]) for j in K.JOINTS]
@@ -1182,6 +1207,7 @@ class DrinkTask(Node):
                     'HANG %s侧悬垂就位: 臂最大|Δ|=%.2f°'
                     % (s, float(np.nanmax(np.abs(np.degrees(
                         q - K.Q_HANG))))))
+        return True
 
     def _srv_hang(self, _req, resp):
         # 与 home 同一规矩: 回调只置标志(见 _srv_home 的 #57 教训),
