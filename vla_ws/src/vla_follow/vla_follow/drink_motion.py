@@ -633,17 +633,27 @@ def place_held(node, side, model, T_obj_goal, tol_mm=PLACE_TOL_MM,
 
 def put_down(node, side, model, T_obj_goal, retreat=0.10,
              tol_mm=PLACE_TOL_MM):
-    """松手放回。四步顺序见模块头注释。返回 (是否, 松钉前残差 mm)。"""
+    """松手放回；未落稳或张手后复核失败时保持附着，绝不提前 release。"""
     ok1, res = place_held(node, side, model, T_obj_goal, tol_mm)
-    open_hand(node, side)
+    if not ok1:
+        node.get_logger().error(
+            'PUT_DOWN %s 落位闭环失败 %.1fmm，保持抓持，不松手' % (model, res))
+        return False, res
+    if not open_hand(node, side):
+        node.get_logger().error('PUT_DOWN %s 张手失败，保持抓持' % model)
+        return False, res
     node.spin_for(0.2)
     # 张手后再对一次位：此时手指已离开物体，收敛到的是"无接触"状态
     ok2, res2 = place_held(node, side, model, T_obj_goal, tol_mm)
+    if not ok2:
+        node.get_logger().error(
+            'PUT_DOWN %s 张手后复核失败 %.1fmm，保持附着' % (model, res2))
+        return False, res2
     T_back = wrist(node, side) @ K.trans((0.0, 0.0, retreat))
     node.carry.release(model)
     node.spin_for(0.3)
     reach(node, side, T_back, tol_mm=8.0)
-    return (ok1 and ok2), res2
+    return True, res2
 
 
 # ---------------------------------------------------------------- 双手捧
@@ -732,11 +742,16 @@ def put_down_two(node, model, T_obj_goal, tol_mm=PLACE_TOL_MM, steps=4,
             continue
         d_rest[s] = float(np.linalg.norm(Tp[:3, 3] - np.asarray(T_obj_goal)[:3, 3]))
         d_axis[s] = float(np.hypot(Tp[0, 3] - Tc0[0, 3], Tp[1, 3] - Tc0[1, 3]))
-    if not resting:
-        node.get_logger().warn(
-            'PUT_DOWN_TWO 杯子还没到位(%.1fmm > %.1f), 两只手都不松'
-            % (res, tol_mm))
-    elif info is not None:
+    if not ok1 or not resting:
+        node.get_logger().error(
+            'PUT_DOWN_TWO 杯子未可靠落稳(ok=%s, 残差 %.1fmm > %.1f)，'
+            '保持两手抓持，不张手、不 release'
+            % (ok1, res, tol_mm))
+        if info is not None:
+            info.update(rest_mm=round(res, 1), release_blocked=True,
+                        release_block_reason='place_not_confirmed')
+        return False, res
+    if info is not None:
         # P103: 落稳那一刻(手还捧着杯子、还没张指)的关节姿态 —— 验收要量的是
         # **放回这个动作**的位形, 不是随后 `hands_off` 抬手的位形
         info['arm_rest'] = dict((s, arm_state(node, s)) for s in ('L', 'R'))
@@ -746,9 +761,16 @@ def put_down_two(node, model, T_obj_goal, tol_mm=PLACE_TOL_MM, steps=4,
                                        for k, v in d_rest.items()),
                     hand_axis_rest=dict((k, round(v * 1e3, 1))
                                         for k, v in d_axis.items()))
-    # 同时张开(指头离开杯壁), 再收一次位, 然后才松钉
-    open_hand(node, 'L')
-    open_hand(node, 'R')
+    # 同时张开(指头离开杯壁), 再收一次位, 然后才松钉。
+    # 张手任何一侧失败都不能解除附着。
+    open_l = open_hand(node, 'L')
+    open_r = open_hand(node, 'R')
+    if not (open_l and open_r):
+        node.get_logger().error('PUT_DOWN_TWO 张手失败，保持杯子附着')
+        if info is not None:
+            info['release_blocked'] = True
+            info['release_block_reason'] = 'hand_open_failed'
+        return False, res
     settle_sim(node, 0.25)
     # 张手之后**只压实、不重挑分支**(elbow=None)。这一步的目标就是"再对一次位",
     # 手已经贴在杯壁上; 要是走 `elbow='human'` 就会在酒杯旁边重新做一次分支决策,
@@ -756,6 +778,14 @@ def put_down_two(node, model, T_obj_goal, tol_mm=PLACE_TOL_MM, steps=4,
     # (up_roll 顶 R4、肘折 2.42 越 R7)—— 姿态难看之外, 这只"重新拧过"的手
     # 随后撤手/倒车时把杯子蹭走 20mm。压实就该沿用当前分支, 做局部跟踪。
     ok2, res2 = place_held(node, 'L', model, T_obj_goal, tol_mm, elbow=None)
+    if not ok2:
+        node.get_logger().error(
+            'PUT_DOWN_TWO 张手后复核失败 %.1fmm，保持杯子附着，不 release'
+            % res2)
+        if info is not None:
+            info['release_blocked'] = True
+            info['release_block_reason'] = 'post_open_pose_not_confirmed'
+        return False, res2
     node.carry.release(model)
     settle_sim(node, 0.6)
     # 松钉后**没有再掉**: 正数=往下掉了(说明松手时还没真落桌)
@@ -830,7 +860,7 @@ def hands_off(node, model, out=0.12, up=0.12, tol_mm=10.0, elbow=None,
                 continue
             T = np.asarray(Tp, float).copy()
             T[:3, 3] = T[:3, 3] + lifts[i][k]
-            _ok, e, _how = reach(node, s, T, tol_mm=tol_mm, elbow=elbow)
+            _ok, e, _how = reach(node, s, T, tol_mm=tol_mm, elbow=elbow,\n                                 check_table=True)
             worst = max(worst, float(e))
     if info is not None:
         info['handoff_mm'] = round(worst, 1)
