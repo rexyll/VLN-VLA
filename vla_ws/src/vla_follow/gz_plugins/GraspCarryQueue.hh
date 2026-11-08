@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <deque>
+#include <map>
 #include <utility>
 #include <set>
 #include <string>
@@ -22,6 +23,50 @@ public:
 
 private:
   std::set<std::string> inFlight_;
+};
+
+// Bounded replay cache for completed request IDs. The caller protects it with
+// the same mutex as the pending queue and in-flight registry.
+class CompletedRequestAckCache
+{
+public:
+  explicit CompletedRequestAckCache(std::size_t capacity = 256)
+      : capacity_(capacity)
+  {
+  }
+
+  bool Find(const std::string &key, std::string &ack) const
+  {
+    const auto it = acknowledgements_.find(key);
+    if (it == acknowledgements_.end())
+      return false;
+    ack = it->second;
+    return true;
+  }
+
+  void Remember(const std::string &key, const std::string &ack)
+  {
+    const auto existing = acknowledgements_.find(key);
+    if (existing != acknowledgements_.end())
+    {
+      existing->second = ack;
+      return;
+    }
+    if (capacity_ == 0)
+      return;
+    while (order_.size() >= capacity_)
+    {
+      acknowledgements_.erase(order_.front());
+      order_.pop_front();
+    }
+    order_.push_back(key);
+    acknowledgements_.emplace(key, ack);
+  }
+
+private:
+  std::size_t capacity_;
+  std::deque<std::string> order_;
+  std::map<std::string, std::string> acknowledgements_;
 };
 
 enum class QueueInsertResult
