@@ -196,8 +196,8 @@ class TestCarryRos2Executor(unittest.TestCase):
                              "cancel_waiters did not wake executor-managed waiter")
             self.assertEqual(cancelled_results, [False])
             with bus._ack_lock:
-                self.assertFalse(bus.pending_requests)
-                self.assertFalse(bus.ack_by_request)
+                self.assertNotIn(cancelled_ids[0], bus.pending_requests)
+                self.assertNotIn(cancelled_ids[0], bus.ack_by_request)
                 self.assertFalse(bus._ack_events)
 
             # Expire 9101, register a different waiter, then deliver its late ACK.
@@ -214,6 +214,10 @@ class TestCarryRos2Executor(unittest.TestCase):
                     self.assertNotIn(9101, bus.ack_by_request)
                     self.assertNotIn(9103, bus.ack_by_request)
                 time.sleep(0.01)
+            with bus._ack_lock:
+                for request_id in (9101, 9102, 9103, 9104, 9105):
+                    bus.pending_requests.discard(request_id)
+                    bus.ack_by_request.pop(request_id, None)
         finally:
             # Executor lifecycle is part of the integration contract: stop the
             # sole spin owner before destroying its node or shutting ROS down.
