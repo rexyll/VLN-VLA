@@ -323,7 +323,6 @@ class TestP104(unittest.TestCase):
         bus.pending_requests = set()
         bus.ack_by_request = {}
         bus._ack_lock = threading.RLock()
-        bus._ack_lock = threading.RLock()
         node.bus = bus
         emitted = []
         ok = bus._await(
@@ -437,6 +436,55 @@ class TestP104(unittest.TestCase):
         bus._on_ack(type(
             'Msg', (), {'data': 'ok joint cup water_joint 401'})())
         self.assertNotIn(401, bus.ack_by_request)
+
+    def test_carry_ack_arriving_after_timeout_is_quarantined(self):
+        class Logger:
+            def info(self, *_args):
+                pass
+            def error(self, *_args):
+                pass
+        class Node:
+            def get_logger(self):
+                return Logger()
+            def spin_for(self, _duration):
+                raise AssertionError("zero-timeout waiter must not spin")
+
+        bus = object.__new__(C.CarryBus)
+        bus.node = Node()
+        bus.request_seq = 8000
+        bus.ack = None
+        bus.acks = []
+        bus.ack_t = 0.0
+        bus.pending_requests = set()
+        bus.ack_by_request = {}
+        bus._ack_lock = threading.RLock()
+
+        emitted = []
+        ok = bus._await(
+            lambda rid: emitted.append(rid),
+            lambda ack, rid: ack == 'ok joint cup water_joint %d' % rid,
+            0.0)
+        self.assertFalse(ok)
+        self.assertEqual(emitted, [])
+        expired_request_id = 8001
+        self.assertEqual(bus.pending_requests, set())
+
+        # ACK after timeout must not be cached as a future completion.
+        bus._on_ack(type(
+            'Msg', (), {
+                'data': 'ok joint cup water_joint %d' % expired_request_id
+            })())
+        self.assertNotIn(expired_request_id, bus.ack_by_request)
+
+        # Even when a later transaction is pending, the expired ACK stays stale.
+        active_request_id = 8002
+        bus.pending_requests.add(active_request_id)
+        bus._on_ack(type(
+            'Msg', (), {
+                'data': 'ok joint cup water_joint %d' % expired_request_id
+            })())
+        self.assertNotIn(active_request_id, bus.ack_by_request)
+        self.assertNotIn(expired_request_id, bus.ack_by_request)
 
     def test_carry_late_ack_cannot_complete_a_different_pending_request(self):
         class Node:
