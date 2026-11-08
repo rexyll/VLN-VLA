@@ -296,12 +296,14 @@ private:
     {
       std::lock_guard<std::mutex> lk(this->mtx);
       const auto key = TransactionKey(_c);
-      // First suppress a retry while the original Apply() is still running.
-      if (_c.requestId != 0 && this->inFlight.Contains(key))
-        return;
-      // Then replay the original terminal ACK if this request already finished.
+      // Prefer a completed ACK even during the tiny interval between Publish()
+      // and Apply() returning / clearing in-flight state.
       if (_c.requestId != 0)
         replayCompleted = this->completedAcks.Find(key, replayAck);
+      // If no terminal ACK exists yet, suppress a retry while Apply() is running.
+      if (!replayCompleted && _c.requestId != 0 &&
+          this->inFlight.Contains(key))
+        return;
       if (!replayCompleted)
         result = this->pending.Push(
         std::move(_c),
