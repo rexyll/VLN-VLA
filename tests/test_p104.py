@@ -40,6 +40,14 @@ class TestP104(unittest.TestCase):
             0.5, places=6)
         self.assertIsNone(V.association_error((1.0, 1.0), None))
 
+    def test_human_joint_rule_gate_rejects_missing_or_violating_sides(self):
+        self.assertTrue(M.human_kinematics_ok({
+            'L': {'bad': []}, 'R': {'bad': []}}))
+        self.assertFalse(M.human_kinematics_ok({
+            'L': {'bad': []}, 'R': {'bad': ['R5前臂扭转']}}))
+        self.assertFalse(M.human_kinematics_ok({'L': {'bad': []}}))
+        self.assertFalse(M.human_kinematics_ok({}))
+
     def test_segment_aabb_guard_detects_crossing_and_clear_path(self):
         lo = (0.0, 0.0, 0.0)
         hi = (1.0, 1.0, 1.0)
