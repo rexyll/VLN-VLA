@@ -11,6 +11,7 @@ import threading
 import time
 import unittest
 
+import numpy as np
 import rclpy
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
@@ -69,6 +70,52 @@ class TestCarryRos2Executor(unittest.TestCase):
         self.assertEqual(bus.get_many(("joint_a", "joint_b")).tolist(),
                          [5000.0, 5000.0])
         self.assertGreater(bus.count, 0)
+        node.destroy_node()
+        rclpy.shutdown()
+
+    def test_carry_attachment_state_is_safe_during_updates(self):
+        rclpy.init()
+        node = Node("carry_attachment_concurrency_test")
+        bus = CarryBus(node)
+        bus.host_world = lambda *_args: np.eye(4)
+        bus.obj_world = lambda _model: np.eye(4)
+        # This test isolates attachment-map synchronization from transport ACKs.
+        bus._await = lambda *_args: True
+        errors = []
+        start = threading.Barrier(3)
+
+        def mutate_attachments():
+            try:
+                start.wait(timeout=3.0)
+                for index in range(2000):
+                    model = "item_%d" % (index % 8)
+                    if not bus.hand_to(model, "person"):
+                        errors.append(AssertionError(
+                            "hand_to unexpectedly rejected %s" % model))
+                    if index % 2 == 0:
+                        bus.release(model)
+            except Exception as exc:
+                errors.append(exc)
+
+        def stream_updates():
+            try:
+                start.wait(timeout=3.0)
+                for _ in range(3000):
+                    bus.update()
+                    bus.holding()
+            except Exception as exc:
+                errors.append(exc)
+
+        threads = [threading.Thread(target=mutate_attachments),
+                   threading.Thread(target=stream_updates)]
+        for thread in threads:
+            thread.start()
+        start.wait(timeout=3.0)
+        for thread in threads:
+            thread.join(timeout=8.0)
+            self.assertFalse(thread.is_alive(),
+                             "CarryBus attachment worker did not finish")
+        self.assertFalse(errors, "attachment state race: %r" % errors)
         node.destroy_node()
         rclpy.shutdown()
 
