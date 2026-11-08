@@ -219,8 +219,14 @@ private:
     double value{0.0};
   };
 
-  void SendAck(const std::string &_text)
+  void SendAck(const std::string &_text,
+               const std::string &_transactionKey = "")
   {
+    if (!_transactionKey.empty())
+    {
+      std::lock_guard<std::mutex> lk(this->mtx);
+      this->completedAcks.Remember(_transactionKey, _text);
+    }
     if (!this->ackPub.Valid())
       return;
     gz::msgs::StringMsg m;
@@ -281,11 +287,20 @@ private:
   /// \brief transport 线程: 有界入队, 不触碰 ECM
   void Enqueue(Cmd &&_c)
   {
-    std::lock_guard<std::mutex> lk(this->mtx);
-    // A retry between Pop() and ACK must not create a second queued execution.
-    if (_c.requestId != 0 && this->inFlight.Contains(TransactionKey(_c)))
-      return;
-    const auto result = this->pending.Push(
+    std::string replayAck;
+    bool replayCompleted = false;
+    QueueInsertResult result = QueueInsertResult::Enqueued;
+    {
+      std::lock_guard<std::mutex> lk(this->mtx);
+      const auto key = TransactionKey(_c);
+      // First suppress a retry while the original Apply() is still running.
+      if (_c.requestId != 0 && this->inFlight.Contains(key))
+        return;
+      // Then replay the original terminal ACK if this request already finished.
+      if (_c.requestId != 0)
+        replayCompleted = this->completedAcks.Find(key, replayAck);
+      if (!replayCompleted)
+        result = this->pending.Push(
         std::move(_c),
         [](const Cmd &queued, const Cmd &incoming)
         {
@@ -306,6 +321,13 @@ private:
                  queued.joint == incoming.joint &&
                  queued.requestId == incoming.requestId;
         });
+    }
+
+    if (replayCompleted)
+    {
+      this->SendAck(replayAck);
+      return;
+    }
 
     if (result == QueueInsertResult::Full)
     {
@@ -336,13 +358,13 @@ private:
         for (auto &kv : this->targets)
           kv.second.active = false;
         gzmsg << "[GraspCarry] release all" << std::endl;
-        this->SendAck("ok release all " + std::to_string(_c.requestId));
+        this->SendAck("ok release all " + std::to_string(_c.requestId), TransactionKey(_c));
         return;
       }
       auto it = this->targets.find(_c.model);
       if (it != this->targets.end())
         it->second.active = false;
-      this->SendAck("ok release " + _c.model + " " + std::to_string(_c.requestId));
+      this->SendAck("ok release " + _c.model + " " + std::to_string(_c.requestId), TransactionKey(_c));
       return;
     }
 
@@ -357,7 +379,7 @@ private:
       {
         gzerr << "[GraspCarry] joint: 找不到模型 '" << _c.model << "'"
               << std::endl;
-        this->SendAck("fail joint " + _c.model + " " + _c.joint + " " + std::to_string(_c.requestId) + " no-model");
+        this->SendAck("fail joint " + _c.model + " " + _c.joint + " " + std::to_string(_c.requestId) + " no-model", TransactionKey(_c));
         return;
       }
       gz::sim::Entity je = gz::sim::kNullEntity;
@@ -375,7 +397,7 @@ private:
       {
         gzerr << "[GraspCarry] joint: 模型 '" << _c.model << "' 下没有关节 '"
               << _c.joint << "'" << std::endl;
-        this->SendAck("fail joint " + _c.model + " " + _c.joint + " " + std::to_string(_c.requestId) + " no-joint");
+        this->SendAck("fail joint " + _c.model + " " + _c.joint + " " + std::to_string(_c.requestId) + " no-joint", TransactionKey(_c));
         return;
       }
       if (!_ecm.Component<gz::sim::components::JointPositionReset>(je))
@@ -386,7 +408,7 @@ private:
       jt.value = _c.value;
       // 用 model::joint 做键, 免得不同模型下的同名关节互相覆盖
       this->joints[_c.model + "::" + _c.joint] = jt;
-      this->SendAck("ok joint " + _c.model + " " + _c.joint + " " + std::to_string(_c.requestId));
+      this->SendAck("ok joint " + _c.model + " " + _c.joint + " " + std::to_string(_c.requestId), TransactionKey(_c));
       return;
     }
 
@@ -399,7 +421,7 @@ private:
       {
         gzerr << "[GraspCarry] 找不到模型 '" << _c.model << "'" << std::endl;
         if (_c.op == "grab")
-          this->SendAck("fail grab " + _c.model + " " + std::to_string(_c.requestId) + " no-model");
+          this->SendAck("fail grab " + _c.model + " " + std::to_string(_c.requestId) + " no-model", TransactionKey(_c));
         return;
       }
       Target t;
@@ -412,7 +434,7 @@ private:
     if (_c.op == "place")
     {
       gz::sim::Model(it->second.entity).SetWorldPoseCmd(_ecm, _c.pose);
-      this->SendAck("ok place " + _c.model + " " + std::to_string(_c.requestId));
+      this->SendAck("ok place " + _c.model + " " + std::to_string(_c.requestId), TransactionKey(_c));
       return;
     }
     if (_c.op == "grab")
@@ -420,7 +442,7 @@ private:
       gzmsg << "[GraspCarry] grab " << _c.model << " @ ("
             << _c.pose.Pos().X() << " " << _c.pose.Pos().Y() << " "
             << _c.pose.Pos().Z() << ")" << std::endl;
-      this->SendAck("ok grab " + _c.model + " " + std::to_string(_c.requestId));
+      this->SendAck("ok grab " + _c.model + " " + std::to_string(_c.requestId), TransactionKey(_c));
     }
   }
 
@@ -429,6 +451,7 @@ private:
   std::mutex mtx;
   BoundedCommandQueue<Cmd> pending{128};
   InFlightRequestRegistry inFlight;
+  CompletedRequestAckCache completedAcks{256};
   std::map<std::string, Target> targets;
   // 踩坑记录(P87): jet/water 是**速度模式** JointPositionController, 所属模型
   // 被本插件每 1ms teleport 时, 速度指令会被 teleport 的清零抢走 —— 同一命令
