@@ -306,8 +306,8 @@ private:
           this->inFlight.Contains(key))
         return;
       if (!replayCompleted)
-        result = this->pending.Push(
-        std::move(_c),
+        result = vla::PushAndRememberFull(
+        this->pending, std::move(_c),
         [](const Cmd &queued, const Cmd &incoming)
         {
           // 高频无 ACK 位姿流只保留同一对象的最新值。
@@ -326,26 +326,22 @@ private:
                  queued.model == incoming.model &&
                  queued.joint == incoming.joint &&
                  queued.requestId == incoming.requestId;
-        });
-
-      // A queue-full response is terminal for this transaction. Remember it
-      // under the same lock as the Full decision, so a concurrent retry cannot
-      // slip into the queue before the rejection becomes replayable.
-      if (!replayCompleted && result == QueueInsertResult::Full &&
-          _c.requestId != 0)
-      {
-        if (_c.op == "release")
-          failureAck = "fail release " + _c.model + " " +
-                       std::to_string(_c.requestId) + " queue-full";
-        else if (_c.op == "joint")
-          failureAck = "fail joint " + _c.model + " " + _c.joint + " " +
-                       std::to_string(_c.requestId) + " queue-full";
-        else if (_c.op == "grab" || _c.op == "place")
-          failureAck = "fail " + _c.op + " " + _c.model + " " +
-                       std::to_string(_c.requestId) + " queue-full";
-        if (!failureAck.empty())
-          this->completedAcks.Remember(key, failureAck);
-      }
+        },
+        this->completedAcks, key,
+        [](const Cmd &command)
+        {
+          if (command.op == "release")
+            return "fail release " + command.model + " " +
+                   std::to_string(command.requestId) + " queue-full";
+          if (command.op == "joint")
+            return "fail joint " + command.model + " " + command.joint + " " +
+                   std::to_string(command.requestId) + " queue-full";
+          if (command.op == "grab" || command.op == "place")
+            return "fail " + command.op + " " + command.model + " " +
+                   std::to_string(command.requestId) + " queue-full";
+          return std::string{};
+        },
+        failureAck);
     }
 
     if (replayCompleted)
