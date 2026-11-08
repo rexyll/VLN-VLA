@@ -155,13 +155,19 @@ def log_arm(node, tag, sides=('L', 'R')):
 
 
 def human_kinematics_ok(states, min_out_line_mm=None,
-                        max_abs_droop_mm=None, max_abs_twist=None):
-    """关键搬运动作必须有实测姿态并通过 P103 规则/姿态质量门槛。
+                        max_abs_droop_mm=None, max_abs_twist=None,
+                        required_sides=None):
+    """关键搬运动作必须具备指定侧的实测姿态，并通过 P103 规则/质量门槛。
 
+    required_sides: 此动作必须有姿态数据的手臂侧，如抓杯('L')、倒水('L','R')。
     min_out_line_mm: 可选的逐侧肘外扩线下限（mm），如举杯左臂 100、倒水右臂 60。
     max_abs_droop_mm/max_abs_twist: 可选的逐侧绝对值上限（mm/rad）。
     """
     if not states:
+        return False
+    if required_sides is not None and any(
+            side not in states or not isinstance(states[side], dict)
+            for side in required_sides):
         return False
     min_out_line_mm = min_out_line_mm or {}
     max_abs_droop_mm = max_abs_droop_mm or {}
@@ -1346,7 +1352,7 @@ def pour_into_cup(node, fill=0.65, jet_len=0.16, ramp=True):
     # 直接塞进 out['arm'] 会让验收脚本把它当成 {side: state} 去遍历, 拿 q 的
     # list 当字典调 .get() 而崩(AttributeError: 'list' object has no attribute 'get')。
     out['arm']['grasp_cup'] = log_arm(node, '抓杯', ('L',))
-    if not ok_c or not human_kinematics_ok(out['arm']['grasp_cup']):
+    if not ok_c or not human_kinematics_ok(out['arm']['grasp_cup'], required_sides=('L',)):
         node.get_logger().error(
             'POUR 抓杯阶段未达成或手臂违反人体关节规则，停止后续倒水')
         return out
@@ -1360,7 +1366,7 @@ def pour_into_cup(node, fill=0.65, jet_len=0.16, ramp=True):
             out['arm']['lift_cup'],
             min_out_line_mm={'L': 100.0},
             max_abs_droop_mm={'L': 120.0},
-            max_abs_twist={'L': 2.2}):
+            max_abs_twist={'L': 2.2}, required_sides=('L',)):
         node.get_logger().error(
             'POUR 举杯阶段未达成或左肘外扩/下垂/扭转不符合 P103 判据'
             '（外扩线≥100mm、|droop|≤120mm、|twist|≤2.2），停止后续倒水')
@@ -1368,7 +1374,7 @@ def pour_into_cup(node, fill=0.65, jet_len=0.16, ramp=True):
     ok_k, res_k = grasp(node, 'R', 'kettle', P.kettle_grasp_palm, K.GRIP_KETTLE)
     out['res']['grasp_kettle'] = res_k
     out['arm']['grasp_kettle'] = log_arm(node, '抓壶', ('R',))
-    if not ok_k or not human_kinematics_ok(out['arm']['grasp_kettle']):
+    if not ok_k or not human_kinematics_ok(out['arm']['grasp_kettle'], required_sides=('R',)):
         node.get_logger().error(
             'POUR 抓壶阶段未达成或手臂违反人体关节规则，停止后续倒水')
         return out
@@ -1377,7 +1383,7 @@ def pour_into_cup(node, fill=0.65, jet_len=0.16, ramp=True):
     out['res']['kettle_pour'] = res_p
     out['arm']['pour'] = log_arm(node, '倒水', ('L', 'R'))
     if not ok_p or not human_kinematics_ok(
-            out['arm']['pour'], min_out_line_mm={'R': 60.0}):
+            out['arm']['pour'], min_out_line_mm={'R': 60.0},\n            required_sides=('L', 'R')):
         node.get_logger().error(
             'POUR 倒水位形未达成、左右臂违反人体关节规则或右肘外扩线小于60mm；'
             '禁止启动水柱')
