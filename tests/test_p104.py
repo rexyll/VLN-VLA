@@ -280,6 +280,8 @@ class TestP104(unittest.TestCase):
         bus.ack = None
         bus.acks = []
         bus.ack_t = 0.0
+        bus.pending_requests = set()
+        bus.ack_by_request = {}
         node.bus = bus
         emitted = []
         ok = bus._await(
@@ -289,6 +291,56 @@ class TestP104(unittest.TestCase):
         self.assertTrue(ok)
         self.assertEqual(emitted, [7, 7, 7, 7, 7])
         self.assertEqual(bus.acks[-1], 'ok release all 7')
+
+    def test_carry_ack_waiters_are_isolated_during_nested_spin(self):
+        class Logger:
+            def info(self, *_args):
+                pass
+        class Node:
+            def __init__(self):
+                self.bus = None
+                self.calls = 0
+                self.outer_ids = []
+                self.inner_ids = []
+                self.nested_result = None
+            def get_logger(self):
+                return Logger()
+            def spin_for(self, _duration):
+                self.calls += 1
+                if self.calls == 1:
+                    self.nested_result = self.bus._await(
+                        lambda rid: self.inner_ids.append(rid),
+                        lambda ack, rid: ack == 'ok joint cup water_joint %d' % rid,
+                        0.5)
+                elif self.calls == 2:
+                    outer_id = self.outer_ids[0]
+                    inner_id = self.inner_ids[0]
+                    for data in (
+                            'ok release all %d' % outer_id,
+                            'ok joint cup water_joint %d' % inner_id):
+                        self.bus._on_ack(type('Msg', (), {'data': data})())
+        node = Node()
+        bus = object.__new__(C.CarryBus)
+        bus.node = node
+        bus.request_seq = 20
+        bus.ack = None
+        bus.acks = []
+        bus.ack_t = 0.0
+        bus.pending_requests = set()
+        bus.ack_by_request = {}
+        node.bus = bus
+
+        outer_ok = bus._await(
+            lambda rid: node.outer_ids.append(rid),
+            lambda ack, rid: ack == 'ok release all %d' % rid,
+            0.5)
+        self.assertTrue(node.nested_result)
+        self.assertTrue(outer_ok)
+        self.assertEqual(node.outer_ids, [21, 21, 21, 21, 21])
+        self.assertEqual(node.inner_ids, [22, 22, 22, 22, 22])
+        self.assertEqual(bus.pending_requests, set())
+        self.assertEqual(bus.ack_by_request, {})
+
     def test_release_ack_loss_quarantines_target_until_explicit_retry(self):
         class Logger:
             def info(self, *_args):
