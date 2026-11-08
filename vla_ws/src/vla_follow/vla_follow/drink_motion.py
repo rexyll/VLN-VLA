@@ -241,10 +241,12 @@ def _obb_hits_aabb(center, rotation, half_extents, lo, hi, margin=0.015):
     c_b = 0.5 * (lo + hi)
     h_b = 0.5 * (hi - lo)
     # SAT: 3 个 OBB 轴、3 个 AABB 轴、9 个叉积轴。
-    R = axes
+    # axes 的列是 OBB 局部 x/y/z 轴在世界系中的方向；
+    # SAT 公式使用 R[i,j] = dot(OBB_axis_i, AABB_axis_j)，所以必须转置。
+    R = axes.T
     abs_R = np.abs(R) + 1e-9
     t_world = c_b - c_a
-    t = R.T @ t_world
+    t = R @ t_world
     for i in range(3):
         ra = h_a[i]
         rb = float(h_b @ abs_R[i, :])
