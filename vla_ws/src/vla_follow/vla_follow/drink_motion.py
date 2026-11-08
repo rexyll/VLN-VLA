@@ -1383,7 +1383,8 @@ def pour_into_cup(node, fill=0.65, jet_len=0.16, ramp=True):
     out['res']['kettle_pour'] = res_p
     out['arm']['pour'] = log_arm(node, '倒水', ('L', 'R'))
     if not ok_p or not human_kinematics_ok(
-            out['arm']['pour'], min_out_line_mm={'R': 60.0},\n            required_sides=('L', 'R')):
+            out['arm']['pour'], min_out_line_mm={'R': 60.0},
+            required_sides=('L', 'R')):
         node.get_logger().error(
             'POUR 倒水位形未达成、左右臂违反人体关节规则或右肘外扩线小于60mm；'
             '禁止启动水柱')
