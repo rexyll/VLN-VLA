@@ -16,6 +16,7 @@ on:
       - ".github/workflows/p104-grasp-carry-cpp.yml"
       - "vla_ws/src/vla_follow/gz_plugins/**"
       - "tests/test_grasp_carry_queue.cc"
+      - "tests/grasp_carry_integration.sdf"
   workflow_dispatch:
 
 permissions:
@@ -97,7 +98,7 @@ jobs:
           SUB_PID=$!
           sleep 2
           publish() {
-            gz topic -t /drink/carry -m gz.msgs.StringMsg -p "data: \\"$1\\""
+            gz topic -t /drink/carry -m gz.msgs.StringMsg -p "data: \"$1\""
           }
           wait_ack() {
             local expected="$1"
