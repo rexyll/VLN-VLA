@@ -184,6 +184,7 @@ class PersonVision(Node):
         self.rgb, self.dep = {}, {}
         self.rgb_t, self.dep_t = {}, {}
         self.rx, self.ry, self.ryaw = 0.0, 0.0, 0.0
+        self.pose_t = 0.0
         for name, _ in CAMS:
             self._gz.subscribe(GzImage, '/depth_' + name + '/image',
                                self._mk_rgb(name))
@@ -242,6 +243,7 @@ class PersonVision(Node):
                     self.rx = p.position.x
                     self.ry = p.position.y
                     self.ryaw = yaw_of(q)
+                    self.pose_t = time.monotonic()
                 return
 
     def _predict_world(self, now):
@@ -280,15 +282,21 @@ class PersonVision(Node):
             dep = self.dep.get(name)
             tr = self.rgb_t.get(name, 0.0)
             td = self.dep_t.get(name, 0.0)
-            rx, ry, ryaw = self.rx, self.ry, self.ryaw
+            rx, ry, ryaw, pose_t = (
+                self.rx, self.ry, self.ryaw, self.pose_t)
         miss = {'det': False, 'dist': -1.0, 'bc': 0.0, 'u': -1,
                 'area': 0, 'bbox': None, 'world_xy': None,
-                'track_error': None}
+                'track_error': None, 'obs_t': None}
         if rgb is None or dep is None or tr <= 0.0 or td <= 0.0:
             return miss
         # P104: 不能将相机断流前的旧图与另一条新深度帧拼成“检出”。
         if not sensor_pair_fresh(tr, td, now):
             return miss
+        # 世界坐标转换依赖同步底盘位姿；位姿流断更时不把旧位姿下的像素
+        # 投成新的世界点，避免跨帧关联把机器人运动误当成目标运动。
+        if pose_t <= 0.0 or now - pose_t > MAX_SENSOR_AGE_S:
+            return miss
+        obs_t = 0.5 * (tr + td)
         if rgb.shape[:2] != dep.shape:
             dep = cv2.resize(dep, (rgb.shape[1], rgb.shape[0]))
         hsv = cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV)
@@ -340,7 +348,7 @@ class PersonVision(Node):
                 'det': True, 'dist': dist, 'bc': bc, 'u': int(u),
                 'area': int(area), 'bbox': (x, y, w, h),
                 'world_xy': (float(wx), float(wy)),
-                'track_error': track_error,
+                'track_error': track_error, 'obs_t': float(obs_t),
             })
         if not candidates:
             return miss
@@ -392,7 +400,7 @@ class PersonVision(Node):
             saved.append(fn)
             # 每轮最多一条观测。多相机同时看到同一个人时，不能把重复世界点
             # 当成同一人在很短时间内走了几米。
-            self.hist.append({'t': now, 'cam': name,
+            self.hist.append({'t': float(r.get('obs_t') or now), 'cam': name,
                               'bearing': round(bearing, 3),
                               'dist': round(r['dist'], 2),
                               'wx': round(wx, 2), 'wy': round(wy, 2)})
