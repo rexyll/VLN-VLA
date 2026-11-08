@@ -1952,3 +1952,20 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 本次新增的是 Python 多线程直接调用 ACK callback 的并发单测，证明共享字典/集合的临界区保护；它**不是**真实 ROS 2 MultiThreadedExecutor 集成测试，也没有覆盖 ROS callback group、executor 生命周期、真实 transport 迟到 ACK 或并发 `spin_for()`。
 - 仍需设计单一 executor 所有权的事务等待模型，再通过真实 ROS 2 executor 测试不同 request_id 隔离、迟到 ACK 不误完成新事务、超时后相同 transaction identity 的重试和终态幂等。
 - P104-07 继续“正在进行中”，不因纯 Python CI 通过而关闭；P104-08、P104-05/P104-06 和 P104-09 状态保持不变。
+
+
+### 8.38 增加迟到 ACK 与新事务隔离回归（2026-11-08）
+
+**本轮推进 P104-07：**
+- 复核 CarryBus 的事务状态后，确认 _on_ack() 只在 request_id 仍处于 pending_requests 时登记结果；等待者退出时会在同一把锁保护下清理 pending 标记和结果缓存。
+- 新增 test_carry_late_ack_cannot_complete_a_different_pending_request：旧事务 7001 的成功 ACK 在新事务 7002 pending 期间迟到，必须只进入诊断历史，不得登记到新事务；随后 7002 的匹配 ACK 才能完成当前请求。
+- 该测试与既有 24 个并发 request_id 回调测试、重复 ACK 在等待者完成后被忽略的测试共同覆盖请求身份隔离的纯 Python 状态逻辑。
+
+**提交：**
+- e6c9a4c：新增迟到 ACK 不得完成新事务的回归测试。
+
+**CI 状态与验证边界：**
+- 提交 e6c9a4cd151383e49669705ca8009cfe5e26c6cc 对应 Python workflow run [42481198148](https://github.com/rexyll/VLN-VLA/actions/runs/42481198148)；本次 TaskPlan 记录时，P104 纯测试步骤已成功、Python 模块编译 job 已成功，纯测试 job 正在收尾，尚未取得整个 workflow 的最终 completed 状态。
+- 该用例验证 ACK 状态机的 request_id 隔离，不等同于真实 ROS 2 executor、DDS transport 或 Gazebo 同进程联调。
+- DrinkTask.spin_for() 当前通过 rclpy.spin_once(self) 推进单节点事件；主任务编排在节点主循环中执行，订阅/服务回调只排队置位。后续若引入 MultiThreadedExecutor，必须明确 executor 所有权与 callback group，不能让多个事务等待者各自并发驱动同一节点的 spin_once()。
+- 下一步继续验证超时边界、重试期间同一 request_id 的稳定性，以及真实 ROS 2 executor 下迟到 ACK/并发事务行为；P104-07 仍保持“正在进行中”。
