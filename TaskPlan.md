@@ -1986,3 +1986,20 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 该测试覆盖 _await 超时清理后的状态机行为，但采用纯 Python 夹具和零等待超时，不是 DDS 消息真实迟到时序或 ROS 2 executor 集成测试。
 - 现有 CarryBus._await 仍通过 node.spin_for() 推进回调；在 DrinkTask 单线程主循环模式下有明确调用者，但真实 MultiThreadedExecutor 下事务等待、callback group 与 executor 生命周期仍未集成验证。
 - 下一步继续做可控时钟/屏障驱动的 timeout-vs-ACK 竞态测试，并规划真实 ROS 2 executor 测试入口；P104-07 保持“正在进行中”。
+
+
+### 8.40 增加 ACK 回调与超时清理的并发竞态回归（2026-11-08）
+
+**本轮继续推进 P104-07：**
+- 新增 test_carry_ack_callback_racing_timeout_cleanup_leaves_no_stale_state，以线程 Barrier 同时释放 ACK callback 与超时 finally 清理路径，覆盖两种锁竞争顺序。
+- 对 100 个独立 request_id 重复执行竞争；无论 ACK 回调先获得锁（结果随后由 cleanup 清除），还是 cleanup 先获得锁（回调观察到 request_id 已不再 pending），最终均断言 pending_requests 与 ack_by_request 不残留该事务。
+- 该测试验证锁保护下的状态收敛与清理原子性，不模拟 DDS 时钟或真实 ROS 2 executor 调度。
+
+**提交与 CI：**
+- 代码提交：3b3c587aac6e749711b05a5da8f4e634395865b0。
+- Python workflow run [42481944127](https://github.com/rexyll/VLN-VLA/actions/runs/42481944127)：P104 纯测试与 Python 模块编译两个 job 均 completed / success。
+
+**后续边界：**
+- CarryBus 的 request_id 隔离、超时后迟到 ACK 隔离及 ACK/清理并发竞争已有纯 Python 回归覆盖。
+- 仍需在真实 ROS 2 Jazzy 环境验证 executor 单一所有权、callback group、节点销毁/取消生命周期、DDS ACK 真实迟到与并发事务；当前测试不能替代这些集成验证。
+- P104-07 保持“正在进行中”，下一步优先建立与项目 ROS 2 Jazzy 版本一致的 integration test workflow，再接入真实 executor 测试。
