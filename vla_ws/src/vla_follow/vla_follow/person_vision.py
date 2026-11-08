@@ -354,6 +354,9 @@ class PersonVision(Node):
                 'area': int(area), 'bbox': (x, y, w, h),
                 'world_xy': (float(wx), float(wy)),
                 'track_error': track_error, 'obs_t': float(obs_t),
+                # rgb 在回调中已 copy；后续回调会替换 dict 值而不会改写该数组，
+                # 所以快照可复用与 bbox/深度完全对应的那一帧。
+                'rgb_frame': rgb,
             })
         if not candidates:
             return miss
@@ -377,11 +380,11 @@ class PersonVision(Node):
             r = results[name]
             if not r['det'] or r['bbox'] is None:
                 continue
-            with self._lock:
-                rgb = self.rgb.get(name)
-                rgb_t = self.rgb_t.get(name, 0.0)
-            # 抓拍也必须来自新鲜 RGB 帧，且复用回调中的不可变快照。
-            if rgb is None or time.monotonic() - rgb_t > MAX_SENSOR_AGE_S:
+            # 复用候选生成时那张 RGB 快照，保证 bbox/深度/世界坐标/图像
+            # 都属于同一帧，而不是从缓存取可能更新过的下一帧。
+            rgb = r.get('rgb_frame')
+            if rgb is None or not timestamp_fresh(
+                    r.get('obs_t'), time.monotonic(), MAX_SENSOR_AGE_S):
                 continue
             frame = rgb.copy()
             x, y, w, h = r['bbox']
