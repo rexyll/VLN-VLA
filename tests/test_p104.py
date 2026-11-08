@@ -83,8 +83,12 @@ class TestP104(unittest.TestCase):
         names = {item[0] for item in boxes}
         self.assertIn('table_top', names)
         self.assertIn('table_lip', names)
-        self.assertEqual(sum(1 for n in names if n == 'table_leg'), 1)
         self.assertEqual(sum(1 for b in boxes if b[0] == 'table_leg'), 4)
+        for _name, _lo, _hi in boxes:
+            self.assertEqual(len(_lo), 3)
+            self.assertEqual(len(_hi), 3)
+            self.assertTrue(all(float(a) < float(b)
+                                for a, b in zip(_lo, _hi)))
 
 
 if __name__ == '__main__':
