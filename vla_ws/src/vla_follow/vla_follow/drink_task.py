@@ -284,13 +284,19 @@ class DrinkTask(Node):
     # ------------------------------------------------------------ 回调
     def _follower_status_cb(self, msg):
         try:
+            # Publish a fresh immutable-by-convention snapshot; readers may
+            # safely retain the previous dictionary while callbacks continue.
             self._follower_status = json.loads(msg.data)
             self._follower_status_t = time.monotonic()
         except Exception:
             pass
 
     def _js_cb(self, msg):
-        self.js.update(zip(msg.name, msg.position))
+        # Copy-on-write avoids mutating a dict while task code or executor
+        # callbacks are reading joint snapshots.
+        updated = dict(self.js)
+        updated.update(zip(msg.name, msg.position))
+        self.js = updated
 
     def _odom_cb(self, msg):
         # 踩坑记录(P86): gz 的 diff-drive 里程计是**轮子积分**, 底盘被
@@ -308,8 +314,12 @@ class DrinkTask(Node):
         self._have_odom = True
 
     def _gt_cb(self, msg):
+        # dynamic_pose/info is a stream of complete-ish snapshots. Build the
+        # next map off-thread and publish it with one reference assignment.
+        updated = dict(self.links)
         for p in msg.pose:
-            self.links[p.name] = p
+            updated[p.name] = p
+        self.links = updated
         # P98 排查: 道具键会间歇性从 links 里"消失"(抓取时在、place_held
         # 时变 None → FAIL_PREPARE)。节流打印真值流的关键键存在性, 定位
         # 是"流里没有"还是"字典丢了"。
