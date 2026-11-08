@@ -976,10 +976,12 @@ class DrinkTask(Node):
             # 8) 交权: follower 恢复跟随 + cmd_mux 解 300s 喝水锁。
             #    两条都是收到 /robot/command 才动作, 一条消息两处生效。
             self._set_state('HANDBACK')
+            _handback_sent_t = time.monotonic()
             self._tell_robot('FOLLOW')
             self.spin_for(1.0)
             _fs = dict(self._follower_status or {})
             handback_ok = (_fs.get('state') == 'FOLLOW'
+                           and self._follower_status_t >= _handback_sent_t
                            and time.monotonic() - self._follower_status_t < 1.5)
             res['follower'] = {
                 'state': _fs.get('state'),
