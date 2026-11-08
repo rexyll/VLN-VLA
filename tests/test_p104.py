@@ -669,6 +669,7 @@ class TestP104(unittest.TestCase):
         bus.items = {
             'cup': {'side': 'L', 'offset': np.eye(4)},
         }
+        bus._items_lock = threading.RLock()
         sent = []
         bus._send_pose = lambda *args: sent.append(args)
         bus.palm_world = lambda _side: np.eye(4)
@@ -711,6 +712,7 @@ class TestP104(unittest.TestCase):
         bus = object.__new__(C.CarryBus)
         bus.node = Node()
         bus.items = {}
+        bus._items_lock = threading.RLock()
         host_pose = K.trans((0.4, -0.2, 0.8))
         object_pose = K.trans((0.55, -0.1, 0.9))
         bus.host_world = lambda *_args: host_pose.copy()
