@@ -2072,3 +2072,15 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 **当前判断：**
 - P104-07 仍为“正在进行中”。当前真实 executor 测试覆盖 ACK 投递、request_id 隔离、迟到 ACK、终态重复/冲突策略和 executor 关闭顺序；尚未覆盖 CarryBus._await() 在已运行 executor 下的完整事务等待/超时/重试。
 - 下一步先确认固定 ROS apt bootstrap CI 成功，再设计 executor-aware waiter，避免同步 waiter 通过 rclpy.spin_once() 与 executor 线程争夺节点执行权。
+
+
+### 8.45 Executor-managed CarryBus waiter 兼容性与超时重试测试修正（2026-11-08）
+
+- 新增 executor-managed ACK 等待模式：外部 ROS 2 executor 独占回调推进，事务等待线程通过 request-specific Event 等待，不再嵌套调用 `spin_for()/spin_once()`；新增双事务并发等待、超时清理、迟到 ACK 与 queue-full 拒绝验证。
+- 首轮验证暴露两类问题，均已定位：
+  1. 纯 Python 历史测试通过 `object.__new__(CarryBus)` 构造轻量夹具，未初始化新模式字段，导致 `executor_managed` / `_ack_events` 属性缺失。修正为使用兼容性默认值读取字段，不改变正常构造实例的默认行为。
+  2. ROS 2 集成测试把 120ms 超时窗口内的 emit 次数硬编码为 1，但实现按最多 80ms 的等待间隔重发，实际在窗口内可能发送 2 次。测试改为验证至少发送一次且所有重发使用同一 request_id；仍检查超时后 pending、ACK 缓存和 Event 均被清理。
+- 修复提交：
+  - `11e039d905c1f4467e8ba9d471d386b823c86c97` — `fix: preserve legacy CarryBus waiter fixtures`
+  - `fc277e1fd3ab056640a93b876da829fb64b5c55b` — `test: allow bounded CarryBus timeout retransmits`
+- 验证边界：修复后的 Python 与 ROS 2 Jazzy CI 尚待本次提交触发的 workflow 完成；在两条 workflow 均成功前，不将 executor-managed 事务等待标记为验收通过。
