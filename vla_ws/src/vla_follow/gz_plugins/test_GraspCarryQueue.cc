@@ -13,8 +13,8 @@ struct Command
 {
   std::string op;
   std::string model;
-  std::string joint;
   unsigned requestId{0};
+  std::string joint;
 };
 
 bool Coalesce(const Command &queued, const Command &incoming)
@@ -108,7 +108,7 @@ void TestQueueFullRejectionIsAtomicAndReplayable()
         vla::QueueInsertResult::Enqueued);
   const std::string key = "joint|cup|water_joint|77";
   CHECK(vla::PushAndRememberFull(
-            queue, Command{"joint", "cup", "water_joint", 77},
+            queue, Command{"joint", "cup", 77, "water_joint"},
             coalesce, duplicate, cache, key, buildFailure, failureAck) ==
         vla::QueueInsertResult::Full);
   CHECK(failureAck == "fail joint cup water_joint 77 queue-full");
