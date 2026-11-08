@@ -31,6 +31,7 @@ Python 请求/应答会**累计退化**(实测约 400 次后成片超时并 core
 """
 import math
 import time
+import threading
 
 import numpy as np
 from std_msgs.msg import String
@@ -89,6 +90,7 @@ class CarryBus(object):
         self.request_seq = time.time_ns()
         self.pending_requests = set()
         self.ack_by_request = {}
+        self._ack_lock = threading.RLock()
         # model -> {'side': 'R'/'L', 'offset': 4x4}
         self.items = {}
         self.pub_count = 0
@@ -98,21 +100,23 @@ class CarryBus(object):
         # P98: ack 改为**队列** —— 原来是单槽, 液面控制器以 ~7Hz 并发下发
         # water_joint 后, jet 的 ack 会在同一个 spin 窗口里被 water 的 ack
         # 覆盖, _await 永远等不到(实测 jet ramp 全程无 ack)。
-        self.acks.append(msg.data)
-        del self.acks[:-256]
-        self.ack = msg.data
-        self.ack_t = time.time()
-        # 每个等待者只接收自己的 request_id；嵌套 spin_for/并发事务不能
-        # 通过清空共享 ACK 列表把其他等待者的确认删掉。
-        # 成功 ACK 的 request_id 是末尾字段；失败 ACK 还带原因后缀
-        # (例如 "... 31 queue-full")，因此从右向左找最后一个纯数字字段。
-        request_id = None
-        for token in reversed(msg.data.split()):
-            if token.isdigit():
-                request_id = int(token)
-                break
-        if request_id is not None and request_id in self.pending_requests:
-            self.ack_by_request[request_id] = msg.data
+        # The ACK callback may run on a MultiThreadedExecutor thread while a
+        # synchronous waiter is polling/removing its result. Protect the compound
+        # pending-membership + result-publication transition with one lock.
+        with self._ack_lock:
+            self.acks.append(msg.data)
+            del self.acks[:-256]
+            self.ack = msg.data
+            self.ack_t = time.time()
+            # 成功 ACK 的 request_id 是末尾字段；失败 ACK 还带原因后缀
+            # (例如 "... 31 queue-full")，因此从右向左找最后一个纯数字字段。
+            request_id = None
+            for token in reversed(msg.data.split()):
+                if token.isdigit():
+                    request_id = int(token)
+                    break
+            if request_id is not None and request_id in self.pending_requests:
+                self.ack_by_request[request_id] = msg.data
 
     def _send(self, text):
         self.pub.publish(String(data=text))
@@ -136,12 +140,14 @@ class CarryBus(object):
         t0 = time.time()
         self.request_seq += 1
         request_id = self.request_seq
-        self.pending_requests.add(request_id)
+        with self._ack_lock:
+            self.pending_requests.add(request_id)
         try:
             while time.time() - t0 < timeout:
                 emit(request_id)
                 self.node.spin_for(0.08)
-                hit = self.ack_by_request.pop(request_id, None)
+                with self._ack_lock:
+                    hit = self.ack_by_request.pop(request_id, None)
                 if hit and ok_pred(hit, request_id):
                     for _ in range(3):       # 补两针, 防止 gz 侧漏收
                         emit(request_id)
@@ -153,8 +159,9 @@ class CarryBus(object):
                     return False
             return False
         finally:
-            self.pending_requests.discard(request_id)
-            self.ack_by_request.pop(request_id, None)
+            with self._ack_lock:
+                self.pending_requests.discard(request_id)
+                self.ack_by_request.pop(request_id, None)
 
     # ------------------------------------------------------------ 位姿来源
     def palm_world(self, side):
