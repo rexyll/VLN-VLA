@@ -413,7 +413,7 @@ class CarryBus(object):
                 if it.get('release_unknown') or it.get('release_pending'):
                     continue
                 if it.get('host'):
-                    Tb = self.host_world(it['host'], it.get('link),
+                    Tb = self.host_world(it['host'], it.get('link'),
                                          it.get('local_off'))
                     if Tb is None:
                         continue
