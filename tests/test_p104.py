@@ -12,6 +12,7 @@
 import os
 import sys
 import unittest
+import xml.etree.ElementTree as ET
 
 import numpy as np
 
@@ -438,6 +439,92 @@ class TestP104(unittest.TestCase):
         self.assertTrue(bus.items['kettle']['release_unknown'])
         bus.update()
         self.assertEqual(sent, [])
+
+    def test_table_collision_boxes_match_work_area_sdf(self):
+        world_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'worlds', 'work_area.sdf')
+        root = ET.parse(world_path).getroot()
+        table = root.find(".//world/model[@name='table']")
+        self.assertIsNotNone(table)
+        model_pose = [float(x) for x in table.findtext('pose').split()]
+        cx, cy, cz = model_pose[:3]
+        self.assertAlmostEqual(cx, M.L.TABLE_XY[0], places=6)
+        self.assertAlmostEqual(cy, M.L.TABLE_XY[1], places=6)
+        self.assertAlmostEqual(model_pose[5], M.L.TABLE_YAW, places=6)
+
+        link = table.find('link')
+        top = link.find("./collision[@name='top']")
+        top_pose = [float(x) for x in top.findtext('pose').split()]
+        top_size = [float(x) for x in top.findtext('geometry/box/size').split()]
+        self.assertAlmostEqual(
+            cz + top_pose[2] + top_size[2] / 2.0,
+            M.L.TABLE_TOP_Z, places=6)
+        self.assertAlmostEqual(
+            top_size[0], M.L.TABLE_W, places=6)
+        self.assertAlmostEqual(
+            top_size[1], M.L.TABLE_D, places=6)
+        self.assertAlmostEqual(
+            top_size[2], M.L.TABLE_PLATE_T, places=6)
+
+        leg_collisions = [
+            item for item in link.findall('collision')
+            if item.attrib.get('name', '').startswith('leg')]
+        self.assertEqual(len(leg_collisions), 4)
+        expected_offsets = {
+            (-0.410, -0.270), (-0.410, 0.270),
+            (0.410, -0.270), (0.410, 0.270)}
+        actual_offsets = set()
+        for leg in leg_collisions:
+            pose = [float(x) for x in leg.findtext('pose').split()]
+            size = [float(x) for x in leg.findtext('geometry/box/size').split()]
+            actual_offsets.add((round(pose[0], 3), round(pose[1], 3)))
+            self.assertAlmostEqual(size[0], M.L.TABLE_LEG, places=6)
+            self.assertAlmostEqual(size[1], M.L.TABLE_LEG, places=6)
+            self.assertAlmostEqual(
+                cz + pose[2] + size[2] / 2.0,
+                M.L.TABLE_TOP_Z - M.L.TABLE_PLATE_T, places=6)
+        self.assertEqual(actual_offsets, expected_offsets)
+
+        boxes = {name: (np.asarray(lo), np.asarray(hi))
+                 for name, lo, hi in M._table_collision_boxes()}
+        expected_top_lo = np.array([
+            cx - M.L.TABLE_W / 2.0,
+            cy - M.L.TABLE_D / 2.0,
+            M.L.TABLE_TOP_Z - M.L.TABLE_PLATE_T])
+        expected_top_hi = np.array([
+            cx + M.L.TABLE_W / 2.0,
+            cy + M.L.TABLE_D / 2.0,
+            M.L.TABLE_TOP_Z])
+        np.testing.assert_allclose(boxes['table_top'][0], expected_top_lo)
+        np.testing.assert_allclose(boxes['table_top'][1], expected_top_hi)
+
+        # The conservative lip AABB must fully contain the visual lip in SDF.
+        lip = link.find("./visual[@name='v_lip']")
+        lip_pose = [float(x) for x in lip.findtext('pose').split()]
+        lip_size = np.array([
+            float(x) for x in lip.findtext('geometry/box/size').split()])
+        lip_center = np.array([cx, cy, cz]) + np.asarray(lip_pose[:3])
+        lip_lo, lip_hi = lip_center - lip_size / 2.0, lip_center + lip_size / 2.0
+        box_lo, box_hi = boxes['table_lip']
+        self.assertTrue(np.all(box_lo <= lip_lo + 1e-9))
+        self.assertTrue(np.all(box_hi >= lip_hi - 1e-9))
+
+        # Four collision boxes must match the four SDF leg centers and size.
+        leg_boxes = [
+            (lo, hi) for name, lo, hi in M._table_collision_boxes()
+            if name == 'table_leg']
+        self.assertEqual(len(leg_boxes), 4)
+        for ox, oy in expected_offsets:
+            center = np.array([cx + ox, cy + oy])
+            matches = [
+                (lo, hi) for lo, hi in leg_boxes
+                if np.allclose((lo[:2] + hi[:2]) / 2.0, center)]
+            self.assertEqual(len(matches), 1)
+            lo, hi = matches[0]
+            np.testing.assert_allclose(hi[:2] - lo[:2], M.L.TABLE_LEG)
+            self.assertAlmostEqual(lo[2], 0.0, places=6)
+            self.assertAlmostEqual(
+                hi[2], M.L.TABLE_TOP_Z - M.L.TABLE_PLATE_T, places=6)
 
     def test_table_collision_guard_covers_table_top_and_legs(self):
         boxes = M._table_collision_boxes()
