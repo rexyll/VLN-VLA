@@ -1578,7 +1578,11 @@ def prepare_present(node, fill=0.65, verbose=True):
     pour = pour_into_cup(node, fill=fill)
     out.update(pour)
     if not pour['ok']:
+        out['ok'] = False
         return out
+    # 倒水子流程成功不代表 PREPARE 已完成；水壶放回、右臂归位、底盘复位、
+    # 捧杯/副手贴合和转身仍可能失败。最终聚合之前总状态必须保持 False。
+    out['ok'] = False
     # 收水: 先确认水柱缩回命令，再结束液体积分；无 ACK 时不移动水壶。
     jet_retract_ok = node.carry.joint_ramp(
         'kettle', 'jet_joint', 0.0, dur=0.5)
