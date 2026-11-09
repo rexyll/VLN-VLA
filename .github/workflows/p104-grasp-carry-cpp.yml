@@ -11,6 +11,7 @@ on:
       - "tests/grasp_carry_publisher.cc"
       - "tests/grasp_carry_subscriber.cc"
       - "tests/grasp_carry_integration.sdf"
+      - "tests/test_carry_gz_bridge.py"
   pull_request:
     branches:
       - main
@@ -21,6 +22,7 @@ on:
       - "tests/grasp_carry_publisher.cc"
       - "tests/grasp_carry_subscriber.cc"
       - "tests/grasp_carry_integration.sdf"
+      - "tests/test_carry_gz_bridge.py"
   workflow_dispatch:
 
 permissions:
