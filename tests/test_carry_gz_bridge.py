@@ -116,23 +116,27 @@ def _bridge_gz_transport_peer(
             line for line in process_table.splitlines()
             if line.strip().split(None, 1)[0].isdigit() and
             int(line.strip().split(None, 1)[0]) in relevant_pids]
-        fd_links = []
-        for socket_line in bridge_socket_lines + sim_socket_lines:
+        # Include every established socket owner, not only bridge/simulator
+        # descendants: Docker's userland proxy is a separate process and its
+        # two TCP legs are essential to correlate the advertised endpoint.
+        socket_fd_links = []
+        for socket_line in established.splitlines():
             for pid_text, fd_text in re.findall(
                     r"pid=(\d+),fd=(\d+)", socket_line):
                 fd_path = "/proc/%s/fd/%s" % (pid_text, fd_text)
                 try:
-                    fd_links.append("%s=%s" %
-                                    (fd_path, os.readlink(fd_path)))
+                    fd_target = os.readlink(fd_path)
                 except OSError as exc:
-                    fd_links.append("%s=<%s>" % (fd_path, exc))
+                    fd_target = "<%s>" % exc
+                socket_fd_links.append(
+                    "%s=%s socket=%s" % (fd_path, fd_target, socket_line))
         diagnostics.append(
             "topic_endpoint_map topic=%s kind=%s advertised=%r "
             "endpoint_section=%s bridge_sockets=%s sim_sockets=%s "
-            "socket_fd_links=%s relevant_processes=%s listeners=%s" %
+            "all_socket_fd_links=%s relevant_processes=%s listeners=%s" %
             (topic, endpoint_kind, sorted(publisher_endpoints),
              endpoint_section.strip(), " || ".join(bridge_socket_lines),
-             " || ".join(sim_socket_lines), " || ".join(fd_links),
+             " || ".join(sim_socket_lines), " || ".join(socket_fd_links),
              " || ".join(relevant_processes), listeners))
     peers = set()
     for line in established.splitlines():
