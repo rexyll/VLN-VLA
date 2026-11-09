@@ -9,7 +9,7 @@
 
 ## 当前执行位置（2026-11-08）
 
-- **当前主节点：P104-07** —— 继续完成 ROS 2 CarryBus 与 Gazebo GraspCarry 插件的事务端到端联调。新增长生命周期 ACK subscriber 后，Gazebo run `42552792126` 已通过插件配置、C++ 插件编译、队列单测与共享库检查，但在 helper 编译阶段失败：gz-transport13 `Node::Subscribe` 要求回调参数为函数指针或 `std::function`，不能直接接收捕获式 lambda。已将回调显式包装为 `std::function<void(const gz::msgs::StringMsg &)>`（提交 `c2c37bf`）；该修复触发的新 Gazebo headless / bridge CI 尚待验证。最新 ROS 2 executor run `42552832404` 与 Python syntax run `42552832346` 均通过。headless 严格 ACK 计数及 ROS 2 bridge ACK fault injection 尚未实际通过，P104-07 不得提前验收。
+- **当前主节点：P104-07** —— 继续完成 ROS 2 CarryBus 与 Gazebo GraspCarry 插件的事务端到端联调。ACK subscriber 的 gz-transport13 callback 类型已修复并编译通过（`c2c37bf`）。Gazebo run `42554780637` 的插件编译、队列单测和共享库检查通过，但 headless 饱和测试失败：日志确认 `...0329` 至 `...0393` 收到 queue-full，之后 `...0394` 等请求却被接受。根因是脚本在首次观察到 queue-full 后立即 unpause，而持久 publisher 仍在向 FIFO / Transport 发送后续命令；unpause 使尚未到达插件的后续请求进入队列，破坏了静态 accepted/rejected 边界。已修正为先关闭 FIFO 并等待 publisher 完整退出（含 500ms flush），再检查 queue-full ACK 并 unpause（提交 `fe4a202`）。修复后的 headless 严格 ACK 与 ROS 2 bridge fault injection 尚待 CI。ROS 2 executor run `42554801487` 与 Python syntax run `42554801461` 通过；P104-07 不得提前验收。
 - **并行回归：P104-08** —— 此前 20/20 纯 Python 测试通过；P104-07 本轮新增 CarryBus 人手交接连续性用例后，`tests/test_p104.py` 共 21 个用例，新增项待 CI 验证。继续扩展真实 RGB-D 遮挡、四相机切换和跟踪重捕获验证。
 - **未关闭的仿真节点：P104-05/P104-06** —— 桌面/手部代理几何和自然收臂逻辑已通过静态/纯测试，但仍需完整 work_area.sdf 场景中的动态碰撞与轨迹验证。
 - **最终验收：P104-09** —— 完整双臂倒水递水 E2E 至少三轮、ROS 2/Gazebo 集成和 P102/P103/P97/P94 回归尚未完成。
@@ -2423,3 +2423,13 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 在 `tests/grasp_carry_subscriber.cc` 显式将捕获式 callback 包装为 `std::function<void(const gz::msgs::StringMsg &)>`，并增加 `<functional>` 头文件；不改变首次 ACK 丢弃、marker 写入、mutex 串行化或 ACK 输出行为。
 - 提交：`c2c37bfbd5a1cc21acaddb4beb576fd0ab853b20` — `fix: adapt Gazebo ACK subscriber callback type`。
 - 修正后的 subscriber helper 编译、headless ACK 严格计数和 ROS 2 / ros_gz_bridge ACK fault injection仍待新 CI 实际验证；P104-07 保持进行中。
+
+
+### 8.71 确保 Gazebo 队列饱和命令流全部交付后再恢复仿真（2026-11-09）
+
+- 检查 subscriber callback 类型修复后的 Gazebo run `42554780637`：插件配置、C++ 编译、bounded queue 单测、共享库依赖检查均通过；headless ACK 测试仍失败，bridge 步骤被跳过。ROS 2 executor 与 Python syntax 均通过。
+- 新增长生命周期 subscriber 已直接观测到连续的 queue-full ACK，但 request ID 流显示：`1700000000000000329` 至 `...0393` 被拒绝，随后 `...0394` 起部分请求又被接受。插件 `PreUpdate()` 在 `_info.paused` 时确实直接返回；因此不能将其解释为暂停状态下仍消费队列。
+- 追查 workflow 发现真正的时序竞态：脚本只等待首个 queue-full ACK 出现就立即调用 unpause，而 512 条命令仍通过 FIFO / 长生命周期 publisher 持续发送。Transport 尚未交付给插件的后续 request ID 在恢复仿真后被接受，导致测试错误地期待这些请求全部收到 queue-full。
+- 修正 `.github/workflows/p104-grasp-carry-cpp.yml`：发布完 512 条饱和命令后，立即关闭 FIFO 写端、等待 publisher 退出（helper 保留 500ms final flush），再扫描完整 ACK 流并确定首个拒绝 ID；只有完成全部发送和 flush 后才 unpause。保留 accepted 请求 FIFO / 恰好一次 ACK，以及 rejected 请求恰好一个 queue-full ACK 的严格断言。
+- 提交：`fe4a2024b97783e163aa7c71a535ab153436b03c` — `test: drain Gazebo saturation publisher before resume`。
+- 该修复的 headless Gazebo 与 ROS 2 / ros_gz_bridge ACK fault injection 尚待新 CI 实际验证；P104-07 保持进行中。
