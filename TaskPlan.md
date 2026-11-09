@@ -2626,3 +2626,16 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 同批其余 CI：run `42573400112` 的 Python syntax 与 P104 pure math/kinematics 全部 success；TaskPlan 提交 `df620db` 对应的 Python run `42573440195` 与 ROS 2 executor run `42573440085` 均 success。
 - 两项新修订的 CI 尚待完成。Transport ACK socket 定位、DROP 实际生效、独立 Gazebo observer、waiter timeout 清理、同一 bridge 恢复尚未验收；executor 并发 ACK 回归也需在新时序下重新通过。
 - P104-07 继续“正在进行中”。下一步检查两个新提交触发的 Gazebo、Python 和 ROS 2 executor CI；只有 Transport 故障注入各断言全部成功后，才可推进桥接队列背压之后的工作。插件进程重启、长时间稳定性及 DrinkTask 完整编排仍未验收。
+
+
+### 8.89 隔离 runner 中不可用的 Microsoft apt 源，恢复 Gazebo CI 依赖安装（2026-11-09）
+
+- 核对 b7f8e7b 对应的 Gazebo workflow run 42574404529：失败发生在第一个 sudo apt-get update，尚未安装 Gazebo 开发依赖、ROS 2 或执行任何插件/Transport 测试。日志明确显示 runner 预置的 https://packages.microsoft.com/ubuntu/24.04/prod 返回 HTTP 403，并使 apt update 以 exit code 100 退出；该源不是本项目 Gazebo/ROS 构建依赖。
+- 同批验证结果：
+  - 520abbe 的 Python syntax run 42574409958：success。
+  - 520abbe 的 ROS 2 executor run 42574410119：success。
+  - 6901318 的 Python syntax run 42574442059：success。
+  - 6901318 的 ROS 2 executor run 42574442063：success。并发 waiter 测试时序修正已在真实 ROS 2 executor 下通过。
+- 提交 d4f3b82b88b29a4a841594a989bb13bc8f20db7c（ci: isolate unavailable Microsoft apt source on runners）：Gazebo workflow 在首次 apt update 前，仅查找并临时移出引用 packages.microsoft.com 的 apt source 文件；不修改 Ubuntu 官方源或 OSRF Gazebo 源，不跳过 apt update，不减少 Gazebo/ROS 依赖，也不跳过任何测试。GitHub runner 为一次性环境，无需恢复该无关源。
+- 该提交触发的 Gazebo CI 尚待完成。必须确认 apt update、Gazebo Harmonic 依赖安装、ROS 2 Jazzy / ros_gz_bridge 安装、插件构建和 headless ACK 测试全部执行，再检查 Transport peer discovery 与故障注入断言。
+- P104-07 继续“正在进行中”。当前只确认 CarryBus 并发 executor 回归通过；Gazebo Transport ACK socket discovery、定向 DROP、独立 observer、timeout 清理和同一 bridge 恢复仍未验收。队列背压之后的插件重启、长时间稳定性和 DrinkTask 完整编排也仍未完成。
