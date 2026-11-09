@@ -310,8 +310,24 @@ jobs:
           # Locate the Gazebo Harmonic CLI command manifest explicitly. ROS 2
           # setup replaces GZ_CONFIG_PATH with vendor manifests, which hides
           # the gz-sim command when a new server is spawned from Python.
-          GZ_SIM_CONFIG_FILE="$(find /usr -type f -name 'gz-sim*.yaml' -print -quit 2>/dev/null)"
-          test -n "$GZ_SIM_CONFIG_FILE"
+          # Gazebo Harmonic packages expose the sim command manifest as
+          # sim.yaml on some package revisions and gz-sim*.yaml on others.
+          # Search the Gazebo share tree first, then the full prefix, and
+          # print candidates when the package layout differs.
+          GZ_SIM_CONFIG_FILE=""
+          for search_root in /usr/share/gz /usr/local/share/gz /usr; do
+            [ -d "$search_root" ] || continue
+            GZ_SIM_CONFIG_FILE="$(find "$search_root" -type f \\
+              \\( -name 'gz-sim*.yaml' -o -name 'sim.yaml' \\) \\
+              -print -quit 2>/dev/null)"
+            [ -n "$GZ_SIM_CONFIG_FILE" ] && break
+          done
+          if [ -z "$GZ_SIM_CONFIG_FILE" ]; then
+            echo "Gazebo sim command manifest was not found; YAML candidates:"
+            find /usr/share/gz /usr/local/share/gz -type f \\
+              \\( -name '*.yaml' -o -name '*.yml' \\) -print 2>/dev/null || true
+            exit 1
+          fi
           GZ_SIM_CONFIG_DIR="$(dirname "$GZ_SIM_CONFIG_FILE")"
           echo "Gazebo CLI config manifest: $GZ_SIM_CONFIG_FILE"
           gz sim -s -r -v 2 tests/grasp_carry_integration.sdf > /tmp/grasp-carry-bridge-gz.log 2>&1 &
