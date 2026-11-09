@@ -9,7 +9,7 @@
 
 ## 当前执行位置（2026-11-08）
 
-- **当前主节点：P104-07** —— 继续完成 ROS 2 CarryBus 与 Gazebo GraspCarry 插件的事务端到端联调。`be28346` 修复 FIFO 命令换行后，Gazebo CI run `42548594743` 已能观察到 queue-full ACK，证明命令逐行送达；但 512 条饱和请求中，首个拒绝 ID 之后仅观察到 315 条拒绝 ACK，仍有 request ID 缺失，严格逐请求 ACK 断言失败，bridge 步骤跳过。已将持久 publisher 的消息间隔从 1ms 增至 10ms，降低异步 Gazebo Transport worker 在突发期间丢失消息的风险；并补齐 pull_request 对 publisher helper 的路径触发。新 CI 尚待执行，未通过前不计入已验收能力。
+- **当前主节点：P104-07** —— 继续完成 ROS 2 CarryBus 与 Gazebo GraspCarry 插件的事务端到端联调。持久 publisher 10ms 节流后，Gazebo runs `42550245829` / `42550249583` 均能观察到 queue-full ACK，但 ACK 流仍有少量 request ID 缺失，headless 严格计数失败，bridge 步骤跳过。当前开始隔离 ACK 观测端：新增长生命周期 Gazebo Transport C++ subscriber，直接通过 Subscribe callback 收取 ACK，替换 `gz topic -e | awk` 管道；保留首次 ACK 丢弃故障注入、marker 同步和逐 request 精确计数。subscriber helper 编译与新 headless / bridge CI 尚待执行，P104-07 不得提前验收。
 - **并行回归：P104-08** —— 此前 20/20 纯 Python 测试通过；P104-07 本轮新增 CarryBus 人手交接连续性用例后，`tests/test_p104.py` 共 21 个用例，新增项待 CI 验证。继续扩展真实 RGB-D 遮挡、四相机切换和跟踪重捕获验证。
 - **未关闭的仿真节点：P104-05/P104-06** —— 桌面/手部代理几何和自然收臂逻辑已通过静态/纯测试，但仍需完整 work_area.sdf 场景中的动态碰撞与轨迹验证。
 - **最终验收：P104-09** —— 完整双臂倒水递水 E2E 至少三轮、ROS 2/Gazebo 集成和 P102/P103/P97/P94 回归尚未完成。
@@ -2401,3 +2401,16 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
   - `767df7234c6d4f00866176e998b0aa422d4ef7f7` — `test: pace Gazebo transport saturation delivery`。
   - `1476c987bf3cacfd614455440a0c93de90aba424` — `ci: include Gazebo publisher helper in pull request paths`。
 - 新 CI 尚待运行。只有 headless 饱和测试逐请求 ACK 与 FIFO 断言通过，且后续 CarryBus ↔ ROS 2 ↔ ros_gz_bridge ACK 丢失重试步骤实际执行成功，才能认定桥接链路初步通过；P104-07 继续未完成。
+
+
+### 8.69 使用长生命周期 Gazebo Transport subscriber 隔离 ACK 观测丢失（2026-11-09）
+
+- 检查 10ms publisher 节流后的 Gazebo runs `42550245829` 与 `42550249583`：插件配置、编译、bounded queue 单测、共享库检查均通过；headless 测试仍在 queue-full ACK 精确计数处失败，ROS 2 bridge fault injection 因前置步骤失败而跳过。
+- ACK 日志显示大多数拒绝 ACK 已连续到达，但仍有少量 request ID 缺失。仅凭 `gz topic -e | awk` 的文本输出无法区分插件未发布、Transport subscriber 未接收和 shell 管道未记录，不能把缺失 ACK 当作成功。
+- 新增 `tests/grasp_carry_subscriber.cc`：使用长生命周期 `gz::transport::Node::Subscribe()` callback 直接收取 `/drink/carry/ack`，串行化输出并即时 flush；保留原测试的首次 terminal ACK 丢弃行为，并写入 marker 文件供脚本确认故障注入已生效。
+- 更新 Gazebo workflow：编译 subscriber helper；以 helper 替代 `gz topic -e | awk` 作为 headless ACK 观测端；等待 subscriber ready 后才启动事务；将新 helper 同时加入 push 与 pull_request 路径过滤。
+- 提交：
+  - `a78c8f3c69046fe68f5e70136513fff529bd7a79` — `test: add persistent Gazebo ACK subscriber`。
+  - `9da2066012ab985feb6018ab8cd7c6a8733c9cbd` — `test: use persistent Gazebo ACK subscriber`。
+  - `4406b61aef37d4d5879edeb1c55945c246b2477e` — `fix: persist dropped Gazebo ACK marker`。
+- 新 helper 与 workflow 的 C++ 编译、headless ACK 精确计数、以及后续 ros_gz_bridge ACK fault injection 尚待 CI 实际验证。该改动用于隔离观测端，不代表已经证明生产 Transport 或插件 ACK 无丢失；P104-07 继续未完成。
