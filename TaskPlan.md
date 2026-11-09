@@ -9,7 +9,7 @@
 
 ## 当前执行位置（2026-11-08）
 
-- **当前主节点：P104-07** —— 继续完成 ROS 2 CarryBus 与 Gazebo GraspCarry 插件的事务端到端联调；插件构建、队列单测及共享库检查已通过。持久 publisher 已有订阅发现等待，Gazebo 专项 CI 路径过滤也已覆盖 helper 源文件。run `42547672375` 的 headless 队列 ACK 测试仍失败，bridge 步骤未执行；该轮 160 条请求未观察到 queue-full ACK。§8.65 已校验 pause/unpause Boolean response 并增加失败诊断；§8.66 将 publisher 节奏调整为每条 1ms，并把饱和负载从 160 扩大到 512，同时保留 FIFO 与逐请求精确 ACK 断言。对应 CI 尚待结果，未通过前不计入已验收能力。
+- **当前主节点：P104-07** —— 继续完成 ROS 2 CarryBus 与 Gazebo GraspCarry 插件的事务端到端联调；插件构建、队列单测及共享库检查已通过。`42548036321` 的 512 条队列饱和测试仍未观察到 queue-full ACK，bridge 步骤跳过。复核 workflow 发现 FIFO 写入格式使用了双反斜杠 `\\n`，Bash `printf` 会输出字面量 `\\n` 而非换行，无法保证 publisher helper 按独立命令逐行读取；已在 `be28346` 修正为真实换行符。新 CI 尚待执行，未通过前不计入已验收能力。
 - **并行回归：P104-08** —— 此前 20/20 纯 Python 测试通过；P104-07 本轮新增 CarryBus 人手交接连续性用例后，`tests/test_p104.py` 共 21 个用例，新增项待 CI 验证。继续扩展真实 RGB-D 遮挡、四相机切换和跟踪重捕获验证。
 - **未关闭的仿真节点：P104-05/P104-06** —— 桌面/手部代理几何和自然收臂逻辑已通过静态/纯测试，但仍需完整 work_area.sdf 场景中的动态碰撞与轨迹验证。
 - **最终验收：P104-09** —— 完整双臂倒水递水 E2E 至少三轮、ROS 2/Gazebo 集成和 P102/P103/P97/P94 回归尚未完成。
@@ -2380,3 +2380,12 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
   - `24e48609b5869c9474a3ff843a3045fe1b012451` — `test: pace Gazebo burst for transport delivery`
   - `0a139844fe77f97e4cbb9ed2f9311e93937048e6` — `test: expand Gazebo queue saturation burst`
 - 新一轮 Gazebo / Python / ROS 2 CI 待完成；P104-07 仍未验收。
+
+
+### 8.67 修复 Gazebo 持久 publisher FIFO 的命令分隔符（2026-11-09）
+
+- run `42548036321` 的 Gazebo 插件配置、编译、队列单测和共享库检查均通过；headless ACK protocol 阶段失败，bridge 故障注入未执行。Python syntax 与 ROS 2 executor CI 通过。
+- 复核 `.github/workflows/p104-grasp-carry-cpp.yml` 的 FIFO writer，发现 `publish()` 使用 `printf '%s\\\\n'`（格式字符串中两个反斜杠）。Bash 内建 `printf` 将 `\\\\` 解释为字面反斜杠，因此输出的是字符 `\\n` 而非行终止符；这与 C++ helper 的 `std::getline()` 逐条读取协议不一致。
+- 修正为 `printf '%s\\n'`（单个反斜杠），使每次 `publish()` 写入一个真实换行符，确保 publisher helper 收到逐条独立命令。同步修正失败诊断中的过期 160 条描述为 512 条。
+- 提交：`be28346e0d1ec3c5afe5312828c4fee9ad443a47` — `fix: delimit Gazebo FIFO commands with newlines`。
+- 本修正尚待 Gazebo 专项 CI 编译并运行；必须确认 FIFO 中各命令逐条投递、队列 ACK 精确计数和 bridge ACK fault injection 通过后，才能扩大 P104-07 的验收范围。
