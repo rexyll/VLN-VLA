@@ -2876,3 +2876,10 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 修订代码提交 `511665ab04b54609a7ea34373a0c3bc398ef8d91`：对于同地址 peer，将正向和反向两个精确 TCP 四元组分别同时安装到 INPUT 与 OUTPUT；对每个 peer/direction 聚合两条 hook 候选规则的 packet counter，只要求该方向至少有一个实际经过的 hook 命中。不同地址 peer 仍使用 INPUT 反向、OUTPUT 正向的标准路径。每条规则仍绑定真实 socket 的 local/remote IP 与端口，保留唯一 comment、规则唯一性检查和完整反向清理。
 - 双向断连的核心验收条件不变：两个真实 Gazebo Transport peer 的两个数据方向都必须有非零内核 packet counter；partition 期间 ACK observer 不得见到当前 request ID 的 terminal ACK；解除全部 DROP 规则后原 request ID waiter 必须成功；bridge 与 Gazebo server 持续存活；CarryBus pending/ACK/event 状态清空；后续 fresh request ID 严格递增。新增 INPUT/OUTPUT 候选 hook 只用于适配本机路由路径，不降低方向隔离验收标准。
 - **状态：代码已提交 main，等待 Gazebo / ROS 2 / Python CI 完整验收。** 需根据 `511665a` 对应 Gazebo 日志验证每个 peer/direction 的聚合计数、ACK 隔离与同 ID 恢复；不得仅凭规则安装成功或纯 Python/ROS 测试通过标记双向断连通过。P104-07 继续“正在进行中”。
+
+
+### 8.117 双向 Transport hook 候选规则计数解析修正（2026-11-09，CI 待复验）
+
+- 代码提交 `511665ab04b54609a7ea34373a0c3bc398ef8d91` 对应 Gazebo run `42599987878` / job `129101777450` completed/failure；同提交 ROS 2 executor run `42599987875` success、Python run `42599987924` success。Gazebo 插件构建、bounded queue、headless ACK protocol 及 bridge 测试前序 ACK 重试阶段均成功；双向 partition 阶段在读取 iptables-save counter 时失败。实际规则行格式为 `[0:0] -A OUTPUT ...`，测试中的正则因反斜杠重复转义而未匹配，错误地报告 counter missing。该失败尚未证明候选 hook 的实际计数为零，也未进入 ACK 隔离断言。
+- 修正代码提交 `b2aa9536101815c1370fb2c9255f9d773c5179d0`：将 Python 正则改为正确匹配 `[packets:bytes]` 前缀的 `r"\[(\d+):(\d+)\] "`。没有放宽计数要求；解析成功后仍要求每个 peer 的 forward/reverse 方向至少一个 INPUT/OUTPUT 候选 hook 的 packet counter 大于零。
+- **状态：等待 `b2aa953` 的 Gazebo / ROS 2 / Python CI。** 若解析修正后某方向聚合计数仍为零，应根据实际路由与 socket tuple 继续定位；只有双 peer 双方向命中、partition ACK 隔离、解除规则后同 ID waiter 恢复和状态清理全部通过，才可验收双向 Transport 断连。P104-07 继续“正在进行中”。
