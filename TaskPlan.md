@@ -2563,3 +2563,11 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 修正为创建独立的 fresh_bus 实例，并复用同一个 ROS 2 executor。迟到 ACK 仍通过同一 ROS ACK topic 注入；断言旧 request ID 不进入新实例 ACK map，且新 waiter 只有收到自身 request ID 的 ACK 才成功；结束时核对 pending / ACK / Event 清理并取消 fresh_bus。
 - 最近两次 ROS 2 executor workflow 均在安装 ROS apt source 阶段因 GitHub release 下载 HTTP 504 失败，未执行 Python 集成测试。Python syntax workflow 对 1e8b1e1 成功，但不代表 executor integration 通过。
 - 本次只修正测试隔离，不改变生产 CarryBus 逻辑；修正后的 ROS 2 executor CI 结果仍待验证。P104-07 保持“正在进行中”，Transport 实际断连、桥接背压、插件重启和 DrinkTask 编排仍未验收。
+
+### 8.83 增加 bridge 存活期间 Gazebo ACK Transport 数据通道故障注入（2026-11-09）
+
+- 在现有真实 Gazebo + ros_gz_bridge + ROS 2 executor E2E 中增加独立故障场景：通过 `ss` 按 bridge PID 定位其到 Gazebo ACK publisher 的已建立 TCP peer socket，再使用精确目标 IP/端口的 OUTPUT DROP 规则阻断该数据通道；不停止 `parameter_bridge` 进程，也不改变 ROS 侧 relay。
+- 同时启动独立 `gz topic -e` 观察者，要求在 bridge ACK socket 被阻断期间仍能直接观察到 GraspCarry 插件发出的匹配 terminal ACK；CarryBus waiter 应超时并清理 pending / ACK / Event 状态。移除防火墙规则后，原 bridge 进程应继续存活，新的 request ID 应经同一 bridge 成功完成事务。
+- 该场景是 Gazebo Transport ACK 回程数据 socket 的定向网络分区，不等同于停止 bridge 进程，也不宣称双向所有 Transport topic 同时断连。它用于先验证可控、可观测的单向 ACK 通道故障与恢复。
+- 新增实现已提交 main，等待 Gazebo / bridge E2E CI 验证。若 `ss` peer 识别、iptables 规则或独立 Gazebo observer 在 runner 环境不稳定，应根据实际日志修正，不得将未通过的注入记为验收成功。
+- P104-07 保持“正在进行中”；Transport 故障注入尚未通过 CI，队列背压、插件进程重启、长时间稳定性及 DrinkTask 完整编排仍未验收。
