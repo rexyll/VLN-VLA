@@ -105,12 +105,35 @@ def _bridge_gz_transport_peer(
         bridge_socket_lines = [
             line for line in established.splitlines()
             if any("pid=%d," % pid in line for pid in bridge_pids)]
+        sim_socket_lines = [
+            line for line in established.splitlines()
+            if any("pid=%d," % pid in line for pid in sim_pids)]
+        socket_owner_pids = {
+            int(pid_text)
+            for pid_text in re.findall(r"pid=(\\d+),fd=\\d+", established)}
+        relevant_pids = bridge_pids | sim_pids | socket_owner_pids
+        relevant_processes = [
+            line for line in process_table.splitlines()
+            if line.strip().split(None, 1)[0].isdigit() and
+            int(line.strip().split(None, 1)[0]) in relevant_pids]
+        fd_links = []
+        for socket_line in bridge_socket_lines + sim_socket_lines:
+            for pid_text, fd_text in re.findall(
+                    r"pid=(\\d+),fd=(\\d+)", socket_line):
+                fd_path = "/proc/%s/fd/%s" % (pid_text, fd_text)
+                try:
+                    fd_links.append("%s=%s" %
+                                    (fd_path, os.readlink(fd_path)))
+                except OSError as exc:
+                    fd_links.append("%s=<%s>" % (fd_path, exc))
         diagnostics.append(
             "topic_endpoint_map topic=%s kind=%s advertised=%r "
-            "endpoint_section=%s bridge_sockets=%s listeners=%s" %
+            "endpoint_section=%s bridge_sockets=%s sim_sockets=%s "
+            "socket_fd_links=%s relevant_processes=%s listeners=%s" %
             (topic, endpoint_kind, sorted(publisher_endpoints),
              endpoint_section.strip(), " || ".join(bridge_socket_lines),
-             listeners))
+             " || ".join(sim_socket_lines), " || ".join(fd_links),
+             " || ".join(relevant_processes), listeners))
     peers = set()
     for line in established.splitlines():
         if not any("pid=%d," % pid in line for pid in bridge_pids):
