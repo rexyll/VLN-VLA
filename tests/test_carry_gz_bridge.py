@@ -1043,6 +1043,12 @@ class TestCarryGazeboBridge(unittest.TestCase):
                             bidirectional_result.get("request_id"),
                             "bidirectional partition request was not issued")
                         bidirectional_id = bidirectional_result["request_id"]
+                        peer_network_diagnostics.append(
+                            "tcp_info_after_carrybus_request_id=%d " %
+                            bidirectional_id +
+                            subprocess.check_output(
+                                ["sudo", "ss", "-Htnpi", "state", "established"],
+                                text=True, stderr=subprocess.STDOUT))
 
                         # Exercise the reverse direction on the same live
                         # Gazebo Transport connection while the bridge peer is
@@ -1062,6 +1068,8 @@ class TestCarryGazeboBridge(unittest.TestCase):
                              "data: '%s'" % reverse_probe],
                             text=True, stderr=subprocess.STDOUT,
                             env=gz_env, timeout=5.0)
+                        peer_network_diagnostics.append(
+                            "reverse_probe_request_id=%d" % reverse_probe_id)
                         peer_network_diagnostics.append(
                             "tcp_info_after_bridge_request_and_reverse_probe=" +
                             subprocess.check_output(
