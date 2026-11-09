@@ -842,11 +842,27 @@ class TestCarryGazeboBridge(unittest.TestCase):
                                 "--sport", str(local_port),
                                 "-d", remote_host, "--dport",
                                 str(remote_port), "-j", "DROP"]
-                            for chain, rule_args in (
-                                    ("INPUT", inbound),
-                                    ("OUTPUT", outbound)):
+                            # Both Gazebo Transport peers in this CI
+                            # topology advertise the same host address. The
+                            # bridge and Gazebo processes therefore exchange
+                            # packets through the local OUTPUT path; an INPUT
+                            # rule for the reverse tuple is not traversed
+                            # (confirmed by the zero INPUT counter in run
+                            # 42598022681). Match both TCP directions in
+                            # OUTPUT for same-address peers. For genuinely
+                            # distinct hosts, retain the normal INPUT/OUTPUT
+                            # split.
+                            if local_host == remote_host:
+                                rule_specs = (
+                                    ("OUTPUT", outbound, "forward"),
+                                    ("OUTPUT", inbound, "reverse"))
+                            else:
+                                rule_specs = (
+                                    ("INPUT", inbound, "input"),
+                                    ("OUTPUT", outbound, "output"))
+                            for chain, rule_args, direction in rule_specs:
                                 comment = "vla-bidir-%d-%d-%s" % (
-                                    os.getpid(), peer_index, chain.lower())
+                                    os.getpid(), peer_index, direction)
                                 rule_args[-2:-2] = [
                                     "-m", "comment", "--comment", comment]
                                 subprocess.check_call(
