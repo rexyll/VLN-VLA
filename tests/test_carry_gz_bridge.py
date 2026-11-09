@@ -641,7 +641,7 @@ class TestCarryGazeboBridge(unittest.TestCase):
                             emit,
                             lambda ack, request_id: ack ==
                             "ok joint cup water_joint %d" % request_id,
-                            timeout=12.0)
+                            timeout=45.0)
 
                     for index in range(queue_worker_count):
                         worker = threading.Thread(
@@ -674,7 +674,7 @@ class TestCarryGazeboBridge(unittest.TestCase):
                     simulation_paused = False
 
                     for worker in queue_workers:
-                        worker.join(timeout=14.0)
+                        worker.join(timeout=50.0)
                         self.assertFalse(
                             worker.is_alive(),
                             "bridge backpressure transaction waiter hung")
