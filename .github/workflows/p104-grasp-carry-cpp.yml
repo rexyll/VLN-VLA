@@ -17,6 +17,7 @@ on:
       - ".github/workflows/p104-grasp-carry-cpp.yml"
       - "vla_ws/src/vla_follow/gz_plugins/**"
       - "tests/test_grasp_carry_queue.cc"
+      - "tests/grasp_carry_publisher.cc"
       - "tests/grasp_carry_integration.sdf"
   workflow_dispatch:
 
