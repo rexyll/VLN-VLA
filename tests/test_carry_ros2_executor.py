@@ -602,9 +602,10 @@ class TestCarryRos2Executor(unittest.TestCase):
                     self.assertNotIn(request_id, bus.ack_by_request)
                 self.assertFalse(bus._ack_events)
 
-            # Use the actual timed-out request ID. Register a fresh waiter,
-            # inject the old terminal ACK while it is pending, and prove that
-            # only the fresh request's own ACK can complete it.
+            # cancel_waiters() is terminal for a CarryBus instance. Use a
+            # separate live instance so this late-ACK test is independent of
+            # the cancellation test above while sharing the same ROS executor.
+            fresh_bus = CarryBus(node, executor_managed=True)
             fresh_waiter_ready = threading.Event()
             fresh_result = {}
             fresh_ids = []
@@ -614,7 +615,7 @@ class TestCarryRos2Executor(unittest.TestCase):
                 fresh_waiter_ready.set()
 
             fresh_waiter = threading.Thread(target=lambda: fresh_result.setdefault(
-                "ok", bus._await(
+                "ok", fresh_bus._await(
                     fresh_emit,
                     lambda ack, rid: ack == "ok fresh %d" % rid,
                     2.0)))
@@ -628,20 +629,21 @@ class TestCarryRos2Executor(unittest.TestCase):
             ack_pub.publish(String(
                 data="ok timeout %d" % timed_out_id))
             time.sleep(0.15)
-            with bus._ack_lock:
-                self.assertIn(fresh_id, bus.pending_requests)
-                self.assertNotIn(timed_out_id, bus.ack_by_request)
-                self.assertNotIn(fresh_id, bus.ack_by_request)
+            with fresh_bus._ack_lock:
+                self.assertIn(fresh_id, fresh_bus.pending_requests)
+                self.assertNotIn(timed_out_id, fresh_bus.ack_by_request)
+                self.assertNotIn(fresh_id, fresh_bus.ack_by_request)
 
             ack_pub.publish(String(data="ok fresh %d" % fresh_id))
             fresh_waiter.join(timeout=3.0)
             self.assertFalse(fresh_waiter.is_alive(),
                              "fresh waiter did not finish after matching ACK")
             self.assertEqual(fresh_result, {"ok": True})
-            with bus._ack_lock:
-                for request_id in (timed_out_id, fresh_id, 9102, 9103, 9104, 9105):
-                    bus.pending_requests.discard(request_id)
-                    bus.ack_by_request.pop(request_id, None)
+            with fresh_bus._ack_lock:
+                self.assertNotIn(fresh_id, fresh_bus.pending_requests)
+                self.assertNotIn(fresh_id, fresh_bus.ack_by_request)
+                self.assertNotIn(fresh_id, fresh_bus._ack_events)
+            fresh_bus.cancel_waiters()
         finally:
             # Executor lifecycle is part of the integration contract: stop the
             # sole spin owner before destroying its node or shutting ROS down.
