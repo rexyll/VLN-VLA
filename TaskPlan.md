@@ -2571,3 +2571,18 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 该场景是 Gazebo Transport ACK 回程数据 socket 的定向网络分区，不等同于停止 bridge 进程，也不宣称双向所有 Transport topic 同时断连。它用于先验证可控、可观测的单向 ACK 通道故障与恢复。
 - 新增实现已提交 main，等待 Gazebo / bridge E2E CI 验证。若 `ss` peer 识别、iptables 规则或独立 Gazebo observer 在 runner 环境不稳定，应根据实际日志修正，不得将未通过的注入记为验收成功。
 - P104-07 保持“正在进行中”；Transport 故障注入尚未通过 CI，队列背压、插件进程重启、长时间稳定性及 DrinkTask 完整编排仍未验收。
+
+
+### 8.84 修正 Gazebo Transport 故障注入的 socket 与进程生命周期定位（2026-11-09）
+
+- 核对 Gazebo workflow run `42569707178`（提交 `76cc3104514d0d0cfd7206f2f84ad3df7005b8ae`）：Gazebo 插件编译、bounded queue 测试、共享库依赖检查及 headless ACK protocol 均通过；Transport E2E 在 peer socket 发现阶段失败。日志明确显示两项测试缺陷：`ss -l` 输出的本地监听端点应读取第三列（`fields[2]`），此前错误读取第四列；测试在 bridge 重启/停机恢复步骤后仍引用初始 bridge PID，而该进程已退出。
+- 修正 `_bridge_gz_transport_peer()`：同时遍历 Gazebo server 与 bridge 启动器的进程后代；按 `ss` 输出格式读取 Gazebo listener 端口，并在 bridge 后代进程的 established socket 中匹配连接。
+- 将 Transport partition 场景改为启动独立、专用的 `parameter_bridge` 实例，先等待双向 endpoint 与 ROS graph 就绪，再定位其真实 Gazebo ACK publisher socket；移除防火墙规则后的恢复事务必须继续使用该同一 bridge 实例。
+- 修正进程隔离：workflow 以独立 session/process group 启动初始 bridge；测试对初始 bridge、重启 bridge 和 Transport 专用 bridge 按进程组清理，避免只终止 `ros2 run` 包装进程而遗留 `parameter_bridge` 子进程，污染后续 socket 匹配。
+- 相关提交：
+  - `3056e735da87dd1ef23ac9771ad7b136afb45324` — `test: isolate live bridge transport fault injection`。
+  - `1129cc56b8d22dafaa8331fc088354dc05757e37` — `test: remove obsolete transport recovery block`。
+  - `2001351ee97d84961e8db0d736e9143697401782` — `test: terminate bridge process groups during recovery`。
+  - `748e8050c28912fa1c8d513d811d80aad18e2a13` — `ci: isolate bridge in a dedicated process group`。
+- 修订后 CI：`2001351` 对应 Gazebo / Python / ROS 2 executor runs `42570149788` / `42570149801` / `42570149819`；`748e805` 对应 Gazebo / Python runs `42570152839` / `42570152840`。记录时均仍在执行，不能提前标记成功。
+- 本节仅记录测试 harness 与 workflow 的缺陷修正；**Transport 故障注入仍未通过 CI 验收**。P104-07 继续“正在进行中”，不得扩大为双向 Transport 全断连已验证。后续以最新 Gazebo run 的实际日志为准，若失败继续定位 peer socket、iptables DROP、独立 ACK observer、waiter timeout、规则移除和同一 bridge 恢复各阶段。
