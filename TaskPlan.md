@@ -2966,3 +2966,12 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 证据说明 userland proxy 将 bridge socket 与 Gazebo server socket 分成两条 TCP leg，且 NAT/loopback 路径改变可见地址与方向。不能简单把 bridge socket 的四元组正反向当作应用命令与 ACK 的包方向。
 - 测试代码提交 `1dce8177376a146decdf899ec78ac43f0a0b45bc`：将 nft trace 规则从精确 IP+端口 tuple 改为按相关 endpoint TCP source/destination port 匹配，覆盖 OUTPUT 与 PREROUTING，并保留原有 DROP counter、ACK observer、reverse probe、同 ID 恢复、进程存活和状态清理验收条件。目的在于捕获 NAT 前后不同地址的 proxy 第二条 TCP leg，不能据此提前判定双向断连通过。
 - **状态：等待 `1dce817` 对应 CI。** 根据 trace 输出定位 bridge→proxy 与 proxy→Gazebo 两段实际包路径，再决定在哪条 leg 注入双向隔离。P104-07 继续“正在进行中”。
+
+
+### 8.128 端口级 trace 确认 proxy→bridge 实际数据方向（2026-11-09，双向断连仍待解决）
+
+- `1dce8177376a146decdf899ec78ac43f0a0b45bc` 对应 Gazebo run `42619912806` / job `129169072594` completed/failure；同 SHA ROS 2 executor run `42619912798` success，Python syntax run `42619912785` success。`a6ca8b8a` TaskPlan 提交后的 Python 与 ROS 2 检查 `42619963092`、`42619963164` success。
+- 失败仍发生在双向隔离测试的 peer 0 forward counter 断言（`tests/test_carry_gz_bridge.py:1077`），尚未进入独立 ACK observer 隔离与规则移除后原 request ID 恢复验收。桥接 peer 表面四元组为 `172.17.0.1:35738 -> 172.17.0.1:42077`，同一端口 trace 实际反复捕获 `172.17.0.1:42077 -> 172.17.0.1:35738` 的 payload 包；该方向的 raw PREROUTING DROP 命中 6 包，反向 tuple 计数仍为 0。trace 还显示 proxy 使用源端口 `42077` 向 `35900` 发送数据，回程 ACK 可见 `35900 -> 42077`，并经 PREROUTING/INPUT。
+- 该日志进一步表明端口级 trace 成功捕获 NAT 前后数据，但 bridge socket 本地/远端端口的命名方向与实际经过 hook 的包方向相反；proxy 与 Gazebo Transport 之间另有独立连接，不能把桥接 peer 的两个 tuple 方向直接当作应用命令和 ACK 的两个方向。当前已有证据仅证明 `42077 -> 35738` 方向发生 DROP，不证明反向 TCP 数据方向也经过 DROP。
+- 本轮不调整 DROP 规则、不把单向命中改称双向通过。下一步需先结合 `gz topic -i` endpoint、bridge socket PID/FD、Ruby proxy 两条连接及独立 ACK observer 的消息时间戳，明确哪个 TCP leg 承载 ROS→Gazebo command、哪个 leg 承载 Gazebo→ROS ACK；再选择可同时验证两个应用方向的故障注入边界。现有反向 probe、独立 observer、原 ID 恢复、PID 存活及 CarryBus 状态清理断言继续保留。
+- **状态：P104-07 正在进行中；双向 Transport 分区未通过。** `1dce817` 不能关闭该项。
