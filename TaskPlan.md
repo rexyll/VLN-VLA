@@ -2740,4 +2740,4 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 随后终止原 Gazebo server（整个 server/world/plugin 进程，不是 plugin-only reload），停止旧 bridge；重新启动同一 `tests/grasp_carry_integration.sdf` 世界，等待 `/drink/carry/ack` 重新出现，再启动新的 `parameter_bridge` 并等待双向 bridge endpoint 就绪。
 - 恢复 ACK 转发后，CarryBus 使用原 request ID 自动重试；新插件实例因内存 completed ACK cache 已丢失，会重新处理同一完整 `place` 状态设置命令并返回终态 ACK。测试继续发起一个更大的 fresh request ID，并检查 waiter、pending、ACK map 与 event 集合清理。
 - 本测试只验证 **whole Gazebo server restart + bridge restart** 故障场景下的幂等状态设置重放恢复，不证明 plugin-only reload、持久化 exactly-once、世界状态恢复或非幂等命令安全。测试结果以本提交触发的 Gazebo CI 实际日志为准；若 server PID/Transport discovery/bridge reconnect 假设不成立，修复测试本身，不得放宽断言。
-- 测试实现提交：`f6bf47b`；补充“重启前必须先建立真实 bridge”修正提交：`9e5ae93`。P104-07 继续“正在进行中”，本节暂不标记通过。
+- 测试实现提交：`f6bf47b`；补充“重启前必须先建立真实 bridge”修正提交：`9e5ae93`；Gazebo server relaunch 时清除 ROS setup 覆盖的 `GZ_CONFIG_PATH`、仅对 topic probe 恢复 CLI 配置的修正提交：`f004da1`。Python syntax run `42582828268`、ROS 2 executor run `42582828107` 与 Gazebo build/integration run `42582828210` 正在运行；此前 `9e5ae93` 的 Python syntax 与 ROS 2 executor 均 success，但 Gazebo run `42582579066` 仍在依赖安装阶段。P104-07 继续“正在进行中”，本节暂不标记通过。
