@@ -22,6 +22,21 @@ set -Eeuo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+# The demo launch scripts source these overlays only in their own processes.
+# This runner is a separate shell, so it must initialize ROS/Gazebo Python
+# and shared-library paths before importing rclpy and vla_follow.
+if [[ ! -f /opt/ros/jazzy/setup.bash ]]; then
+    echo "ROS 2 Jazzy setup not found at /opt/ros/jazzy/setup.bash" >&2
+    exit 2
+fi
+if [[ ! -f "$ROOT/vla_ws/install/setup.bash" ]]; then
+    echo "Workspace overlay missing; build vla_ws before running DrinkTask E2E." >&2
+    exit 2
+fi
+source /opt/ros/jazzy/setup.bash
+source "$ROOT/vla_ws/install/setup.bash"
+mkdir -p "$ROOT/vla_ws/logs"
+
 N="${1:-3}"
 TAG="${2:-drink}"
 COOLDOWN="${3:-10}"
