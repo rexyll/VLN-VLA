@@ -83,16 +83,6 @@ def _bridge_gz_transport_peer(
             continue
     established = subprocess.check_output(["sudo", "ss", "-Htnp", "state", "established"], text=True, stderr=subprocess.STDOUT)
     listeners = subprocess.check_output(["sudo", "ss", "-Hltnp", "state", "listening"], text=True, stderr=subprocess.STDOUT)
-    if diagnostics is not None:
-        bridge_socket_lines = [
-            line for line in established.splitlines()
-            if any("pid=%d," % pid in line for pid in bridge_pids)]
-        diagnostics.append(
-            "topic_endpoint_map topic=%s kind=%s advertised=%r "
-            "endpoint_section=%s bridge_sockets=%s listeners=%s" %
-            (topic, endpoint_kind, sorted(publisher_endpoints),
-             endpoint_section.strip(), " || ".join(bridge_socket_lines),
-             listeners))
     process_table = subprocess.check_output(["ps", "-eo", "pid=,ppid=,args="], text=True)
     children = {}
     for process_line in process_table.splitlines():
@@ -111,6 +101,16 @@ def _bridge_gz_transport_peer(
         return pids
     sim_pids = descendants(sim_pid)
     bridge_pids = descendants(bridge_pid)
+    if diagnostics is not None:
+        bridge_socket_lines = [
+            line for line in established.splitlines()
+            if any("pid=%d," % pid in line for pid in bridge_pids)]
+        diagnostics.append(
+            "topic_endpoint_map topic=%s kind=%s advertised=%r "
+            "endpoint_section=%s bridge_sockets=%s listeners=%s" %
+            (topic, endpoint_kind, sorted(publisher_endpoints),
+             endpoint_section.strip(), " || ".join(bridge_socket_lines),
+             listeners))
     peers = set()
     for line in established.splitlines():
         if not any("pid=%d," % pid in line for pid in bridge_pids):
