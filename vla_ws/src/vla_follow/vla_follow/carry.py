@@ -181,7 +181,10 @@ class CarryBus(object):
                 with self._ack_lock:
                     if getattr(self, '_waiters_cancelled', False):
                         return False
-                emit(request_id)
+                    # Serialize the cancellation check with the actual publish.
+                    # Otherwise shutdown can cancel after this check but before
+                    # emit(), allowing a new transaction/retry onto a stopping node.
+                    emit(request_id)
                 remaining = max(0.0, deadline - time.monotonic())
                 if getattr(self, 'executor_managed', False):
                     ack_event.wait(min(0.08, remaining))
