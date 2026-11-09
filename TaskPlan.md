@@ -9,7 +9,7 @@
 
 ## 当前执行位置（2026-11-09）
 
-- **当前主节点：P104-07（基础桥接事务、bridge 进程重启/停止恢复、以及 bridge 进程存活时 Gazebo ACK 回程 TCP socket 定向阻断与恢复均已通过；桥接队列背压、Gazebo/GraspCarry 插件进程重启、长时间稳定性及 DrinkTask 完整编排仍未验收）** —— 以 `tests/test_carry_gz_bridge.py` 为当前真实集成验收入口。该测试在 ROS 2 `MultiThreadedExecutor` + Gazebo + `ros_gz_bridge` 环境中覆盖：首个 terminal ACK 丢失后的同 ID 重试/插件缓存重放；两个并发 joint 事务的 ACK/request ID 隔离；实际停止并重启 `parameter_bridge` 时活动 waiter 的恢复；bridge 停止期间事务超时、pending/ACK/Event 清理，以及 bridge 恢复后新事务使用更大的 request ID 成功完成。对应提交 `97394a3` 的 Gazebo run `42565700320`、Python run `42565700274`、ROS 2 executor run `42565700237` 均 success；TaskPlan 后续提交 `7ec12fc` 的 Python run `42566028793` 与 ROS 2 executor run `42566028713` 也均 success。此前 Gazebo 插件进程重启实验因新 server/plugin ACK endpoint 未能可靠恢复而隔离，不能计作通过。下一步先建立 bridge 进程存活但 Gazebo Transport 实际不可达的可控故障注入，再验证队列背压与插件重启语义；P104-07 不关闭。
+- **当前主节点：P104-07（基础桥接事务、bridge 进程重启/停止恢复、以及 bridge 进程存活时 Gazebo ACK 回程 TCP socket 定向阻断与恢复均已通过；真实 ROS 2→ros_gz_bridge→Gazebo 路径队列背压（本轮已新增端到端测试，CI 待验收）、Gazebo/GraspCarry 插件进程重启、长时间稳定性及 DrinkTask 完整编排仍未验收）** —— 以 `tests/test_carry_gz_bridge.py` 为当前真实集成验收入口。该测试在 ROS 2 `MultiThreadedExecutor` + Gazebo + `ros_gz_bridge` 环境中覆盖：首个 terminal ACK 丢失后的同 ID 重试/插件缓存重放；两个并发 joint 事务的 ACK/request ID 隔离；实际停止并重启 `parameter_bridge` 时活动 waiter 的恢复；bridge 停止期间事务超时、pending/ACK/Event 清理，以及 bridge 恢复后新事务使用更大的 request ID 成功完成。对应提交 `97394a3` 的 Gazebo run `42565700320`、Python run `42565700274`、ROS 2 executor run `42565700237` 均 success；TaskPlan 后续提交 `7ec12fc` 的 Python run `42566028793` 与 ROS 2 executor run `42566028713` 也均 success。此前 Gazebo 插件进程重启实验因新 server/plugin ACK endpoint 未能可靠恢复而隔离，不能计作通过。下一步先建立 bridge 进程存活但 Gazebo Transport 实际不可达的可控故障注入，再验证队列背压与插件重启语义；P104-07 不关闭。
 - **并行回归：P104-08** —— 此前 20/20 纯 Python 测试通过；P104-07 本轮新增 CarryBus 人手交接连续性用例后，`tests/test_p104.py` 共 21 个用例，仍需继续扩展真实 RGB-D 遮挡、四相机切换和跟踪重捕获验证。
 - **未关闭的仿真节点：P104-05/P104-06** —— 桌面/手部代理几何和自然收臂逻辑已通过静态/纯测试，但仍需完整 work_area.sdf 场景中的动态碰撞与轨迹验证。
 - **最终验收：P104-09** —— 完整双臂倒水递水 E2E 至少三轮、ROS 2/Gazebo 集成和 P102/P103/P97/P94 回归尚未完成。
@@ -2668,3 +2668,19 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 移除 DROP 规则后，**同一个 transport bridge 进程**使用新的 request ID 成功完成后续事务。该测试证明的是 ACK 回程 TCP 数据通道的定向单向阻断与恢复，不应扩大解释为双向 Transport 完全断连。
 - ROS 2 executor run `42577900354`（commit `54c957b0`）success；Python syntax / P104 pure math run `42577900352` success。fresh CarryBus late-ACK regression 的 DDS subscription discovery 等待修正已通过真实 executor。
 - P104-07 继续“正在进行中”。已完成本轮 Transport ACK 回程单向数据通道故障注入验收；剩余：桥接队列背压、Gazebo/GraspCarry 插件进程重启及其 ACK cache 丢失后的事务终态语义、长时间稳定性、DrinkTask 完整抓取/倒水/交接 E2E。不得把本节等同于上述未完成项目已通过。
+
+### 8.93 增加真实 ROS 2 / ros_gz_bridge / Gazebo 队列背压验收（2026-11-09）
+
+- 复核现有队列覆盖边界：`tests/test_grasp_carry_queue.cc` 与 Gazebo workflow 的 headless publisher flood 仅证明 GraspCarry 插件有界命令队列本身的 FIFO、容量、合并、去重和 queue-full ACK 语义；此前 `tests/test_carry_gz_bridge.py` 的桥接 E2E 未通过真实 ROS 2 / ros_gz_bridge 路径使该队列达到容量上限。因此不能把原 headless 队列测试等同于桥接路径背压验收。
+- 提交 `1a8b6ee56113544a3f77c10cc1e560cd2d84f955`（`test: exercise queue backpressure through ROS Gazebo bridge`）扩展 `tests/test_carry_gz_bridge.py`：
+  - 在真实 Gazebo world 中暂停 physics，等待当前 PreUpdate 完成；
+  - 通过同一真实 CarryBus publisher 并发提交 144 个唯一 joint 事务，超过插件队列容量 128，并对提交作小幅错峰，避免将 DDS publisher burst 丢失误判为插件队列背压；
+  - 要求在仿真仍暂停时，至少一个 queue-full terminal ACK 经 Gazebo→ros_gz_bridge→ROS relay 返回；
+  - 恢复 physics 后，逐一核对每个请求恰有一个终态 payload 身份：成功 ACK 对应 waiter 成功，queue-full ACK 对应 waiter 拒绝；检查 waiter/pending/ACK/Event 状态清理；
+  - 队列排空后再发新事务，要求同一 bridge 路径恢复成功。测试 finally 会在失败时恢复 physics。
+- 同一提交还把 Transport ACK 故障注入的防火墙规则改为 `INPUT`，匹配 Gazebo publisher 源 IP/port 与 bridge 本地 socket 目的 IP/port，确保阻断的是进入 bridge 的 ACK 数据包，而不是误用 OUTPUT 方向。
+- CI 状态（提交 `1a8b6ee`）：
+  - Python syntax run `42578859359`：success；其中 P104 pure math/kinematics job `129032607708` success。
+  - Gazebo Harmonic / bridge run `42578859337`：检查时仍在安装 Gazebo 依赖，尚未执行插件构建与 E2E。
+  - ROS 2 executor run `42578859329`：检查时已完成 ROS apt source 配置，仍在安装 ROS 2 运行依赖，集成测试尚未执行。
+- **验收状态：桥接路径背压测试已实现但尚未通过 CI，不得标记完成。** P104-07 保持“正在进行中”；只有 Gazebo run 中出现 queue-full ACK、144 个事务终态核对、队列恢复事务全部通过，才能关闭该子项。插件进程重启、长时间稳定性及 DrinkTask 完整编排仍未验收。
