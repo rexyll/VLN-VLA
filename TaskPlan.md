@@ -3008,3 +3008,11 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 检查 `02d8296d` 代码后发现：虽然已从 `ss -Htnp` 提取所有 established socket owner PID 并记录进程命令行，但 `/proc/<pid>/fd/<fd>` inode 链接仍只遍历 bridge 和 Gazebo descendants 的 socket 行，遗漏了独立 Ruby/Docker userland proxy 进程的 FD inode。这会使 proxy 的 bridge-facing 与 Gazebo-facing 两条连接无法通过 socket inode 精确关联。
 - 测试提交 `3edb39c7407138a6d5e54f7ab83427d5372b523f`：将 FD inode 采集扩展到 `ss` 输出中的全部 established socket owner（包含 userland proxy），并把 inode symlink 与完整 socket tuple 一并记录；不改变 endpoint 匹配逻辑、DROP 规则、counter 门槛、ACK observer、reverse probe、原 request ID 恢复及资源清理断言。
 - **状态：等待 `3edb39c` 的 Python、ROS 2、Gazebo CI。** 后续通过同一 socket inode 将 bridge、proxy 两端 FD 与 Gazebo 进程 socket 对齐，再确定故障注入连接。P104-07 继续“正在进行中”；双向 Transport 断连仍未验收。
+
+
+### 8.133 endpoint 对应连接仍需跨 proxy leg 验证（2026-11-09，继续定位）
+
+- `02d8296d1c3e8ecc3f37445e5502e9e387260623` 的 Gazebo run `42625831563` / job `129189249848` 最终 failure；Python run `42625831358` success，ROS 2 executor run `42625831418` success。失败仍是 `tests/test_carry_gz_bridge.py:1128` peer 0 forward counter 为 0（raw OUTPUT/PREROUTING 均为 0），尚未进入 ACK observer 隔离及原 ID 恢复阶段。
+- 该轮完整 socket tuple 显示：Gazebo topic advertised endpoint 为 `172.17.0.1:32969`；bridge `fd 48` 为 `172.17.0.1:34792 -> 172.17.0.1:32969`，Ruby proxy `fd 32` 为 `172.17.0.1:32969 -> 10.1.0.104:34792`；bridge `fd 47` 为 `172.17.0.1:36635 -> 10.1.0.104:51582`，Ruby proxy `fd 31` 为 `172.17.0.1:51582 -> 172.17.0.1:36635`。TCP_INFO 显示 fd 48 在快照时 `bytes_sent=193, bytes_received=5431`，而 fd 47 为 `bytes_sent=5815, bytes_received=232`；Ruby fd 32 为 `bytes_sent=6751, bytes_received=193`，Ruby fd 31 为 `bytes_sent=232, bytes_received=5815`。两组 socket 分别形成互补字节方向，但仅凭 tuple 和累计字节仍不足以将 payload 唯一归类为 ROS command 或 Gazebo ACK。
+- 重要限制：上述日志来自 `02d8296`，其 FD inode 诊断仅记录 bridge/Gazebo descendants；不能把它当作 `3edb39c` 新增的 all-owner FD inode 采集已生效。`3edb39c` 对应 Python run `42626344945` success，ROS 2 executor run `42626344787` success；Gazebo build run `42626345124` / job `129191011394` 最新查询仍为 in_progress。`1ebf43e5` 的 Python run `42626430304` 与 ROS 2 executor run `42626430286` 均 success；TaskPlan-only 提交未触发 Gazebo workflow。
+- **状态：等待 `3edb39c` Gazebo build/integration 结果。** 若 all-owner FD inode 日志生效，按 socket inode 对齐 bridge、Ruby proxy 和 Gazebo process；随后再决定隔离连接。不得因字节计数方向互补就改变当前 DROP 规则或宣称双向隔离成功。P104-07 继续“正在进行中”。
