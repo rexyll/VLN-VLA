@@ -889,8 +889,16 @@ class TestCarryGazeboBridge(unittest.TestCase):
                             # tuple at both pre-filter hooks and aggregate only
                             # their real packet counters.
                             if local_host == remote_host:
+                                # The runner's userland-proxy loopback path
+                                # has now been observed at raw/PREROUTING for
+                                # the reverse tuple. Probe both raw hooks for
+                                # the forward tuple as well: OUTPUT did not
+                                # count the bridge-originated segment in the
+                                # latest run, so PREROUTING is a measured
+                                # candidate rather than an assumed direction.
                                 rule_specs = (
                                     ("raw", "OUTPUT", outbound, "forward"),
+                                    ("raw", "PREROUTING", outbound, "forward"),
                                     ("raw", "OUTPUT", inbound, "reverse"),
                                     ("raw", "PREROUTING", inbound, "reverse"))
                             else:
@@ -1012,7 +1020,7 @@ class TestCarryGazeboBridge(unittest.TestCase):
                                 evidence.append("%s=%d" % (comment, packets))
                             self.assertGreater(
                                 packet_total, 0,
-                                "no INPUT/OUTPUT rule matched peer %d %s "
+                                "no raw/filter hook rule matched peer %d %s "
                                 "direction; counters: %s; network diagnostics: %s; "
                                 "established sockets: %s; filter rules: %s" %
                                 (peer_index, direction, ", ".join(evidence),
