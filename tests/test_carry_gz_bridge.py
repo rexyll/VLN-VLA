@@ -35,10 +35,11 @@ def _bridge_gz_transport_peer(bridge_pid, sim_pid, topic, gz_config_path):
     """Find the bridge socket connected to this topic's Gazebo publisher."""
     gz_env = os.environ.copy()
     gz_env.pop("CARRY_GZ_CONFIG_PATH", None)
+    # Preserve the active ROS/Gazebo CLI configuration inherited from the
+    # workflow. The pre-ROS environment may not define GZ_CONFIG_PATH at all;
+    # deleting the post-source value makes gz-tools unable to locate commands.
     if gz_config_path:
         gz_env["GZ_CONFIG_PATH"] = gz_config_path
-    else:
-        gz_env.pop("GZ_CONFIG_PATH", None)
     topic_command = ["gz", "topic", "-i", "-t", topic]
     topic_info = ""
     topic_error = ""
