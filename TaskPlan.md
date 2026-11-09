@@ -2766,3 +2766,12 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 复核 workflow 与测试环境传递链：workflow 在 source ROS 2 后将活动 `GZ_CONFIG_PATH` 保存为 `CARRY_GZ_CONFIG_PATH` 并传给测试；但重启逻辑从 `os.environ` 复制环境后主动删除 `GZ_CONFIG_PATH`，再尝试使用 source ROS 前捕获的 `CARRY_GZ_LAUNCH_CONFIG_PATH` 恢复。该变量在 runner 的首次环境中为空，导致重启进程的 `GZ_CONFIG_PATH` 变成 None。错误在于误把 source ROS 后的活动配置排除在 server launch 环境之外。
 - 提交 `afffd0611dd1a138bfc34cf6a1af7895ccad031a`（test: preserve active gz-tools config on server restart）：重启环境继续使用测试进程继承的活动 ROS/Gazebo `GZ_CONFIG_PATH`；若显式传入 `CARRY_GZ_CONFIG_PATH`，则以该非空值作为活动配置；不再用可能为空的 pre-ROS 值覆盖。Transport metadata probe 与 server launch 使用同一已验证的活动配置来源。该修正只调整子进程环境变量，不改变 50s transaction deadline、2Hz retry pacing、双向 TCP peer 判定、原 request ID、ACK/waiter 或资源清理断言。
 - `afffd061` 对应的 Gazebo CI 必须重新验证新 server 启动，并完整通过重启前后 ACK publisher / command subscriber 两条真实 TCP peer、原 request ID ACK 交付、waiter True、pending/ACK/event 清理及 fresh request ID 成功。此前失败 run 不能算作重启验收；P104-07 继续“正在进行中”。
+
+### 8.103 活动 CLI 配置修正的 CI 运行登记（2026-11-09）
+
+- 代码提交 `afffd0611dd1a138bfc34cf6a1af7895ccad031a` 已在 main 触发：
+  - Gazebo run `42586657607`，job `129058002634`；
+  - ROS 2 executor run `42586657624`，job `129058003906`；
+  - Python syntax run `42586657711`，已 completed/success。
+- 本次登记时 Gazebo job 正在安装 Gazebo Harmonic 开发依赖，ROS 2 executor job 正在安装 Jazzy runtime dependencies；二者均未进入最终测试步骤，不能标记为通过。后续必须读取 Gazebo job 完整日志，确认 whole-server-restart 的启动环境修复和所有原有事务断言。
+- 文档登记提交 `90de1781db186c30ca78e3c8acc1b9a252adf02e`。P104-07 仍“正在进行中”，whole Gazebo server restart 尚未验收。
