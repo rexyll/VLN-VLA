@@ -2975,3 +2975,11 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 该日志进一步表明端口级 trace 成功捕获 NAT 前后数据，但 bridge socket 本地/远端端口的命名方向与实际经过 hook 的包方向相反；proxy 与 Gazebo Transport 之间另有独立连接，不能把桥接 peer 的两个 tuple 方向直接当作应用命令和 ACK 的两个方向。当前已有证据仅证明 `42077 -> 35738` 方向发生 DROP，不证明反向 TCP 数据方向也经过 DROP。
 - 本轮不调整 DROP 规则、不把单向命中改称双向通过。下一步需先结合 `gz topic -i` endpoint、bridge socket PID/FD、Ruby proxy 两条连接及独立 ACK observer 的消息时间戳，明确哪个 TCP leg 承载 ROS→Gazebo command、哪个 leg 承载 Gazebo→ROS ACK；再选择可同时验证两个应用方向的故障注入边界。现有反向 probe、独立 observer、原 ID 恢复、PID 存活及 CarryBus 状态清理断言继续保留。
 - **状态：P104-07 正在进行中；双向 Transport 分区未通过。** `1dce817` 不能关闭该项。
+
+
+### 8.129 增加 bridge/proxy TCP_INFO 前后快照（2026-11-09，CI 待验收）
+
+- 1dce8177376a146decdf899ec78ac43f0a0b45bc 的 Gazebo run 42619912806 / job 129169072594 完整日志确认：bridge PID 的 fd 48 对应 172.17.0.1:35738 -> 172.17.0.1:42077；Ruby userland proxy fd 32 对应 172.17.0.1:42077 -> 10.1.0.17:35738，fd 33 对应 172.17.0.1:42077 -> 10.1.0.17:35900；Gazebo Transport fd 26 对应 172.17.0.1:35900 -> 172.17.0.1:42077。raw/PREROUTING 仅观察到 42077 -> 35738 payload 方向命中 6 包；35900 -> 42077 的 ACK-only 包可见于 OUTPUT/PREROUTING。35738 -> 42077 方向仍未命中，双向隔离测试失败于 forward counter 断言，尚未执行 ACK 隔离与原 ID 恢复验收。
+- 该日志首次提供 Ruby proxy 两条连接与 bridge/Gazebo socket 的 PID/FD 对照，但单次 ss -Htnp 没有 TCP_INFO 的 bytes_sent、bytes_received、bytes_acked 快照，仍不能确定桥接命令在当前窗口是否真正经该 socket 发出，以及 proxy 转发的两段流量如何对应。
+- 测试代码提交 3cf1da06c55c7bc1e86a918ad2ec323cb116ae2d：在双向分区开始前，以及 CarryBus request 与独立 reverse probe 发出后，分别采集 sudo ss -Htnpi state established 快照，并纳入既有失败诊断，利用每个 PID/FD 的 TCP_INFO 与字节计数对照 nft trace。未修改 DROP 规则、packet-counter 门槛、ACK observer、reverse probe、同 ID 恢复、PID 存活及 CarryBus 清理断言。
+- 状态：等待 3cf1da0 的 Python、ROS 2、Gazebo CI。先依据 TCP_INFO/trace 对照判定数据流，再决定故障注入边界；双向 Transport 分区仍未通过。P104-07 继续“正在进行中”。
