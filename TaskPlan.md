@@ -2805,3 +2805,9 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 复核提交 `630449c` 的 workflow 原文时发现，生成的 shell 命令中换行续接符与 `find` 括号表达式被写成双反斜杠，不能作为预期的 Bash 语法执行。该提交触发的 Gazebo run `42590344286` 尚在 ROS 依赖安装阶段，不能作为该搜索逻辑的有效验收。
 - 提交 `335d62cfaef0d02a704a4baeb6a475c894f5abb1`（fix: correct shell escapes in Gazebo manifest lookup）：将 manifest 搜索命令中的转义修正为单个 shell 续行反斜杠及正确的 `\(` / `\)` find 表达式。已重新读取 workflow 文件，确认落盘内容为单反斜杠；原有候选名搜索和失败诊断保留。
 - 本提交触发 Python run `42590569904`、Gazebo run `42590570020`、ROS 2 executor run `42590569930`。登记时 Python run queued，另两项 in_progress，均未取得最终结论。后续以本提交对应 Gazebo job 的日志为准，验证 manifest 实际命中及 whole-server-restart 全链路；不得用前一轮 run 或静态文件检查替代运行验收。P104-07 继续“正在进行中”。
+
+### 8.108 Gazebo Harmonic 版本化 sim manifest 命名修正（2026-11-09，CI 待验收）
+
+- `335d62cfaef0d02a704a4baeb6a475c894f5abb1` 对应 Gazebo run `42590570020` 已完成。Gazebo Harmonic / ROS 2 Jazzy 安装、GraspCarry 插件构建、bounded queue、headless ACK protocol 均成功；真实 bridge 集成步骤在 manifest 查找阶段失败，尚未启动 whole-server-restart 子测试。日志明确列出 `/usr/share/gz/sim8.yaml`，同时列出 `sdformat14.yaml`、`launch7.yaml`、`transportparam13.yaml` 等候选；因此前一轮仍未匹配，是因为 Gazebo 8 使用版本化文件名 `sim8.yaml`，而不是 `sim.yaml` 或 `gz-sim*.yaml`。同期 ROS 2 executor run `42590569930` success，Python run `42590569904` success；TaskPlan 更新触发的 ROS 2 executor run `42590643837` 与 Python run `42590643814` 也 success。
+- 提交 `2c93590895066e43694b8230f55f8c9c4469d2e5`（ci: match versioned Gazebo sim manifest）：manifest 搜索候选扩展为 `sim*.yaml`，可匹配实际 Gazebo Harmonic 文件 `/usr/share/gz/sim8.yaml`，并保留 `gz-sim*.yaml` 兼容路径和未命中时 YAML 候选诊断。没有修改事务 deadline、2Hz retry pacing、双向 Transport TCP peer、request ID、ACK/waiter 或资源清理断言。
+- 本次修正后必须以新 Gazebo CI 日志证明 manifest 命中路径确为 sim8.yaml，重启 server 可启动，并完成重启前后 ACK publisher 与 command subscriber 的 established TCP peer、原 request ID ACK 到达且 waiter True、pending/ACK/event 清理、fresh request ID 成功。whole Gazebo server restart 仍未验收，P104-07 继续“正在进行中”。
