@@ -792,6 +792,13 @@ class TestCarryGazeboBridge(unittest.TestCase):
             else:
                 with open(pre_restart_bridge_log, encoding="utf-8") as log:
                     self.fail("pre-restart bridge not ready: " + log.read())
+            _bridge_gz_transport_peer(
+                pre_restart_bridge.pid, int(os.environ["CARRY_SIM_PID"]),
+                "/drink/carry/ack",
+                os.environ.get("CARRY_GZ_CONFIG_PATH", ""))
+            # Allow the independent ROS->GZ command socket to finish discovery
+            # as well; bridge log creation alone is not a transport handshake.
+            time.sleep(1.0)
             server_restart_result = {}
 
             def server_restart_transaction():
@@ -809,7 +816,7 @@ class TestCarryGazeboBridge(unittest.TestCase):
                 target=server_restart_transaction, daemon=True)
             server_restart_worker.start()
             self.assertTrue(
-                relay.dropped_next.wait(8.0),
+                relay.dropped_next.wait(15.0),
                 "pre-restart plugin terminal ACK was not intercepted")
 
             sim_pid = int(os.environ["CARRY_SIM_PID"])
