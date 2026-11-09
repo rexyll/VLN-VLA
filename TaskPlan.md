@@ -2783,3 +2783,12 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 提交 `80b8878c0382a9529004d5d680f0d1c5c6793030`（ci: locate Gazebo sim CLI manifest for restart test）：workflow 在 source ROS 之前显式定位 `gz-sim*.yaml`，校验命中，并把其目录通过 `CARRY_GZ_SIM_CONFIG_DIR` 传给测试。
 - 提交 `620f6a87a92ff6e26329313e763713343f500988`（test: restore Gazebo sim manifest on server restart）：重启子进程的 `GZ_CONFIG_PATH` 由 Gazebo sim manifest 目录置前，再追加 ROS vendor manifest 路径；缺失或无效的 sim manifest 目录直接失败并输出诊断。未更改事务 deadline、重试节流、双向 socket readiness、request ID / ACK waiter 和清理断言。
 - 新提交必须验证 manifest 查找在 CI runner 上成功，重启后 `gz sim` 确实可启动，随后通过重启前后 ACK publisher 与 command subscriber 的真实 TCP peer、原 request ID ACK 交付、waiter True、pending/ACK/event 清理及 fresh request ID 成功。P104-07 继续“正在进行中”，whole-server restart 仍未验收。
+
+### 8.105 Gazebo CLI manifest 修复的 CI 运行登记（2026-11-09）
+
+- 修复代码提交 `620f6a87a92ff6e26329313e763713343f500988` 已触发：
+  - Gazebo GraspCarry run `42587833742`；
+  - ROS 2 executor run `42587833785`；
+  - Python syntax run `42587833645`。
+- 登记时三个 workflow 均为 in_progress，尚无最终验收结论。重点关注 Gazebo job 是否成功定位 `gz-sim*.yaml`、测试是否输出重启 server 的双向 peer 与 waiter 恢复证据。未取得完整证据前不得关闭 whole-server restart。
+- 本记录提交 `e88b99b32d990d27dfc5d8deb0293c08fd2aaff7`。
