@@ -99,6 +99,7 @@ jobs:
             if [ "$status" -ne 0 ]; then
               cat /tmp/grasp-carry-acks.log 2>/dev/null || true
               cat /tmp/grasp-carry-gz.log 2>/dev/null || true
+              cat /tmp/grasp-carry-publisher.log 2>/dev/null || true
             fi
             if [ -n "$SUB_PID" ]; then kill "$SUB_PID" 2>/dev/null || true; fi
             if [ -n "$PUB_PID" ]; then kill "$PUB_PID" 2>/dev/null || true; fi
@@ -118,7 +119,7 @@ jobs:
           # Use one long-lived publisher for all commands. A delay after
           # "gz topic -p" cannot keep its already-exited transport process alive.
           mkfifo /tmp/grasp-carry-commands.fifo
-          /tmp/grasp-carry-publisher < /tmp/grasp-carry-commands.fifo &
+          /tmp/grasp-carry-publisher < /tmp/grasp-carry-commands.fifo > /tmp/grasp-carry-publisher.log 2>&1 &
           PUB_PID=$!
           exec 3> /tmp/grasp-carry-commands.fifo
           sleep 2
