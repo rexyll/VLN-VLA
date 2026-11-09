@@ -228,11 +228,15 @@ class TestCarryGazeboBridge(unittest.TestCase):
 
             sim_env = os.environ.copy()
             sim_env["PATH"] = os.environ["CARRY_GZ_PATH"]
-            if os.environ.get("CARRY_GZ_CONFIG_PATH_SET") == "1":
-                sim_env["GZ_CONFIG_PATH"] = os.environ.get(
-                    "CARRY_GZ_CONFIG_PATH", "")
-            else:
-                sim_env.pop("GZ_CONFIG_PATH", None)
+            for key in list(sim_env):
+                if key.startswith("GZ_"):
+                    sim_env.pop(key, None)
+            with open(os.environ["CARRY_GZ_ENV_FILE"],
+                      encoding="utf-8") as saved_env:
+                for line in saved_env:
+                    key, separator, value = line.rstrip("\\n").partition("=")
+                    if separator:
+                        sim_env[key] = value
 
             # The workflow launches Gazebo in its own session. Terminate the
             # complete process tree so no detached server keeps the old world
