@@ -40,7 +40,6 @@ int main()
       std::cerr << "failed to publish command: " << command << std::endl;
       return 1;
     }
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
 
   // Allow the transport layer to flush the final message before teardown.
