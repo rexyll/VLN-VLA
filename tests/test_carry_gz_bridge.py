@@ -206,6 +206,114 @@ class TestCarryGazeboBridge(unittest.TestCase):
                 self.assertTrue(
                     restart_result.get("ok"),
                     "same-request retry did not recover after bridge restart")
+
+                # A separate transaction during a real bridge outage must
+                # reach one terminal timeout, release all waiter state, and
+                # never let a later request reuse its request ID.
+                os.killpg(restarted_bridge.pid, signal.SIGTERM)
+                try:
+                    restarted_bridge.wait(timeout=3.0)
+                except subprocess.TimeoutExpired:
+                    os.killpg(restarted_bridge.pid, signal.SIGKILL)
+                    restarted_bridge.wait(timeout=3.0)
+
+                relay.drop_all.set()
+                timeout_result = {}
+
+                def disconnected_transaction():
+                    def emit_disconnected(request_id):
+                        timeout_result["request_id"] = request_id
+                        bus._send(
+                            "joint cup water_joint 0.009 %d" % request_id)
+
+                    timeout_result["ok"] = bus._await(
+                        emit_disconnected,
+                        lambda ack, request_id: ack ==
+                        "ok joint cup water_joint %d" % request_id,
+                        timeout=0.8)
+
+                timeout_worker = threading.Thread(
+                    target=disconnected_transaction, daemon=True)
+                timeout_worker.start()
+                timeout_worker.join(timeout=3.0)
+                self.assertFalse(
+                    timeout_worker.is_alive(),
+                    "CarryBus waiter did not terminate during bridge outage")
+                self.assertFalse(
+                    timeout_result.get("ok"),
+                    "transaction unexpectedly succeeded with bridge stopped")
+                timed_out_id = timeout_result.get("request_id", 0)
+                self.assertGreater(timed_out_id, 0)
+                self.assertFalse(bus.pending_requests)
+                self.assertFalse(bus.ack_by_request)
+                self.assertFalse(bus._ack_events)
+
+                # Recreate the bridge and prove a fresh request receives a
+                # distinct ID and a clean terminal ACK after the timeout.
+                recovery_log = "/tmp/grasp-carry-bridge-after-timeout.log"
+                with open(recovery_log, "w", encoding="utf-8") as stream:
+                    recovered_bridge = subprocess.Popen(
+                        ["ros2", "run", "ros_gz_bridge", "parameter_bridge",
+                         "--ros-args", "-p",
+                         "config_file:=" + bridge_config],
+                        stdout=stream, stderr=subprocess.STDOUT,
+                        start_new_session=True)
+                try:
+                    recovery_deadline = time.monotonic() + 15.0
+                    while time.monotonic() < recovery_deadline:
+                        if recovered_bridge.poll() is not None:
+                            with open(recovery_log, encoding="utf-8") as log:
+                                self.fail("recovered bridge exited: " + log.read())
+                        with open(recovery_log, encoding="utf-8") as log:
+                            recovery_output = log.read()
+                        if ("Creating GZ->ROS Bridge" in recovery_output and
+                                "Creating ROS->GZ Bridge" in recovery_output and
+                                relay.count_publishers(RAW_ACK_TOPIC) >= 1 and
+                                bus.pub.get_subscription_count() > 0):
+                            break
+                        time.sleep(0.1)
+                    else:
+                        with open(recovery_log, encoding="utf-8") as log:
+                            self.fail("bridge after timeout not ready: " + log.read())
+
+                    relay.drop_all.clear()
+                    recovered_result = {}
+
+                    def recovered_transaction():
+                        def emit_recovered(request_id):
+                            recovered_result["request_id"] = request_id
+                            bus._send(
+                                "place cup 0 0 0.5 0 0 0 1 %d" % request_id)
+
+                        recovered_result["ok"] = bus._await(
+                            emit_recovered,
+                            lambda ack, request_id: ack ==
+                            "ok place cup %d" % request_id,
+                            timeout=6.0)
+
+                    recovered_worker = threading.Thread(
+                        target=recovered_transaction, daemon=True)
+                    recovered_worker.start()
+                    recovered_worker.join(timeout=8.0)
+                    self.assertFalse(
+                        recovered_worker.is_alive(),
+                        "new CarryBus transaction hung after bridge recovery")
+                    self.assertTrue(
+                        recovered_result.get("ok"),
+                        "new request did not succeed after bridge recovery")
+                    self.assertGreater(
+                        recovered_result.get("request_id", 0), timed_out_id,
+                        "request ID was reused after timeout")
+                finally:
+                    try:
+                        os.killpg(recovered_bridge.pid, signal.SIGTERM)
+                        recovered_bridge.wait(timeout=3.0)
+                    except ProcessLookupError:
+                        pass
+                    except subprocess.TimeoutExpired:
+                        os.killpg(recovered_bridge.pid, signal.SIGKILL)
+                        recovered_bridge.wait(timeout=3.0)
+
             finally:
                 restarted_bridge.terminate()
                 try:
