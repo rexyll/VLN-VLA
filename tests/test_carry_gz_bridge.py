@@ -856,17 +856,14 @@ class TestCarryGazeboBridge(unittest.TestCase):
             restart_env = os.environ.copy()
             restart_env.pop("CARRY_GZ_CONFIG_PATH", None)
             saved_gz_config = os.environ.get("CARRY_GZ_CONFIG_PATH", "")
-            # Restore the exact Gazebo CLI configuration captured before
-            # sourcing ROS 2. The post-source value is reserved for gz-tools
-            # metadata probes and may point at ros_gz plugin commands only.
-            restart_env.pop("GZ_CONFIG_PATH", None)
-            launch_gz_config = os.environ.get(
-                "CARRY_GZ_LAUNCH_CONFIG_PATH", "")
-            if launch_gz_config:
-                restart_env["GZ_CONFIG_PATH"] = launch_gz_config
-            probe_env = restart_env.copy()
+            # The test process runs after sourcing ROS 2. Its active
+            # GZ_CONFIG_PATH is the configuration that makes the installed
+            # gz-tools command discoverable in this environment. The value
+            # captured before ROS setup can be empty, so never replace the
+            # active path with that empty pre-setup value.
             if saved_gz_config:
-                probe_env["GZ_CONFIG_PATH"] = saved_gz_config
+                restart_env["GZ_CONFIG_PATH"] = saved_gz_config
+            probe_env = restart_env.copy()
             server_log = "/tmp/grasp-carry-gz-server-restarted.log"
             with open(server_log, "w", encoding="utf-8") as stream:
                 restarted_sim = subprocess.Popen(
