@@ -87,9 +87,13 @@ jobs:
           GZ_SIM_SYSTEM_PLUGIN_PATH: ${{ github.workspace }}/vla_ws/src/vla_follow/gz_plugins/build
         run: |
           set -euo pipefail
+          c++ -std=c++17 -Wall -Wextra -Werror \
+            tests/grasp_carry_publisher.cc -o /tmp/grasp-carry-publisher \
+            $(pkg-config --cflags --libs gz-transport13 gz-msgs10)
           gz sim -s -r -v 2 tests/grasp_carry_integration.sdf > /tmp/grasp-carry-gz.log 2>&1 &
           SIM_PID=$!
           SUB_PID=""
+          PUB_PID=""
           cleanup() {
             status=$?
             if [ "$status" -ne 0 ]; then
@@ -97,6 +101,7 @@ jobs:
               cat /tmp/grasp-carry-gz.log 2>/dev/null || true
             fi
             if [ -n "$SUB_PID" ]; then kill "$SUB_PID" 2>/dev/null || true; fi
+            if [ -n "$PUB_PID" ]; then kill "$PUB_PID" 2>/dev/null || true; fi
             kill "$SIM_PID" 2>/dev/null || true
             return "$status"
           }
@@ -110,13 +115,15 @@ jobs:
           done
           if [ "$ready" -ne 1 ]; then cat /tmp/grasp-carry-gz.log; exit 1; fi
 
+          # Use one long-lived publisher for all commands. A delay after
+          # "gz topic -p" cannot keep its already-exited transport process alive.
+          mkfifo /tmp/grasp-carry-commands.fifo
+          /tmp/grasp-carry-publisher < /tmp/grasp-carry-commands.fifo &
+          PUB_PID=$!
+          exec 3> /tmp/grasp-carry-commands.fifo
+          sleep 2
           publish() {
-            # gz topic's one-shot publisher exits immediately after send. Give
-            # Gazebo Transport a short flush window before the process exits;
-            # otherwise a burst of short-lived publishers can lose individual
-            # commands even though each CLI invocation returns successfully.
-            timeout 5s gz topic -t /drink/carry -m gz.msgs.StringMsg -p "data: \"$1\""
-            sleep 0.02
+            printf '%s\\n' "$1" >&3
           }
           wait_ack() {
             local expected="$1"
@@ -243,6 +250,12 @@ jobs:
             reject_count=$(grep -Fc "fail joint cup water_joint $request_id queue-full" /tmp/grasp-carry-acks.log || true)
             test "$reject_count" -eq 1
           done
+
+          # Close the command stream cleanly and wait for the persistent
+          # publisher to flush its final transport message.
+          exec 3>&-
+          wait "$PUB_PID"
+          PUB_PID=""
       - name: Verify CarryBus through ROS 2 and ros_gz_bridge with ACK fault injection
         env:
           GZ_SIM_SYSTEM_PLUGIN_PATH: ${{ github.workspace }}/vla_ws/src/vla_follow/gz_plugins/build
