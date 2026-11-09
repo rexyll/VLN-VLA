@@ -978,7 +978,17 @@ class TestCarryGazeboBridge(unittest.TestCase):
                                  subprocess.check_output(
                                      ["sudo", "iptables-save", "-c", "-t",
                                       "filter"], text=True,
-                                     stderr=subprocess.STDOUT)))
+                                     stderr=subprocess.STDOUT) +
+                                 "; NAT table: " +
+                                 subprocess.check_output(
+                                     ["sudo", "iptables-save", "-c", "-t",
+                                      "nat"], text=True,
+                                     stderr=subprocess.STDOUT) +
+                                 "; conntrack: " +
+                                 subprocess.run(
+                                     ["sudo", "conntrack", "-L", "-p", "tcp"],
+                                     text=True, stdout=subprocess.PIPE,
+                                     stderr=subprocess.STDOUT).stdout))
                         self.assertNotIn(
                             "joint cup water_joint %d" % bidirectional_id,
                             observed_acks,
