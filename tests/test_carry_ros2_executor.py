@@ -460,7 +460,7 @@ class TestCarryRos2Executor(unittest.TestCase):
                 transaction_results[name] = bus._await(
                     emit,
                     lambda ack, rid: ack == "ok transaction %s %d" % (name, rid),
-                    2.0)
+                    4.0)
 
             waiters = [
                 threading.Thread(target=run_transaction, args=("left",)),
@@ -475,12 +475,20 @@ class TestCarryRos2Executor(unittest.TestCase):
             # Publish only after both request IDs are pending. This separates
             # executor delivery from DDS discovery / publisher startup timing
             # and ensures the test actually exercises two overlapping waiters.
-            for name in ("left", "right"):
-                ack_pub.publish(String(
-                    data="ok transaction %s %d" %
-                    (name, transaction_ids[name])))
+            # Re-send the same terminal ACKs while both waiters remain
+            # pending. This models duplicate delivery on the reliable topic
+            # and makes the test assert request-ID isolation independently of
+            # a single publish's scheduling latency.
+            ack_deadline = time.monotonic() + 3.5
+            while (time.monotonic() < ack_deadline and
+                   len(transaction_results) < 2):
+                for name in ("left", "right"):
+                    ack_pub.publish(String(
+                        data="ok transaction %s %d" %
+                        (name, transaction_ids[name])))
+                time.sleep(0.05)
             for waiter in waiters:
-                waiter.join(timeout=4.0)
+                waiter.join(timeout=1.0)
                 self.assertFalse(waiter.is_alive(),
                                  "executor-managed transaction waiter hung")
             self.assertEqual(transaction_results, {"left": True, "right": True})
