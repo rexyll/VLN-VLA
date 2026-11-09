@@ -877,29 +877,33 @@ class TestCarryGazeboBridge(unittest.TestCase):
                             # avoids assuming that an address equality alone
                             # determines the netfilter hook traversed.
                             if local_host == remote_host:
+                                # Docker's userland proxy rewrites the
+                                # destination in nat/OUTPUT before
+                                # filter/OUTPUT. Match the original bridge to
+                                # proxy tuple in raw/OUTPUT before translation.
                                 rule_specs = (
-                                    ("OUTPUT", outbound, "forward"),
-                                    ("INPUT", outbound, "forward"),
-                                    ("OUTPUT", inbound, "reverse"),
-                                    ("INPUT", inbound, "reverse"))
+                                    ("raw", "OUTPUT", outbound, "forward"),
+                                    ("raw", "OUTPUT", inbound, "reverse"))
                             else:
                                 rule_specs = (
-                                    ("INPUT", inbound, "reverse"),
-                                    ("OUTPUT", outbound, "forward"))
-                            for chain, rule_args, direction in rule_specs:
-                                comment = "vla-bidir-%d-%d-%s-%s" % (
-                                    os.getpid(), peer_index, direction, chain.lower())
+                                    ("filter", "INPUT", inbound, "reverse"),
+                                    ("filter", "OUTPUT", outbound, "forward"))
+                            for table, chain, rule_args, direction in rule_specs:
+                                comment = "vla-bidir-%d-%d-%s-%s-%s" % (
+                                    os.getpid(), peer_index, direction,
+                                    table.lower(), chain.lower())
                                 rule_args = list(rule_args)
                                 rule_args[-2:-2] = [
                                     "-m", "comment", "--comment", comment]
                                 subprocess.check_call(
-                                    ["sudo", family, "-w", "-I", chain, "1"] +
-                                    rule_args)
+                                    ["sudo", family, "-w", "-t", table,
+                                     "-I", chain, "1"] + rule_args)
                                 firewall_rules.append(
-                                    (family, chain, rule_args, comment))
+                                    (family, table, chain, rule_args, comment))
                                 group_key = (peer_index, direction)
                                 firewall_rule_groups.setdefault(
-                                    group_key, []).append((comment, family))
+                                    group_key, []).append(
+                                        (comment, family, table))
                         os.kill(transport_bridge.pid, 0)
                         os.kill(int(os.environ["CARRY_SIM_PID"]), 0)
                         bidirectional_result = {}
@@ -940,12 +944,12 @@ class TestCarryGazeboBridge(unittest.TestCase):
                                 firewall_rule_groups.items()):
                             packet_total = 0
                             evidence = []
-                            for comment, family in rule_group:
+                            for comment, family, table in rule_group:
                                 save_command = (
                                     "ip6tables-save" if family == "ip6tables"
                                     else "iptables-save")
                                 saved_rules = subprocess.check_output(
-                                    ["sudo", save_command, "-c", "-t", "filter"],
+                                    ["sudo", save_command, "-c", "-t", table],
                                     text=True, stderr=subprocess.STDOUT)
                                 matching_lines = [
                                     line for line in saved_rules.splitlines()
@@ -1000,10 +1004,11 @@ class TestCarryGazeboBridge(unittest.TestCase):
                         os.kill(transport_bridge.pid, 0)
                         os.kill(int(os.environ["CARRY_SIM_PID"]), 0)
                     finally:
-                        for family, chain, rule_args, _comment in reversed(
+                        for family, table, chain, rule_args, _comment in reversed(
                                 firewall_rules):
                             subprocess.check_call(
-                                ["sudo", family, "-w", "-D", chain] + rule_args)
+                                ["sudo", family, "-w", "-t", table,
+                                 "-D", chain] + rule_args)
                         ack_observer.terminate()
                         for process in (ack_observer,):
                             try:
