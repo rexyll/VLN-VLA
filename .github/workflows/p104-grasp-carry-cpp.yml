@@ -311,14 +311,14 @@ jobs:
           # setup replaces GZ_CONFIG_PATH with vendor manifests, which hides
           # the gz-sim command when a new server is spawned from Python.
           # Gazebo Harmonic packages expose the sim command manifest as
-          # sim.yaml on some package revisions and gz-sim*.yaml on others.
+          # sim8.yaml (versioned) or sim.yaml (unversioned).
           # Search the Gazebo share tree first, then the full prefix, and
           # print candidates when the package layout differs.
           GZ_SIM_CONFIG_FILE=""
           for search_root in /usr/share/gz /usr/local/share/gz /usr; do
             [ -d "$search_root" ] || continue
             GZ_SIM_CONFIG_FILE="$(find "$search_root" -type f \
-              \( -name 'gz-sim*.yaml' -o -name 'sim.yaml' \) \
+              \( -name 'gz-sim*.yaml' -o -name 'sim*.yaml' \) \
               -print -quit 2>/dev/null)"
             [ -n "$GZ_SIM_CONFIG_FILE" ] && break
           done
