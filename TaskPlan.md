@@ -9,7 +9,7 @@
 
 ## 当前执行位置（2026-11-09）
 
-- **当前主节点：P104-07（基础桥接事务、bridge 进程重启/停止恢复、ACK 回程 TCP socket 定向阻断与恢复、真实 ROS 2→ros_gz_bridge→Gazebo 路径队列背压均已通过；Gazebo/GraspCarry 插件进程重启后的事务终态语义、双向 Transport 断连、长时间稳定性及 DrinkTask 完整编排仍未验收）** —— 以 `tests/test_carry_gz_bridge.py` 为当前真实集成验收入口。该测试在 ROS 2 `MultiThreadedExecutor` + Gazebo + `ros_gz_bridge` 环境中覆盖：首个 terminal ACK 丢失后的同 ID 重试/插件缓存重放；两个并发 joint 事务的 ACK/request ID 隔离；实际停止并重启 `parameter_bridge` 时活动 waiter 的恢复；bridge 停止期间事务超时、pending/ACK/Event 清理，以及 bridge 恢复后新事务使用更大的 request ID 成功完成。对应提交 `97394a3` 的 Gazebo run `42565700320`、Python run `42565700274`、ROS 2 executor run `42565700237` 均 success；TaskPlan 后续提交 `7ec12fc` 的 Python run `42566028793` 与 ROS 2 executor run `42566028713` 也均 success。此前 Gazebo 插件进程重启实验因新 server/plugin ACK endpoint 未能可靠恢复而隔离，不能计作通过。下一步先建立 bridge 进程存活但 Gazebo Transport 实际不可达的可控故障注入，再验证队列背压与插件重启语义；P104-07 不关闭。
+- **当前主节点：P104-07（基础桥接事务、bridge 进程重启/停止恢复、ACK 回程 TCP socket 定向阻断与恢复、真实 ROS 2→ros_gz_bridge→Gazebo 路径队列背压均已通过；本轮新增 whole Gazebo server restart + bridge 重建后的同 request ID 状态设置重试测试，等待 CI 真实运行验收；plugin-only reload、双向 Transport 断连、长时间稳定性及 DrinkTask 完整编排仍未验收）** —— 以 `tests/test_carry_gz_bridge.py` 为当前真实集成验收入口。该测试在 ROS 2 `MultiThreadedExecutor` + Gazebo + `ros_gz_bridge` 环境中覆盖：首个 terminal ACK 丢失后的同 ID 重试/插件缓存重放；两个并发 joint 事务的 ACK/request ID 隔离；实际停止并重启 `parameter_bridge` 时活动 waiter 的恢复；bridge 停止期间事务超时、pending/ACK/Event 清理，以及 bridge 恢复后新事务使用更大的 request ID 成功完成。对应提交 `97394a3` 的 Gazebo run `42565700320`、Python run `42565700274`、ROS 2 executor run `42565700237` 均 success；TaskPlan 后续提交 `7ec12fc` 的 Python run `42566028793` 与 ROS 2 executor run `42566028713` 也均 success。此前 Gazebo 插件进程重启实验因新 server/plugin ACK endpoint 未能可靠恢复而隔离，不能计作通过。下一步先建立 bridge 进程存活但 Gazebo Transport 实际不可达的可控故障注入，再验证队列背压与插件重启语义；P104-07 不关闭。
 - **并行回归：P104-08** —— 此前 20/20 纯 Python 测试通过；P104-07 本轮新增 CarryBus 人手交接连续性用例后，`tests/test_p104.py` 共 21 个用例，仍需继续扩展真实 RGB-D 遮挡、四相机切换和跟踪重捕获验证。
 - **未关闭的仿真节点：P104-05/P104-06** —— 桌面/手部代理几何和自然收臂逻辑已通过静态/纯测试，但仍需完整 work_area.sdf 场景中的动态碰撞与轨迹验证。
 - **最终验收：P104-09** —— 完整双臂倒水递水 E2E 至少三轮、ROS 2/Gazebo 集成和 P102/P103/P97/P94 回归尚未完成。
@@ -2732,3 +2732,12 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 下一步测试设计：在真实 Gazebo/ROS bridge 集成环境中，先让 CarryBus waiter 发出事务并由 ACK relay 截获终态 ACK；在 ACK 未交付给 waiter 时实际终止并重建 Gazebo/GraspCarry 进程，等待 Gazebo topic/service、插件 ACK publisher 和 bridge 双向 endpoint 重新就绪；保持同一 request ID 重试，记录新插件对命令的处理与 waiter 终态。另测插件重启期间的 pending waiter timeout/取消、重启后 fresh request ID、旧 ACK/旧 epoch 隔离及队列状态清理。若无法可靠实现 plugin-only reload，则将 whole Gazebo server restart 明确标注为另一类故障，不冒充插件热重启。
 - 验收前不得声称跨插件重启 exactly-once。若无法持久化事务日志或提供 epoch/状态查询协议，必须把 API 契约明确为“重启窗口内结果可能未知；仅允许对经证明幂等的完整状态设置命令按同一 request ID 重试”，并为非幂等操作定义显式 indeterminate/人工恢复策略。
 - 本节为代码审计和测试设计记录，不代表插件重启测试已通过；P104-07 总节点继续“正在进行中”。
+
+
+### 8.99 Whole Gazebo server restart 故障注入测试（2026-11-09，CI 待验收）
+
+- 在 `tests/test_carry_gz_bridge.py` 增加真实仿真服务器重启场景：先启动独立 `ros_gz_bridge`，提交 CarryBus 状态设置事务；AckRelay 观察到插件终态 ACK 后故意不转发给 waiter，模拟“插件已执行、调用方未收到结果”的未知窗口。
+- 随后终止原 Gazebo server（整个 server/world/plugin 进程，不是 plugin-only reload），停止旧 bridge；重新启动同一 `tests/grasp_carry_integration.sdf` 世界，等待 `/drink/carry/ack` 重新出现，再启动新的 `parameter_bridge` 并等待双向 bridge endpoint 就绪。
+- 恢复 ACK 转发后，CarryBus 使用原 request ID 自动重试；新插件实例因内存 completed ACK cache 已丢失，会重新处理同一完整 `place` 状态设置命令并返回终态 ACK。测试继续发起一个更大的 fresh request ID，并检查 waiter、pending、ACK map 与 event 集合清理。
+- 本测试只验证 **whole Gazebo server restart + bridge restart** 故障场景下的幂等状态设置重放恢复，不证明 plugin-only reload、持久化 exactly-once、世界状态恢复或非幂等命令安全。测试结果以本提交触发的 Gazebo CI 实际日志为准；若 server PID/Transport discovery/bridge reconnect 假设不成立，修复测试本身，不得放宽断言。
+- 测试实现提交：`f6bf47b`；补充“重启前必须先建立真实 bridge”修正提交：`9e5ae93`。P104-07 继续“正在进行中”，本节暂不标记通过。
