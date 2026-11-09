@@ -820,13 +820,15 @@ class TestCarryGazeboBridge(unittest.TestCase):
                         stdout=ack_stream, stderr=subprocess.STDOUT,
                         env=observer_env)
                     firewall_rules = []
+                    firewall_rule_comments = {}
                     try:
                         time.sleep(1.0)
                         self.assertIsNone(
                             ack_observer.poll(),
                             "Gazebo ACK observer exited early")
-                        for local_host, local_port, remote_host, remote_port in (
-                                command_peer, ack_peer):
+                        for peer_index, (local_host, local_port, remote_host,
+                                         remote_port) in enumerate(
+                                (command_peer, ack_peer)):
                             family = (
                                 "ip6tables" if ":" in remote_host
                                 else "iptables")
@@ -843,11 +845,16 @@ class TestCarryGazeboBridge(unittest.TestCase):
                             for chain, rule_args in (
                                     ("INPUT", inbound),
                                     ("OUTPUT", outbound)):
+                                comment = "vla-bidir-%d-%d-%s" % (
+                                    os.getpid(), peer_index, chain.lower())
+                                rule_args[-1:-1] = [
+                                    "-m", "comment", "--comment", comment]
                                 subprocess.check_call(
-                                    ["sudo", family, "-I", chain, "1"] +
+                                    ["sudo", family, "-w", "-I", chain, "1"] +
                                     rule_args)
                                 firewall_rules.append(
-                                    (family, chain, rule_args))
+                                    (family, chain, rule_args, comment))
+                                firewall_rule_comments[comment] = family
                         os.kill(transport_bridge.pid, 0)
                         os.kill(int(os.environ["CARRY_SIM_PID"]), 0)
                         bidirectional_result = {}
@@ -880,6 +887,36 @@ class TestCarryGazeboBridge(unittest.TestCase):
                         with open(bidirectional_ack_log,
                                   encoding="utf-8") as stream:
                             observed_acks = stream.read()
+                        # Prove the exact four-tuple DROP rules actually
+                        # matched packets on both sockets and both host
+                        # directions. Without packet counters, an ACK seen by
+                        # the independent observer could mean either an
+                        # alternate peer path or a rule that never matched.
+                        for comment, family in firewall_rule_comments.items():
+                            save_command = (
+                                "ip6tables-save" if family == "ip6tables"
+                                else "iptables-save")
+                            saved_rules = subprocess.check_output(
+                                ["sudo", save_command, "-c", "-t", "filter"],
+                                text=True, stderr=subprocess.STDOUT)
+                            matching_lines = [
+                                line for line in saved_rules.splitlines()
+                                if "--comment %s" % comment in line]
+                            self.assertEqual(
+                                len(matching_lines), 1,
+                                "expected one installed firewall rule %s; "
+                                "ruleset: %s" % (comment, saved_rules))
+                            counter = re.match(
+                                r"\\[(\\d+):(\\d+)\\] ",
+                                matching_lines[0])
+                            self.assertIsNotNone(
+                                counter,
+                                "firewall packet counter missing for %s: %s"
+                                % (comment, matching_lines[0]))
+                            self.assertGreater(
+                                int(counter.group(1)), 0,
+                                "firewall rule %s did not match any packets: %s"
+                                % (comment, matching_lines[0]))
                         self.assertNotIn(
                             "joint cup water_joint %d" % bidirectional_id,
                             observed_acks,
@@ -888,10 +925,10 @@ class TestCarryGazeboBridge(unittest.TestCase):
                         os.kill(transport_bridge.pid, 0)
                         os.kill(int(os.environ["CARRY_SIM_PID"]), 0)
                     finally:
-                        for family, chain, rule_args in reversed(
+                        for family, chain, rule_args, _comment in reversed(
                                 firewall_rules):
                             subprocess.check_call(
-                                ["sudo", family, "-D", chain] + rule_args)
+                                ["sudo", family, "-w", "-D", chain] + rule_args)
                         ack_observer.terminate()
                         for process in (ack_observer,):
                             try:
