@@ -33,7 +33,7 @@ RAW_ACK_TOPIC = ACK_TOPIC + "_raw"
 
 def _bridge_gz_transport_peer(
         bridge_pid, sim_pid, topic, gz_config_path,
-        endpoint_kind="publisher"):
+        endpoint_kind="publisher", diagnostics=None):
     """Find the bridge socket connected to a Gazebo publisher or subscriber."""
     gz_env = os.environ.copy()
     gz_env.pop("CARRY_GZ_CONFIG_PATH", None)
@@ -83,6 +83,16 @@ def _bridge_gz_transport_peer(
             continue
     established = subprocess.check_output(["sudo", "ss", "-Htnp", "state", "established"], text=True, stderr=subprocess.STDOUT)
     listeners = subprocess.check_output(["sudo", "ss", "-Hltnp", "state", "listening"], text=True, stderr=subprocess.STDOUT)
+    if diagnostics is not None:
+        bridge_socket_lines = [
+            line for line in established.splitlines()
+            if any("pid=%d," % pid in line for pid in bridge_pids)]
+        diagnostics.append(
+            "topic_endpoint_map topic=%s kind=%s advertised=%r "
+            "endpoint_section=%s bridge_sockets=%s listeners=%s" %
+            (topic, endpoint_kind, sorted(publisher_endpoints),
+             endpoint_section.strip(), " || ".join(bridge_socket_lines),
+             listeners))
     process_table = subprocess.check_output(["ps", "-eo", "pid=,ppid=,args="], text=True)
     children = {}
     for process_line in process_table.splitlines():
@@ -793,15 +803,18 @@ class TestCarryGazeboBridge(unittest.TestCase):
                 # publisher) while keeping the bridge and simulator processes
                 # alive. Independent native-GZ observers prove that the
                 # request never reaches the plugin and no ACK crosses back.
+                transport_endpoint_diagnostics = []
                 command_peer = _bridge_gz_transport_peer(
                     transport_bridge.pid, int(os.environ["CARRY_SIM_PID"]),
                     "/drink/carry",
                     os.environ.get("CARRY_GZ_CONFIG_PATH", ""),
-                    endpoint_kind="subscriber")
+                    endpoint_kind="subscriber",
+                    diagnostics=transport_endpoint_diagnostics)
                 ack_peer = _bridge_gz_transport_peer(
                     transport_bridge.pid, int(os.environ["CARRY_SIM_PID"]),
                     "/drink/carry/ack",
-                    os.environ.get("CARRY_GZ_CONFIG_PATH", ""))
+                    os.environ.get("CARRY_GZ_CONFIG_PATH", ""),
+                    diagnostics=transport_endpoint_diagnostics)
                 # Observe ACKs from an independent Gazebo subscriber.
                 # A separate command subscriber would see the bridge's
                 # publication on its own TCP connection and cannot prove
@@ -848,6 +861,8 @@ class TestCarryGazeboBridge(unittest.TestCase):
                             "%s=%s:%d->%s:%d route=%s" %
                             (peer_name, local_host, local_port, remote_host,
                              remote_port, route_output))
+                    peer_network_diagnostics.extend(
+                        transport_endpoint_diagnostics)
                     peer_network_diagnostics.append(
                         "command_ack_share_tcp_peer=%s" %
                         (command_peer == ack_peer))
