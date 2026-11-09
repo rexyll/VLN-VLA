@@ -59,7 +59,9 @@ jobs:
 
       - name: Install ROS 2 Jazzy and ros_gz_bridge
         run: |
-          curl --fail --location --retry 3 --retry-delay 2 \
+          curl --fail --location --connect-timeout 20 --max-time 120 \
+            --retry 8 --retry-all-errors --retry-delay 3 --retry-max-time 240 \
+            --retry-connrefused \
             -o /tmp/ros2-apt-source.deb \
             https://github.com/ros-infrastructure/ros-apt-source/releases/download/1.3.0/ros2-apt-source_1.3.0.noble_all.deb
           sudo dpkg -i /tmp/ros2-apt-source.deb
