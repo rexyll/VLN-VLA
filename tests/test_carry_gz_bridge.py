@@ -847,7 +847,7 @@ class TestCarryGazeboBridge(unittest.TestCase):
                                     ("OUTPUT", outbound)):
                                 comment = "vla-bidir-%d-%d-%s" % (
                                     os.getpid(), peer_index, chain.lower())
-                                rule_args[-1:-1] = [
+                                rule_args[-2:-2] = [
                                     "-m", "comment", "--comment", comment]
                                 subprocess.check_call(
                                     ["sudo", family, "-w", "-I", chain, "1"] +
