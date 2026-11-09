@@ -182,6 +182,7 @@ class TestCarryGazeboBridge(unittest.TestCase):
 
             sim_log = "/tmp/grasp-carry-gz-plugin-restarted.log"
             sim_env = os.environ.copy()
+            sim_env["PATH"] = os.environ["CARRY_GZ_PATH"]
             if os.environ.get("CARRY_GZ_CONFIG_PATH_SET") == "1":
                 sim_env["GZ_CONFIG_PATH"] = os.environ.get(
                     "CARRY_GZ_CONFIG_PATH", "")
