@@ -2595,3 +2595,13 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 复核同批较早 run `42570149788` 的日志，还发现 bridge restart 测试对 launcher PID 直接执行 `killpg(pid)` 会因 launcher PID 与实际 process-group ID 不一致而抛出 `ProcessLookupError`。提交 `78820d3420ac25501f365f92e8996e715ca6f6ad` 增加 `_signal_process_group()`：先通过 `os.getpgid(pid)` 解析真实 PGID，再发送信号；launcher 已退出时安全返回，PGID 不存在时尝试信号 launcher PID，避免清理本身掩盖测试结果。
 - `748e805` 的 ROS 2 executor run `42570152827` 在 ROS apt 仓库配置阶段失败，未执行集成测试；后续 `ab02413` 的 Python syntax run `42570205110` 与 ROS 2 executor run `42570205210` 均 success。
 - 本节是对故障注入 harness 的两项日志驱动修正，不构成 Transport 故障恢复验收。必须等待包含 `422ea782` / `78820d3` 的 Gazebo E2E 完整执行，并检查 peer discovery、定向 DROP、ACK observer、timeout 清理和同一 bridge 恢复各断言。P104-07 继续“正在进行中”。
+
+
+### 8.86 按 Gazebo ACK topic publisher 元数据精确识别 Transport 故障注入目标（2026-11-09）
+
+- `42570990570` 的 Gazebo E2E 已通过插件编译、bounded queue、共享库依赖、headless ACK protocol，以及前置 CarryBus bridge retry / 并发 / outage recovery 检查；Transport 故障注入在 `_bridge_gz_transport_peer()` 处失败。
+- 失败日志显示，同一专用 bridge 到 Gazebo server 存在两个已建立连接，远端端口分别为 `36183` 和 `42667`，两者均属于 Gazebo server listener。此前 helper 只按“远端端口属于 Gazebo listener”筛选，并错误假设结果必须唯一，因此无法区分 ACK topic publisher socket 与其他 Gazebo Transport publisher socket。
+- 提交 `a0487a49dac15c150ea9522138d181354688b613`（`test: identify Gazebo ACK publisher socket by topic`）调整定位方式：调用 `gz topic -i -t /drink/carry/ack` 获取该 ACK topic 的 publisher 地址，再与 bridge 进程树的 established peer socket 做精确交集；只有唯一匹配时才安装目标 IP/端口 DROP 规则。失败诊断同时保留 topic info 与 established socket 列表。
+- 该修改缩小了故障注入目标，不再依赖 Gazebo server 全部 listener 端口的唯一性。它仍只是测试 harness 修正，**尚未证明 DROP 确实阻断 ACK 回程，也尚未证明 observer / waiter timeout / 同一 bridge 恢复断言通过**。
+- 新提交触发的 Gazebo Harmonic E2E、Python syntax、纯数学与运动学、ROS 2 executor workflow 已启动；以实际完成的 run/job 结果为准，不提前标记成功。
+- P104-07 继续“正在进行中”。下一步核对 `gz topic -i` 地址与 socket 匹配结果；若唯一目标成功识别，再逐项验证 ACK observer、CarryBus timeout 清理、规则移除和同一 bridge 恢复。队列背压、插件重启、长时间稳定性及 DrinkTask 完整编排仍未验收。
