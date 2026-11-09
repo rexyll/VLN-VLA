@@ -107,6 +107,23 @@ def _bridge_gz_transport_peer(bridge_pid, sim_pid):
     return next(iter(peers))
 
 
+def _signal_process_group(pid, signum):
+    """Signal a launcher process's actual group, tolerating setsid wrappers."""
+    try:
+        pgid = os.getpgid(pid)
+    except ProcessLookupError:
+        return False
+    try:
+        os.killpg(pgid, signum)
+    except ProcessLookupError:
+        # Some launchers may have detached their child into a new session.
+        try:
+            os.kill(pid, signum)
+        except ProcessLookupError:
+            return False
+    return True
+
+
 class AckRelay(Node):
     def __init__(self):
         super().__init__("grasp_carry_ack_fault_injector")
@@ -239,7 +256,7 @@ class TestCarryGazeboBridge(unittest.TestCase):
                 "plugin ACK was not observed before bridge restart")
 
             # Stop the actual bridge process, not merely the ROS subscriber.
-            os.killpg(bridge_pid, signal.SIGTERM)
+            _signal_process_group(bridge_pid, signal.SIGTERM)
             deadline = time.monotonic() + 5.0
             while time.monotonic() < deadline:
                 try:
@@ -248,7 +265,7 @@ class TestCarryGazeboBridge(unittest.TestCase):
                     break
                 time.sleep(0.05)
             else:
-                os.kill(bridge_pid, signal.SIGKILL)
+                _signal_process_group(bridge_pid, signal.SIGKILL)
                 self.fail("ros_gz_bridge did not stop after SIGTERM")
 
             bridge_log = "/tmp/grasp-carry-bridge-restarted.log"
