@@ -512,7 +512,7 @@ class TestCarryGazeboBridge(unittest.TestCase):
                         self.assertIsNone(observer.poll(),
                                           "Gazebo ACK observer exited early")
                         subprocess.check_call(
-                            ["sudo", iptables, "-I", "OUTPUT", "1"] + rule)
+                            ["sudo", iptables, "-I", "INPUT", "1"] + rule)
                         firewall_installed = True
                         os.kill(transport_bridge.pid, 0)
                         transport_result = {}
@@ -560,7 +560,7 @@ class TestCarryGazeboBridge(unittest.TestCase):
                     finally:
                         if firewall_installed:
                             subprocess.check_call(
-                                ["sudo", iptables, "-D", "OUTPUT"] + rule)
+                                ["sudo", iptables, "-D", "INPUT"] + rule)
                         observer.terminate()
                         try:
                             observer.wait(timeout=2.0)
@@ -598,6 +598,158 @@ class TestCarryGazeboBridge(unittest.TestCase):
                 self.assertFalse(bus.pending_requests)
                 self.assertFalse(bus.ack_by_request)
                 self.assertFalse(bus._ack_events)
+
+                # Saturate the real GraspCarry queue through CarryBus ->
+                # ROS 2 -> ros_gz_bridge -> Gazebo. The existing native-GZ
+                # publisher test covers the plugin queue in isolation; this
+                # scenario proves that queue-full terminal ACKs traverse the
+                # production bridge path and that accepted work drains FIFO
+                # after physics resumes.
+                pause_response = subprocess.check_output(
+                    ["gz", "service", "-s", "/world/grasp_carry_test/control",
+                     "--reqtype", "gz.msgs.WorldControl",
+                     "--reptype", "gz.msgs.Boolean", "--timeout", "1000",
+                     "--req", "pause: true"],
+                    text=True, stderr=subprocess.STDOUT, env=gz_env,
+                    timeout=5.0)
+                self.assertIn("data: true", pause_response)
+                simulation_paused = True
+                try:
+                    # Let an in-progress PreUpdate finish before submitting
+                    # more unique transactions than the plugin's 128 slots.
+                    time.sleep(0.5)
+                    queue_worker_count = 144
+                    queue_start = threading.Barrier(queue_worker_count + 1)
+                    queue_results = {}
+                    queue_ids = {}
+                    queue_workers = []
+
+                    def submit_backpressure_transaction(index):
+                        queue_start.wait(timeout=5.0)
+                        # Spread publication over a bounded interval so the
+                        # reliable ROS/DDS and bridge queues can deliver each
+                        # distinct request instead of testing publisher burst
+                        # loss rather than GraspCarry's bounded queue.
+                        time.sleep(index * 0.003)
+
+                        def emit(request_id):
+                            queue_ids[index] = request_id
+                            bus._send(
+                                "joint cup water_joint 0.001 %d" % request_id)
+
+                        queue_results[index] = bus._await(
+                            emit,
+                            lambda ack, request_id: ack ==
+                            "ok joint cup water_joint %d" % request_id,
+                            timeout=12.0)
+
+                    for index in range(queue_worker_count):
+                        worker = threading.Thread(
+                            target=submit_backpressure_transaction,
+                            args=(index,), daemon=True)
+                        queue_workers.append(worker)
+                        worker.start()
+                    queue_start.wait(timeout=5.0)
+
+                    queue_full_deadline = time.monotonic() + 7.0
+                    while time.monotonic() < queue_full_deadline:
+                        if any(" queue-full" in ack
+                               for ack in relay.forwarded):
+                            break
+                        time.sleep(0.05)
+                    else:
+                        self.fail(
+                            "real ROS/Gazebo bridge path did not return a "
+                            "queue-full terminal ACK while simulation was paused")
+
+                    unpause_response = subprocess.check_output(
+                        ["gz", "service", "-s",
+                         "/world/grasp_carry_test/control",
+                         "--reqtype", "gz.msgs.WorldControl",
+                         "--reptype", "gz.msgs.Boolean", "--timeout", "1000",
+                         "--req", "pause: false"],
+                        text=True, stderr=subprocess.STDOUT, env=gz_env,
+                        timeout=5.0)
+                    self.assertIn("data: true", unpause_response)
+                    simulation_paused = False
+
+                    for worker in queue_workers:
+                        worker.join(timeout=14.0)
+                        self.assertFalse(
+                            worker.is_alive(),
+                            "bridge backpressure transaction waiter hung")
+                    self.assertEqual(len(queue_results), queue_worker_count)
+                    self.assertEqual(len(queue_ids), queue_worker_count)
+
+                    # Every request must have exactly one terminal payload
+                    # identity (retries may replay the same payload). No
+                    # request may silently disappear or change outcome.
+                    observed_by_id = {}
+                    for ack in relay.forwarded:
+                        request_id = next(
+                            (int(token) for token in reversed(ack.split())
+                             if token.isdigit()), None)
+                        if request_id in set(queue_ids.values()):
+                            observed_by_id.setdefault(
+                                request_id, set()).add(ack)
+                    rejected = 0
+                    for index, request_id in queue_ids.items():
+                        payloads = observed_by_id.get(request_id, set())
+                        self.assertEqual(
+                            len(payloads), 1,
+                            "request %d had missing/conflicting terminal ACKs: %r"
+                            % (request_id, payloads))
+                        payload = next(iter(payloads))
+                        if payload.startswith("ok joint cup water_joint "):
+                            self.assertTrue(queue_results[index])
+                        else:
+                            self.assertEqual(
+                                payload,
+                                "fail joint cup water_joint %d queue-full"
+                                % request_id)
+                            self.assertFalse(queue_results[index])
+                            rejected += 1
+                    self.assertGreater(
+                        rejected, 0,
+                        "bridge-path flood never exercised bounded queue rejection")
+                    self.assertFalse(bus.pending_requests)
+                    self.assertFalse(bus.ack_by_request)
+                    self.assertFalse(bus._ack_events)
+
+                    # The queue must be usable for a fresh transaction after
+                    # the backlog has drained.
+                    drained_result = {}
+                    def drained_transaction():
+                        def emit(request_id):
+                            drained_result["request_id"] = request_id
+                            bus._send(
+                                "joint cup water_joint 0.002 %d" % request_id)
+                        drained_result["ok"] = bus._await(
+                            emit,
+                            lambda ack, request_id: ack ==
+                            "ok joint cup water_joint %d" % request_id,
+                            timeout=5.0)
+                    drained_worker = threading.Thread(
+                        target=drained_transaction, daemon=True)
+                    drained_worker.start()
+                    drained_worker.join(timeout=7.0)
+                    self.assertFalse(
+                        drained_worker.is_alive(),
+                        "fresh transaction hung after bridge queue drained")
+                    self.assertTrue(
+                        drained_result.get("ok"),
+                        "bridge queue did not recover after backpressure")
+                finally:
+                    if simulation_paused:
+                        subprocess.check_call(
+                            ["gz", "service", "-s",
+                             "/world/grasp_carry_test/control",
+                             "--reqtype", "gz.msgs.WorldControl",
+                             "--reptype", "gz.msgs.Boolean", "--timeout", "1000",
+                             "--req", "pause: false"],
+                            env=gz_env, timeout=5.0,
+                            stdout=subprocess.DEVNULL,
+                            stderr=subprocess.STDOUT)
             finally:
                 try:
                     os.killpg(transport_bridge.pid, signal.SIGTERM)
