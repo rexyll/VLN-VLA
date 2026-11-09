@@ -9,7 +9,7 @@
 
 ## 当前执行位置（2026-11-08）
 
-- **当前主节点：P104-07** —— 继续完成 ROS 2 CarryBus 与 Gazebo GraspCarry 插件的事务端到端联调。持久 publisher 10ms 节流后，Gazebo runs `42550245829` / `42550249583` 均能观察到 queue-full ACK，但 ACK 流仍有少量 request ID 缺失，headless 严格计数失败，bridge 步骤跳过。当前开始隔离 ACK 观测端：新增长生命周期 Gazebo Transport C++ subscriber，直接通过 Subscribe callback 收取 ACK，替换 `gz topic -e | awk` 管道；保留首次 ACK 丢弃故障注入、marker 同步和逐 request 精确计数。subscriber helper 编译与新 headless / bridge CI 尚待执行，P104-07 不得提前验收。
+- **当前主节点：P104-07** —— 继续完成 ROS 2 CarryBus 与 Gazebo GraspCarry 插件的事务端到端联调。新增长生命周期 ACK subscriber 后，Gazebo run `42552792126` 已通过插件配置、C++ 插件编译、队列单测与共享库检查，但在 helper 编译阶段失败：gz-transport13 `Node::Subscribe` 要求回调参数为函数指针或 `std::function`，不能直接接收捕获式 lambda。已将回调显式包装为 `std::function<void(const gz::msgs::StringMsg &)>`（提交 `c2c37bf`）；该修复触发的新 Gazebo headless / bridge CI 尚待验证。最新 ROS 2 executor run `42552832404` 与 Python syntax run `42552832346` 均通过。headless 严格 ACK 计数及 ROS 2 bridge ACK fault injection 尚未实际通过，P104-07 不得提前验收。
 - **并行回归：P104-08** —— 此前 20/20 纯 Python 测试通过；P104-07 本轮新增 CarryBus 人手交接连续性用例后，`tests/test_p104.py` 共 21 个用例，新增项待 CI 验证。继续扩展真实 RGB-D 遮挡、四相机切换和跟踪重捕获验证。
 - **未关闭的仿真节点：P104-05/P104-06** —— 桌面/手部代理几何和自然收臂逻辑已通过静态/纯测试，但仍需完整 work_area.sdf 场景中的动态碰撞与轨迹验证。
 - **最终验收：P104-09** —— 完整双臂倒水递水 E2E 至少三轮、ROS 2/Gazebo 集成和 P102/P103/P97/P94 回归尚未完成。
@@ -2414,3 +2414,12 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
   - `9da2066012ab985feb6018ab8cd7c6a8733c9cbd` — `test: use persistent Gazebo ACK subscriber`。
   - `4406b61aef37d4d5879edeb1c55945c246b2477e` — `fix: persist dropped Gazebo ACK marker`。
 - 新 helper 与 workflow 的 C++ 编译、headless ACK 精确计数、以及后续 ros_gz_bridge ACK fault injection 尚待 CI 实际验证。该改动用于隔离观测端，不代表已经证明生产 Transport 或插件 ACK 无丢失；P104-07 继续未完成。
+
+
+### 8.70 修正 Gazebo Transport 13 ACK subscriber 回调类型（2026-11-09）
+
+- 检查 Gazebo run `42552792126`：插件配置、GraspCarry C++ 编译、bounded queue 单测和共享库依赖检查全部通过；失败发生在新增长生命周期 ACK subscriber helper 的编译阶段，bridge 步骤因此跳过。
+- 编译器指出 gz-transport13 的 `Node::Subscribe()` 重载接受函数指针或 `std::function<void(const MessageT &)>`，不能直接从捕获式 lambda 推导模板参数。
+- 在 `tests/grasp_carry_subscriber.cc` 显式将捕获式 callback 包装为 `std::function<void(const gz::msgs::StringMsg &)>`，并增加 `<functional>` 头文件；不改变首次 ACK 丢弃、marker 写入、mutex 串行化或 ACK 输出行为。
+- 提交：`c2c37bfbd5a1cc21acaddb4beb576fd0ab853b20` — `fix: adapt Gazebo ACK subscriber callback type`。
+- 修正后的 subscriber helper 编译、headless ACK 严格计数和 ROS 2 / ros_gz_bridge ACK fault injection仍待新 CI 实际验证；P104-07 保持进行中。
