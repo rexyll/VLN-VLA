@@ -112,7 +112,7 @@ jobs:
             fi
             if [ -n "$SUB_PID" ]; then kill "$SUB_PID" 2>/dev/null || true; fi
             if [ -n "$PUB_PID" ]; then kill "$PUB_PID" 2>/dev/null || true; fi
-            kill -- -"$SIM_PID" 2>/dev/null || kill "$SIM_PID" 2>/dev/null || true
+            kill "$SIM_PID" 2>/dev/null || true
             return "$status"
           }
           trap cleanup EXIT
@@ -290,23 +290,9 @@ jobs:
           # Launch Gazebo before sourcing ROS 2. The ROS setup can replace
           # GZ_CONFIG_PATH with its ros_gz plugin directory, hiding the
           # Gazebo Harmonic `sim` CLI command from the gz-tools loader.
-          setsid gz sim -s -r -v 2 tests/grasp_carry_integration.sdf > /tmp/grasp-carry-bridge-gz.log 2>&1 &
+          gz sim -s -r -v 2 tests/grasp_carry_integration.sdf > /tmp/grasp-carry-bridge-gz.log 2>&1 &
           SIM_PID=$!
-          # Preserve Gazebo CLI discovery before ROS setup modifies GZ_CONFIG_PATH.
-          printf 'Gazebo pre-ROS GZ_CONFIG_PATH=%s\n' "${GZ_CONFIG_PATH-<unset>}"
-          export CARRY_PRE_ROS_ENV_FILE=/tmp/carry-pre-ros-env
-          env > "$CARRY_PRE_ROS_ENV_FILE"
-          printf 'Gazebo pre-ROS commands: '
-          gz --commands | tr '\n' ' '
-          printf '\n'
-          if [ "${GZ_CONFIG_PATH+x}" = x ]; then
-            export CARRY_GZ_CONFIG_PATH_SET=1
-            export CARRY_GZ_CONFIG_PATH="$GZ_CONFIG_PATH"
-          else
-            export CARRY_GZ_CONFIG_PATH_SET=0
-          fi
           source /opt/ros/jazzy/setup.bash
-          printf 'Gazebo post-ROS GZ_CONFIG_PATH=%s\n' "${GZ_CONFIG_PATH-<unset>}"
           set -u
           cat > /tmp/grasp-carry-ros-bridge.yml <<'YAML'
           - ros_topic_name: "/drink/carry"
@@ -365,8 +351,4 @@ jobs:
           done
           CARRY_BRIDGE_PID="$BRIDGE_PID" \
             CARRY_BRIDGE_CONFIG=/tmp/grasp-carry-ros-bridge.yml \
-            CARRY_GZ_SIM_PID="$SIM_PID" \
-            CARRY_GZ_CONFIG_PATH_SET="$CARRY_GZ_CONFIG_PATH_SET" \
-            CARRY_GZ_CONFIG_PATH="${CARRY_GZ_CONFIG_PATH-}" \
-            CARRY_PRE_ROS_ENV_FILE="$CARRY_PRE_ROS_ENV_FILE" \
             python3 tests/test_carry_gz_bridge.py
