@@ -1237,12 +1237,25 @@ class TestCarryGazeboBridge(unittest.TestCase):
                             observed_acks = stream.read()
                         with open(trace_log, encoding="utf-8") as stream:
                             nft_trace_output = stream.read()
-                        # Require packet evidence for both directions of each
-                        # real TCP peer. Same-address peers have duplicate
-                        # INPUT/OUTPUT hook candidates; their counters are
-                        # summed because only the traversed hook will match.
+                        # Require evidence for the two application data
+                        # directions, which can be carried by different TCP
+                        # peers: ROS command bytes leave the bridge on the
+                        # command socket, while Gazebo ACK bytes enter it on
+                        # the ACK socket. Requiring both directions on each
+                        # socket is incorrect for these unidirectional legs.
+                        # If Gazebo multiplexes both topics on one TCP peer,
+                        # both semantic directions are required on that peer.
+                        command_peer_index = unique_transport_peers.index(
+                            command_peer)
+                        ack_peer_index = unique_transport_peers.index(ack_peer)
+                        required_direction_groups = {
+                            (command_peer_index, "forward"),
+                            (ack_peer_index, "reverse")}
                         for (peer_index, direction), rule_group in (
                                 firewall_rule_groups.items()):
+                            if (peer_index, direction) not in (
+                                    required_direction_groups):
+                                continue
                             packet_total = 0
                             evidence = []
                             for comment, family, table in rule_group:
