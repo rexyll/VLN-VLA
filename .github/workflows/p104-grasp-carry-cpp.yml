@@ -148,8 +148,12 @@ jobs:
           # exposing messages to the test client. Wait for that drop marker so
           # the retry cannot race the original Apply()/in-flight window.
           rm -f /tmp/grasp-carry-first-ack-dropped
+          # The subscriber is started after fd 3 opens the FIFO for writing.
+          # Close that inherited writer in the child; otherwise the publisher
+          # never sees EOF, wait "$PUB_PID" blocks until the subscriber timeout,
+          # and physics remains paused until the ACK observer has exited.
           timeout 300s /tmp/grasp-carry-subscriber \
-            /tmp/grasp-carry-first-ack-dropped > /tmp/grasp-carry-acks.log 2>&1 &
+            /tmp/grasp-carry-first-ack-dropped > /tmp/grasp-carry-acks.log 2>&1 3>&- &
           SUB_PID=$!
           for _ in $(seq 1 30); do
             if grep -q "ACK_SUBSCRIBER_READY" /tmp/grasp-carry-acks.log; then break; fi
