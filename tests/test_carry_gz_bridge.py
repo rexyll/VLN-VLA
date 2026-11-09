@@ -986,7 +986,10 @@ class TestCarryGazeboBridge(unittest.TestCase):
                                      stderr=subprocess.STDOUT) +
                                  "; conntrack: " +
                                  subprocess.run(
-                                     ["sudo", "conntrack", "-L", "-p", "tcp"],
+                                     ["sudo", "bash", "-lc",
+                                      "if command -v conntrack >/dev/null; "
+                                      "then conntrack -L -p tcp; "
+                                      "else echo conntrack-not-installed; fi"],
                                      text=True, stdout=subprocess.PIPE,
                                      stderr=subprocess.STDOUT).stdout))
                         self.assertNotIn(
