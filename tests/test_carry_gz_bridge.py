@@ -875,9 +875,12 @@ class TestCarryGazeboBridge(unittest.TestCase):
                             target=bidirectional_partition_transaction,
                             daemon=True)
                         bidirectional_worker.start()
+                        request_deadline = time.monotonic() + 3.0
+                        while (time.monotonic() < request_deadline and
+                               not bidirectional_result.get("request_id")):
+                            time.sleep(0.01)
                         self.assertTrue(
-                            _wait_for(lambda: bool(
-                                bidirectional_result.get("request_id")), 3.0),
+                            bidirectional_result.get("request_id"),
                             "bidirectional partition request was not issued")
                         bidirectional_id = bidirectional_result["request_id"]
                         time.sleep(1.5)
