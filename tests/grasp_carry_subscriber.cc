@@ -26,6 +26,7 @@ int main(int argc, char **argv)
           std::cout << "FIRST_ACK_DROPPED " << _message.data()
                     << std::endl;
           std::ofstream markerFile(marker);
+          markerFile << _message.data() << '\n';
           return;
         }
         std::cout << "data: \"" << _message.data() << "\""
