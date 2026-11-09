@@ -1065,7 +1065,17 @@ class TestCarryGazeboBridge(unittest.TestCase):
                             # some runner layouts), so install the exact reverse
                             # tuple at both pre-filter hooks and aggregate only
                             # their real packet counters.
-                            if local_host == remote_host:
+                            # A Docker userland-proxy peer can have a
+                            # different container-facing address while the
+                            # kernel still routes that destination locally
+                            # through loopback. In that case filter/OUTPUT
+                            # sees the post-NAT tuple, so install exact
+                            # pre-NAT raw-hook candidates just as for an
+                            # identical-address peer.
+                            local_route = (
+                                route_output.startswith("local ") or
+                                " dev lo " in (" " + route_output + " "))
+                            if local_host == remote_host or local_route:
                                 # Trace exact TCP tuples at a priority before
                                 # iptables-nft raw (-300). This captures the
                                 # actual hook, direction and packet metadata
