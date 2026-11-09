@@ -39,6 +39,15 @@ jobs:
 
       - name: Install Gazebo Harmonic development dependencies
         run: |
+          # GitHub-hosted Ubuntu images may include a preconfigured Microsoft
+          # package source that can return 403 in this runner environment.
+          # It is unrelated to this build; disable only source entries that
+          # reference packages.microsoft.com before refreshing apt metadata.
+          while IFS= read -r source_file; do
+            [ -n "$source_file" ] || continue
+            sudo mv "$source_file" "${source_file}.vla-disabled"
+          done < <(grep -rlE 'packages\\.microsoft\\.com' \
+            /etc/apt/sources.list /etc/apt/sources.list.d 2>/dev/null || true)
           sudo apt-get update
           sudo apt-get install -y curl lsb-release gnupg
           sudo curl -fsSL https://packages.osrfoundation.org/gazebo.gpg \
