@@ -8,6 +8,8 @@ drops the first ACK so CarryBus must retry and the plugin must replay its
 completed transaction result.
 """
 import os
+import signal
+import subprocess
 import sys
 import threading
 import time
@@ -33,6 +35,8 @@ class AckRelay(Node):
         self.publisher = self.create_publisher(String, ACK_TOPIC, 20)
         self.dropped_first = threading.Event()
         self.forwarded = []
+        self.drop_next = threading.Event()
+        self.dropped_next = threading.Event()
         self.subscription = self.create_subscription(
             String, RAW_ACK_TOPIC, self._on_ack, 20)
 
@@ -41,6 +45,12 @@ class AckRelay(Node):
             self.dropped_first.set()
             self.get_logger().warning(
                 "intentionally dropped first GraspCarry terminal ACK")
+            return
+        if self.drop_next.is_set():
+            self.drop_next.clear()
+            self.dropped_next.set()
+            self.get_logger().warning(
+                "intentionally dropped ACK during bridge restart test")
             return
         self.forwarded.append(message.data)
         self.publisher.publish(message)
@@ -115,6 +125,84 @@ class TestCarryGazeboBridge(unittest.TestCase):
                                  "CarryBus bridge transaction hung")
             self.assertFalse(errors, "transaction exceptions: %r" % errors)
             self.assertEqual(results, {0.006: True, 0.018: True})
+            self.assertFalse(bus.pending_requests)
+            self.assertFalse(bus.ack_by_request)
+            self.assertFalse(bus._ack_events)
+
+            # Exercise a real parameter_bridge process restart while a CarryBus
+            # waiter is active. The plugin has accepted the command, but the
+            # relay drops its terminal ACK; after restart, the same request ID
+            # must be retried and the plugin's completed-ACK cache must replay it.
+            bridge_pid = int(os.environ["CARRY_BRIDGE_PID"])
+            bridge_config = os.environ["CARRY_BRIDGE_CONFIG"]
+            relay.dropped_next.clear()
+            relay.drop_next.set()
+            restart_result = {}
+
+            def restart_transaction():
+                restart_result["ok"] = bus._await(
+                    lambda request_id: bus._send(
+                        "place cup 0 0 0.5 0 0 0 1 %d" % request_id),
+                    lambda ack, request_id: ack ==
+                    "ok place cup %d" % request_id,
+                    timeout=12.0)
+
+            restart_worker = threading.Thread(
+                target=restart_transaction, daemon=True)
+            restart_worker.start()
+            self.assertTrue(
+                relay.dropped_next.wait(5.0),
+                "plugin ACK was not observed before bridge restart")
+
+            # Stop the actual bridge process, not merely the ROS subscriber.
+            os.kill(bridge_pid, signal.SIGTERM)
+            deadline = time.monotonic() + 5.0
+            while time.monotonic() < deadline:
+                try:
+                    os.kill(bridge_pid, 0)
+                except ProcessLookupError:
+                    break
+                time.sleep(0.05)
+            else:
+                os.kill(bridge_pid, signal.SIGKILL)
+                self.fail("ros_gz_bridge did not stop after SIGTERM")
+
+            bridge_log = "/tmp/grasp-carry-bridge-restarted.log"
+            with open(bridge_log, "w", encoding="utf-8") as stream:
+                restarted_bridge = subprocess.Popen(
+                    ["ros2", "run", "ros_gz_bridge", "parameter_bridge",
+                     "--ros-args", "-p",
+                     "config_file:=" + bridge_config],
+                    stdout=stream, stderr=subprocess.STDOUT,
+                    start_new_session=True)
+            try:
+                ready_deadline = time.monotonic() + 15.0
+                while time.monotonic() < ready_deadline:
+                    if restarted_bridge.poll() is not None:
+                        with open(bridge_log, encoding="utf-8") as log:
+                            self.fail("restarted bridge exited: " + log.read())
+                    if (relay.count_publishers(RAW_ACK_TOPIC) >= 1 and
+                            bus.pub.get_subscription_count() > 0):
+                        break
+                    time.sleep(0.1)
+                else:
+                    with open(bridge_log, encoding="utf-8") as log:
+                        self.fail("restarted bridge not ready: " + log.read())
+                restart_worker.join(timeout=8.0)
+                self.assertFalse(
+                    restart_worker.is_alive(),
+                    "CarryBus waiter hung across bridge restart")
+                self.assertTrue(
+                    restart_result.get("ok"),
+                    "same-request retry did not recover after bridge restart")
+            finally:
+                restarted_bridge.terminate()
+                try:
+                    restarted_bridge.wait(timeout=3.0)
+                except subprocess.TimeoutExpired:
+                    restarted_bridge.kill()
+                    restarted_bridge.wait(timeout=3.0)
+
             self.assertFalse(bus.pending_requests)
             self.assertFalse(bus.ack_by_request)
             self.assertFalse(bus._ack_events)
