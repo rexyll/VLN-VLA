@@ -2792,3 +2792,10 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
   - Python syntax run `42587833645`。
 - 登记时三个 workflow 均为 in_progress，尚无最终验收结论。重点关注 Gazebo job 是否成功定位 `gz-sim*.yaml`、测试是否输出重启 server 的双向 peer 与 waiter 恢复证据。未取得完整证据前不得关闭 whole-server restart。
 - 本记录提交 `e88b99b32d990d27dfc5d8deb0293c08fd2aaff7`。
+
+### 8.106 Gazebo sim command manifest 文件名兼容修正（2026-11-09，CI 待验收）
+
+- `620f6a87a92ff6e26329313e763713343f500988` 对应 Gazebo run `42587833742` 最终 failure。job 中插件编译、bounded queue、headless ACK protocol 与真实 ROS 2→ros_gz_bridge 队列背压步骤均成功；失败发生在 whole-server-restart 集成测试启动前。workflow 的 `find /usr -type f -name 'gz-sim*.yaml'` 未找到匹配文件，紧接着 `test -n "$GZ_SIM_CONFIG_FILE"` 退出，因此尚未启动该阶段的 Gazebo server，也未触及重启后的 Transport peer 与事务恢复断言。ROS 2 executor run `42587833785` success，Python run `42587833645` 两个 job success。
+- 根因是对 Gazebo Harmonic CLI manifest 文件名的假设过窄。不同 Gazebo package layout 可能将 sim 命令 manifest 命名为 `sim.yaml`，而不是 `gz-sim*.yaml`。
+- 提交 `630449cd57bb6fffafe050d3e64e774d6be2c83b`（ci: find Gazebo sim command manifest across package layouts）：workflow 先搜索 `/usr/share/gz` 与 `/usr/local/share/gz`，再回退搜索 `/usr`；同时接受 `gz-sim*.yaml` 与 `sim.yaml`。若仍未命中，会打印 Gazebo share 树下 YAML 候选文件后明确失败，避免无诊断退出。重启子进程仍按命中的 manifest 所在目录与 ROS vendor manifest 路径组合 `GZ_CONFIG_PATH`，未更改事务 deadline、2Hz retry pacing、双向 TCP peer、request ID、ACK/waiter 或资源清理断言。
+- 本次提交触发 Python run `42590344276`、ROS 2 executor run `42590344428`、Gazebo run `42590344286`。TaskPlan 更新时三者均为 in_progress，尚未验收。后续须读取 Gazebo 完整日志，确认实际 manifest 路径、重启 server 启动、重启前后 ACK publisher 与 command subscriber 的 established TCP peer、原 request ID ACK 到达且 waiter True、pending/ACK/event 清理以及 fresh request ID 成功。whole Gazebo server restart 仍未通过，P104-07 继续“正在进行中”。
