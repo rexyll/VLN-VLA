@@ -315,7 +315,7 @@ jobs:
               cat /tmp/grasp-carry-bridge.log 2>/dev/null || true
               cat /tmp/grasp-carry-bridge-gz.log 2>/dev/null || true
             fi
-            if [ -n "$BRIDGE_PID" ]; then kill "$BRIDGE_PID" 2>/dev/null || true; fi
+            if [ -n "$BRIDGE_PID" ]; then kill -- -"$BRIDGE_PID" 2>/dev/null || true; fi
             kill "$SIM_PID" 2>/dev/null || true
             return "$status"
           }
@@ -335,7 +335,7 @@ jobs:
           done
           test "$ready" -eq 1
 
-          ros2 run ros_gz_bridge parameter_bridge --ros-args \
+          setsid ros2 run ros_gz_bridge parameter_bridge --ros-args \
             -p config_file:=/tmp/grasp-carry-ros-bridge.yml \
             > /tmp/grasp-carry-bridge.log 2>&1 &
           BRIDGE_PID=$!
