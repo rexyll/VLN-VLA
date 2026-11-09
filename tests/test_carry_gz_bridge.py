@@ -37,6 +37,7 @@ class AckRelay(Node):
         self.forwarded = []
         self.drop_next = threading.Event()
         self.dropped_next = threading.Event()
+        self.drop_all = threading.Event()
         self.subscription = self.create_subscription(
             String, RAW_ACK_TOPIC, self._on_ack, 20)
 
@@ -45,6 +46,11 @@ class AckRelay(Node):
             self.dropped_first.set()
             self.get_logger().warning(
                 "intentionally dropped first GraspCarry terminal ACK")
+            return
+        if self.drop_all.is_set():
+            self.dropped_next.set()
+            self.get_logger().warning(
+                "intentionally dropped ACK while recovery gate is closed")
             return
         if self.drop_next.is_set():
             self.drop_next.clear()
@@ -136,7 +142,7 @@ class TestCarryGazeboBridge(unittest.TestCase):
             # but must not be mistaken for a durable exactly-once guarantee.
             sim_pid = int(os.environ["CARRY_GZ_SIM_PID"])
             relay.dropped_next.clear()
-            relay.drop_next.set()
+            relay.drop_all.set()
             plugin_restart_result = {}
 
             def plugin_restart_transaction():
@@ -206,6 +212,7 @@ class TestCarryGazeboBridge(unittest.TestCase):
                         self.fail("restarted GraspCarry plugin not ready: " +
                                   log.read())
 
+                relay.drop_all.clear()
                 plugin_restart_worker.join(timeout=12.0)
                 self.assertFalse(
                     plugin_restart_worker.is_alive(),
@@ -234,7 +241,7 @@ class TestCarryGazeboBridge(unittest.TestCase):
             bridge_pid = int(os.environ["CARRY_BRIDGE_PID"])
             bridge_config = os.environ["CARRY_BRIDGE_CONFIG"]
             relay.dropped_next.clear()
-            relay.drop_next.set()
+            relay.drop_all.set()
             restart_result = {}
 
             def restart_transaction():
@@ -290,6 +297,7 @@ class TestCarryGazeboBridge(unittest.TestCase):
                 else:
                     with open(bridge_log, encoding="utf-8") as log:
                         self.fail("restarted bridge not ready: " + log.read())
+                relay.drop_all.clear()
                 restart_worker.join(timeout=8.0)
                 self.assertFalse(
                     restart_worker.is_alive(),
