@@ -110,7 +110,7 @@ def _bridge_gz_transport_peer(
             if any("pid=%d," % pid in line for pid in sim_pids)]
         socket_owner_pids = {
             int(pid_text)
-            for pid_text in re.findall(r"pid=(\\d+),fd=\\d+", established)}
+            for pid_text in re.findall(r"pid=(\d+),fd=\d+", established)}
         relevant_pids = bridge_pids | sim_pids | socket_owner_pids
         relevant_processes = [
             line for line in process_table.splitlines()
@@ -119,7 +119,7 @@ def _bridge_gz_transport_peer(
         fd_links = []
         for socket_line in bridge_socket_lines + sim_socket_lines:
             for pid_text, fd_text in re.findall(
-                    r"pid=(\\d+),fd=(\\d+)", socket_line):
+                    r"pid=(\d+),fd=(\d+)", socket_line):
                 fd_path = "/proc/%s/fd/%s" % (pid_text, fd_text)
                 try:
                     fd_links.append("%s=%s" %
