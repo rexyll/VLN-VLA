@@ -38,9 +38,25 @@ def _bridge_gz_transport_peer(bridge_pid, sim_pid):
     listeners = subprocess.check_output(
         ["sudo", "ss", "-Hltnp", "state", "listening"],
         text=True, stderr=subprocess.STDOUT)
+    process_table = subprocess.check_output(
+        ["ps", "-eo", "pid=,ppid=,args="], text=True)
+    children = {}
+    for process_line in process_table.splitlines():
+        fields = process_line.strip().split(None, 2)
+        if len(fields) >= 2:
+            children.setdefault(int(fields[1]), set()).add(int(fields[0]))
+    sim_pids = {sim_pid}
+    frontier = [sim_pid]
+    while frontier:
+        parent = frontier.pop()
+        for child in children.get(parent, ()):
+            if child not in sim_pids:
+                sim_pids.add(child)
+                frontier.append(child)
+
     sim_ports = set()
     for line in listeners.splitlines():
-        if "pid=%d," % sim_pid not in line:
+        if not any("pid=%d," % pid in line for pid in sim_pids):
             continue
         fields = line.split()
         if len(fields) < 4:
@@ -71,9 +87,9 @@ def _bridge_gz_transport_peer(bridge_pid, sim_pid):
     if len(peers) != 1:
         raise AssertionError(
             "expected one bridge-to-Gazebo publisher socket (bridge PID %d, "
-            "Gazebo PID %d); found %r; Gazebo listening ports: %r; "
+            "Gazebo process tree %r); found %r; Gazebo listening ports: %r; "
             "established sockets: %s; listeners: %s" %
-            (bridge_pid, sim_pid, sorted(peers), sorted(sim_ports),
+            (bridge_pid, sorted(sim_pids), sorted(peers), sorted(sim_ports),
              established, listeners))
     return next(iter(peers))
 
