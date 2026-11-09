@@ -29,6 +29,57 @@ from vla_follow.carry import ACK_TOPIC, CARRY_TOPIC, CarryBus  # noqa: E402
 RAW_ACK_TOPIC = ACK_TOPIC + "_raw"
 
 
+def _process_descendants(root_pid):
+    result = subprocess.run(
+        ["ps", "-eo", "pid=,ppid="], check=True,
+        capture_output=True, text=True)
+    children = {}
+    for line in result.stdout.splitlines():
+        fields = line.split()
+        if len(fields) == 2:
+            pid, parent = map(int, fields)
+            children.setdefault(parent, []).append(pid)
+    found = []
+    pending = list(children.get(root_pid, []))
+    while pending:
+        pid = pending.pop()
+        found.append(pid)
+        pending.extend(children.get(pid, []))
+    return found
+
+
+def _terminate_gazebo_tree(root_pid):
+    descendants = _process_descendants(root_pid)
+    for pid in reversed(descendants):
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+    try:
+        os.killpg(root_pid, signal.SIGTERM)
+    except ProcessLookupError:
+        pass
+    deadline = time.monotonic() + 8.0
+    while time.monotonic() < deadline:
+        alive = []
+        for pid in [root_pid] + descendants:
+            try:
+                with open("/proc/%d/stat" % pid, encoding="utf-8") as stat:
+                    state = stat.read().split()[2]
+                if state != "Z":
+                    alive.append(pid)
+            except FileNotFoundError:
+                pass
+        if not alive:
+            return
+        time.sleep(0.05)
+    for pid in [root_pid] + descendants:
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+
+
 class AckRelay(Node):
     def __init__(self):
         super().__init__("grasp_carry_ack_fault_injector")
@@ -164,23 +215,6 @@ class TestCarryGazeboBridge(unittest.TestCase):
                 relay.dropped_next.wait(5.0),
                 "plugin ACK was not dropped before Gazebo restart")
 
-            # The original Gazebo process is owned by the workflow shell.
-            os.killpg(sim_pid, signal.SIGTERM)
-            deadline = time.monotonic() + 8.0
-            while time.monotonic() < deadline:
-                try:
-                    with open("/proc/%d/stat" % sim_pid, encoding="utf-8") as stat:
-                        process_state = stat.read().split()[2]
-                    if process_state == "Z":
-                        break
-                except FileNotFoundError:
-                    break
-                time.sleep(0.05)
-            else:
-                os.killpg(sim_pid, signal.SIGKILL)
-                self.fail("Gazebo process did not stop after SIGTERM")
-
-            sim_log = "/tmp/grasp-carry-gz-plugin-restarted.log"
             sim_env = os.environ.copy()
             sim_env["PATH"] = os.environ["CARRY_GZ_PATH"]
             if os.environ.get("CARRY_GZ_CONFIG_PATH_SET") == "1":
@@ -188,6 +222,24 @@ class TestCarryGazeboBridge(unittest.TestCase):
                     "CARRY_GZ_CONFIG_PATH", "")
             else:
                 sim_env.pop("GZ_CONFIG_PATH", None)
+
+            # The workflow launches Gazebo in its own session. Terminate the
+            # complete process tree so no detached server keeps the old world
+            # and its plugin instance alive behind the command wrapper.
+            _terminate_gazebo_tree(sim_pid)
+            stop_deadline = time.monotonic() + 8.0
+            while time.monotonic() < stop_deadline:
+                topics = subprocess.run(
+                    ["gz", "topic", "-l"], env=sim_env,
+                    capture_output=True, text=True, timeout=2.0)
+                if "/drink/carry/ack" not in topics.stdout:
+                    break
+                time.sleep(0.1)
+            else:
+                self.fail("old Gazebo ACK topic remained after server shutdown: " +
+                          topics.stdout + topics.stderr)
+
+            sim_log = "/tmp/grasp-carry-gz-plugin-restarted.log"
             with open(sim_log, "w", encoding="utf-8") as stream:
                 restarted_sim = subprocess.Popen(
                     ["gz", "sim", "-s", "-r", "-v", "2",
@@ -201,10 +253,10 @@ class TestCarryGazeboBridge(unittest.TestCase):
                     if restarted_sim.poll() is not None:
                         with open(sim_log, encoding="utf-8") as log:
                             self.fail("restarted Gazebo exited: " + log.read())
-                    with open(sim_log, encoding="utf-8") as log:
-                        sim_output = log.read()
-                    if ("[GraspCarry]" in sim_output and
-                            "就绪" in sim_output and
+                    topics = subprocess.run(
+                        ["gz", "topic", "-l"], env=sim_env,
+                        capture_output=True, text=True, timeout=2.0)
+                    if ("/drink/carry/ack" in topics.stdout and
                             relay.count_publishers(RAW_ACK_TOPIC) >= 1):
                         break
                     time.sleep(0.1)
