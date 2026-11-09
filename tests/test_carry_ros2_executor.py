@@ -447,13 +447,15 @@ class TestCarryRos2Executor(unittest.TestCase):
             transaction_ids = {}
             start = threading.Barrier(3)
 
+            both_registered = threading.Event()
+
             def run_transaction(name):
                 start.wait(timeout=3.0)
 
                 def emit(request_id):
                     transaction_ids[name] = request_id
-                    ack_pub.publish(String(
-                        data="ok transaction %s %d" % (name, request_id)))
+                    if len(transaction_ids) == 2:
+                        both_registered.set()
 
                 transaction_results[name] = bus._await(
                     emit,
@@ -467,6 +469,16 @@ class TestCarryRos2Executor(unittest.TestCase):
             for waiter in waiters:
                 waiter.start()
             start.wait(timeout=3.0)
+            self.assertTrue(
+                both_registered.wait(timeout=1.0),
+                "both concurrent CarryBus waiters did not register")
+            # Publish only after both request IDs are pending. This separates
+            # executor delivery from DDS discovery / publisher startup timing
+            # and ensures the test actually exercises two overlapping waiters.
+            for name in ("left", "right"):
+                ack_pub.publish(String(
+                    data="ok transaction %s %d" %
+                    (name, transaction_ids[name])))
             for waiter in waiters:
                 waiter.join(timeout=4.0)
                 self.assertFalse(waiter.is_alive(),
