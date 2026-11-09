@@ -983,11 +983,24 @@ class TestCarryGazeboBridge(unittest.TestCase):
                                      ["sudo", "iptables-save", "-c", "-t",
                                       "filter"], text=True,
                                      stderr=subprocess.STDOUT) +
+                                 "; raw table: " +
+                                 subprocess.check_output(
+                                     ["sudo", "iptables-save", "-c", "-t",
+                                      "raw"], text=True,
+                                     stderr=subprocess.STDOUT) +
                                  "; NAT table: " +
                                  subprocess.check_output(
                                      ["sudo", "iptables-save", "-c", "-t",
                                       "nat"], text=True,
                                      stderr=subprocess.STDOUT) +
+                                 "; nftables ruleset: " +
+                                 subprocess.run(
+                                     ["sudo", "bash", "-lc",
+                                      "if command -v nft >/dev/null; then "
+                                      "nft -a list ruleset; else "
+                                      "echo nft-not-installed; fi"],
+                                     text=True, stdout=subprocess.PIPE,
+                                     stderr=subprocess.STDOUT).stdout +
                                  "; conntrack: " +
                                  subprocess.run(
                                      ["sudo", "bash", "-lc",
