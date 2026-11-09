@@ -2317,6 +2317,18 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 
 ### 8.61 将 headless Gazebo 命令流改为长生命周期 Transport publisher（2026-11-09）
 
+### 8.62 等待 Gazebo Transport publisher discovery 并保留诊断（2026-11-09）
+
+- 检查持久 publisher 首轮 CI（run `42545869471`）：插件配置、C++ 编译、队列单测、共享库检查通过，但 headless ACK protocol 步骤仍失败，bridge 步骤被跳过；Python 与 ROS 2 executor 检查通过。
+- 失败日志确认 shell 流程在队列饱和验证前退出，但现有输出没有可靠地保留 helper 自身状态，不能将原因武断归结为队列实现。
+- 审查 helper 发现 `Advertise()` 创建本地 publisher endpoint 后立即进入发送路径，没有显式等待 Gazebo Transport 发现插件订阅端。增加 `Publisher::HasConnections()` 有界等待（最多 10 秒），并将 outgoing queue depth 设为 512，避免 transport discovery race 与突发流量超过默认发送队列。
+- workflow 将 publisher stdout/stderr 保存至 `/tmp/grasp-carry-publisher.log`，失败时与 ACK、Gazebo 日志一起输出，便于区分 publisher discovery、发送失败与插件队列行为。
+- 提交：
+  - `d0eeabc78d0536a11ddd640f632a5b3a517102f0` — `test: wait for Gazebo publisher discovery`
+  - `2ce6cb10e57086edcf050fd56353b2be89149489` — `test: capture Gazebo publisher discovery diagnostics`
+- 本节改动的 CI 结果待运行；在 headless 队列严格 ACK 验证与 bridge ACK fault injection 实际通过前，P104-07 保持进行中。
+
+
 - 复核 run `42545031460` 的完整 ACK 日志：20ms flush 后此前缺失的 `...0352` 已出现，但另一个 request ID `...0334` 仍未观测到，严格逐请求 ACK cardinality 断言仍失败，桥接故障注入步骤继续被跳过。
 - 纠正 §8.60 的测试实现判断：`sleep 0.02` 位于 shell 函数中、在 `gz topic -p` 子进程退出后执行；它并没有延长 one-shot publisher 进程的生命周期，不能保证 Gazebo Transport 完成消息交付。
 - 新增 `tests/grasp_carry_publisher.cc`：创建单个 `gz::transport::Node` 和长期存活的 `/drink/carry` publisher，从 stdin 逐条读取命令并发布；每条消息之间短暂节流，EOF 后等待最终 flush。
