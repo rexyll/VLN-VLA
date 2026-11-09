@@ -24,8 +24,7 @@ int main(int argc, char **argv)
         std::lock_guard<std::mutex> lock(outputMutex);
         if (!dropped.exchange(true))
         {
-          std::cout << "FIRST_ACK_DROPPED " << _message.data()
-                    << std::endl;
+          std::cout << "FIRST_ACK_DROPPED" << std::endl;
           std::ofstream markerFile(marker);
           markerFile << _message.data() << '\n';
           return;
