@@ -347,4 +347,6 @@ jobs:
             fi
             sleep 1
           done
-          python3 tests/test_carry_gz_bridge.py
+          CARRY_BRIDGE_PID="$BRIDGE_PID" \
+            CARRY_BRIDGE_CONFIG=/tmp/grasp-carry-ros-bridge.yml \
+            python3 tests/test_carry_gz_bridge.py
