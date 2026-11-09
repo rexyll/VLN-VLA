@@ -307,6 +307,13 @@ jobs:
           # Preserve the pre-ROS Gazebo CLI configuration. ROS setup can
           # replace GZ_CONFIG_PATH with its ros_gz plugin directory.
           GZ_CONFIG_PATH_BEFORE_ROS="${GZ_CONFIG_PATH:-}"
+          # Locate the Gazebo Harmonic CLI command manifest explicitly. ROS 2
+          # setup replaces GZ_CONFIG_PATH with vendor manifests, which hides
+          # the gz-sim command when a new server is spawned from Python.
+          GZ_SIM_CONFIG_FILE="$(find /usr -type f -name 'gz-sim*.yaml' -print -quit 2>/dev/null)"
+          test -n "$GZ_SIM_CONFIG_FILE"
+          GZ_SIM_CONFIG_DIR="$(dirname "$GZ_SIM_CONFIG_FILE")"
+          echo "Gazebo CLI config manifest: $GZ_SIM_CONFIG_FILE"
           gz sim -s -r -v 2 tests/grasp_carry_integration.sdf > /tmp/grasp-carry-bridge-gz.log 2>&1 &
           SIM_PID=$!
           source /opt/ros/jazzy/setup.bash
@@ -374,4 +381,5 @@ jobs:
             CARRY_BRIDGE_CONFIG=/tmp/grasp-carry-ros-bridge.yml \
             CARRY_GZ_CONFIG_PATH="$GZ_CONFIG_PATH_FOR_TEST" \
             CARRY_GZ_LAUNCH_CONFIG_PATH="$GZ_CONFIG_PATH_BEFORE_ROS" \
+            CARRY_GZ_SIM_CONFIG_DIR="$GZ_SIM_CONFIG_DIR" \
             python3 tests/test_carry_gz_bridge.py
