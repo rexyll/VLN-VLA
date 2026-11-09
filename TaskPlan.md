@@ -9,7 +9,7 @@
 
 ## 当前执行位置（2026-11-08）
 
-- **当前主节点：P104-07** —— 继续完成 ROS 2 CarryBus 与 Gazebo GraspCarry 插件的事务端到端联调；插件构建、队列单测及共享库检查已通过；首轮扩展 Gazebo CI 在 headless queue saturation 脚本的固定队列边界断言处失败，日志表明暂停物理与 PreUpdate 消费存在边界竞态，已改为依据首个实际 queue-full ACK 动态判定接受/拒绝分界，并验证 FIFO 与终态拒绝重放；新的 Gazebo + ROS 2 bridge CI 正在执行，未通过前不计入已验收能力。
+- **当前主节点：P104-07** —— 继续完成 ROS 2 CarryBus 与 Gazebo GraspCarry 插件的事务端到端联调；插件构建、队列单测及共享库检查已通过；headless queue saturation 已改为动态发现首个 queue-full request ID，避免 pause/PreUpdate 边界竞态；首轮修订测试又将“队列溢出每个 request 的单次 ACK”与“同一 request 重试后的 ACK replay”放在同一统计窗口，导致 ACK 数量断言混淆，现拆分为独立验收：队列饱和测试要求每个输入 request 恰好一个终态 ACK，重试/ACK replay 由独立事务测试验证；最新 CI 正在执行，未通过前不计入已验收能力。
 - **并行回归：P104-08** —— 此前 20/20 纯 Python 测试通过；P104-07 本轮新增 CarryBus 人手交接连续性用例后，`tests/test_p104.py` 共 21 个用例，新增项待 CI 验证。继续扩展真实 RGB-D 遮挡、四相机切换和跟踪重捕获验证。
 - **未关闭的仿真节点：P104-05/P104-06** —— 桌面/手部代理几何和自然收臂逻辑已通过静态/纯测试，但仍需完整 work_area.sdf 场景中的动态碰撞与轨迹验证。
 - **最终验收：P104-09** —— 完整双臂倒水递水 E2E 至少三轮、ROS 2/Gazebo 集成和 P102/P103/P97/P94 回归尚未完成。
@@ -2284,4 +2284,22 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 **验收边界：**
 - 这次修复的是测试对暂停生效时序的错误假设，不是放宽生产队列容量或 ACK 语义。
 - 只有 Gazebo workflow 后续 queue saturation 与 ros_gz_bridge ACK fault injection 两个步骤全部成功，才算本轮真实桥接链路初步通过；P104-07 仍未关闭。
+
+### 8.59 分离队列溢出 ACK 计数与事务重试验证（2026-11-09）
+
+- 复核 Gazebo workflow run `42494113287`：插件配置、C++ 编译、队列单测、共享库依赖检查成功；headless 协议脚本已成功完成动态识别第一个 queue-full request ID 和队列恢复 FIFO 检查，最终失败在对首个拒绝 request 的 ACK 精确数量断言。
+- 该脚本在同一 ACK 统计窗口内既发送了 160 个不同 request 的队列饱和流量，又对第一个拒绝 request 主动重试；这使“每个输入 request 的首次终态 ACK 数量”与“重复 request 的缓存 ACK replay 数量”混合在一起，无法再用单一固定计数表达两个不同验收目标。
+- 修正 `.github/workflows/p104-grasp-carry-cpp.yml`：
+  - headless queue saturation 测试只发送一次每个 request，不再在同一流量窗口内重试第一个拒绝 request；
+  - 对每个被拒绝 request 继续要求恰好一个 `queue-full` ACK；
+  - 对已接受 request 继续要求 FIFO 排空及每个成功 ACK 恰好一次；
+  - ACK retry/replay 保留在独立事务测试中验证：C++ completed-ACK cache 单测覆盖 queue-full 终态缓存；ROS 2 ↔ ros_gz_bridge E2E 覆盖 CarryBus 丢失成功 ACK 后使用相同 request_id 重试及插件缓存 ACK 重放。
+- 提交：
+  - `45651c305c16ec5ab058da0dd08e9d6f9534503a` — 首次将重复 ACK 观察断言改为下限，CI 仍暴露混合计数问题；不作为最终验收。
+  - `5229d47ec637100416e709b206342962417329cb` — `test: isolate queue overflow ACK cardinality from retry path`，移除饱和流量中的额外重试，恢复每个拒绝 request 恰好一个 ACK 的严格断言。
+- `45651c3` 的 Python syntax 与 ROS 2 executor integration CI 均通过；Gazebo workflow 在队列饱和脚本处失败，桥接步骤未运行。针对 `5229d47` 的新 CI 尚待结果。
+
+**验收边界：**
+- 这次拆分避免用放宽 ACK 数量断言掩盖潜在重复 ACK；队列满载协议仍保留严格单 ACK 检查。
+- bridge E2E 尚未执行成功；P104-07 继续未完成。
 
