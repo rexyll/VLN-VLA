@@ -2949,3 +2949,11 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 完整网络快照显示共享 TCP peer 为 `172.17.0.1:33830 -> 172.17.0.1:40107`。反向精确 tuple `40107 -> 33830` 的 `raw/PREROUTING` 规则命中 6 个包，`raw/OUTPUT` 为 0；正向 `raw/OUTPUT` 仍为 0。nftables 同步快照也确认 PREROUTING raw hook 的反向 DROP counter 为 6。独立 reverse probe ACK observer 可见，但当前仅能证明探针 ACK 到达独立 observer，不能据此认定 bridge TCP peer 的双向隔离已通过。
 - 该证据确认本 runner 的 loopback/userland-proxy 数据路径确实经过 `raw/PREROUTING`，但尚未确认正向流量在该 hook 的四元组。测试代码提交 `c12d6475d692bf6f25ad7d655c3262d2b844939b`：在保留正向 `raw/OUTPUT` 候选的同时，新增相同精确正向 tuple 的 `raw/PREROUTING` 候选；正向与反向各自仍按候选 hook 聚合真实 packet counter，必须非零。失败信息的 hook 描述同步泛化，不改变 DROP、独立 ACK observer、原 request ID 隔离、规则移除后同 ID waiter 恢复、bridge/server PID 存活及 CarryBus 状态清理等验收标准。
 - **状态：正向 PREROUTING 候选已提交 main，等待 CI。** 必须以该提交对应 Gazebo 完整日志确认正向和反向精确规则均有真实 packet counter，且 ACK 隔离、解除规则后的同 ID 恢复及资源清理全部通过；若正向仍为零，继续依据新快照定位，不能放宽计数要求。P104-07 继续“正在进行中”。
+
+
+### 8.126 双向 Transport hook 方向映射增加 nft trace（2026-11-09，CI 待验收）
+
+- `c12d6475d692bf6f25ad7d655c3262d2b844939b` 对应 Gazebo run `42613435357` / job `129147342264` 最终 failure；同 SHA ROS 2 executor run `42613435404`、Python syntax run `42613435162` success。前序 Gazebo 插件构建、队列、headless ACK protocol 和 bridge ACK fault-injection 均通过；双向隔离仍在第一个 peer forward counter 断言失败，未到达 ACK 隔离及规则移除后的同 ID 恢复验收。
+- 失败日志中的共享 socket 为 `172.17.0.1:44300 -> 172.17.0.1:39637`。同一精确四元组反向 `39637 -> 44300` 在 `raw/PREROUTING` 命中 6 个包；正向四元组在 `raw/OUTPUT` 与 `raw/PREROUTING` 均为 0。nftables 快照确认该反向 PREROUTING DROP counter 为 6。当前证据证明实际 loopback/userland-proxy 路径与 socket 表面方向并不一致，但尚不能把 TCP tuple 方向等同于应用层 command/ACK 方向，也不能证明双向隔离。
+- 测试代码提交 `b90f69df33121c07158197466279ca1a7fefb1a0`：在 `raw` iptables hook 之前（nft priority `-301`）为精确 peer 的两个 TCP tuple 方向分别安装 nft `nftrace` 标记规则，并启动 `nft monitor trace` 收集真实 packet hook、tuple 和路径；失败诊断会附带 trace 输出。原有精确 DROP 规则、packet-counter 非零要求、独立 ACK observer、reverse probe、CarryBus 原 request ID 隔离、规则移除后同 ID waiter 恢复、bridge/Gazebo PID 存活及状态清理断言均保留，不因增加诊断而放宽。
+- **状态：等待 `b90f69d` 对应 Gazebo/ROS 2/Python CI。** 依据 nft trace 明确确认实际包方向与 hook 后再调整规则；只有双向 packet evidence、ACK 隔离、同 ID 恢复和资源清理全部通过，才可关闭该测试项。P104-07 继续“正在进行中”。
