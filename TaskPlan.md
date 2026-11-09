@@ -2639,3 +2639,13 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 提交 d4f3b82b88b29a4a841594a989bb13bc8f20db7c（ci: isolate unavailable Microsoft apt source on runners）：Gazebo workflow 在首次 apt update 前，仅查找并临时移出引用 packages.microsoft.com 的 apt source 文件；不修改 Ubuntu 官方源或 OSRF Gazebo 源，不跳过 apt update，不减少 Gazebo/ROS 依赖，也不跳过任何测试。GitHub runner 为一次性环境，无需恢复该无关源。
 - 该提交触发的 Gazebo CI 尚待完成。必须确认 apt update、Gazebo Harmonic 依赖安装、ROS 2 Jazzy / ros_gz_bridge 安装、插件构建和 headless ACK 测试全部执行，再检查 Transport peer discovery 与故障注入断言。
 - P104-07 继续“正在进行中”。当前只确认 CarryBus 并发 executor 回归通过；Gazebo Transport ACK socket discovery、定向 DROP、独立 observer、timeout 清理和同一 bridge 恢复仍未验收。队列背压之后的插件重启、长时间稳定性和 DrinkTask 完整编排也仍未完成。
+
+
+### 8.90 修复 Transport probe 子进程丢失 Gazebo CLI 配置（2026-11-09）
+
+- 核对 Gazebo run `42574912482` 的完整 job log：Gazebo Harmonic 依赖、ROS 2 Jazzy / ros_gz_bridge 安装、GraspCarry 插件编译、bounded queue、共享库依赖和 headless ACK protocol 均 success；CarryBus bridge E2E 的前置 ACK retry、并发事务、bridge restart/outage recovery 也已执行。Transport peer discovery 在调用 `gz topic -i -t /drink/carry/ack` 时失败，错误输出为 `I cannot find any available 'gz' command`。
+- 日志与代码对照确认：workflow 在 ROS setup 前保存的 `GZ_CONFIG_PATH_BEFORE_ROS` 在 runner 上为空；测试 helper 随后把 Python 子进程继承的 `GZ_CONFIG_PATH` 无条件删除，导致子进程中的 gz-tools 找不到 CLI command 配置。这不是 ACK publisher 不存在，也不是 Transport socket 不匹配的证据。
+- 提交 `f66096190c2d6bc2305a7349a4691e4710bfe188`（`test: preserve Gazebo CLI config in transport probe`）：helper 仅在显式提供有效 override 时替换 `GZ_CONFIG_PATH`，否则保留当前进程环境，不再主动删除 ROS setup 后的配置。
+- 提交 `e0054561353bc7b70a6794a7396a64679eaccd86`（`ci: pass active Gazebo CLI config to bridge test`）：workflow 在 source ROS 2 后捕获当前 `GZ_CONFIG_PATH` 并传给测试；Gazebo server 仍在 ROS setup 前启动，以免 CLI loader 环境变化影响 server 启动。
+- 同批 CI：run `42574962129` Python syntax 与 P104 pure math/kinematics success；run `42574962121` 真实 ROS 2 executor integration success。Gazebo run `42574912482` 的 Transport 测试尚未触达 socket discovery / DROP / observer / waiter timeout / same-bridge recovery 断言。
+- 本节修复仅处理 CLI 配置传递。等待新 workflow 验证 `gz topic -i` 是否能输出 publisher 元数据，并继续按实际结果验收唯一 peer 匹配、定向 DROP、独立 ACK observer、CarryBus 清理及同一 bridge 恢复。P104-07 继续“正在进行中”；不提前标记 Transport 故障注入或队列背压验收通过。
