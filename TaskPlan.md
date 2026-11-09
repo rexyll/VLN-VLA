@@ -2983,3 +2983,12 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 该日志首次提供 Ruby proxy 两条连接与 bridge/Gazebo socket 的 PID/FD 对照，但单次 ss -Htnp 没有 TCP_INFO 的 bytes_sent、bytes_received、bytes_acked 快照，仍不能确定桥接命令在当前窗口是否真正经该 socket 发出，以及 proxy 转发的两段流量如何对应。
 - 测试代码提交 3cf1da06c55c7bc1e86a918ad2ec323cb116ae2d：在双向分区开始前，以及 CarryBus request 与独立 reverse probe 发出后，分别采集 sudo ss -Htnpi state established 快照，并纳入既有失败诊断，利用每个 PID/FD 的 TCP_INFO 与字节计数对照 nft trace。未修改 DROP 规则、packet-counter 门槛、ACK observer、reverse probe、同 ID 恢复、PID 存活及 CarryBus 清理断言。
 - 状态：等待 3cf1da0 的 Python、ROS 2、Gazebo CI。先依据 TCP_INFO/trace 对照判定数据流，再决定故障注入边界；双向 Transport 分区仍未通过。P104-07 继续“正在进行中”。
+
+
+### 8.130 TCP_INFO 暴露实际活跃连接与 endpoint 映射不一致（2026-11-09，继续定位）
+
+- `3cf1da06c55c7bc1e86a918ad2ec323cb116ae2d` 对应 Python run `42622133551` success、ROS 2 executor run `42622133466` success、Gazebo run `42622133385` / job `129176688113` failure。Gazebo 前序构建及多数桥接恢复测试已执行；双向 Transport 测试在 peer 0 forward counter 断言失败，计数为 `raw/OUTPUT=0`、`raw/PREROUTING=0`，尚未进入 ACK 隔离与原 request ID 恢复验收。`a80d6943` 的 Python run `42622280187` 与 ROS 2 executor run `42622280211` success；该 TaskPlan-only 更新未触发 Gazebo workflow。
+- 本次 `ss -Htnpi` 快照首次提供同一 bridge 进程多个 TCP FD 的前后字节计数：被 `_bridge_gz_transport_peer` 选中的 bridge `fd 48`（`172.17.0.1:35604 -> 172.17.0.1:39293`）前后 `bytes_sent=193`、`bytes_received=5911` 均未变化；对应 Ruby `fd 32` 的 `bytes_sent` 从 `7231` 增至 `8155`，`bytes_received=193`。与此同时 bridge `fd 47`（`172.17.0.1:34809 -> 10.1.0.171:53246`）`bytes_sent` 从 `6345` 增至 `7917`、`bytes_received` 从 `232` 增至 `279`；Ruby `fd 31` 的对应连接也有相符的字节增长。该证据说明当前被选中的 `fd 48` 在测试窗口内没有活动字节增长，而同一 bridge 进程的 `fd 47` 有明显数据活动；必须查明 endpoint 元数据与 bridge FD 之间的映射，不能继续把 `fd 48` 当作已证实的 command/ACK 连接。
+- nft trace 中可见 `39293 -> 35604` 的 316-byte payload 命中反向 PREROUTING DROP；同时 `39293 -> 44648` 出现另一条 184-byte payload，说明仅按端口 trace 还可能观察到其它 Gazebo Transport client 的流量。当前不能据此判定应用层命令/ACK 的 TCP leg。
+- 测试诊断提交 `3ec7f792a95cf3b02dbacc80eb7a25677d7a56b1` 增加 `gz topic -i` 原始 endpoint section、解析出的 advertised endpoint、bridge PID 全部 established sockets 和 listening sockets 的联合快照；随后 `b6da3d618a2ab59d837d510127977d96ac8dee0c` 修正诊断采集位置，确保 bridge PID descendants 已建立后才筛选 socket。仅扩充证据采集，不改变 firewall 规则、packet counter 非零验收、ACK observer、reverse probe、原 ID 恢复、进程存活和状态清理条件。
+- **状态：等待 `b6da3d6` 的 Python、ROS 2、Gazebo CI。** 下一步按 topic endpoint advertised tuple 对照全部 bridge FD 与 proxy counterpart，先证明 command 和 ACK 分别使用的连接，再调整隔离目标。P104-07 继续“正在进行中”，双向 Transport 分区未通过。
