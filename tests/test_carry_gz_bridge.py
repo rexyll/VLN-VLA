@@ -30,13 +30,29 @@ from vla_follow.carry import ACK_TOPIC, CARRY_TOPIC, CarryBus  # noqa: E402
 RAW_ACK_TOPIC = ACK_TOPIC + "_raw"
 
 
-def _bridge_gz_transport_peer(bridge_pid):
-    """Return an established Gazebo Transport peer socket owned by the bridge."""
-    output = subprocess.check_output(
+def _bridge_gz_transport_peer(bridge_pid, sim_pid):
+    """Find the bridge socket connected to a Gazebo-server listening port."""
+    established = subprocess.check_output(
         ["sudo", "ss", "-Htnp", "state", "established"],
         text=True, stderr=subprocess.STDOUT)
+    listeners = subprocess.check_output(
+        ["sudo", "ss", "-Hltnp", "state", "listening"],
+        text=True, stderr=subprocess.STDOUT)
+    sim_ports = set()
+    for line in listeners.splitlines():
+        if "pid=%d," % sim_pid not in line:
+            continue
+        fields = line.split()
+        if len(fields) < 4:
+            continue
+        endpoint = fields[3]
+        try:
+            sim_ports.add(int(endpoint.rsplit(":", 1)[1]))
+        except ValueError:
+            continue
+
     peers = set()
-    for line in output.splitlines():
+    for line in established.splitlines():
         if "pid=%d," % bridge_pid not in line:
             continue
         fields = line.split()
@@ -47,12 +63,18 @@ def _bridge_gz_transport_peer(bridge_pid):
         host = host.strip("[]")
         ipaddress.ip_address(host)
         port = int(port_text)
-        if 0 < port < 65536:
+        # The ACK subscriber is an outgoing bridge connection to a Gazebo
+        # publisher's listening port. The command path is the inverse: its
+        # accepted bridge socket sees a Gazebo ephemeral client port.
+        if port in sim_ports:
             peers.add((host, port))
     if len(peers) != 1:
         raise AssertionError(
-            "expected one established bridge-to-Gazebo ACK socket for PID %d; "
-            "found %r; ss output: %s" % (bridge_pid, sorted(peers), output))
+            "expected one bridge-to-Gazebo publisher socket (bridge PID %d, "
+            "Gazebo PID %d); found %r; Gazebo listening ports: %r; "
+            "established sockets: %s; listeners: %s" %
+            (bridge_pid, sim_pid, sorted(peers), sorted(sim_ports),
+             established, listeners))
     return next(iter(peers))
 
 
@@ -356,7 +378,7 @@ class TestCarryGazeboBridge(unittest.TestCase):
             # to publish terminal ACKs while the bridge's GZ transport socket
             # is firewalled. This is intentionally narrower than killing the
             # bridge process (covered above).
-            peer_ip, peer_port = _bridge_gz_transport_peer(bridge_pid)
+            peer_ip, peer_port = _bridge_gz_transport_peer(bridge_pid, int(os.environ["CARRY_SIM_PID"]))
             iptables = "ip6tables" if ":" in peer_ip else "iptables"
             rule = ["-p", "tcp", "-d", peer_ip, "--dport",
                     str(peer_port), "-j", "DROP"]
