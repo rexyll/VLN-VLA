@@ -351,6 +351,7 @@ jobs:
             sleep 1
           done
           CARRY_BRIDGE_PID="$BRIDGE_PID" \
+            CARRY_SIM_PID="$SIM_PID" \
             CARRY_BRIDGE_CONFIG=/tmp/grasp-carry-ros-bridge.yml \
             CARRY_GZ_CONFIG_PATH="$GZ_CONFIG_PATH_BEFORE_ROS" \
             python3 tests/test_carry_gz_bridge.py
