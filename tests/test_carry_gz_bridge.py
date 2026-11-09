@@ -830,7 +830,34 @@ class TestCarryGazeboBridge(unittest.TestCase):
                 # publisher) while keeping the bridge and simulator processes
                 # alive. Independent native-GZ observers prove that the
                 # request never reaches the plugin and no ACK crosses back.
-                transport_endpoint_diagnostics = []
+                # Calibrate the live Transport TCP sockets with one known-good
+                # CarryBus transaction before installing any firewall rules.
+                # Topic endpoint metadata can identify a proxy-facing listener
+                # rather than the socket that actually carries application
+                # payloads; per-socket TCP_INFO deltas provide an independent
+                # observation of which bridge sockets send/receive bytes for
+                # a real command+ACK exchange.
+                calibration_before = subprocess.check_output(
+                    ["sudo", "ss", "-Htnpi", "state", "established"],
+                    text=True, stderr=subprocess.STDOUT)
+                calibration_ok = bus._await(
+                    lambda request_id: bus._send(
+                        "joint cup water_joint 0.007 %d" % request_id),
+                    lambda ack, request_id: ack ==
+                    "ok joint cup water_joint %d" % request_id,
+                    timeout=8.0)
+                self.assertTrue(
+                    calibration_ok,
+                    "CarryBus TCP socket calibration transaction failed")
+                calibration_after = subprocess.check_output(
+                    ["sudo", "ss", "-Htnpi", "state", "established"],
+                    text=True, stderr=subprocess.STDOUT)
+                transport_endpoint_diagnostics = [
+                    "calibration_transaction=joint cup water_joint 0.007 "
+                    "result=%s" % calibration_ok,
+                    "tcp_info_before_calibration=" + calibration_before,
+                    "tcp_info_after_calibration=" + calibration_after,
+                ]
                 command_peer = _bridge_gz_transport_peer(
                     transport_bridge.pid, int(os.environ["CARRY_SIM_PID"]),
                     "/drink/carry",
