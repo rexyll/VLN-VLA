@@ -2722,3 +2722,13 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - Gazebo job log 显示 queue-full ACK 实际经真实 bridge 路径返回，随后出现 accepted transaction 成功 ACK；集成测试以 `Ran 1 test ... OK` 结束。测试方法的完整断言和 job success 相互印证，故真实桥接队列背压正式验收通过。
 - ROS 2 executor workflow run `42580589983`（HTTP ROS apt source）completed/success；TaskPlan 文档提交 `c4fc111` 对应的 executor run `42580639516` 与 Python run `42580639505` 均 success。
 - 因此 P104-07 的真实桥接背压子项标记为已完成；P104-07 总节点仍“正在进行中”。剩余优先项为 Gazebo/GraspCarry 插件进程重启后的事务终态语义与 ACK cache 丢失处理，其次双向 Transport 断连、长时间稳定性和 DrinkTask 完整 E2E。
+
+### 8.98 Gazebo/GraspCarry 插件进程重启语义审计（2026-11-09，未验收）
+
+- 对 `GraspCarry.cc`、`GraspCarryQueue.hh`、`CarryBus` 与现有 Gazebo 集成测试做生命周期审计，确认当前“bridge 进程重启”测试不能代替“Gazebo/GraspCarry 插件进程重启”测试：现有 `tests/test_carry_gz_bridge.py` 第 263–333 行只终止并重启 `ros_gz_bridge`，Gazebo 插件实例和其内存状态始终存活，因此 completed ACK cache 仍可重放。
+- 插件的 `pending`（容量 128）、`inFlight`、`completedAcks`（容量 256）、`targets` 和 `joints` 均为 `GraspCarry` 实例成员；插件实例重建时这些状态全部丢失。completed ACK cache 不是持久化日志，不能承诺跨插件进程重启的 exactly-once 执行。
+- 当前 transaction key 为 `op|model|joint|requestId`，未包含命令 payload 或 plugin epoch；CarryBus 的 request ID 以 `time.time_ns()` 初始化并单调递增，可避免 ROS 侧进程重启后通常复用旧 ID，但不提供插件重启的执行去重或事务状态恢复。
+- `Apply()` 当前命令语义以状态设置为主：`joint` 写入目标关节位置，`grab` 注册目标 pose，`place` 设置模型 pose，`release` 关闭目标 active 状态。相同完整命令重发在同一世界状态下大多具有状态幂等性；但插件/仿真进程重启可能同时重建世界，不能仅凭这一点推导真实 DrinkTask 的安全恢复语义。必须验证已应用但 ACK 丢失、排队未执行、执行中重启三类边界，并区分 plugin-only restart 与 whole Gazebo server restart。
+- 下一步测试设计：在真实 Gazebo/ROS bridge 集成环境中，先让 CarryBus waiter 发出事务并由 ACK relay 截获终态 ACK；在 ACK 未交付给 waiter 时实际终止并重建 Gazebo/GraspCarry 进程，等待 Gazebo topic/service、插件 ACK publisher 和 bridge 双向 endpoint 重新就绪；保持同一 request ID 重试，记录新插件对命令的处理与 waiter 终态。另测插件重启期间的 pending waiter timeout/取消、重启后 fresh request ID、旧 ACK/旧 epoch 隔离及队列状态清理。若无法可靠实现 plugin-only reload，则将 whole Gazebo server restart 明确标注为另一类故障，不冒充插件热重启。
+- 验收前不得声称跨插件重启 exactly-once。若无法持久化事务日志或提供 epoch/状态查询协议，必须把 API 契约明确为“重启窗口内结果可能未知；仅允许对经证明幂等的完整状态设置命令按同一 request ID 重试”，并为非幂等操作定义显式 indeterminate/人工恢复策略。
+- 本节为代码审计和测试设计记录，不代表插件重启测试已通过；P104-07 总节点继续“正在进行中”。
