@@ -9,7 +9,7 @@
 
 ## 当前执行位置（2026-11-09）
 
-- **当前主节点：P104-07（基础桥接事务、bridge 进程重启/停止恢复、以及 bridge 进程存活时 Gazebo ACK 回程 TCP socket 定向阻断与恢复均已通过；真实 ROS 2→ros_gz_bridge→Gazebo 路径队列背压（已实测触发 queue-full ACK；首次 E2E 暴露 waiter timeout 小于队列排空时间，已延长等待窗口并待复验）、Gazebo/GraspCarry 插件进程重启、长时间稳定性及 DrinkTask 完整编排仍未验收）** —— 以 `tests/test_carry_gz_bridge.py` 为当前真实集成验收入口。该测试在 ROS 2 `MultiThreadedExecutor` + Gazebo + `ros_gz_bridge` 环境中覆盖：首个 terminal ACK 丢失后的同 ID 重试/插件缓存重放；两个并发 joint 事务的 ACK/request ID 隔离；实际停止并重启 `parameter_bridge` 时活动 waiter 的恢复；bridge 停止期间事务超时、pending/ACK/Event 清理，以及 bridge 恢复后新事务使用更大的 request ID 成功完成。对应提交 `97394a3` 的 Gazebo run `42565700320`、Python run `42565700274`、ROS 2 executor run `42565700237` 均 success；TaskPlan 后续提交 `7ec12fc` 的 Python run `42566028793` 与 ROS 2 executor run `42566028713` 也均 success。此前 Gazebo 插件进程重启实验因新 server/plugin ACK endpoint 未能可靠恢复而隔离，不能计作通过。下一步先建立 bridge 进程存活但 Gazebo Transport 实际不可达的可控故障注入，再验证队列背压与插件重启语义；P104-07 不关闭。
+- **当前主节点：P104-07（基础桥接事务、bridge 进程重启/停止恢复、以及 bridge 进程存活时 Gazebo ACK 回程 TCP socket 定向阻断与恢复均已通过；真实 ROS 2→ros_gz_bridge→Gazebo 路径队列背压已实测触发 queue-full ACK，但修复 waiter timeout 后的复验被 ROS apt bootstrap 下载 HTTP 504 阻断，尚未验收；Gazebo/GraspCarry 插件进程重启、长时间稳定性及 DrinkTask 完整编排仍未验收）** —— 以 `tests/test_carry_gz_bridge.py` 为当前真实集成验收入口。该测试在 ROS 2 `MultiThreadedExecutor` + Gazebo + `ros_gz_bridge` 环境中覆盖：首个 terminal ACK 丢失后的同 ID 重试/插件缓存重放；两个并发 joint 事务的 ACK/request ID 隔离；实际停止并重启 `parameter_bridge` 时活动 waiter 的恢复；bridge 停止期间事务超时、pending/ACK/Event 清理，以及 bridge 恢复后新事务使用更大的 request ID 成功完成。对应提交 `97394a3` 的 Gazebo run `42565700320`、Python run `42565700274`、ROS 2 executor run `42565700237` 均 success；TaskPlan 后续提交 `7ec12fc` 的 Python run `42566028793` 与 ROS 2 executor run `42566028713` 也均 success。此前 Gazebo 插件进程重启实验因新 server/plugin ACK endpoint 未能可靠恢复而隔离，不能计作通过。下一步先建立 bridge 进程存活但 Gazebo Transport 实际不可达的可控故障注入，再验证队列背压与插件重启语义；P104-07 不关闭。
 - **并行回归：P104-08** —— 此前 20/20 纯 Python 测试通过；P104-07 本轮新增 CarryBus 人手交接连续性用例后，`tests/test_p104.py` 共 21 个用例，仍需继续扩展真实 RGB-D 遮挡、四相机切换和跟踪重捕获验证。
 - **未关闭的仿真节点：P104-05/P104-06** —— 桌面/手部代理几何和自然收臂逻辑已通过静态/纯测试，但仍需完整 work_area.sdf 场景中的动态碰撞与轨迹验证。
 - **最终验收：P104-09** —— 完整双臂倒水递水 E2E 至少三轮、ROS 2/Gazebo 集成和 P102/P103/P97/P94 回归尚未完成。
@@ -2692,3 +2692,15 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 提交 `430dbf8299f9ca2d8767debcf893ac7a6b011472`（`test: allow queued Gazebo transactions to drain`）：将每个背压事务的 CarryBus waiter timeout 从 12 秒增加到 45 秒，并将 worker join 上限从 14 秒增加到 50 秒；保留 queue-full ACK、所有 144 个 request ID 的唯一 terminal payload、ACK 与 waiter 结果一致、资源清理及排空后新事务恢复等断言，没有放宽成功/失败语义。
 - `430dbf8` 对应 Gazebo run `42579942993`、ROS 2 executor run `42579942906`、Python run `42579942844` 已触发；开始记录时三项均 queued。此前 `1a8b6ee` 的 Python/P104 与 ROS 2 executor 已 success，Gazebo E2E 因上述 timeout 断言失败。
 - **验收状态仍未完成。** 必须以 `42579942993` 的真实 Gazebo E2E 为准：如果 144 个 waiter 全部在预算内完成且每个 request ID 只有一个 terminal payload 身份、queue-full 与成功结果一致、清理和恢复事务均通过，才可将真实桥接背压标记通过；若仍失败，继续依据新的日志修正，不降低断言。P104-07 保持“正在进行中”。
+
+### 8.95 绕过 ROS apt bootstrap Release 下载 504，恢复真实桥接背压复验（2026-11-09）
+
+- 核验 `430dbf8` 的 CI：
+  - Gazebo run `42579942993` 在 `Install ROS 2 Jazzy and ros_gz_bridge` 阶段失败；Gazebo Harmonic 依赖安装成功，但 ROS 安装、插件构建及真实桥接测试均未运行。
+  - ROS 2 executor run `42579942906` 在 `Configure ROS 2 Jazzy apt repository` 阶段失败，尚未运行 executor 测试。
+  - 两份 job log 均明确显示从 GitHub Releases 下载 `ros2-apt-source_1.3.0.noble_all.deb` 连续收到 HTTP 504；这是 runner 到 Release asset endpoint 的下载故障，不是代码测试失败。
+  - 同批 Python syntax / P104 pure math run `42579942844` success。TaskPlan 文档提交 `c1a8b6b` 对应的 Python run `42579987860` success；ROS 2 executor run `42579987907` 同样因 Release asset HTTP 504 在配置 apt 源阶段失败。
+- 提交 `6139f25824bed43a28944b1fb2d21563c4e0a0e8`（`ci: avoid ROS apt bootstrap release download`）：Gazebo workflow 不再下载 GitHub Release 的 .deb，而是使用 ROS 官方 `ros.key` 签名密钥和 `packages.ros.org/ros2/ubuntu` apt 源安装 Jazzy 与 `ros_gz_bridge`；保留 apt update 和完整依赖安装。
+- 提交 `59ac545dff12c4634d1560ff83998676b17badf8`（`ci: configure ROS apt source without release asset`）：ROS 2 executor workflow 同步切换到官方 ROS apt key/source，并保留原有运行依赖与 executor 测试步骤。
+- 这两项是 CI 依赖源引导修复，不改变功能代码与验收断言。新 workflow 必须确认 raw key 获取、ROS apt metadata、Jazzy/ros_gz_bridge 安装成功；Gazebo workflow 还必须完整执行插件编译、headless ACK protocol、真实 ROS 2 bridge 背压 E2E。当前不能把此前已经观察到 queue-full ACK 但 waiter timeout 预算不足的 run，或本次仅因依赖下载失败的 run，算作背压通过。
+- P104-07 继续“正在进行中”。下一步核验 `6139f25` 与 `59ac545` 触发的 workflow；若安装成功，继续按 144 个事务终态、唯一 ACK payload、waiter 结果一致、资源清理及恢复事务全部通过的标准验收背压。
