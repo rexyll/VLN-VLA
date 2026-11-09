@@ -824,6 +824,11 @@ class TestCarryGazeboBridge(unittest.TestCase):
                     firewall_rules = []
                     firewall_rule_groups = {}
                     peer_network_diagnostics = []
+                    trace_table = "vla_trace_%d" % os.getpid()
+                    trace_log = "/tmp/grasp-carry-nft-trace.log"
+                    trace_stream = None
+                    trace_monitor = None
+                    trace_table_created = False
                     for peer_name, peer in (("command", command_peer),
                                             ("ack", ack_peer)):
                         local_host, local_port, remote_host, remote_port = peer
@@ -889,13 +894,44 @@ class TestCarryGazeboBridge(unittest.TestCase):
                             # tuple at both pre-filter hooks and aggregate only
                             # their real packet counters.
                             if local_host == remote_host:
+                                # Trace exact TCP tuples at a priority before
+                                # iptables-nft raw (-300). This captures the
+                                # actual hook, direction and packet metadata
+                                # even when userland-proxy/loopback routing
+                                # differs from the socket's apparent endpoints.
+                                if not trace_table_created:
+                                    subprocess.check_call(
+                                        ["sudo", "nft", "add", "table", "inet",
+                                         trace_table])
+                                    trace_table_created = True
+                                    for chain, hook in (("pre", "prerouting"),
+                                                        ("out", "output")):
+                                        subprocess.check_call(
+                                            ["sudo", "nft", "add", "chain", "inet",
+                                             trace_table, chain, "{", "type",
+                                             "filter", "hook", hook, "priority",
+                                             "-301", ";", "policy", "accept", ";",
+                                             "}"])
+                                for chain in ("pre", "out"):
+                                    for source_host, source_port, dest_host, dest_port in (
+                                            (local_host, local_port,
+                                             remote_host, remote_port),
+                                            (remote_host, remote_port,
+                                             local_host, local_port)):
+                                        address_family = (
+                                            "ip6" if ":" in source_host else "ip")
+                                        subprocess.check_call(
+                                            ["sudo", "nft", "add", "rule", "inet",
+                                             trace_table, chain, address_family,
+                                             "saddr", source_host, address_family,
+                                             "daddr", dest_host, "tcp", "sport",
+                                             str(source_port), "tcp", "dport",
+                                             str(dest_port), "meta", "nftrace",
+                                             "set", "1"])
                                 # The runner's userland-proxy loopback path
-                                # has now been observed at raw/PREROUTING for
-                                # the reverse tuple. Probe both raw hooks for
-                                # the forward tuple as well: OUTPUT did not
-                                # count the bridge-originated segment in the
-                                # latest run, so PREROUTING is a measured
-                                # candidate rather than an assumed direction.
+                                # has shown packets at raw/PREROUTING, but the
+                                # observed tuple direction is not yet mapped
+                                # to application command/ACK semantics.
                                 rule_specs = (
                                     ("raw", "OUTPUT", outbound, "forward"),
                                     ("raw", "PREROUTING", outbound, "forward"),
@@ -921,6 +957,11 @@ class TestCarryGazeboBridge(unittest.TestCase):
                                 firewall_rule_groups.setdefault(
                                     group_key, []).append(
                                         (comment, family, table))
+                        if trace_table_created:
+                            trace_stream = open(trace_log, "w", encoding="utf-8")
+                            trace_monitor = subprocess.Popen(
+                                ["sudo", "nft", "monitor", "trace"],
+                                stdout=trace_stream, stderr=subprocess.STDOUT)
                         os.kill(transport_bridge.pid, 0)
                         os.kill(int(os.environ["CARRY_SIM_PID"]), 0)
                         bidirectional_result = {}
@@ -983,9 +1024,21 @@ class TestCarryGazeboBridge(unittest.TestCase):
                                 "reverse-direction probe ACK; output: " +
                                 observed_acks)
                         time.sleep(1.0)
+                        if trace_monitor is not None:
+                            trace_monitor.terminate()
+                            try:
+                                trace_monitor.wait(timeout=2.0)
+                            except subprocess.TimeoutExpired:
+                                trace_monitor.kill()
+                                trace_monitor.wait(timeout=2.0)
+                            trace_monitor = None
+                            trace_stream.close()
+                            trace_stream = None
                         with open(bidirectional_ack_log,
                                   encoding="utf-8") as stream:
                             observed_acks = stream.read()
+                        with open(trace_log, encoding="utf-8") as stream:
+                            nft_trace_output = stream.read()
                         # Require packet evidence for both directions of each
                         # real TCP peer. Same-address peers have duplicate
                         # INPUT/OUTPUT hook candidates; their counters are
@@ -1051,6 +1104,7 @@ class TestCarryGazeboBridge(unittest.TestCase):
                                       "echo nft-not-installed; fi"],
                                      text=True, stdout=subprocess.PIPE,
                                      stderr=subprocess.STDOUT).stdout +
+                                 "; nft packet trace: " + nft_trace_output +
                                  "; conntrack: " +
                                  subprocess.run(
                                      ["sudo", "bash", "-lc",
@@ -1072,6 +1126,21 @@ class TestCarryGazeboBridge(unittest.TestCase):
                         os.kill(transport_bridge.pid, 0)
                         os.kill(int(os.environ["CARRY_SIM_PID"]), 0)
                     finally:
+                        if trace_monitor is not None:
+                            trace_monitor.terminate()
+                            try:
+                                trace_monitor.wait(timeout=2.0)
+                            except subprocess.TimeoutExpired:
+                                trace_monitor.kill()
+                                trace_monitor.wait(timeout=2.0)
+                        if trace_stream is not None:
+                            trace_stream.close()
+                        if trace_table_created:
+                            subprocess.run(
+                                ["sudo", "nft", "delete", "table", "inet",
+                                 trace_table], check=False,
+                                stdout=subprocess.DEVNULL,
+                                stderr=subprocess.STDOUT)
                         for family, table, chain, rule_args, _comment in reversed(
                                 firewall_rules):
                             subprocess.check_call(
