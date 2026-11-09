@@ -9,7 +9,7 @@
 
 ## 当前执行位置（2026-11-09）
 
-- **当前主节点：P104-07（桥接基础链路与 bridge 进程重启恢复已通过，继续验证 transport/plugin 重启边界）** —— Gazebo run `42558244831` 已完整通过：Gazebo Harmonic 依赖安装、GraspCarry 插件配置/编译、bounded queue 单测、共享库依赖、headless ACK protocol、以及 CarryBus → ROS 2 → ros_gz_bridge → Gazebo 的 ACK fault-injection E2E 全部 success。桥接测试实际丢弃首个 terminal ACK，验证 CarryBus 重试后插件缓存 ACK 重放成功，并在同一真实链路中并发执行两个 joint 事务，确认请求成功且 pending/ACK/Event 状态清理。修复 ROS 环境覆盖 Gazebo CLI 插件发现路径的启动顺序问题后，提交 `f923928` 的 Gazebo workflow 全绿；Python 与 ROS 2 executor workflow 在 `f923928` 和 TaskPlan 文档提交 `1073007` 上也全绿。该结果证明当前 ACK 重试、缓存重放、并发隔离与基本清理链路，但不覆盖 bridge 进程重启、transport 断连恢复、背压和完整 DrinkTask 抓取/释放编排，因此 P104-07 不关闭。
+- **当前主节点：P104-07（基础桥接链路与 bridge 进程重启恢复已通过；Gazebo/GraspCarry 插件进程重启验证尚未通过，暂缓该测试并继续处理 transport 断连与 waiter 终态语义）** —— Gazebo run `42558244831` 已完整通过：Gazebo Harmonic 依赖安装、GraspCarry 插件配置/编译、bounded queue 单测、共享库依赖、headless ACK protocol、以及 CarryBus → ROS 2 → ros_gz_bridge → Gazebo 的 ACK fault-injection E2E 全部 success。桥接测试实际丢弃首个 terminal ACK，验证 CarryBus 重试后插件缓存 ACK 重放成功，并在同一真实链路中并发执行两个 joint 事务，确认请求成功且 pending/ACK/Event 状态清理。修复 ROS 环境覆盖 Gazebo CLI 插件发现路径的启动顺序问题后，提交 `f923928` 的 Gazebo workflow 全绿；Python 与 ROS 2 executor workflow 在 `f923928` 和 TaskPlan 文档提交 `1073007` 上也全绿。该结果证明当前 ACK 重试、缓存重放、并发隔离与基本清理链路，但不覆盖 bridge 进程重启、transport 断连恢复、背压和完整 DrinkTask 抓取/释放编排，因此 P104-07 不关闭。
 - **并行回归：P104-08** —— 此前 20/20 纯 Python 测试通过；P104-07 本轮新增 CarryBus 人手交接连续性用例后，`tests/test_p104.py` 共 21 个用例，仍需继续扩展真实 RGB-D 遮挡、四相机切换和跟踪重捕获验证。
 - **未关闭的仿真节点：P104-05/P104-06** —— 桌面/手部代理几何和自然收臂逻辑已通过静态/纯测试，但仍需完整 work_area.sdf 场景中的动态碰撞与轨迹验证。
 - **最终验收：P104-09** —— 完整双臂倒水递水 E2E 至少三轮、ROS 2/Gazebo 集成和 P102/P103/P97/P94 回归尚未完成。
@@ -2516,3 +2516,14 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 最终 CI：`42560616666` Gazebo / bridge E2E success；`42560616732` ROS 2 executor integration success；`42560616700` Python syntax success。较早的 `42560408663` 也曾在初版进程重启测试上 success；最终以包含 endpoint-readiness 修订和 workflow path 修正的 `42560616666` 为准。
 - 验收边界：目前只证明 **ros_gz_bridge 进程重启**时，Gazebo 插件仍存活、completed-ACK cache 仍在的事务可通过相同 request ID 重试恢复。尚未覆盖 ROS↔GZ transport 暂时断连但 bridge 进程存活、bridge 队列背压、Gazebo/GraspCarry 插件进程重启（后者会丢失内存 ACK cache）、长时间运行稳定性及 DrinkTask 完整抓取/释放链路。P104-07 仍为“正在进行中”。
 - 下一步：定义并测试插件重启后旧 request ID 的终态语义（不能假设缓存跨进程保留），再覆盖 transport 断连与队列背压，最后进入 DrinkTask 编排级验证。
+
+
+### 8.78 Gazebo 插件进程重启测试遇到不稳定启动，撤回阻塞性测试并保留验收项（2026-11-09）
+
+- 在 §8.77 的 bridge 进程重启测试之上，尝试增加 Gazebo server / GraspCarry 插件进程重启故障注入：先丢弃插件 terminal ACK，再停止原 Gazebo 进程树，启动新 server，等待插件 ACK endpoint 恢复后放开 ACK relay。
+- 该实验没有通过 CI。Gazebo run `42564794935` 的失败日志显示：重启命令 `gz sim -s -r -v 2 ...` 对应进程仍存活（`poll=None`），但 15 秒内未重新建立 GraspCarry ACK topic；Gazebo CLI 仍能识别 `sim` 命令，重启进程日志为空。当前证据不足以确定是 Gazebo server 启动/transport partition/插件加载还是测试进程管理问题，不能宣称插件重启恢复已验证。
+- 实验期间 Python syntax run `42564794953` 与 ROS 2 executor run `42564794827` success；Gazebo C++ / bridge run `42564794935` failure。后续修订曾增加进程树清理、恢复 Gazebo 环境快照和更详细诊断，但仍未得到可靠的插件重启验收结果。
+- 为避免不稳定的 Gazebo relaunch 测试持续阻塞已通过的基础 E2E 和 bridge-restart 回归，提交 `f13e62321c270728ff8b27411c4cd83f87eec669` 将插件重启实验从当前桥接测试中隔离，提交 `5a87c725a9ca59e515d195900d0df3b69f73d865` 恢复原有 Gazebo bridge workflow 启动环境与参数传递。没有改动 CarryBus 生产事务协议，也没有把插件重启标记为通过。
+- 插件重启仍是 P104-07 的未完成验收项。后续应先独立复现 Gazebo server 的受控停机/重启，记录新旧 server PID、Gazebo partition、插件加载日志和 ACK topic 生命周期，再将故障注入接回 CarryBus waiter；不能仅凭 CLI 进程存活或 topic list 条目推断插件已就绪。
+- 当前已验证能力仍仅包括：基础 ACK 丢失重试/插件缓存重放、并发事务隔离与资源清理，以及 ros_gz_bridge 进程重启后的事务恢复。P104-07 继续“正在进行中”。
+- 下一步：恢复并确认稳定的基础 bridge E2E CI；随后优先覆盖 bridge 进程存活期间的 ROS↔GZ transport 短暂断连及 CarryBus waiter timeout/cancel 唯一终态，再回到独立的 Gazebo/plugin restart harness。
