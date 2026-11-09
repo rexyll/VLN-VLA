@@ -912,22 +912,25 @@ class TestCarryGazeboBridge(unittest.TestCase):
                                              "filter", "hook", hook, "priority",
                                              "-301", ";", "policy", "accept", ";",
                                              "}"])
+                                # Trace by endpoint ports without constraining
+                                # addresses: Docker's userland proxy creates a
+                                # second TCP leg and NAT changes the destination
+                                # address before the Gazebo-side connection.
                                 for chain in ("pre", "out"):
-                                    for source_host, source_port, dest_host, dest_port in (
-                                            (local_host, local_port,
-                                             remote_host, remote_port),
-                                            (remote_host, remote_port,
-                                             local_host, local_port)):
-                                        address_family = (
-                                            "ip6" if ":" in source_host else "ip")
-                                        subprocess.check_call(
-                                            ["sudo", "nft", "add", "rule", "inet",
-                                             trace_table, chain, address_family,
-                                             "saddr", source_host, address_family,
-                                             "daddr", dest_host, "tcp", "sport",
-                                             str(source_port), "tcp", "dport",
-                                             str(dest_port), "meta", "nftrace",
-                                             "set", "1"])
+                                    for source_port, dest_port in (
+                                            (local_port, remote_port),
+                                            (remote_port, local_port)):
+                                        for match_field, match_port in (
+                                                ("sport", source_port),
+                                                ("dport", source_port),
+                                                ("sport", dest_port),
+                                                ("dport", dest_port)):
+                                            subprocess.check_call(
+                                                ["sudo", "nft", "add", "rule",
+                                                 "inet", trace_table, chain,
+                                                 "tcp", match_field,
+                                                 str(match_port), "meta",
+                                                 "nftrace", "set", "1"])
                                 # The runner's userland-proxy loopback path
                                 # has shown packets at raw/PREROUTING, but the
                                 # observed tuple direction is not yet mapped
