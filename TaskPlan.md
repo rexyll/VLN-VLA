@@ -2356,3 +2356,15 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 将 `tests/grasp_carry_publisher.cc` 加入 push 与 pull_request 两处 paths 列表，确保 helper API 或行为变更都会运行完整 Gazebo Harmonic / headless / bridge workflow。
 - 提交：`af5a68c2797fe3e34244d71c7905edcf4a78ea6f` — `ci: trigger Gazebo workflow for publisher helper changes`。
 - 当前 publisher helper 修正需由此提交触发的 Gazebo 专项 CI 实际编译并运行；P104-07 继续未完成。
+
+
+### 8.65 修正 headless 队列饱和测试的发送节奏与暂停服务验收（2026-11-09）
+
+- run `42547093901` 已完成依赖安装、插件配置与编译、bounded queue 单测、共享库依赖检查；headless ACK protocol 仍失败，bridge 步骤跳过。Python 与 ROS 2 executor 对应检查通过。
+- 从 headless workflow 可见，持久 publisher helper 在每条命令后固定 sleep 10ms。该节流会降低 160 条队列饱和命令的突发强度；如果 pause service 未实际暂停物理更新，队列可能持续被 PreUpdate 消费，导致无法观察到 queue-full ACK。旧脚本虽然调用 pause/unpause service，却没有校验 Boolean response，不能证明暂停确已生效。
+- 删除 publisher helper 的逐条 10ms pacing，保留订阅发现等待和 EOF 后 500ms transport flush，使队列饱和流量真正作为突发发送；正常事务阶段仍通过 ACK 顺序等待控制时序。
+- workflow 现在检查 pause 与 unpause service 的响应包含 `data: true`，并打印响应；若 160 条未节流命令仍未产生 queue-full ACK，则明确输出 ACK、publisher、Gazebo 三份诊断日志后失败，不再静默退出。
+- 提交：
+  - `5e3217f3730ac2b38b38c7b5ef4bbe9206ce9420` — `test: send Gazebo saturation commands without pacing`
+  - `659d1b013e8a14ed9f265fa5a9ff5f63b1ba9db2` — `test: verify Gazebo pause and diagnose queue saturation`
+- 本轮修改后的 Gazebo / Python / ROS 2 CI 待运行结果。headless 队列严格 ACK、bridge ACK 丢失重试均未验收前，P104-07 保持进行中。
