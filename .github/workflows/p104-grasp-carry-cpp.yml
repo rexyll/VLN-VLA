@@ -317,15 +317,15 @@ jobs:
           GZ_SIM_CONFIG_FILE=""
           for search_root in /usr/share/gz /usr/local/share/gz /usr; do
             [ -d "$search_root" ] || continue
-            GZ_SIM_CONFIG_FILE="$(find "$search_root" -type f \\
-              \\( -name 'gz-sim*.yaml' -o -name 'sim.yaml' \\) \\
+            GZ_SIM_CONFIG_FILE="$(find "$search_root" -type f \
+              \( -name 'gz-sim*.yaml' -o -name 'sim.yaml' \) \
               -print -quit 2>/dev/null)"
             [ -n "$GZ_SIM_CONFIG_FILE" ] && break
           done
           if [ -z "$GZ_SIM_CONFIG_FILE" ]; then
             echo "Gazebo sim command manifest was not found; YAML candidates:"
-            find /usr/share/gz /usr/local/share/gz -type f \\
-              \\( -name '*.yaml' -o -name '*.yml' \\) -print 2>/dev/null || true
+            find /usr/share/gz /usr/local/share/gz -type f \
+              \( -name '*.yaml' -o -name '*.yml' \) -print 2>/dev/null || true
             exit 1
           fi
           GZ_SIM_CONFIG_DIR="$(dirname "$GZ_SIM_CONFIG_FILE")"
