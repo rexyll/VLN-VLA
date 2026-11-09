@@ -2941,3 +2941,11 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 同一完整日志的 established socket 快照显示 bridge 的连接及本机 userland proxy 后端连接；本机 route 为 dev lo，raw table 只证实 forward outbound 包经过 OUTPUT。对于 loopback 回程，反向精确 tuple 可能经 loopback ingress 的 PREROUTING，而非 raw/OUTPUT；现有证据不足以将反向路径限定为 OUTPUT。
 - 测试代码提交 a6b4b5dc673e3be53820e342fe475c689de326a3：保留 reverse raw/OUTPUT 候选，并增加同一精确反向 TCP tuple 的 raw/PREROUTING 规则；两处候选 counter 聚合后仍必须至少有一个真实 packet 命中。forward raw/OUTPUT、reverse probe、独立 ACK observer、原 CarryBus request ID 隔离、解除规则后同 ID 恢复、bridge/server PID 存活和 CarryBus 状态清理均不放宽。
 - **当前状态：修正已提交 main，CI 待验收。** 检查新 Gazebo 完整日志：reverse probe ACK 应由独立 observer 看到，reverse PREROUTING/OUTPUT 至少一条精确规则计数非零；CarryBus 原 request ID ACK 在隔离期间不可见；规则移除后原 waiter 恢复并完成清理。若仍未命中，继续依照真实 hook/trace 证据定位，不得将 probe 可见等同于 reverse TCP peer 隔离通过。P104-07 继续“正在进行中”。
+
+
+### 8.125 双向隔离正向 TCP hook 候选补充（2026-11-09，CI 待验收）
+
+- 测试代码提交 `a6b4b5dc673e3be53820e342fe475c689de326a3` 的 Gazebo run `42610702919` / job `129138079227` 最终 failure；同 SHA Python syntax run `42610703312` 与 ROS 2 executor run `42610702888` success。Gazebo 插件编译、bounded queue、headless ACK protocol 及前序 bridge ACK fault-injection 测试均通过；双向隔离阶段在 peer 0 forward 方向 packet-counter 断言失败，尚未到达 ACK 隔离与解除规则后的同 ID 恢复断言。
+- 完整网络快照显示共享 TCP peer 为 `172.17.0.1:33830 -> 172.17.0.1:40107`。反向精确 tuple `40107 -> 33830` 的 `raw/PREROUTING` 规则命中 6 个包，`raw/OUTPUT` 为 0；正向 `raw/OUTPUT` 仍为 0。nftables 同步快照也确认 PREROUTING raw hook 的反向 DROP counter 为 6。独立 reverse probe ACK observer 可见，但当前仅能证明探针 ACK 到达独立 observer，不能据此认定 bridge TCP peer 的双向隔离已通过。
+- 该证据确认本 runner 的 loopback/userland-proxy 数据路径确实经过 `raw/PREROUTING`，但尚未确认正向流量在该 hook 的四元组。测试代码提交 `c12d6475d692bf6f25ad7d655c3262d2b844939b`：在保留正向 `raw/OUTPUT` 候选的同时，新增相同精确正向 tuple 的 `raw/PREROUTING` 候选；正向与反向各自仍按候选 hook 聚合真实 packet counter，必须非零。失败信息的 hook 描述同步泛化，不改变 DROP、独立 ACK observer、原 request ID 隔离、规则移除后同 ID waiter 恢复、bridge/server PID 存活及 CarryBus 状态清理等验收标准。
+- **状态：正向 PREROUTING 候选已提交 main，等待 CI。** 必须以该提交对应 Gazebo 完整日志确认正向和反向精确规则均有真实 packet counter，且 ACK 隔离、解除规则后的同 ID 恢复及资源清理全部通过；若正向仍为零，继续依据新快照定位，不能放宽计数要求。P104-07 继续“正在进行中”。
