@@ -2992,3 +2992,11 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - nft trace 中可见 `39293 -> 35604` 的 316-byte payload 命中反向 PREROUTING DROP；同时 `39293 -> 44648` 出现另一条 184-byte payload，说明仅按端口 trace 还可能观察到其它 Gazebo Transport client 的流量。当前不能据此判定应用层命令/ACK 的 TCP leg。
 - 测试诊断提交 `3ec7f792a95cf3b02dbacc80eb7a25677d7a56b1` 增加 `gz topic -i` 原始 endpoint section、解析出的 advertised endpoint、bridge PID 全部 established sockets 和 listening sockets 的联合快照；随后 `b6da3d618a2ab59d837d510127977d96ac8dee0c` 修正诊断采集位置，确保 bridge PID descendants 已建立后才筛选 socket。仅扩充证据采集，不改变 firewall 规则、packet counter 非零验收、ACK observer、reverse probe、原 ID 恢复、进程存活和状态清理条件。
 - **状态：等待 `b6da3d6` 的 Python、ROS 2、Gazebo CI。** 下一步按 topic endpoint advertised tuple 对照全部 bridge FD 与 proxy counterpart，先证明 command 和 ACK 分别使用的连接，再调整隔离目标。P104-07 继续“正在进行中”，双向 Transport 分区未通过。
+
+
+### 8.131 扩展 Gazebo endpoint、proxy 与进程 FD 映射诊断（2026-11-09，CI 待验收）
+
+- `b6da3d618a2ab59d837d510127977d96ac8dee0c` 的 Python run `42624147065` success、ROS 2 executor run `42624147055` success、Gazebo run `42624147066` / job `129183446500` failure。失败仍在 peer 0 forward hook counter 为 0，尚未进入 ACK observer 隔离及原 request ID 恢复验收。完整日志中的 endpoint advertised 为 `172.17.0.1:41899`；bridge fd 48 是 `172.17.0.1:59326 -> 172.17.0.1:41899`，bridge fd 47 是 `172.17.0.1:35483 -> 10.1.0.225:45474`。Gazebo `gz-transport-to` 进程另有 `172.17.0.1:43006 -> 172.17.0.1:41899` 连接。bridge fd 48 的 TCP_INFO 主要表现为接收方向历史流量，而 fd 47 在请求/反向 probe 窗口的 `bytes_sent` 增长 1572；raw/PREROUTING 命中的 `41899 -> 59326` 6 个包与当前“forward”命名方向相反。证据仍不足以把任一 socket 直接标记为 ROS command 或 Gazebo ACK leg。
+- `3ec7f792a95cf3b02dbacc80eb7a25677d7a56b1` 的 Gazebo run `42624080133` / job `129183225753` 在新增诊断代码中过早引用 `bridge_pids`，触发 `UnboundLocalError`；随后 `b6da3d6` 将采集移至 PID descendants 建立之后。该轮不是 C++ 编译错误，而是 Gazebo 集成测试运行期诊断异常。
+- 诊断增强提交 `7fea933b7927e6b11f990a7936cdc817c3fa7849`：同时记录 bridge 和 Gazebo 进程树的 established sockets、socket PID/FD 对应的 `/proc/<pid>/fd/<fd>` inode 链接，以及相关进程命令行；不改变故障注入规则或验收条件。随后 `02d8296d1c3e8ecc3f37445e5502e9e387260623` 修正 socket owner PID/FD 解析正则，确保能正确提取 `ss -p` 的 `pid=...,fd=...` 字段。
+- **状态：等待 `02d8296` 的 Python、ROS 2、Gazebo CI。** 使用 socket inode、PID/FD、process cmdline 和 TCP_INFO 将 bridge↔proxy 与 proxy↔Gazebo 两条 leg 关联；在证据确认前不调整隔离目标。P104-07 继续“正在进行中”，双向 Transport 断连未通过。
