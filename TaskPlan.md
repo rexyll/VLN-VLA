@@ -2649,3 +2649,12 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 提交 `e0054561353bc7b70a6794a7396a64679eaccd86`（`ci: pass active Gazebo CLI config to bridge test`）：workflow 在 source ROS 2 后捕获当前 `GZ_CONFIG_PATH` 并传给测试；Gazebo server 仍在 ROS setup 前启动，以免 CLI loader 环境变化影响 server 启动。
 - 同批 CI：run `42574962129` Python syntax 与 P104 pure math/kinematics success；run `42574962121` 真实 ROS 2 executor integration success。Gazebo run `42574912482` 的 Transport 测试尚未触达 socket discovery / DROP / observer / waiter timeout / same-bridge recovery 断言。
 - 本节修复仅处理 CLI 配置传递。等待新 workflow 验证 `gz topic -i` 是否能输出 publisher 元数据，并继续按实际结果验收唯一 peer 匹配、定向 DROP、独立 ACK observer、CarryBus 清理及同一 bridge 恢复。P104-07 继续“正在进行中”；不提前标记 Transport 故障注入或队列背压验收通过。
+
+
+### 8.91 修正 ACK 回程防火墙方向与新订阅 DDS discovery 时序（2026-11-09）
+
+- 核验 `e0054561` 对应 Gazebo run `42575567451` 的完整日志：apt/Gazebo/ROS 安装、插件构建、bounded queue、headless ACK 协议、Transport publisher metadata 查询和 bridge 前置事务均执行；失败发生在 Transport partition 断言，CarryBus waiter 意外收到 ACK。原因是旧规则把 `OUTPUT -d <Gazebo publisher IP> --dport <publisher port>` 当作 ACK 回程阻断，但 ACK 数据包实际进入 bridge 本地 TCP socket，旧规则未匹配入站目的端口。
+- 提交 `30d4a941ee9bea36de8979dbe48dd13d3d0fed91`（`test: block Gazebo ACK on bridge inbound socket`）：peer helper 现在同时解析 bridge socket local endpoint 与 Gazebo publisher endpoint；防火墙改为精确匹配 `INPUT` 的源 publisher IP/port 和目的 bridge local IP/port。独立 observer 使用不同本地端口，不应被该规则误伤。此项仍需 Gazebo CI 实测。
+- 核验 ROS 2 executor run `42575567398`：失败在 fresh CarryBus late-ACK 隔离测试。新建 fresh_bus 后立即发布单次合成 ACK，尚未等待 DDS discovery，导致 one-shot ACK 可能在新 subscription 匹配前发出；不是 ACK request ID 判定逻辑已被证明错误。
+- 提交 `1d8aad4b9ed030aa32310d965e91dc077ff2c403`（`test: wait for fresh ACK subscription discovery`）：创建 fresh_bus 前后比较 ACK publisher 的 subscription count，等待新增 subscription 被 DDS discovery 后才启动 waiter 和发布 ACK；保留迟到旧 request ID 不得污染 fresh waiter 的断言。
+- 这两项修复均待新 CI 验证。若 Transport DROP 成功，继续核对独立 Gazebo observer、bridge 进程存活、waiter 状态清理、移除规则后同一 bridge 恢复；若 executor 测试通过，才恢复该项回归的已验收状态。P104-07 仍为“正在进行中”，queue backpressure、plugin restart、long soak 和 DrinkTask E2E 不提前关闭。
