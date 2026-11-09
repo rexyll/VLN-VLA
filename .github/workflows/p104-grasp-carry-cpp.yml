@@ -294,6 +294,7 @@ jobs:
           SIM_PID=$!
           # Preserve Gazebo CLI discovery before ROS setup modifies GZ_CONFIG_PATH.
           printf 'Gazebo pre-ROS GZ_CONFIG_PATH=%s\n' "${GZ_CONFIG_PATH-<unset>}"
+          export CARRY_GZ_PATH="$PATH"
           printf 'Gazebo pre-ROS commands: '
           gz --commands | tr '\n' ' '
           printf '\n'
@@ -366,4 +367,5 @@ jobs:
             CARRY_GZ_SIM_PID="$SIM_PID" \
             CARRY_GZ_CONFIG_PATH_SET="$CARRY_GZ_CONFIG_PATH_SET" \
             CARRY_GZ_CONFIG_PATH="${CARRY_GZ_CONFIG_PATH-}" \
+            CARRY_GZ_PATH="$CARRY_GZ_PATH" \
             python3 tests/test_carry_gz_bridge.py
