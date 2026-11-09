@@ -3089,3 +3089,11 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 前一版 runner 提交 47dcfe2b857370fd557ae4c392d521b1b67a2073 的 Python compile、纯 Python 测试、shell syntax guard 与 ROS 2 executor CI 已通过：Python run 42640070609（jobs 129238524574、129238525014）success；ROS 2 run 42640070526 / job 129238523625 success。该结果只证明静态/现有回归，不代表真实 DrinkTask 仿真已执行。
 - 本修正触发 Python run 42640905435 与 ROS 2 executor run 42640905434；TaskPlan 更新时两者均 in_progress，须等待终态并检查 job steps。
 - **状态：runner 环境初始化修正已提交 main，CI 待验收；真实 Gazebo DrinkTask E2E 仍未运行，新增完整 E2E 通过轮数仍为 0。** CI 通过后，下一步仍需在具备 Gazebo Harmonic、ROS 2 Jazzy 与工作区 install overlay 的仿真主机执行 bash tests/drink_repeat.sh 3 p104，审查每轮 JSON 与汇总。P104-07 保持“正在进行中”。
+
+
+### 8.142 防止 DrinkTask 重复验收覆盖历史证据（2026-11-10，代码已提交，CI 待验收）
+
+- 复核 `tests/drink_repeat.sh` 时发现，固定 tag 的重复执行会直接覆盖 `tests/out/drink_<tag>_<round>.json` 与 `tests/out/drink_repeat_<tag>.json`，使先前轮次的真实仿真证据丢失，影响后续跨批次稳定性比较。
+- 修正提交：`8aff6a399e9f37744cd35180ab736d6a69dcab7b`。runner 在启动任何一轮任务前，先检查汇总文件及本次全部预期轮次文件；若目标路径已存在（包括符号链接），立即以 exit 2 退出并要求使用新 tag，不覆盖旧证据。检查发生在循环发送 `GO_DRINK` 之前。
+- 本修正只改变验收产物命名冲突时的保护行为，不改变 DrinkTask 状态机、单轮验收阈值、轮间冷却、失败即停止或真实仿真前置条件。
+- **状态：证据防覆盖修正已提交 main，等待 Python CI（含 `bash -n tests/drink_repeat.sh`）验收。** 此提交不能证明 Gazebo 已运行；真实 DrinkTask E2E 通过轮数仍为 0。P104-07 保持“正在进行中”。
