@@ -125,7 +125,7 @@ jobs:
           exec 3> /tmp/grasp-carry-commands.fifo
           sleep 2
           publish() {
-            printf '%s\\n' "$1" >&3
+            printf '%s\n' "$1" >&3
           }
           wait_ack() {
             local expected="$1"
@@ -229,7 +229,7 @@ jobs:
             sleep 0.2
           done
           if [ "$first_rejected_i" -eq 0 ]; then
-            echo "No queue-full ACK observed after 160 unpaced commands."
+            echo "No queue-full ACK observed after 512 commands."
             echo "ACK stream:"
             cat /tmp/grasp-carry-acks.log
             echo "Publisher diagnostics:"
