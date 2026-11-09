@@ -760,6 +760,175 @@ class TestCarryGazeboBridge(unittest.TestCase):
                     os.killpg(transport_bridge.pid, signal.SIGKILL)
                     transport_bridge.wait(timeout=3.0)
 
+
+            # Whole Gazebo server restart (not plugin-only reload). The plugin
+            # process and world are destroyed; bridge is restarted separately
+            # because its old Transport endpoints are not assumed to reconnect.
+            # The first ACK is observed but deliberately withheld from CarryBus,
+            # leaving the transaction outcome unknown to the caller.
+            relay.drop_all.set()
+            relay.dropped_next.clear()
+            server_restart_result = {}
+
+            def server_restart_transaction():
+                def emit(request_id):
+                    server_restart_result["request_id"] = request_id
+                    bus._send(
+                        "place cup 0.12 0.03 0.52 0 0 0 1 %d" % request_id)
+                server_restart_result["ok"] = bus._await(
+                    emit,
+                    lambda ack, request_id: ack ==
+                    "ok place cup %d" % request_id,
+                    timeout=35.0)
+
+            server_restart_worker = threading.Thread(
+                target=server_restart_transaction, daemon=True)
+            server_restart_worker.start()
+            self.assertTrue(
+                relay.dropped_next.wait(8.0),
+                "pre-restart plugin terminal ACK was not intercepted")
+
+            sim_pid = int(os.environ["CARRY_SIM_PID"])
+            try:
+                os.kill(sim_pid, signal.SIGTERM)
+            except ProcessLookupError:
+                pass
+            deadline = time.monotonic() + 8.0
+            while time.monotonic() < deadline:
+                try:
+                    os.kill(sim_pid, 0)
+                except ProcessLookupError:
+                    break
+                time.sleep(0.05)
+            else:
+                os.kill(sim_pid, signal.SIGKILL)
+                self.fail("Gazebo server did not stop for restart scenario")
+
+            restart_env = os.environ.copy()
+            restart_env.pop("CARRY_GZ_CONFIG_PATH", None)
+            saved_gz_config = os.environ.get("CARRY_GZ_CONFIG_PATH", "")
+            if saved_gz_config:
+                restart_env["GZ_CONFIG_PATH"] = saved_gz_config
+            else:
+                restart_env.pop("GZ_CONFIG_PATH", None)
+            server_log = "/tmp/grasp-carry-gz-server-restarted.log"
+            with open(server_log, "w", encoding="utf-8") as stream:
+                restarted_sim = subprocess.Popen(
+                    ["gz", "sim", "-s", "-r", "-v", "2",
+                     "tests/grasp_carry_integration.sdf"],
+                    stdout=stream, stderr=subprocess.STDOUT,
+                    env=restart_env, start_new_session=True)
+            restarted_server_bridge = None
+            try:
+                server_ready_deadline = time.monotonic() + 30.0
+                while time.monotonic() < server_ready_deadline:
+                    if restarted_sim.poll() is not None:
+                        with open(server_log, encoding="utf-8") as log:
+                            self.fail("restarted Gazebo exited: " + log.read())
+                    try:
+                        topics = subprocess.check_output(
+                            ["gz", "topic", "-l"], text=True,
+                            stderr=subprocess.STDOUT, env=restart_env,
+                            timeout=4.0)
+                    except (subprocess.CalledProcessError,
+                            subprocess.TimeoutExpired):
+                        time.sleep(0.25)
+                        continue
+                    if "/drink/carry/ack" in topics:
+                        break
+                    time.sleep(0.25)
+                else:
+                    with open(server_log, encoding="utf-8") as log:
+                        self.fail("restarted Gazebo plugin not ready: " + log.read())
+
+                restarted_bridge_log = (
+                    "/tmp/grasp-carry-bridge-after-server-restart.log")
+                with open(restarted_bridge_log, "w", encoding="utf-8") as stream:
+                    restarted_server_bridge = subprocess.Popen(
+                        ["ros2", "run", "ros_gz_bridge", "parameter_bridge",
+                         "--ros-args", "-p",
+                         "config_file:=" + bridge_config],
+                        stdout=stream, stderr=subprocess.STDOUT,
+                        start_new_session=True)
+                bridge_ready_deadline = time.monotonic() + 20.0
+                while time.monotonic() < bridge_ready_deadline:
+                    if restarted_server_bridge.poll() is not None:
+                        with open(restarted_bridge_log, encoding="utf-8") as log:
+                            self.fail("bridge after Gazebo restart exited: " + log.read())
+                    with open(restarted_bridge_log, encoding="utf-8") as log:
+                        bridge_output = log.read()
+                    if ("Creating GZ->ROS Bridge" in bridge_output and
+                            "Creating ROS->GZ Bridge" in bridge_output and
+                            relay.count_publishers(RAW_ACK_TOPIC) >= 1 and
+                            bus.pub.get_subscription_count() > 0):
+                        break
+                    time.sleep(0.1)
+                else:
+                    with open(restarted_bridge_log, encoding="utf-8") as log:
+                        self.fail("bridge after Gazebo restart not ready: " + log.read())
+
+                # The retry carries the original request ID. Since the entire
+                # plugin instance was recreated, its in-memory ACK cache is
+                # gone; this validates state-setting replay, not exactly-once.
+                relay.drop_all.clear()
+                server_restart_worker.join(timeout=12.0)
+                self.assertFalse(
+                    server_restart_worker.is_alive(),
+                    "CarryBus waiter hung across whole Gazebo server restart")
+                self.assertTrue(
+                    server_restart_result.get("ok"),
+                    "same-ID state-setting retry did not recover after "
+                    "whole Gazebo server restart")
+                self.assertGreater(server_restart_result.get("request_id", 0), 0)
+                self.assertFalse(bus.pending_requests)
+                self.assertFalse(bus.ack_by_request)
+                self.assertFalse(bus._ack_events)
+
+                fresh_after_server_restart = {}
+
+                def fresh_after_restart_transaction():
+                    def emit(request_id):
+                        fresh_after_server_restart["request_id"] = request_id
+                        bus._send(
+                            "place cup 0.10 0.03 0.52 0 0 0 1 %d" % request_id)
+                    fresh_after_server_restart["ok"] = bus._await(
+                        emit,
+                        lambda ack, request_id: ack ==
+                        "ok place cup %d" % request_id,
+                        timeout=8.0)
+
+                fresh_worker = threading.Thread(
+                    target=fresh_after_restart_transaction, daemon=True)
+                fresh_worker.start()
+                fresh_worker.join(timeout=10.0)
+                self.assertFalse(
+                    fresh_worker.is_alive(),
+                    "fresh CarryBus transaction hung after Gazebo restart")
+                self.assertTrue(
+                    fresh_after_server_restart.get("ok"),
+                    "fresh transaction failed after Gazebo restart")
+                self.assertGreater(
+                    fresh_after_server_restart.get("request_id", 0),
+                    server_restart_result["request_id"])
+            finally:
+                if restarted_server_bridge is not None:
+                    try:
+                        os.killpg(restarted_server_bridge.pid, signal.SIGTERM)
+                        restarted_server_bridge.wait(timeout=3.0)
+                    except ProcessLookupError:
+                        pass
+                    except subprocess.TimeoutExpired:
+                        os.killpg(restarted_server_bridge.pid, signal.SIGKILL)
+                        restarted_server_bridge.wait(timeout=3.0)
+                if restarted_sim.poll() is None:
+                    restarted_sim.terminate()
+                    try:
+                        restarted_sim.wait(timeout=5.0)
+                    except subprocess.TimeoutExpired:
+                        restarted_sim.kill()
+                        restarted_sim.wait(timeout=3.0)
+
+
         finally:
             bus.cancel_waiters()
             executor.shutdown(timeout_sec=3.0)
