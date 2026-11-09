@@ -214,6 +214,15 @@ jobs:
             request_id=$((1700000000000000200 + i))
             publish "joint cup water_joint 0.001 $request_id"
           done
+          # Finish the entire command stream before resuming simulation.
+          # Otherwise the first observed queue-full ACK can race with commands
+          # still buffered in the FIFO / Transport worker; unpausing at that
+          # point lets later request IDs enter the queue and invalidates the
+          # expected accepted/rejected boundary.
+          exec 3>&-
+          wait "$PUB_PID"
+          PUB_PID=""
+          sleep 0.5
           first_rejected_i=0
           for _ in $(seq 1 30); do
             for i in $(seq 1 512); do
@@ -264,11 +273,6 @@ jobs:
             test "$reject_count" -eq 1
           done
 
-          # Close the command stream cleanly and wait for the persistent
-          # publisher to flush its final transport message.
-          exec 3>&-
-          wait "$PUB_PID"
-          PUB_PID=""
       - name: Verify CarryBus through ROS 2 and ros_gz_bridge with ACK fault injection
         env:
           GZ_SIM_SYSTEM_PLUGIN_PATH: ${{ github.workspace }}/vla_ws/src/vla_follow/gz_plugins/build
