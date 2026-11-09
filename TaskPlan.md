@@ -9,7 +9,7 @@
 
 ## 当前执行位置（2026-11-08）
 
-- **当前主节点：P104-07** —— 继续完成 ROS 2 CarryBus 与 Gazebo GraspCarry 插件的事务端到端联调；插件构建、队列单测及共享库检查已通过。持久 publisher 已增加订阅发现等待并修正为 gz-transport13 支持的 API；Gazebo 专项 CI 现会因 helper 源文件变更而触发。最近 run `42547093901` 已通过编译、队列单测和共享库检查，但 headless ACK protocol 失败，bridge 步骤跳过。日志显示 publisher 对每条命令固定节流 10ms，且 pause/unpause Boolean response 未校验；§8.65 已取消逐条节流、加入暂停服务响应校验和显式诊断。对应 Gazebo run `42547672375` 仍在执行，未通过前不计入已验收能力。
+- **当前主节点：P104-07** —— 继续完成 ROS 2 CarryBus 与 Gazebo GraspCarry 插件的事务端到端联调；插件构建、队列单测及共享库检查已通过。持久 publisher 已有订阅发现等待，Gazebo 专项 CI 路径过滤也已覆盖 helper 源文件。run `42547672375` 的 headless 队列 ACK 测试仍失败，bridge 步骤未执行；该轮 160 条请求未观察到 queue-full ACK。§8.65 已校验 pause/unpause Boolean response 并增加失败诊断；§8.66 将 publisher 节奏调整为每条 1ms，并把饱和负载从 160 扩大到 512，同时保留 FIFO 与逐请求精确 ACK 断言。对应 CI 尚待结果，未通过前不计入已验收能力。
 - **并行回归：P104-08** —— 此前 20/20 纯 Python 测试通过；P104-07 本轮新增 CarryBus 人手交接连续性用例后，`tests/test_p104.py` 共 21 个用例，新增项待 CI 验证。继续扩展真实 RGB-D 遮挡、四相机切换和跟踪重捕获验证。
 - **未关闭的仿真节点：P104-05/P104-06** —— 桌面/手部代理几何和自然收臂逻辑已通过静态/纯测试，但仍需完整 work_area.sdf 场景中的动态碰撞与轨迹验证。
 - **最终验收：P104-09** —— 完整双臂倒水递水 E2E 至少三轮、ROS 2/Gazebo 集成和 P102/P103/P97/P94 回归尚未完成。
@@ -2368,3 +2368,15 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
   - `5e3217f3730ac2b38b38c7b5ef4bbe9206ce9420` — `test: send Gazebo saturation commands without pacing`
   - `659d1b013e8a14ed9f265fa5a9ff5f63b1ba9db2` — `test: verify Gazebo pause and diagnose queue saturation`
 - 本轮修改后的 Gazebo / Python / ROS 2 CI 待运行结果。headless 队列严格 ACK、bridge ACK 丢失重试均未验收前，P104-07 保持进行中。
+
+
+### 8.66 扩展 Gazebo 队列饱和突发规模并兼顾 Transport 投递（2026-11-09）
+
+- run `42547672375` 已完成 Gazebo / ROS 2 依赖安装、插件配置与编译、bounded queue 单测及共享库检查；headless ACK protocol 仍失败，bridge step 未执行。Python 与 ROS 2 executor 检查通过。
+- 该轮已去除 helper 的 10ms 逐条节流，并增加 pause/unpause service Boolean response 校验与无 queue-full ACK 时的显式诊断；但 160 条请求仍未形成可观察的拒绝 ACK。当前不能仅凭失败现象断言是插件队列逻辑错误或 pause service 无效，需进一步扩大饱和负载并兼顾 Transport worker 的实际投递节奏。
+- publisher helper 改为每条消息后让出 1ms：避免无节制写入造成 Transport 发送端突发丢失，同时保持明显高于正常任务 ACK 往返的发送速率。
+- headless queue saturation 测试从 160 条扩大为 512 条；动态发现首个拒绝 request ID 的范围、已接受请求 FIFO 与单次成功 ACK 断言、拒绝请求每条恰好一个 `queue-full` ACK 断言均同步扩大，未放宽验收标准。
+- 提交：
+  - `24e48609b5869c9474a3ff843a3045fe1b012451` — `test: pace Gazebo burst for transport delivery`
+  - `0a139844fe77f97e4cbb9ed2f9311e93937048e6` — `test: expand Gazebo queue saturation burst`
+- 新一轮 Gazebo / Python / ROS 2 CI 待完成；P104-07 仍未验收。
