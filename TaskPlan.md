@@ -2704,3 +2704,12 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 提交 `59ac545dff12c4634d1560ff83998676b17badf8`（`ci: configure ROS apt source without release asset`）：ROS 2 executor workflow 同步切换到官方 ROS apt key/source，并保留原有运行依赖与 executor 测试步骤。
 - 这两项是 CI 依赖源引导修复，不改变功能代码与验收断言。新 workflow 必须确认 raw key 获取、ROS apt metadata、Jazzy/ros_gz_bridge 安装成功；Gazebo workflow 还必须完整执行插件编译、headless ACK protocol、真实 ROS 2 bridge 背压 E2E。当前不能把此前已经观察到 queue-full ACK 但 waiter timeout 预算不足的 run，或本次仅因依赖下载失败的 run，算作背压通过。
 - P104-07 继续“正在进行中”。下一步核验 `6139f25` 与 `59ac545` 触发的 workflow；若安装成功，继续按 144 个事务终态、唯一 ACK payload、waiter 结果一致、资源清理及恢复事务全部通过的标准验收背压。
+
+### 8.96 修正 ROS apt 源 TLS 证书不匹配并切换 HTTP 传输（2026-11-09）
+
+- 对直接配置 ROS apt 源后的 CI 继续取证：
+  - commit `6139f25` 的 executor run `42580464766` 已 success，证明官方 ROS key 与 apt source 配置在该 runner 上可成功安装并执行 CarryBus executor 集成测试。
+  - commit `59ac545` 的 executor run `42580468559` 在安装 ROS 运行依赖时失败。日志显示 `packages.ros.org` 的 HTTPS 证书主机名不匹配，apt 忽略 ROS InRelease，随后无法定位 `ros-jazzy-ros-base`、`ros-jazzy-rclpy` 和 `ros-jazzy-std-msgs`。这不是测试断言失败。
+- 提交 `ebce33f13d01a56c80d849092378dc7f66e9c792`（`ci: use ROS apt source over HTTP on runners`）：Gazebo workflow 的 ROS apt source URL 改用官方仓库 HTTP endpoint，保留 ros.key 的签名校验；对应 Gazebo run `42580585103`、executor run `42580585128` 正在执行，尚未验收。
+- 提交 `115c4aa017e58c02ccc36549c2ed9c7c6603ea4b`（`ci: use ROS apt source over HTTP on runners`）：ROS 2 executor workflow 同步改用 HTTP endpoint；对应 executor run 尚需在后续查询中确认。
+- 本节只修复 runner 的 apt TLS/传输兼容问题。P104-07 继续“正在进行中”；真实桥接队列背压仍必须等待 Gazebo run 完整执行，确认 144 个请求终态、ACK/waiter 对应关系、资源清理及恢复事务全部通过后才能验收。
