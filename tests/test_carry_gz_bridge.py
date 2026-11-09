@@ -48,6 +48,17 @@ def _process_descendants(root_pid):
     return found
 
 
+def _gz_topic_list(env):
+    try:
+        result = subprocess.run(
+            ["gz", "topic", "-l"], env=env,
+            capture_output=True, text=True, timeout=1.0)
+    except subprocess.TimeoutExpired:
+        # No Gazebo server is discoverable during shutdown / startup.
+        return ""
+    return result.stdout
+
+
 def _terminate_gazebo_tree(root_pid):
     descendants = _process_descendants(root_pid)
     for pid in reversed(descendants):
@@ -229,10 +240,8 @@ class TestCarryGazeboBridge(unittest.TestCase):
             _terminate_gazebo_tree(sim_pid)
             stop_deadline = time.monotonic() + 8.0
             while time.monotonic() < stop_deadline:
-                topics = subprocess.run(
-                    ["gz", "topic", "-l"], env=sim_env,
-                    capture_output=True, text=True, timeout=2.0)
-                if "/drink/carry/ack" not in topics.stdout:
+                topics = _gz_topic_list(sim_env)
+                if "/drink/carry/ack" not in topics:
                     break
                 time.sleep(0.1)
             else:
@@ -253,10 +262,8 @@ class TestCarryGazeboBridge(unittest.TestCase):
                     if restarted_sim.poll() is not None:
                         with open(sim_log, encoding="utf-8") as log:
                             self.fail("restarted Gazebo exited: " + log.read())
-                    topics = subprocess.run(
-                        ["gz", "topic", "-l"], env=sim_env,
-                        capture_output=True, text=True, timeout=2.0)
-                    if ("/drink/carry/ack" in topics.stdout and
+                    topics = _gz_topic_list(sim_env)
+                    if ("/drink/carry/ack" in topics and
                             relay.count_publishers(RAW_ACK_TOPIC) >= 1):
                         break
                     time.sleep(0.1)
