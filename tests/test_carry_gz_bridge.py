@@ -7,6 +7,7 @@ whose ACK output is routed to /drink/carry/ack_raw. The relay intentionally
 drops the first ACK so CarryBus must retry and the plugin must replay its
 completed transaction result.
 """
+import ipaddress
 import os
 import signal
 import subprocess
@@ -27,6 +28,32 @@ from vla_follow.carry import ACK_TOPIC, CARRY_TOPIC, CarryBus  # noqa: E402
 
 
 RAW_ACK_TOPIC = ACK_TOPIC + "_raw"
+
+
+def _bridge_gz_transport_peer(bridge_pid):
+    """Return an established Gazebo Transport peer socket owned by the bridge."""
+    output = subprocess.check_output(
+        ["sudo", "ss", "-Htnp", "state", "established"],
+        text=True, stderr=subprocess.STDOUT)
+    peers = set()
+    for line in output.splitlines():
+        if "pid=%d," % bridge_pid not in line:
+            continue
+        fields = line.split()
+        if len(fields) < 5:
+            continue
+        endpoint = fields[4]
+        host, port_text = endpoint.rsplit(":", 1)
+        host = host.strip("[]")
+        ipaddress.ip_address(host)
+        port = int(port_text)
+        if 0 < port < 65536:
+            peers.add((host, port))
+    if len(peers) != 1:
+        raise AssertionError(
+            "expected one established bridge-to-Gazebo ACK socket for PID %d; "
+            "found %r; ss output: %s" % (bridge_pid, sorted(peers), output))
+    return next(iter(peers))
 
 
 class AckRelay(Node):
@@ -321,6 +348,114 @@ class TestCarryGazeboBridge(unittest.TestCase):
                 except subprocess.TimeoutExpired:
                     restarted_bridge.kill()
                     restarted_bridge.wait(timeout=3.0)
+
+
+            # Partition only the established Gazebo->bridge ACK data socket.
+            # The parameter_bridge process and ROS side remain alive; a direct
+            # Gazebo subscriber independently proves that the plugin continues
+            # to publish terminal ACKs while the bridge's GZ transport socket
+            # is firewalled. This is intentionally narrower than killing the
+            # bridge process (covered above).
+            peer_ip, peer_port = _bridge_gz_transport_peer(bridge_pid)
+            iptables = "ip6tables" if ":" in peer_ip else "iptables"
+            rule = ["-p", "tcp", "-d", peer_ip, "--dport",
+                    str(peer_port), "-j", "DROP"]
+            gz_env = os.environ.copy()
+            saved_gz_config = gz_env.pop("CARRY_GZ_CONFIG_PATH", "")
+            if saved_gz_config:
+                gz_env["GZ_CONFIG_PATH"] = saved_gz_config
+            else:
+                gz_env.pop("GZ_CONFIG_PATH", None)
+            observer_log = "/tmp/grasp-carry-gz-ack-observer.log"
+            with open(observer_log, "w", encoding="utf-8") as observer_stream:
+                observer = subprocess.Popen(
+                    ["gz", "topic", "-e", "-t", "/drink/carry/ack"],
+                    stdout=observer_stream, stderr=subprocess.STDOUT,
+                    env=gz_env)
+                firewall_installed = False
+                try:
+                    time.sleep(1.0)
+                    self.assertIsNone(observer.poll(),
+                                      "Gazebo ACK observer exited early")
+                    subprocess.check_call(
+                        ["sudo", iptables, "-I", "OUTPUT", "1"] + rule)
+                    firewall_installed = True
+                    os.kill(bridge_pid, 0)
+                    transport_result = {}
+                    def transport_disconnected_transaction():
+                        def emit(request_id):
+                            transport_result["request_id"] = request_id
+                            bus._send(
+                                "joint cup water_joint 0.011 %d" % request_id)
+                        transport_result["ok"] = bus._await(
+                            emit,
+                            lambda ack, request_id: ack ==
+                            "ok joint cup water_joint %d" % request_id,
+                            timeout=1.2)
+
+                    transport_worker = threading.Thread(
+                        target=transport_disconnected_transaction,
+                        daemon=True)
+                    transport_worker.start()
+                    transport_worker.join(timeout=3.0)
+                    self.assertFalse(
+                        transport_worker.is_alive(),
+                        "CarryBus waiter hung during Gazebo ACK transport partition")
+                    self.assertFalse(
+                        transport_result.get("ok"),
+                        "ACK unexpectedly crossed the firewalled GZ transport socket")
+                    transport_id = transport_result.get("request_id", 0)
+                    self.assertGreater(transport_id, 0)
+                    self.assertIsNone(os.kill(bridge_pid, 0))
+                    self.assertFalse(bus.pending_requests)
+                    self.assertFalse(bus.ack_by_request)
+                    self.assertFalse(bus._ack_events)
+                    observer_deadline = time.monotonic() + 2.0
+                    while time.monotonic() < observer_deadline:
+                        with open(observer_log, encoding="utf-8") as stream:
+                            observed = stream.read()
+                        if "ok joint cup water_joint %d" % transport_id in observed:
+                            break
+                        time.sleep(0.05)
+                    else:
+                        self.fail(
+                            "Gazebo plugin did not publish ACK while bridge "
+                            "transport socket was blocked; observer output: " +
+                            observed)
+                finally:
+                    if firewall_installed:
+                        subprocess.check_call(
+                            ["sudo", iptables, "-D", "OUTPUT"] + rule)
+                    observer.terminate()
+                    try:
+                        observer.wait(timeout=2.0)
+                    except subprocess.TimeoutExpired:
+                        observer.kill()
+                        observer.wait(timeout=2.0)
+
+            # Removing the packet filter must restore the existing bridge
+            # transport without restarting its process; verify with a fresh ID.
+            restored_result = {}
+            def restored_transport_transaction():
+                def emit(request_id):
+                    restored_result["request_id"] = request_id
+                    bus._send(
+                        "place cup 0 0 0.5 0 0 0 1 %d" % request_id)
+                restored_result["ok"] = bus._await(
+                    emit,
+                    lambda ack, request_id: ack ==
+                    "ok place cup %d" % request_id,
+                    timeout=6.0)
+            restored_worker = threading.Thread(
+                target=restored_transport_transaction, daemon=True)
+            restored_worker.start()
+            restored_worker.join(timeout=8.0)
+            self.assertFalse(restored_worker.is_alive(),
+                             "CarryBus waiter hung after GZ transport recovery")
+            self.assertTrue(restored_result.get("ok"),
+                            "GZ transport did not recover after firewall removal")
+            self.assertGreater(restored_result["request_id"], transport_id)
+            os.kill(bridge_pid, 0)
 
             self.assertFalse(bus.pending_requests)
             self.assertFalse(bus.ack_by_request)
