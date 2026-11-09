@@ -9,7 +9,7 @@
 
 ## 当前执行位置（2026-11-08）
 
-- **当前主节点：P104-07** —— 继续完成 ROS 2 CarryBus 与 Gazebo GraspCarry 插件的事务端到端联调；插件构建、队列单测及共享库检查已通过。`42548036321` 的 512 条队列饱和测试仍未观察到 queue-full ACK，bridge 步骤跳过。复核 workflow 发现 FIFO 写入格式使用了双反斜杠 `\\n`，Bash `printf` 会输出字面量 `\\n` 而非换行，无法保证 publisher helper 按独立命令逐行读取；已在 `be28346` 修正为真实换行符。新 CI 尚待执行，未通过前不计入已验收能力。
+- **当前主节点：P104-07** —— 继续完成 ROS 2 CarryBus 与 Gazebo GraspCarry 插件的事务端到端联调。`be28346` 修复 FIFO 命令换行后，Gazebo CI run `42548594743` 已能观察到 queue-full ACK，证明命令逐行送达；但 512 条饱和请求中，首个拒绝 ID 之后仅观察到 315 条拒绝 ACK，仍有 request ID 缺失，严格逐请求 ACK 断言失败，bridge 步骤跳过。已将持久 publisher 的消息间隔从 1ms 增至 10ms，降低异步 Gazebo Transport worker 在突发期间丢失消息的风险；并补齐 pull_request 对 publisher helper 的路径触发。新 CI 尚待执行，未通过前不计入已验收能力。
 - **并行回归：P104-08** —— 此前 20/20 纯 Python 测试通过；P104-07 本轮新增 CarryBus 人手交接连续性用例后，`tests/test_p104.py` 共 21 个用例，新增项待 CI 验证。继续扩展真实 RGB-D 遮挡、四相机切换和跟踪重捕获验证。
 - **未关闭的仿真节点：P104-05/P104-06** —— 桌面/手部代理几何和自然收臂逻辑已通过静态/纯测试，但仍需完整 work_area.sdf 场景中的动态碰撞与轨迹验证。
 - **最终验收：P104-09** —— 完整双臂倒水递水 E2E 至少三轮、ROS 2/Gazebo 集成和 P102/P103/P97/P94 回归尚未完成。
@@ -2389,3 +2389,15 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 修正为 `printf '%s\\n'`（单个反斜杠），使每次 `publish()` 写入一个真实换行符，确保 publisher helper 收到逐条独立命令。同步修正失败诊断中的过期 160 条描述为 512 条。
 - 提交：`be28346e0d1ec3c5afe5312828c4fee9ad443a47` — `fix: delimit Gazebo FIFO commands with newlines`。
 - 本修正尚待 Gazebo 专项 CI 编译并运行；必须确认 FIFO 中各命令逐条投递、队列 ACK 精确计数和 bridge ACK fault injection 通过后，才能扩大 P104-07 的验收范围。
+
+
+### 8.68 提高 Gazebo 饱和命令流的 Transport 逐条交付可靠性（2026-11-09）
+
+- 检查 FIFO 换行修复后的 Gazebo run `42548594743`：插件配置、编译、bounded queue 单测和共享库依赖检查通过；headless 测试已真实观察到 queue-full ACK，说明命令现在按行进入持久 publisher。
+- 从 ACK 流按 request ID 统计，饱和区间首个拒绝请求为 `1700000000000000329`（第 129 条），之后直到第 512 条请求应产生 384 条 queue-full ACK，但日志仅有 315 个不同 request ID 的拒绝 ACK；其中存在缺失 ID，逐请求恰好一次的严格断言失败。该结果与 1ms 的发布间隔不足以保证异步 Gazebo Transport worker 逐条交付相符；不能通过降低 ACK 计数要求或忽略缺失 ID 来规避。
+- 将 `tests/grasp_carry_publisher.cc` 每条消息之间的间隔从 1ms 调整为 10ms。512 条饱和命令约 5 秒内完成，仿真仍保持暂停，插件 128 容量队列不会被 PreUpdate 排空；原有 FIFO、每个成功请求恰好一个 ACK、每个拒绝请求恰好一个 ACK 的验收条件全部保留。
+- 补齐 `.github/workflows/p104-grasp-carry-cpp.yml` 的 `pull_request.paths`，使 `tests/grasp_carry_publisher.cc` 的变更也触发 Gazebo 专项 CI，避免 PR 阶段漏掉 C++ helper 编译与集成测试。
+- 提交：
+  - `767df7234c6d4f00866176e998b0aa422d4ef7f7` — `test: pace Gazebo transport saturation delivery`。
+  - `1476c987bf3cacfd614455440a0c93de90aba424` — `ci: include Gazebo publisher helper in pull request paths`。
+- 新 CI 尚待运行。只有 headless 饱和测试逐请求 ACK 与 FIFO 断言通过，且后续 CarryBus ↔ ROS 2 ↔ ros_gz_bridge ACK 丢失重试步骤实际执行成功，才能认定桥接链路初步通过；P104-07 继续未完成。
