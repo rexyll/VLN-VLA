@@ -786,6 +786,146 @@ class TestCarryGazeboBridge(unittest.TestCase):
                 self.assertFalse(bus.ack_by_request)
                 self.assertFalse(bus._ack_events)
 
+                # Block both directions on both live Gazebo Transport TCP
+                # peers (ROS->Gazebo command subscriber and Gazebo->ROS ACK
+                # publisher) while keeping the bridge and simulator processes
+                # alive. Independent native-GZ observers prove that the
+                # request never reaches the plugin and no ACK crosses back.
+                command_peer = _bridge_gz_transport_peer(
+                    transport_bridge.pid, int(os.environ["CARRY_SIM_PID"]),
+                    "/drink/carry",
+                    os.environ.get("CARRY_GZ_CONFIG_PATH", ""),
+                    endpoint_kind="subscriber")
+                ack_peer = _bridge_gz_transport_peer(
+                    transport_bridge.pid, int(os.environ["CARRY_SIM_PID"]),
+                    "/drink/carry/ack",
+                    os.environ.get("CARRY_GZ_CONFIG_PATH", ""))
+                bidirectional_observer_log = (
+                    "/tmp/grasp-carry-gz-bidirectional-observer.log")
+                bidirectional_ack_log = (
+                    "/tmp/grasp-carry-gz-bidirectional-ack.log")
+                observer_env = os.environ.copy()
+                observer_config = observer_env.pop(
+                    "CARRY_GZ_CONFIG_PATH", "")
+                if observer_config:
+                    observer_env["GZ_CONFIG_PATH"] = observer_config
+                else:
+                    observer_env.pop("GZ_CONFIG_PATH", None)
+                with open(bidirectional_observer_log, "w",
+                          encoding="utf-8") as command_stream, open(
+                              bidirectional_ack_log, "w",
+                              encoding="utf-8") as ack_stream:
+                    command_observer = subprocess.Popen(
+                        ["gz", "topic", "-e", "-t", "/drink/carry"],
+                        stdout=command_stream, stderr=subprocess.STDOUT,
+                        env=observer_env)
+                    ack_observer = subprocess.Popen(
+                        ["gz", "topic", "-e", "-t", "/drink/carry/ack"],
+                        stdout=ack_stream, stderr=subprocess.STDOUT,
+                        env=observer_env)
+                    firewall_rules = []
+                    try:
+                        time.sleep(1.0)
+                        self.assertIsNone(
+                            command_observer.poll(),
+                            "Gazebo command observer exited early")
+                        self.assertIsNone(
+                            ack_observer.poll(),
+                            "Gazebo ACK observer exited early")
+                        for local_host, local_port, remote_host, remote_port in (
+                                command_peer, ack_peer):
+                            family = (
+                                "ip6tables" if ":" in remote_host
+                                else "iptables")
+                            inbound = [
+                                "-p", "tcp", "-s", remote_host,
+                                "--sport", str(remote_port),
+                                "-d", local_host, "--dport",
+                                str(local_port), "-j", "DROP"]
+                            outbound = [
+                                "-p", "tcp", "-s", local_host,
+                                "--sport", str(local_port),
+                                "-d", remote_host, "--dport",
+                                str(remote_port), "-j", "DROP"]
+                            for chain, rule_args in (
+                                    ("INPUT", inbound),
+                                    ("OUTPUT", outbound)):
+                                subprocess.check_call(
+                                    ["sudo", family, "-I", chain, "1"] +
+                                    rule_args)
+                                firewall_rules.append(
+                                    (family, chain, rule_args))
+                        os.kill(transport_bridge.pid, 0)
+                        os.kill(int(os.environ["CARRY_SIM_PID"]), 0)
+                        bidirectional_result = {}
+
+                        def bidirectional_partition_transaction():
+                            def emit(request_id):
+                                bidirectional_result["request_id"] = request_id
+                                bus._send(
+                                    "joint cup water_joint 0.009 %d" %
+                                    request_id)
+                            bidirectional_result["ok"] = bus._await(
+                                emit,
+                                lambda ack, request_id: ack ==
+                                "ok joint cup water_joint %d" % request_id,
+                                timeout=12.0)
+
+                        bidirectional_worker = threading.Thread(
+                            target=bidirectional_partition_transaction,
+                            daemon=True)
+                        bidirectional_worker.start()
+                        self.assertTrue(
+                            _wait_for(lambda: bool(
+                                bidirectional_result.get("request_id")), 3.0),
+                            "bidirectional partition request was not issued")
+                        bidirectional_id = bidirectional_result["request_id"]
+                        time.sleep(1.5)
+                        with open(bidirectional_observer_log,
+                                  encoding="utf-8") as stream:
+                            observed_commands = stream.read()
+                        with open(bidirectional_ack_log,
+                                  encoding="utf-8") as stream:
+                            observed_acks = stream.read()
+                        self.assertNotIn(
+                            "joint cup water_joint 0.009 %d" %
+                            bidirectional_id, observed_commands,
+                            "command crossed the blocked bridge->Gazebo peer")
+                        self.assertNotIn(
+                            "joint cup water_joint %d" % bidirectional_id,
+                            observed_acks,
+                            "plugin ACK appeared while both Transport peers "
+                            "were firewalled")
+                        os.kill(transport_bridge.pid, 0)
+                        os.kill(int(os.environ["CARRY_SIM_PID"]), 0)
+                    finally:
+                        for family, chain, rule_args in reversed(
+                                firewall_rules):
+                            subprocess.check_call(
+                                ["sudo", family, "-D", chain] + rule_args)
+                        command_observer.terminate()
+                        ack_observer.terminate()
+                        for process in (command_observer, ack_observer):
+                            try:
+                                process.wait(timeout=2.0)
+                            except subprocess.TimeoutExpired:
+                                process.kill()
+                                process.wait(timeout=2.0)
+                bidirectional_worker.join(timeout=13.0)
+                self.assertFalse(
+                    bidirectional_worker.is_alive(),
+                    "CarryBus waiter hung after bidirectional Transport recovery")
+                self.assertTrue(
+                    bidirectional_result.get("ok"),
+                    "same request ID did not recover after bidirectional "
+                    "Transport firewall removal")
+                self.assertGreater(bidirectional_id, restored_result["request_id"])
+                os.kill(transport_bridge.pid, 0)
+                os.kill(int(os.environ["CARRY_SIM_PID"]), 0)
+                self.assertFalse(bus.pending_requests)
+                self.assertFalse(bus.ack_by_request)
+                self.assertFalse(bus._ack_events)
+
                 # Saturate the real GraspCarry queue through CarryBus ->
                 # ROS 2 -> ros_gz_bridge -> Gazebo. The existing native-GZ
                 # publisher test covers the plugin queue in isolation; this
