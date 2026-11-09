@@ -111,7 +111,12 @@ jobs:
           if [ "$ready" -ne 1 ]; then cat /tmp/grasp-carry-gz.log; exit 1; fi
 
           publish() {
+            # gz topic's one-shot publisher exits immediately after send. Give
+            # Gazebo Transport a short flush window before the process exits;
+            # otherwise a burst of short-lived publishers can lose individual
+            # commands even though each CLI invocation returns successfully.
             timeout 5s gz topic -t /drink/carry -m gz.msgs.StringMsg -p "data: \"$1\""
+            sleep 0.02
           }
           wait_ack() {
             local expected="$1"
