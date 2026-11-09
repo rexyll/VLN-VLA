@@ -2605,3 +2605,12 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 该修改缩小了故障注入目标，不再依赖 Gazebo server 全部 listener 端口的唯一性。它仍只是测试 harness 修正，**尚未证明 DROP 确实阻断 ACK 回程，也尚未证明 observer / waiter timeout / 同一 bridge 恢复断言通过**。
 - 新提交触发的 Gazebo Harmonic E2E、Python syntax、纯数学与运动学、ROS 2 executor workflow 已启动；以实际完成的 run/job 结果为准，不提前标记成功。
 - P104-07 继续“正在进行中”。下一步核对 `gz topic -i` 地址与 socket 匹配结果；若唯一目标成功识别，再逐项验证 ACK observer、CarryBus timeout 清理、规则移除和同一 bridge 恢复。队列背压、插件重启、长时间稳定性及 DrinkTask 完整编排仍未验收。
+
+
+### 8.87 提高 ROS 2 apt source 下载对短时 HTTP 失败的容错（2026-11-09）
+
+- 提交 `a0487a49dac15c150ea9522138d181354688b613` 的 Gazebo run `42571684149` 未进入构建或 E2E 阶段：在 `Install ROS 2 Jazzy and ros_gz_bridge` 下载 `ros2-apt-source_1.3.0.noble_all.deb` 时，GitHub release URL 连续返回 HTTP 504，原下载命令重试 3 次后退出。该失败是 runner 下载环境问题，不能作为 ACK socket 修复的功能测试结果。
+- 同一提交的 Python syntax、P104 pure math/kinematics、CarryBus real ROS 2 executor 检查均 success；TaskPlan 提交 `b7b8c380` 的 Python 与 ROS 2 executor 检查也 success。
+- 提交 `8b8845f15879df7d62e1d2ba730b04e7b32854ed`（`ci: retry transient ROS apt source download failures`）将下载设置为 connect timeout 20s、单次 max time 120s、最多 8 次 retry、retry-all-errors、3s delay 和 240s retry budget。仍使用原始官方 release artifact 与 dpkg/apt 安装流程，不跳过 ROS 2 依赖或测试。
+- 新提交触发 Gazebo Harmonic、Python syntax、P104 pure math/kinematics、ROS 2 executor 检查（runs `42573400155`、`42573400112`、`42573400125`），记录时均为 in_progress。尚无证据证明 ROS source 下载成功，也尚未验证 topic-specific ACK socket discovery。
+- P104-07 继续“正在进行中”。CI 下载重试只是环境可靠性修正，不改变功能验收状态；下一步必须检查 Gazebo workflow 是否越过 ROS 安装步骤并完整执行 Transport ACK fault injection。
