@@ -113,16 +113,20 @@ def _bridge_gz_transport_peer(bridge_pid, sim_pid, topic, gz_config_path):
         # optional process descriptor (for example, "users:(...)").
         if len(fields) < 4:
             continue
-        endpoint = fields[3]
+        local_endpoint, endpoint = fields[2], fields[3]
+        local_host, local_port_text = local_endpoint.rsplit(":", 1)
         host, port_text = endpoint.rsplit(":", 1)
+        local_host = local_host.strip("[]")
         host = host.strip("[]")
         try:
+            ipaddress.ip_address(local_host)
+            local_port = int(local_port_text)
             ipaddress.ip_address(host)
             port = int(port_text)
         except ValueError:
             continue
         if (host, port) in publisher_endpoints:
-            peers.add((host, port))
+            peers.add((local_host, local_port, host, port))
     if len(peers) != 1:
         raise AssertionError(
             "expected one bridge socket for Gazebo topic %s (bridge PID %d, "
@@ -478,13 +482,18 @@ class TestCarryGazeboBridge(unittest.TestCase):
                 # The bridge process and ROS side remain alive; a direct Gazebo
                 # subscriber independently proves that the plugin still emits
                 # terminal ACKs while this bridge's GZ transport socket is blocked.
-                peer_ip, peer_port = _bridge_gz_transport_peer(
+                local_ip, local_port, peer_ip, peer_port = _bridge_gz_transport_peer(
                     transport_bridge.pid, int(os.environ["CARRY_SIM_PID"]),
                     "/drink/carry/ack",
                     os.environ.get("CARRY_GZ_CONFIG_PATH", ""))
                 iptables = "ip6tables" if ":" in peer_ip else "iptables"
-                rule = ["-p", "tcp", "-d", peer_ip, "--dport",
-                        str(peer_port), "-j", "DROP"]
+                # ACK payloads travel from the Gazebo publisher endpoint into
+                # the bridge's local TCP socket. Match that exact destination
+                # port in INPUT; OUTPUT to the remote publisher endpoint does
+                # not block the return data path.
+                rule = ["-p", "tcp", "-s", peer_ip, "--sport",
+                        str(peer_port), "-d", local_ip, "--dport",
+                        str(local_port), "-j", "DROP"]
                 gz_env = os.environ.copy()
                 saved_gz_config = gz_env.pop("CARRY_GZ_CONFIG_PATH", "")
                 if saved_gz_config:
