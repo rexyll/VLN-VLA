@@ -2586,3 +2586,12 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
   - `748e8050c28912fa1c8d513d811d80aad18e2a13` — `ci: isolate bridge in a dedicated process group`。
 - 修订后 CI：`2001351` 对应 Gazebo / Python / ROS 2 executor runs `42570149788` / `42570149801` / `42570149819`；`748e805` 对应 Gazebo / Python runs `42570152839` / `42570152840`。记录时均仍在执行，不能提前标记成功。
 - 本节仅记录测试 harness 与 workflow 的缺陷修正；**Transport 故障注入仍未通过 CI 验收**。P104-07 继续“正在进行中”，不得扩大为双向 Transport 全断连已验证。后续以最新 Gazebo run 的实际日志为准，若失败继续定位 peer socket、iptables DROP、独立 ACK observer、waiter timeout、规则移除和同一 bridge 恢复各阶段。
+
+
+### 8.85 修正 established socket peer 列解析及 bridge launcher 进程组信号（2026-11-09）
+
+- 复核 run `42570152839` 的完整 Gazebo E2E 日志：原有 ACK 丢失重试、并发事务和 bridge outage/recovery 场景均已执行；新增 Transport 注入在连接发现阶段失败。具体错误为 `ValueError: 'users' does not appear to be an IPv4 or IPv6 address`，原因是 `ss -Htnp state established` 不输出 state 列，格式为 `Recv-Q Send-Q Local-Address Peer-Address Process`，peer 实际位于 `fields[3]`，此前读取 `fields[4]` 误将 `users:(...)` 当作远端地址。
+- 提交 `422ea782a9e55967ed483e44fce98834a3bef01a` 修正 peer 列读取，并对地址/端口解析失败的非 endpoint 行安全跳过。该提交的 Python syntax run `42570990624` 已通过；Gazebo run `42570990570` 和 ROS 2 executor run `42570990595` 在记录时仍在执行。
+- 复核同批较早 run `42570149788` 的日志，还发现 bridge restart 测试对 launcher PID 直接执行 `killpg(pid)` 会因 launcher PID 与实际 process-group ID 不一致而抛出 `ProcessLookupError`。提交 `78820d3420ac25501f365f92e8996e715ca6f6ad` 增加 `_signal_process_group()`：先通过 `os.getpgid(pid)` 解析真实 PGID，再发送信号；launcher 已退出时安全返回，PGID 不存在时尝试信号 launcher PID，避免清理本身掩盖测试结果。
+- `748e805` 的 ROS 2 executor run `42570152827` 在 ROS apt 仓库配置阶段失败，未执行集成测试；后续 `ab02413` 的 Python syntax run `42570205110` 与 ROS 2 executor run `42570205210` 均 success。
+- 本节是对故障注入 harness 的两项日志驱动修正，不构成 Transport 故障恢复验收。必须等待包含 `422ea782` / `78820d3` 的 Gazebo E2E 完整执行，并检查 peer discovery、定向 DROP、ACK observer、timeout 清理和同一 bridge 恢复各断言。P104-07 继续“正在进行中”。
