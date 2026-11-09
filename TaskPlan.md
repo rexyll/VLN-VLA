@@ -3059,3 +3059,15 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 本次日志证明 loopback hook 修正已解决 command peer 方向问题：command socket `172.17.0.1:41603 -> 10.1.0.117:49426` 的 raw/OUTPUT forward DROP counter 命中 30 包（55008 bytes）。ACK socket `172.17.0.1:44150 -> 172.17.0.1:36397` 的 reverse raw/PREROUTING DROP counter 命中 4 包（736 bytes）；其 forward raw/OUTPUT 与 raw/PREROUTING counter 均为 0。TCP_INFO 校准已区分两条连接，且独立 reverse probe ACK 在 observer 中可见。故失败不是 hook 未命中，而是原验收错误地要求每一条 socket 都必须同时承载 forward 和 reverse 数据：实际 ROS command bytes 从 command socket outbound，Gazebo ACK bytes 从 ACK socket inbound，两条 TCP leg 各自只需验证对应应用方向。
 - 测试代码提交 `e461041e454ad20dc65c4fb20e386ae8a109ee95`：根据 `unique_transport_peers` 中的实际 peer index，要求 `(command_peer, forward)` 与 `(ack_peer, reverse)` 两组 packet counter 分别非零；若两 topic 复用同一 TCP peer，则自然要求同一 peer 的 forward 和 reverse 两个方向都命中。其他反向/正向候选规则仍安装并用于精确 DROP，但不再错误要求一条单向数据 leg 出现并不存在的反向应用流量。独立 ACK observer 必须看到 reverse probe ACK、不得看到原 CarryBus request ID terminal ACK；移除规则后原 request ID waiter 恢复、fresh ID 递增、进程存活及状态清理等后续验收均未放宽。
 - **状态：等待 `e461041` 的 Python、ROS 2、Gazebo CI。** 若 counter 检查通过，继续核验 observer 隔离和同 ID waiter 恢复；P104-07 仍为“正在进行中”。
+
+
+
+### 8.139 双向 Gazebo Transport TCP 分区与同 request ID 恢复首次完整通过（2026-11-09）
+
+- 测试代码提交 `e461041e454ad20dc65c4fb20e386ae8a109ee95` 的全部 CI 已通过：
+  - Gazebo Harmonic GraspCarry build/integration：run `42636185159`，job `129224825900`，completed/success。完整 job log 中 Gazebo bridge 集成测试 `Ran 1 test in 67.089s — OK`。
+  - ROS 2 executor integration：run `42636185152`，job `129224825712`，completed/success。
+  - Python syntax：run `42636185140`，job `129225194998`（changed Python modules 与 pure math/kinematics jobs 均 completed/success）。
+- 本轮通过的双向 Transport 隔离测试在真实 `parameter_bridge` command/ACK 数据连接上分别要求 command socket outbound（forward）和 ACK socket inbound（reverse）的 raw/filter packet counter 非零；reverse probe 由独立 Gazebo ACK observer 观察到，而被隔离的 CarryBus 原 request ID terminal ACK 不得出现在 observer 中。测试随后移除精确 TCP DROP 规则，要求原 request ID waiter 在 13 秒窗口内恢复成功、request ID 大于前一笔恢复事务、bridge 与 Gazebo server PID 仍存活，并检查 `pending_requests`、`ack_by_request`、`_ack_events` 全部为空。上述断言均位于该测试成功结束前；完整测试日志最终为 `Ran 1 test in 67.089s — OK`。
+- 该通过结果首次闭合此前双向断连测试的主要证据链：实际 TCP socket 校准、loopback/userland-proxy hook 路由、command/ACK 语义方向、真实 packet counter、ACK observer 隔离、同 ID waiter 恢复和状态清理。此前失败的 `cd3e637` / `e461041` 迭代原因及修复过程保留在 §8.137–§8.138，不回写为历史通过。
+- **状态：双向 Transport 分区恢复专项测试通过；P104-07 总体仍“正在进行中”。** 尚需完成该节点余下的端到端 DrinkTask 验收、长时间稳定性/重复运行验证及相关 TaskPlan 剩余任务；不能因单个专项测试通过而关闭 P104-07。
