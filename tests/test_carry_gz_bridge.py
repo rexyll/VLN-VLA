@@ -39,9 +39,30 @@ def _bridge_gz_transport_peer(bridge_pid, sim_pid, topic, gz_config_path):
         gz_env["GZ_CONFIG_PATH"] = gz_config_path
     else:
         gz_env.pop("GZ_CONFIG_PATH", None)
-    topic_info = subprocess.check_output(
-        ["gz", "topic", "-i", "-t", topic], text=True,
-        stderr=subprocess.STDOUT, env=gz_env)
+    topic_command = ["gz", "topic", "-i", "-t", topic]
+    topic_info = ""
+    topic_error = ""
+    # Gazebo Transport discovery can briefly return CLI exit 255 while the
+    # server is alive and publishers are being re-announced after bridge
+    # restarts. Retry the read-only metadata query, but retain the final
+    # command output in the assertion if discovery never becomes available.
+    for attempt in range(10):
+        try:
+            topic_info = subprocess.check_output(
+                topic_command, text=True, stderr=subprocess.STDOUT,
+                env=gz_env, timeout=5.0)
+            break
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
+            output = getattr(exc, "output", "") or ""
+            if isinstance(output, bytes):
+                output = output.decode("utf-8", errors="replace")
+            topic_error = str(exc) + (": " + output if output else "")
+            if attempt == 9:
+                raise AssertionError(
+                    "Gazebo topic metadata query failed for %s after retries; "
+                    "GZ_CONFIG_PATH=%r; last error: %s" %
+                    (topic, gz_env.get("GZ_CONFIG_PATH"), topic_error))
+            time.sleep(0.25)
     publisher_section = topic_info.split("Subscribers", 1)[0]
     publisher_endpoints = set()
     for address, port_text in re.findall(
