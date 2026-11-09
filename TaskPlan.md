@@ -2321,7 +2321,7 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 
 - 检查持久 publisher 首轮 CI（run `42545869471`）：插件配置、C++ 编译、队列单测、共享库检查通过，但 headless ACK protocol 步骤仍失败，bridge 步骤被跳过；Python 与 ROS 2 executor 检查通过。
 - 失败日志确认 shell 流程在队列饱和验证前退出，但现有输出没有可靠地保留 helper 自身状态，不能将原因武断归结为队列实现。
-- 审查 helper 发现 `Advertise()` 创建本地 publisher endpoint 后立即进入发送路径，没有显式等待 Gazebo Transport 发现插件订阅端。增加 `Publisher::HasConnections()` 有界等待（最多 10 秒），并将 outgoing queue depth 设为 512，避免 transport discovery race 与突发流量超过默认发送队列。
+- 审查 helper 发现 `Advertise()` 创建本地 publisher endpoint 后立即进入发送路径，没有显式等待 Gazebo Transport 发现插件订阅端。增加 `Publisher::HasConnections()` 有界等待（最多 10 秒），确保开始发送前已发现插件订阅端。初版还尝试向 `Node::Advertise()` 传入整数 queue depth，但 Gazebo Transport 13 的真实 API 不支持该重载；已根据官方 `Node.hh` / `AdvertiseOptions.hh` 接口核对并移除该无效参数。
 - workflow 将 publisher stdout/stderr 保存至 `/tmp/grasp-carry-publisher.log`，失败时与 ACK、Gazebo 日志一起输出，便于区分 publisher discovery、发送失败与插件队列行为。
 - 提交：
   - `d0eeabc78d0536a11ddd640f632a5b3a517102f0` — `test: wait for Gazebo publisher discovery`
@@ -2338,3 +2338,12 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
   - `015dc6640ee7820bc9874be0c2bc3e05ca77273c` — `test: use persistent Gazebo publisher in integration test`
 - 前置 CI `b8e5b57`：Python 和 ROS 2 executor 通过；Gazebo 仍在队列饱和 ACK 计数阶段失败，因此不构成 P104-07 验收。
 - 新 helper 与 workflow 的编译、headless 队列饱和、ACK replay 及 bridge 故障注入结果，必须等待本次提交的 CI 实际完成后再记录；P104-07 保持进行中。
+
+
+### 8.63 修正 Gazebo Transport 13 publisher API 调用（2026-11-09）
+
+- run `42546294262` 的失败发生在 headless 测试编译阶段，而不是队列 ACK 协议：Gazebo Harmonic / gz-transport13 不提供 `Node::Advertise<Msg>(topic, int queue_depth)` 重载，编译器明确报告 no matching function。
+- 对照 Gazebo Transport 13 官方 `Node.hh` 与 `AdvertiseOptions.hh`：消息 publisher 的 `Advertise()` 第二参数为 `AdvertiseMessageOptions`，不是队列深度整数；因此移除错误的 `512` 参数，不引入不存在的 API。
+- 保留 `Publisher::HasConnections()` 的最多 10 秒订阅发现等待，以及 publisher 独立日志输出。队列容量与插件内部实现保持不变。
+- 提交：`11b91e1aa33cf5126364d41f4ddf06c0fddc78ed` — `fix: use supported Gazebo publisher advertise API`。
+- 修正后的 Gazebo 编译、headless 严格 ACK 计数与 bridge ACK fault injection 尚待 CI；P104-07 继续未完成。
