@@ -9,7 +9,7 @@
 
 ## 当前执行位置（2026-11-08）
 
-- **当前主节点：P104-07** —— 继续完成 ROS 2 CarryBus 与 Gazebo GraspCarry 插件的事务端到端联调；插件构建、队列单测及共享库检查已通过。headless queue saturation 已动态发现首个 queue-full request ID，并将队列终态 ACK 计数与独立事务 ACK replay 验收拆分。`b8e5b574` 的 20ms shell flush 修正未解决所有突发消息漏观测（例如 request ID `...0334`），原因是等待发生在 one-shot `gz topic` 子进程退出之后，不能延长其 Transport publisher 生命周期。已改为新增 `tests/grasp_carry_publisher.cc`，由单个长生命周期 Gazebo Transport publisher 串行发送整个测试命令流，并在 EOF 前等待最终消息 flush；对应 CI 尚待执行，未通过前不计入已验收能力。
+- **当前主节点：P104-07** —— 继续完成 ROS 2 CarryBus 与 Gazebo GraspCarry 插件的事务端到端联调；插件构建、队列单测及共享库检查已通过。持久 publisher 已增加订阅发现等待并修正为 gz-transport13 支持的 API；Gazebo 专项 CI 现会因 helper 源文件变更而触发。最近 run `42547093901` 已通过编译、队列单测和共享库检查，但 headless ACK protocol 失败，bridge 步骤跳过。日志显示 publisher 对每条命令固定节流 10ms，且 pause/unpause Boolean response 未校验；§8.65 已取消逐条节流、加入暂停服务响应校验和显式诊断。对应 Gazebo run `42547672375` 仍在执行，未通过前不计入已验收能力。
 - **并行回归：P104-08** —— 此前 20/20 纯 Python 测试通过；P104-07 本轮新增 CarryBus 人手交接连续性用例后，`tests/test_p104.py` 共 21 个用例，新增项待 CI 验证。继续扩展真实 RGB-D 遮挡、四相机切换和跟踪重捕获验证。
 - **未关闭的仿真节点：P104-05/P104-06** —— 桌面/手部代理几何和自然收臂逻辑已通过静态/纯测试，但仍需完整 work_area.sdf 场景中的动态碰撞与轨迹验证。
 - **最终验收：P104-09** —— 完整双臂倒水递水 E2E 至少三轮、ROS 2/Gazebo 集成和 P102/P103/P97/P94 回归尚未完成。
