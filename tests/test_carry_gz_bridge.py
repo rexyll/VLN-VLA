@@ -9,6 +9,7 @@ completed transaction result.
 """
 import ipaddress
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -30,8 +31,28 @@ from vla_follow.carry import ACK_TOPIC, CARRY_TOPIC, CarryBus  # noqa: E402
 RAW_ACK_TOPIC = ACK_TOPIC + "_raw"
 
 
-def _bridge_gz_transport_peer(bridge_pid, sim_pid):
-    """Find the bridge socket connected to a Gazebo-server listening port."""
+def _bridge_gz_transport_peer(bridge_pid, sim_pid, topic, gz_config_path):
+    """Find the bridge socket connected to this topic's Gazebo publisher."""
+    gz_env = os.environ.copy()
+    gz_env.pop("CARRY_GZ_CONFIG_PATH", None)
+    if gz_config_path:
+        gz_env["GZ_CONFIG_PATH"] = gz_config_path
+    else:
+        gz_env.pop("GZ_CONFIG_PATH", None)
+    topic_info = subprocess.check_output(
+        ["gz", "topic", "-i", "-t", topic], text=True,
+        stderr=subprocess.STDOUT, env=gz_env)
+    publisher_section = topic_info.split("Subscribers", 1)[0]
+    publisher_endpoints = set()
+    for address, port_text in re.findall(
+            r"tcp://(\[[^]]+\]|[^:,\s]+):(\d+)",
+            publisher_section):
+        host = address.strip("[]")
+        try:
+            ipaddress.ip_address(host)
+            publisher_endpoints.add((host, int(port_text)))
+        except ValueError:
+            continue
     established = subprocess.check_output(
         ["sudo", "ss", "-Htnp", "state", "established"],
         text=True, stderr=subprocess.STDOUT)
@@ -59,20 +80,6 @@ def _bridge_gz_transport_peer(bridge_pid, sim_pid):
     sim_pids = descendants(sim_pid)
     bridge_pids = descendants(bridge_pid)
 
-    sim_ports = set()
-    for line in listeners.splitlines():
-        if not any("pid=%d," % pid in line for pid in sim_pids):
-            continue
-        fields = line.split()
-        # ss -l output has: Recv-Q Send-Q Local-Address Peer-Address users.
-        if len(fields) < 3:
-            continue
-        endpoint = fields[2]
-        try:
-            sim_ports.add(int(endpoint.rsplit(":", 1)[1]))
-        except ValueError:
-            continue
-
     peers = set()
     for line in established.splitlines():
         if not any("pid=%d," % pid in line for pid in bridge_pids):
@@ -92,18 +99,15 @@ def _bridge_gz_transport_peer(bridge_pid, sim_pid):
             port = int(port_text)
         except ValueError:
             continue
-        # The ACK subscriber is an outgoing bridge connection to a Gazebo
-        # publisher's listening port. The command path is the inverse: its
-        # accepted bridge socket sees a Gazebo ephemeral client port.
-        if port in sim_ports:
+        if (host, port) in publisher_endpoints:
             peers.add((host, port))
     if len(peers) != 1:
         raise AssertionError(
-            "expected one bridge-to-Gazebo publisher socket (bridge PID %d, "
-            "Gazebo process tree %r); found %r; Gazebo listening ports: %r; "
-            "established sockets: %s; listeners: %s" %
-            (bridge_pid, sorted(sim_pids), sorted(peers), sorted(sim_ports),
-             established, listeners))
+            "expected one bridge socket for Gazebo topic %s (bridge PID %d, "
+            "Gazebo process tree %r); found %r; topic info: %s; "
+            "established sockets: %s" %
+            (topic, bridge_pid, sorted(sim_pids), sorted(peers), topic_info,
+             established))
     return next(iter(peers))
 
 
@@ -453,7 +457,9 @@ class TestCarryGazeboBridge(unittest.TestCase):
                 # subscriber independently proves that the plugin still emits
                 # terminal ACKs while this bridge's GZ transport socket is blocked.
                 peer_ip, peer_port = _bridge_gz_transport_peer(
-                    transport_bridge.pid, int(os.environ["CARRY_SIM_PID"]))
+                    transport_bridge.pid, int(os.environ["CARRY_SIM_PID"]),
+                    "/drink/carry/ack",
+                    os.environ.get("CARRY_GZ_CONFIG_PATH", ""))
                 iptables = "ip6tables" if ":" in peer_ip else "iptables"
                 rule = ["-p", "tcp", "-d", peer_ip, "--dport",
                         str(peer_port), "-j", "DROP"]
