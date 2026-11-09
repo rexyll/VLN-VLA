@@ -1,6 +1,7 @@
 #include <atomic>
 #include <chrono>
 #include <fstream>
+#include <functional>
 #include <iostream>
 #include <mutex>
 #include <string>
@@ -17,7 +18,7 @@ int main(int argc, char **argv)
   std::atomic<bool> dropped{false};
   std::mutex outputMutex;
 
-  const auto callback =
+  const std::function<void(const gz::msgs::StringMsg &)> callback =
       [&](const gz::msgs::StringMsg &_message)
       {
         std::lock_guard<std::mutex> lock(outputMutex);
