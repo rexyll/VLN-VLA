@@ -856,13 +856,22 @@ class TestCarryGazeboBridge(unittest.TestCase):
             restart_env = os.environ.copy()
             restart_env.pop("CARRY_GZ_CONFIG_PATH", None)
             saved_gz_config = os.environ.get("CARRY_GZ_CONFIG_PATH", "")
-            # The test process runs after sourcing ROS 2. Its active
-            # GZ_CONFIG_PATH is the configuration that makes the installed
-            # gz-tools command discoverable in this environment. The value
-            # captured before ROS setup can be empty, so never replace the
-            # active path with that empty pre-setup value.
+            # ROS setup leaves only vendor command manifests in the
+            # active path, hiding the Gazebo Harmonic "sim" command. Restore
+            # the actual gz-sim manifest directory first, then retain ROS
+            # vendor manifests so both CLI command families remain available.
+            sim_config_dir = os.environ.get(
+                "CARRY_GZ_SIM_CONFIG_DIR", "")
+            if not sim_config_dir or not os.path.isdir(sim_config_dir):
+                self.fail(
+                    "Gazebo sim CLI config directory is unavailable: %r" %
+                    sim_config_dir)
+            config_dirs = [sim_config_dir]
             if saved_gz_config:
-                restart_env["GZ_CONFIG_PATH"] = saved_gz_config
+                config_dirs.extend(
+                    path for path in saved_gz_config.split(os.pathsep)
+                    if path and path != sim_config_dir)
+            restart_env["GZ_CONFIG_PATH"] = os.pathsep.join(config_dirs)
             probe_env = restart_env.copy()
             server_log = "/tmp/grasp-carry-gz-server-restarted.log"
             with open(server_log, "w", encoding="utf-8") as stream:
