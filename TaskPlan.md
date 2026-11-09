@@ -2883,3 +2883,11 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 代码提交 `511665ab04b54609a7ea34373a0c3bc398ef8d91` 对应 Gazebo run `42599987878` / job `129101777450` completed/failure；同提交 ROS 2 executor run `42599987875` success、Python run `42599987924` success。Gazebo 插件构建、bounded queue、headless ACK protocol 及 bridge 测试前序 ACK 重试阶段均成功；双向 partition 阶段在读取 iptables-save counter 时失败。实际规则行格式为 `[0:0] -A OUTPUT ...`，测试中的正则因反斜杠重复转义而未匹配，错误地报告 counter missing。该失败尚未证明候选 hook 的实际计数为零，也未进入 ACK 隔离断言。
 - 修正代码提交 `b2aa9536101815c1370fb2c9255f9d773c5179d0`：将 Python 正则改为正确匹配 `[packets:bytes]` 前缀的 `r"\[(\d+):(\d+)\] "`。没有放宽计数要求；解析成功后仍要求每个 peer 的 forward/reverse 方向至少一个 INPUT/OUTPUT 候选 hook 的 packet counter 大于零。
 - **状态：等待 `b2aa953` 的 Gazebo / ROS 2 / Python CI。** 若解析修正后某方向聚合计数仍为零，应根据实际路由与 socket tuple 继续定位；只有双 peer 双方向命中、partition ACK 隔离、解除规则后同 ID waiter 恢复和状态清理全部通过，才可验收双向 Transport 断连。P104-07 继续“正在进行中”。
+
+
+### 8.118 双向 Transport peer 规则计数仍为零：增加网络路径诊断（2026-11-09，CI 待复验）
+
+- 代码提交 `b2aa9536101815c1370fb2c9255f9d773c5179d0` 对应 Gazebo run `42600582655` / job `129103744973` completed/failure；同提交 ROS 2 executor run `42600582957` success、Python syntax run `42600582750` success。完整 Gazebo 集成测试中，插件构建、bounded queue、headless ACK protocol、此前 bridge 恢复与 ACK fault-injection 阶段均通过；双向 Transport partition 阶段在 peer 0（ROS→Gazebo command subscriber）的 forward 方向 packet-counter 断言失败：`vla-bidir-17951-0-forward-output=0`、`vla-bidir-17951-0-forward-input=0`。测试尚未到达 ACK observer 隔离与规则移除后的同 ID 恢复断言，不能判定双向断连通过。
+- 已确认 Python counter 正则修复后可以正确解析规则计数；当前问题是两个候选 hook 计数均为零，而非 counter 格式解析失败。现有日志没有打印实际 peer 四元组、路由决策及进程 network namespace，因此尚不足以区分 socket peer 选择、namespace 边界或实际 netfilter hook 路径。
+- 诊断代码提交 `0bdde0ff225410552dd18e96ae51073f6cd2d0fa`：在下一轮 Gazebo 失败信息中加入 command/ACK peer 的 local/remote IP:port、针对实际源/目标地址的 `ip route get`、测试/bridge/Gazebo 进程 network namespace inode、当前 established TCP socket 列表及 filter table 规则快照。诊断只增强失败可观测性，不更改 DROP 规则、packet counter、ACK observer、同 ID 恢复或资源清理验收条件。
+- **状态：双向 Transport 断连仍未验收。** 等待诊断提交的 Gazebo 完整日志，依据真实 socket tuple 与路由/namespace 证据确定实际 hook，再修正规则路径；不可把规则安装成功、ROS/Python 回归通过或计数断言之前的测试阶段通过视为双向隔离通过。P104-07 继续“正在进行中”。
