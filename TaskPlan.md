@@ -2908,3 +2908,11 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 根因进一步明确：同主机 Gazebo Transport peer 通过 Docker userland proxy 时，filter/OUTPUT 看到的包可能已经过 nat/OUTPUT 目的地址转换；不能继续用 filter/OUTPUT 的原始 Gazebo endpoint 四元组推断命中。对于同地址 peer，修订为在 NAT 转换前的 `raw/OUTPUT` 链分别匹配 bridge↔proxy TCP peer 的 forward/reverse 精确四元组；该链在 nat/OUTPUT 之前执行，可验证原始 socket tuple。不同地址 peer 保留 INPUT/OUTPUT filter 规则路径。规则 comment、packet counter、ACK observer、同 ID waiter 恢复、bridge/server PID 存活、CarryBus 状态清理及反向删除仍全部保留。
 - 测试代码提交 `d14affc5c14f1ba39a85584bb365a9abf7d1fba6`：规则记录现在包含 table/chain，计数读取对应 raw 或 filter table，清理时从原 table 精确删除；同地址双 peer 的两个方向改用 raw/OUTPUT。此提交刚推送 main，Gazebo、ROS 2、Python CI 尚待完成。
 - **状态：双向 Transport 断连仍未验收。** 必须等 `d14affc` 对应 Gazebo 完整日志证明两个 peer 的 forward/reverse raw packet counters 均命中、partition 期间独立 ACK observer 不出现当前 request ID、解除规则后原 ID waiter 恢复成功，且进程存活及 CarryBus 状态清理通过。不得以 counter 命中本身代替端到端隔离/恢复验收。P104-07 继续“正在进行中”。
+
+
+### 8.121 raw/OUTPUT 规则零命中后的 hook 诊断补强（2026-11-09，CI 待验收）
+
+- `d14affc5c14f1ba39a85584bb365a9abf7d1fba6` 的 Gazebo run `42604886849` / job `129118204085` 已完成并失败；Python run `42604886821` 和 ROS 2 executor run `42604886810` 均通过。完整日志显示插件编译、bounded queue、headless ACK protocol 及 bridge ACK fault-injection 前置阶段通过；双向隔离在第一个 command peer forward 方向失败：`vla-bidir-18249-0-forward-raw-output=0`。日志中的 bridge socket 为 `172.17.0.1:37348 -> 172.17.0.1:40959`，对应 userland proxy 后端 socket 可见为 `172.17.0.1:40959 -> 10.1.0.157:37348`；route 查询为 local/dev lo。由于断言在首个方向 counter 检查处失败，尚未执行 ACK observer 隔离断言及规则解除后的同 ID waiter 恢复断言。
+- 现有失败诊断输出了 `filter` 与 `nat` 表，但未输出 `raw` 表或 nftables 的实际规则/handle，因此不能据此判断 raw/OUTPUT 规则为何未命中。不能仅凭 socket 四元组存在就推断该规则已覆盖实际 packet hook。
+- 测试诊断代码提交 `f567cce9e477e007ff996af86d6b7a2ab2207af8`：在 packet-counter 失败消息中增加完整 `iptables-save -c -t raw` 快照及可选 `nft -a list ruleset` 输出；conntrack 仍采用可选诊断。没有放宽 packet counter、ACK 隔离或同 ID 恢复验收条件。
+- **状态：双向 Transport 断连仍未验收。** 下一次 Gazebo 日志应先用 raw table 与 nftables handle/chain/hook priority 确认实际规则挂载点及包路径，再选择精确隔离机制；仍须通过两个 peer 双向 packet evidence、ACK observer 不见目标 ID、规则移除后原 ID waiter 成功、bridge/server PID 存活及 CarryBus 状态清理。P104-07 继续“正在进行中”。
