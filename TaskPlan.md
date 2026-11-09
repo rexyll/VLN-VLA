@@ -2799,3 +2799,9 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 根因是对 Gazebo Harmonic CLI manifest 文件名的假设过窄。不同 Gazebo package layout 可能将 sim 命令 manifest 命名为 `sim.yaml`，而不是 `gz-sim*.yaml`。
 - 提交 `630449cd57bb6fffafe050d3e64e774d6be2c83b`（ci: find Gazebo sim command manifest across package layouts）：workflow 先搜索 `/usr/share/gz` 与 `/usr/local/share/gz`，再回退搜索 `/usr`；同时接受 `gz-sim*.yaml` 与 `sim.yaml`。若仍未命中，会打印 Gazebo share 树下 YAML 候选文件后明确失败，避免无诊断退出。重启子进程仍按命中的 manifest 所在目录与 ROS vendor manifest 路径组合 `GZ_CONFIG_PATH`，未更改事务 deadline、2Hz retry pacing、双向 TCP peer、request ID、ACK/waiter 或资源清理断言。
 - 本次提交触发 Python run `42590344276`、ROS 2 executor run `42590344428`、Gazebo run `42590344286`。TaskPlan 更新时三者均为 in_progress，尚未验收。后续须读取 Gazebo 完整日志，确认实际 manifest 路径、重启 server 启动、重启前后 ACK publisher 与 command subscriber 的 established TCP peer、原 request ID ACK 到达且 waiter True、pending/ACK/event 清理以及 fresh request ID 成功。whole Gazebo server restart 仍未通过，P104-07 继续“正在进行中”。
+
+### 8.107 Manifest 搜索 shell 转义修正与 CI 重跑登记（2026-11-09，CI 待验收）
+
+- 复核提交 `630449c` 的 workflow 原文时发现，生成的 shell 命令中换行续接符与 `find` 括号表达式被写成双反斜杠，不能作为预期的 Bash 语法执行。该提交触发的 Gazebo run `42590344286` 尚在 ROS 依赖安装阶段，不能作为该搜索逻辑的有效验收。
+- 提交 `335d62cfaef0d02a704a4baeb6a475c894f5abb1`（fix: correct shell escapes in Gazebo manifest lookup）：将 manifest 搜索命令中的转义修正为单个 shell 续行反斜杠及正确的 `\(` / `\)` find 表达式。已重新读取 workflow 文件，确认落盘内容为单反斜杠；原有候选名搜索和失败诊断保留。
+- 本提交触发 Python run `42590569904`、Gazebo run `42590570020`、ROS 2 executor run `42590569930`。登记时 Python run queued，另两项 in_progress，均未取得最终结论。后续以本提交对应 Gazebo job 的日志为准，验证 manifest 实际命中及 whole-server-restart 全链路；不得用前一轮 run 或静态文件检查替代运行验收。P104-07 继续“正在进行中”。
