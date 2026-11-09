@@ -28,6 +28,55 @@ from vla_follow.drink_task import (  # noqa: E402
 
 
 class TestCarryRos2Executor(unittest.TestCase):
+    def test_cancel_waiter_serializes_with_initial_emit(self):
+        rclpy.init()
+        node = Node("carry_initial_emit_cancel_race_test")
+        bus = CarryBus(node, executor_managed=True)
+        emit_entered = threading.Event()
+        cancel_attempted = threading.Event()
+        allow_emit_return = threading.Event()
+        emitted = []
+        result = {}
+
+        def emit(request_id):
+            emitted.append(request_id)
+            emit_entered.set()
+            self.assertTrue(allow_emit_return.wait(timeout=2.0),
+                            "initial emit barrier was not released")
+
+        waiter = threading.Thread(target=lambda: result.setdefault(
+            "ok", bus._await(emit, lambda *_args: True, 5.0)))
+        waiter.start()
+        try:
+            self.assertTrue(emit_entered.wait(timeout=2.0),
+                            "initial transaction emit did not start")
+
+            def cancel():
+                cancel_attempted.set()
+                bus.cancel_waiters()
+
+            canceller = threading.Thread(target=cancel)
+            canceller.start()
+            self.assertTrue(cancel_attempted.wait(timeout=1.0))
+            # The cancellation thread must wait for the in-progress publish's
+            # lock, then prevent every subsequent retry.
+            allow_emit_return.set()
+            waiter.join(timeout=2.0)
+            canceller.join(timeout=2.0)
+            self.assertFalse(waiter.is_alive(), "transaction waiter did not exit")
+            self.assertFalse(canceller.is_alive(), "cancellation did not finish")
+            self.assertEqual(result, {"ok": False})
+            self.assertEqual(len(emitted), 1,
+                             "cancellation allowed a post-cancel emit")
+            with bus._ack_lock:
+                self.assertFalse(bus.pending_requests)
+                self.assertFalse(bus.ack_by_request)
+                self.assertFalse(bus._ack_events)
+        finally:
+            bus.cancel_waiters()
+            node.destroy_node()
+            rclpy.shutdown()
+
     def test_follower_status_and_timestamp_are_one_snapshot(self):
         state = SimpleNamespace(_follower_status_snapshot=({}, 0.0))
         msg = SimpleNamespace(data='{"state":"FOLLOW","track":7,"lost":false}')
