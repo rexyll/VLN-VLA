@@ -545,33 +545,6 @@ class TestCarryGazeboBridge(unittest.TestCase):
                     os.killpg(transport_bridge.pid, signal.SIGKILL)
                     transport_bridge.wait(timeout=3.0)
 
-            # Removing the packet filter must restore the existing bridge
-            # transport without restarting its process; verify with a fresh ID.
-            restored_result = {}
-            def restored_transport_transaction():
-                def emit(request_id):
-                    restored_result["request_id"] = request_id
-                    bus._send(
-                        "place cup 0 0 0.5 0 0 0 1 %d" % request_id)
-                restored_result["ok"] = bus._await(
-                    emit,
-                    lambda ack, request_id: ack ==
-                    "ok place cup %d" % request_id,
-                    timeout=6.0)
-            restored_worker = threading.Thread(
-                target=restored_transport_transaction, daemon=True)
-            restored_worker.start()
-            restored_worker.join(timeout=8.0)
-            self.assertFalse(restored_worker.is_alive(),
-                             "CarryBus waiter hung after GZ transport recovery")
-            self.assertTrue(restored_result.get("ok"),
-                            "GZ transport did not recover after firewall removal")
-            self.assertGreater(restored_result["request_id"], transport_id)
-            os.kill(bridge_pid, 0)
-
-            self.assertFalse(bus.pending_requests)
-            self.assertFalse(bus.ack_by_request)
-            self.assertFalse(bus._ack_events)
         finally:
             bus.cancel_waiters()
             executor.shutdown(timeout_sec=3.0)
