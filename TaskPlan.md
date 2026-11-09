@@ -2916,3 +2916,11 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 现有失败诊断输出了 `filter` 与 `nat` 表，但未输出 `raw` 表或 nftables 的实际规则/handle，因此不能据此判断 raw/OUTPUT 规则为何未命中。不能仅凭 socket 四元组存在就推断该规则已覆盖实际 packet hook。
 - 测试诊断代码提交 `f567cce9e477e007ff996af86d6b7a2ab2207af8`：在 packet-counter 失败消息中增加完整 `iptables-save -c -t raw` 快照及可选 `nft -a list ruleset` 输出；conntrack 仍采用可选诊断。没有放宽 packet counter、ACK 隔离或同 ID 恢复验收条件。
 - **状态：双向 Transport 断连仍未验收。** 下一次 Gazebo 日志应先用 raw table 与 nftables handle/chain/hook priority 确认实际规则挂载点及包路径，再选择精确隔离机制；仍须通过两个 peer 双向 packet evidence、ACK observer 不见目标 ID、规则移除后原 ID waiter 成功、bridge/server PID 存活及 CarryBus 状态清理。P104-07 继续“正在进行中”。
+
+
+### 8.122 单向 ACK TCP 分区恢复等待窗口修正（2026-11-09，CI 待验收）
+
+- `f567cce9e477e007ff996af86d6b7a2ab2207af8` 对应 Gazebo run `42606253435` / job `129122904780` 最终失败；同 SHA Python run `42606253378`、ROS 2 executor run `42606253737` 通过。完整 Gazebo 日志表明编译、队列、headless ACK protocol 和前段 bridge fault injection 通过，但测试在双向 Transport 断连场景之前失败：`test_carry_gz_bridge.py:777` 报 `CarryBus waiter hung after GZ transport recovery`。也就是说该轮尚未实际执行新增 raw/nftables 失败快照，不能据此判断 raw hook 规则命中情况。
+- 失败位置是前置的单向 Gazebo→bridge ACK TCP 分区恢复检查：通过 INPUT DROP 阻断现有 ACK socket，独立 observer 仍看到插件 ACK；移除 DROP 后，测试只给恢复事务 6 秒 `_await` / 8 秒 worker join。日志显示恢复请求 ACK 最终在约 13 秒后才抵达 ROS 节点（例如 `ok place cup 1794222529603106252`，时间 `11:09:38.253`），与 Linux established TCP 在 DROP 后按 RTO 退避重传的行为一致；原测试等待窗口短于该次实际重传恢复时间。这里没有证据表明 bridge/server 进程退出或 CarryBus waiter 状态泄漏，失败断言首先是 worker 尚未结束。
+- 测试代码提交 `8bd0d3ddd41f524ccde04cd3d23c1cce40853b24`：将该单向 ACK 分区移除后的恢复事务 `_await` 从 6 秒延长到 25 秒、worker join 从 8 秒延长到 27 秒，并注释说明需容纳多个 TCP retransmission timeout interval。保留同一 bridge 进程、同一连接恢复、fresh request ID 成功、ID 递增及 CarryBus 状态清理断言；未跳过该测试或降低端到端要求。
+- 前一轮新增 raw/nftables 快照的测试提交 `f567cce9e477e007ff996af86d6b7a2ab2207af8` 已有 Python syntax 与 ROS 2 executor 成功，但 Gazebo 未到双向隔离部分；`8bd0d3d` 的 Gazebo、ROS 2、Python CI 尚待验收。下一轮先确认该恢复等待修正后能通过前置单向分区，再检查 raw/nftables 快照与双向 peer packet counters。P104-07 仍为“正在进行中”。
