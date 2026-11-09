@@ -617,7 +617,17 @@ class TestCarryRos2Executor(unittest.TestCase):
             # cancel_waiters() is terminal for a CarryBus instance. Use a
             # separate live instance so this late-ACK test is independent of
             # the cancellation test above while sharing the same ROS executor.
+            subscriptions_before_fresh_bus = ack_pub.get_subscription_count()
             fresh_bus = CarryBus(node, executor_managed=True)
+            # Wait for DDS discovery of the newly-created ACK subscription.
+            # Publishing immediately after create_subscription() can race
+            # discovery and lose the one-shot synthetic ACK on a cold runner.
+            discovery_deadline = time.monotonic() + 3.0
+            while ack_pub.get_subscription_count() <= subscriptions_before_fresh_bus:
+                self.assertLess(
+                    time.monotonic(), discovery_deadline,
+                    "fresh CarryBus ACK subscription was not discovered")
+                time.sleep(0.01)
             fresh_waiter_ready = threading.Event()
             fresh_result = {}
             fresh_ids = []
