@@ -226,12 +226,8 @@ class TestCarryGazeboBridge(unittest.TestCase):
                 relay.dropped_next.wait(5.0),
                 "plugin ACK was not dropped before Gazebo restart")
 
-            sim_env = os.environ.copy()
-            sim_env["PATH"] = os.environ["CARRY_GZ_PATH"]
-            for key in list(sim_env):
-                if key.startswith("GZ_"):
-                    sim_env.pop(key, None)
-            with open(os.environ["CARRY_GZ_ENV_FILE"],
+            sim_env = {}
+            with open(os.environ["CARRY_PRE_ROS_ENV_FILE"],
                       encoding="utf-8") as saved_env:
                 for line in saved_env:
                     key, separator, value = line.rstrip("\n").partition("=")
