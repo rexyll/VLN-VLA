@@ -2891,3 +2891,12 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 已确认 Python counter 正则修复后可以正确解析规则计数；当前问题是两个候选 hook 计数均为零，而非 counter 格式解析失败。现有日志没有打印实际 peer 四元组、路由决策及进程 network namespace，因此尚不足以区分 socket peer 选择、namespace 边界或实际 netfilter hook 路径。
 - 诊断代码提交 `0bdde0ff225410552dd18e96ae51073f6cd2d0fa`：在下一轮 Gazebo 失败信息中加入 command/ACK peer 的 local/remote IP:port、针对实际源/目标地址的 `ip route get`、测试/bridge/Gazebo 进程 network namespace inode、当前 established TCP socket 列表及 filter table 规则快照。诊断只增强失败可观测性，不更改 DROP 规则、packet counter、ACK observer、同 ID 恢复或资源清理验收条件。
 - **状态：双向 Transport 断连仍未验收。** 等待诊断提交的 Gazebo 完整日志，依据真实 socket tuple 与路由/namespace 证据确定实际 hook，再修正规则路径；不可把规则安装成功、ROS/Python 回归通过或计数断言之前的测试阶段通过视为双向隔离通过。P104-07 继续“正在进行中”。
+
+
+### 8.119 Docker userland proxy 连接路径证据与 ROS 2 并发 ACK 回归稳定性修正（2026-11-09，CI 待验收）
+
+- 诊断提交 `0bdde0ff225410552dd18e96ae51073f6cd2d0fa` 对应 Gazebo run `42601541776` / job `129106964569` completed/failure；Python syntax `42601541881` success，ROS 2 executor `42601541797` success。失败仍发生在双向 Transport peer 0 forward packet counter：INPUT/OUTPUT 均为 0。新增日志进一步显示测试/bridge/Gazebo 共用 netns `net:[4026531833]`，peer 地址路由为 `dev lo`；bridge socket `172.17.0.1:33438 -> 172.17.0.1:39815`，对应代理侧另一条连接显示 `172.17.0.1:39815 -> 10.1.0.108:33438`。这表明 Gazebo Transport 的可见 endpoint 经过本机 Docker userland proxy，bridge 侧四元组不足以直接推断 filter hook 上的转换后 tuple。当前失败没有到达 ACK observer 隔离和规则解除后的同 ID 恢复检查。
+- 同一轮 TaskPlan 文档提交 `d779cc29ba67ccbd8cef7cc11c2516a3b3b11111` 的 ROS 2 executor run `42601625047` / job `129107248138` 也出现一次并发 ACK 测试失败：left waiter 成功、right waiter 超时；其余 10 项通过。该结果单独记录为回归不稳定，不将其归因于 Gazebo 防火墙问题。
+- Gazebo 诊断提交 `56aaee14c8a0ee1a171105853bf5bf7afd156228` 随后以 `4329e82f2ae25bfcae8210b439c4bc6a6d405b43` 修正，增加 NAT table 与可选 conntrack 快照，便于确认 Docker proxy 的 DNAT/conntrack 映射；没有放宽真实 packet-counter 断言。
+- ROS 2 测试提交 `a6afb5e49933211f27df88757a3ac246eaaf2b31` 将并发 waiter 的 ACK 等待窗口延长至 4 秒，并在两个 waiter 均 pending 时重复发布相同 request-ID terminal ACK，验证重复投递与 ID 隔离，降低单次 DDS publish 调度延迟造成的偶发失败；原有并发 ID 不同、结果均成功、late ACK 不复活已超时 waiter 等断言保留。
+- **状态：双向 Transport 断连未验收；ROS 2 并发 ACK 修正未验收。** 以 `4329e82`、`a6afb5e` 的新 CI 完整日志为准；下一步根据 NAT/conntrack 快照找出过滤链实际 tuple/hook，再安装与实际路径一致的精确规则，继续要求双 peer 双方向真实 packet 命中、ACK 隔离、原 ID 恢复、进程存活及状态清理。P104-07 继续“正在进行中”。
