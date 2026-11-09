@@ -800,8 +800,10 @@ class TestCarryGazeboBridge(unittest.TestCase):
                     transport_bridge.pid, int(os.environ["CARRY_SIM_PID"]),
                     "/drink/carry/ack",
                     os.environ.get("CARRY_GZ_CONFIG_PATH", ""))
-                bidirectional_observer_log = (
-                    "/tmp/grasp-carry-gz-bidirectional-observer.log")
+                # Observe ACKs from an independent Gazebo subscriber.
+                # A separate command subscriber would see the bridge's
+                # publication on its own TCP connection and cannot prove
+                # delivery to (or rejection by) the plugin's subscriber.
                 bidirectional_ack_log = (
                     "/tmp/grasp-carry-gz-bidirectional-ack.log")
                 observer_env = os.environ.copy()
@@ -811,14 +813,8 @@ class TestCarryGazeboBridge(unittest.TestCase):
                     observer_env["GZ_CONFIG_PATH"] = observer_config
                 else:
                     observer_env.pop("GZ_CONFIG_PATH", None)
-                with open(bidirectional_observer_log, "w",
-                          encoding="utf-8") as command_stream, open(
-                              bidirectional_ack_log, "w",
-                              encoding="utf-8") as ack_stream:
-                    command_observer = subprocess.Popen(
-                        ["gz", "topic", "-e", "-t", "/drink/carry"],
-                        stdout=command_stream, stderr=subprocess.STDOUT,
-                        env=observer_env)
+                with open(bidirectional_ack_log, "w",
+                          encoding="utf-8") as ack_stream:
                     ack_observer = subprocess.Popen(
                         ["gz", "topic", "-e", "-t", "/drink/carry/ack"],
                         stdout=ack_stream, stderr=subprocess.STDOUT,
@@ -826,9 +822,6 @@ class TestCarryGazeboBridge(unittest.TestCase):
                     firewall_rules = []
                     try:
                         time.sleep(1.0)
-                        self.assertIsNone(
-                            command_observer.poll(),
-                            "Gazebo command observer exited early")
                         self.assertIsNone(
                             ack_observer.poll(),
                             "Gazebo ACK observer exited early")
@@ -884,16 +877,9 @@ class TestCarryGazeboBridge(unittest.TestCase):
                             "bidirectional partition request was not issued")
                         bidirectional_id = bidirectional_result["request_id"]
                         time.sleep(1.5)
-                        with open(bidirectional_observer_log,
-                                  encoding="utf-8") as stream:
-                            observed_commands = stream.read()
                         with open(bidirectional_ack_log,
                                   encoding="utf-8") as stream:
                             observed_acks = stream.read()
-                        self.assertNotIn(
-                            "joint cup water_joint 0.009 %d" %
-                            bidirectional_id, observed_commands,
-                            "command crossed the blocked bridge->Gazebo peer")
                         self.assertNotIn(
                             "joint cup water_joint %d" % bidirectional_id,
                             observed_acks,
@@ -906,9 +892,8 @@ class TestCarryGazeboBridge(unittest.TestCase):
                                 firewall_rules):
                             subprocess.check_call(
                                 ["sudo", family, "-D", chain] + rule_args)
-                        command_observer.terminate()
                         ack_observer.terminate()
-                        for process in (command_observer, ack_observer):
+                        for process in (ack_observer,):
                             try:
                                 process.wait(timeout=2.0)
                             except subprocess.TimeoutExpired:
