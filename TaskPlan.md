@@ -2547,3 +2547,12 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - CI 证据复核：提交 `97394a3` 的 Gazebo / Python / ROS 2 executor runs `42565700320` / `42565700274` / `42565700237` 均为 success；TaskPlan 提交 `7ec12fc` 的 Python / ROS 2 executor runs `42566028793` / `42566028713` 均为 success。
 - **没有新增或扩大本轮功能验收范围。** bridge 进程存活但 ROS↔Gazebo Transport 实际不可达、桥接队列背压、Gazebo/GraspCarry 插件进程重启、长时间稳定性和 DrinkTask 完整编排仍未验证。插件重启实验仍隔离，不能将其记为成功。
 - 下一步：先设计可观测、可恢复的 Transport 故障注入，并在真实 ROS 2/Gazebo 集成环境中证明 bridge 进程保持存活而底层 transport 断连；随后覆盖背压和插件重启。P104-07 保持“正在进行中”。
+
+
+### 8.81 强化真实 ROS 2 executor 的超时迟到 ACK 隔离（2026-11-09）
+
+- 在 `tests/test_carry_ros2_executor.py::test_executor_delivers_concurrent_ids_and_rejects_late_ack` 中，将此前“超时后单独投递迟到 ACK”的断言强化为真实 waiter 交错场景：先通过 `CarryBus._await()` 实际超时并取得其 request ID；随后注册一个新的活动 waiter；在新 waiter 等待期间投递旧 request ID 的迟到成功 ACK，确认旧 ACK 不进入 ACK map、也不唤醒/完成新 waiter；最后只投递新 request ID 对应的 ACK，确认新 waiter 成功结束。
+- 该测试进一步验证 request ID 隔离不是仅依赖 ACK map 清理，而是在“旧事务超时、后继事务已活动”的时间重叠窗口内仍然成立。
+- 本提交 `c36c5c7` 已直接进入 main。由该测试文件变更触发的 Python / ROS 2 executor CI 正在执行；在 CI 完成前不将本项标记为通过。
+- 此项是 CarryBus waiter/ACK 层确定性回归测试，不等同于 ROS↔Gazebo Transport 实际断连测试。bridge 进程存活但 Transport 不可达、桥接背压、Gazebo/GraspCarry 插件重启和 DrinkTask 完整编排仍是 P104-07 未完成验收项。
+- P104-07 保持“正在进行中”；下一步仍优先建立真实 Transport 故障注入，并在可观测的进程/连接/ACK 证据下验证恢复行为。
