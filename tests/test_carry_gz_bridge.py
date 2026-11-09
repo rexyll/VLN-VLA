@@ -768,6 +768,30 @@ class TestCarryGazeboBridge(unittest.TestCase):
             # leaving the transaction outcome unknown to the caller.
             relay.drop_all.set()
             relay.dropped_next.clear()
+            pre_restart_bridge_log = (
+                "/tmp/grasp-carry-bridge-before-server-restart.log")
+            with open(pre_restart_bridge_log, "w", encoding="utf-8") as stream:
+                pre_restart_bridge = subprocess.Popen(
+                    ["ros2", "run", "ros_gz_bridge", "parameter_bridge",
+                     "--ros-args", "-p", "config_file:=" + bridge_config],
+                    stdout=stream, stderr=subprocess.STDOUT,
+                    start_new_session=True)
+            pre_bridge_deadline = time.monotonic() + 15.0
+            while time.monotonic() < pre_bridge_deadline:
+                if pre_restart_bridge.poll() is not None:
+                    with open(pre_restart_bridge_log, encoding="utf-8") as log:
+                        self.fail("pre-restart bridge exited: " + log.read())
+                with open(pre_restart_bridge_log, encoding="utf-8") as log:
+                    pre_bridge_output = log.read()
+                if ("Creating GZ->ROS Bridge" in pre_bridge_output and
+                        "Creating ROS->GZ Bridge" in pre_bridge_output and
+                        relay.count_publishers(RAW_ACK_TOPIC) >= 1 and
+                        bus.pub.get_subscription_count() > 0):
+                    break
+                time.sleep(0.1)
+            else:
+                with open(pre_restart_bridge_log, encoding="utf-8") as log:
+                    self.fail("pre-restart bridge not ready: " + log.read())
             server_restart_result = {}
 
             def server_restart_transaction():
@@ -803,6 +827,15 @@ class TestCarryGazeboBridge(unittest.TestCase):
             else:
                 os.kill(sim_pid, signal.SIGKILL)
                 self.fail("Gazebo server did not stop for restart scenario")
+
+            try:
+                os.killpg(pre_restart_bridge.pid, signal.SIGTERM)
+                pre_restart_bridge.wait(timeout=3.0)
+            except ProcessLookupError:
+                pass
+            except subprocess.TimeoutExpired:
+                os.killpg(pre_restart_bridge.pid, signal.SIGKILL)
+                pre_restart_bridge.wait(timeout=3.0)
 
             restart_env = os.environ.copy()
             restart_env.pop("CARRY_GZ_CONFIG_PATH", None)
