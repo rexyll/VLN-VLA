@@ -2900,3 +2900,11 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - Gazebo 诊断提交 `56aaee14c8a0ee1a171105853bf5bf7afd156228` 随后以 `4329e82f2ae25bfcae8210b439c4bc6a6d405b43` 修正，增加 NAT table 与可选 conntrack 快照，便于确认 Docker proxy 的 DNAT/conntrack 映射；没有放宽真实 packet-counter 断言。
 - ROS 2 测试提交 `a6afb5e49933211f27df88757a3ac246eaaf2b31` 将并发 waiter 的 ACK 等待窗口延长至 4 秒，并在两个 waiter 均 pending 时重复发布相同 request-ID terminal ACK，验证重复投递与 ID 隔离，降低单次 DDS publish 调度延迟造成的偶发失败；原有并发 ID 不同、结果均成功、late ACK 不复活已超时 waiter 等断言保留。
 - **状态：双向 Transport 断连未验收；ROS 2 并发 ACK 修正未验收。** 以 `4329e82`、`a6afb5e` 的新 CI 完整日志为准；下一步根据 NAT/conntrack 快照找出过滤链实际 tuple/hook，再安装与实际路径一致的精确规则，继续要求双 peer 双方向真实 packet 命中、ACK 隔离、原 ID 恢复、进程存活及状态清理。P104-07 继续“正在进行中”。
+
+
+### 8.120 双向 Transport peer 在 userland proxy NAT 前置链路上实施精确隔离（2026-11-09，CI 待验收）
+
+- 对 `4329e82f2ae25bfcae8210b439c4bc6a6d405b43` 对应 Gazebo run `42603514911` / job `129113479085` 及 `56aaee14c8a0ee1a171105853bf5bf7afd156228` 对应 Gazebo run `42603466218` / job `129113319636` 读取完整日志：两次均完成 GraspCarry 插件编译、bounded queue、headless ACK protocol 和前序 bridge ACK fault-injection 阶段；双向 Transport 测试均因 command peer forward 方向 INPUT/OUTPUT packet counter 为零而失败。两次日志均显示 bridge TCP peer 为 `172.17.0.1:<ephemeral> -> 172.17.0.1:<proxy-port>`，而 userland proxy 的后端 TCP socket 使用 `172.17.0.1:<proxy-port> -> 10.1.0.x:<ephemeral>`。NAT 表的 OUTPUT/Docker 路径计数持续增长，但 conntrack 工具未安装；filter/OUTPUT 规则匹配转换前的目的地址，因此计数为零。测试未到达 ACK observer 隔离与解除规则后的同 ID 恢复断言。
+- 根因进一步明确：同主机 Gazebo Transport peer 通过 Docker userland proxy 时，filter/OUTPUT 看到的包可能已经过 nat/OUTPUT 目的地址转换；不能继续用 filter/OUTPUT 的原始 Gazebo endpoint 四元组推断命中。对于同地址 peer，修订为在 NAT 转换前的 `raw/OUTPUT` 链分别匹配 bridge↔proxy TCP peer 的 forward/reverse 精确四元组；该链在 nat/OUTPUT 之前执行，可验证原始 socket tuple。不同地址 peer 保留 INPUT/OUTPUT filter 规则路径。规则 comment、packet counter、ACK observer、同 ID waiter 恢复、bridge/server PID 存活、CarryBus 状态清理及反向删除仍全部保留。
+- 测试代码提交 `d14affc5c14f1ba39a85584bb365a9abf7d1fba6`：规则记录现在包含 table/chain，计数读取对应 raw 或 filter table，清理时从原 table 精确删除；同地址双 peer 的两个方向改用 raw/OUTPUT。此提交刚推送 main，Gazebo、ROS 2、Python CI 尚待完成。
+- **状态：双向 Transport 断连仍未验收。** 必须等 `d14affc` 对应 Gazebo 完整日志证明两个 peer 的 forward/reverse raw packet counters 均命中、partition 期间独立 ACK observer 不出现当前 request ID、解除规则后原 ID waiter 恢复成功，且进程存活及 CarryBus 状态清理通过。不得以 counter 命中本身代替端到端隔离/恢复验收。P104-07 继续“正在进行中”。
