@@ -175,13 +175,19 @@ class TestCarryGazeboBridge(unittest.TestCase):
                 self.fail("Gazebo process did not stop after SIGTERM")
 
             sim_log = "/tmp/grasp-carry-gz-plugin-restarted.log"
+            sim_env = os.environ.copy()
+            if os.environ.get("CARRY_GZ_CONFIG_PATH_SET") == "1":
+                sim_env["GZ_CONFIG_PATH"] = os.environ.get(
+                    "CARRY_GZ_CONFIG_PATH", "")
+            else:
+                sim_env.pop("GZ_CONFIG_PATH", None)
             with open(sim_log, "w", encoding="utf-8") as stream:
                 restarted_sim = subprocess.Popen(
                     ["gz", "sim", "-s", "-r", "-v", "2",
                      os.path.join(ROOT, "tests",
                                   "grasp_carry_integration.sdf")],
                     stdout=stream, stderr=subprocess.STDOUT,
-                    start_new_session=True)
+                    env=sim_env, start_new_session=True)
             try:
                 ready_deadline = time.monotonic() + 15.0
                 while time.monotonic() < ready_deadline:
