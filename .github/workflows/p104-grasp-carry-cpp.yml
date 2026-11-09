@@ -200,11 +200,13 @@ jobs:
           wait_ack "fail place missing_model 1700000000000000005 no-model"
 
           # Pause physics so PreUpdate cannot drain the bounded queue.
-          timeout 5s gz service \
+          pause_response=$(timeout 5s gz service \
             -s /world/grasp_carry_test/control \
             --reqtype gz.msgs.WorldControl \
             --reptype gz.msgs.Boolean \
-            --timeout 1000 --req 'pause: true'
+            --timeout 1000 --req 'pause: true')
+          echo "Gazebo pause response: $pause_response"
+          grep -Fq 'data: true' <<< "$pause_response"
           # Let an already-entered PreUpdate finish before flooding. The
           # queue may have consumed a command immediately before pause took
           # effect, so discover the actual first rejected ID instead of
@@ -226,17 +228,28 @@ jobs:
             if [ "$first_rejected_i" -ne 0 ]; then break; fi
             sleep 0.2
           done
-          test "$first_rejected_i" -gt 0
+          if [ "$first_rejected_i" -eq 0 ]; then
+            echo "No queue-full ACK observed after 160 unpaced commands."
+            echo "ACK stream:"
+            cat /tmp/grasp-carry-acks.log
+            echo "Publisher diagnostics:"
+            cat /tmp/grasp-carry-publisher.log
+            echo "Gazebo diagnostics:"
+            cat /tmp/grasp-carry-gz.log
+            exit 1
+          fi
           test "$first_rejected_i" -le 160
 
           # Resume physics. Every request before the first rejected ID must
           # drain exactly once in FIFO order; every request from the rejection
           # boundary onward must retain its terminal queue-full ACK.
-          timeout 5s gz service \
+          unpause_response=$(timeout 5s gz service \
             -s /world/grasp_carry_test/control \
             --reqtype gz.msgs.WorldControl \
             --reptype gz.msgs.Boolean \
-            --timeout 1000 --req 'pause: false'
+            --timeout 1000 --req 'pause: false')
+          echo "Gazebo unpause response: $unpause_response"
+          grep -Fq 'data: true' <<< "$unpause_response"
           previous_ack_line=0
           for i in $(seq 1 $((first_rejected_i - 1))); do
             request_id=$((1700000000000000200 + i))
