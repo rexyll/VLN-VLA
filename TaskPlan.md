@@ -9,7 +9,7 @@
 
 ## 当前执行位置（2026-11-08）
 
-- **当前主节点：P104-07** —— 继续完成 ROS 2 CarryBus 与 Gazebo GraspCarry 插件的事务端到端联调；插件构建、队列单测及共享库检查已通过。headless queue saturation 已动态发现首个 queue-full request ID，并将队列终态 ACK 计数与独立事务 ACK replay 验收拆分。针对 `5229d47` 的 CI 已确认 Python 与 ROS 2 executor 通过，但 Gazebo 测试在 160 条突发命令中漏观测一个拒绝 ACK（request ID `...0352`），桥接步骤因此跳过。已在 `b8e5b574` 为每次 one-shot `gz topic` 发布增加短暂 transport flush 窗口；对应 Gazebo / Python / ROS 2 CI 正在执行，未通过前不计入已验收能力。
+- **当前主节点：P104-07** —— 继续完成 ROS 2 CarryBus 与 Gazebo GraspCarry 插件的事务端到端联调；插件构建、队列单测及共享库检查已通过。headless queue saturation 已动态发现首个 queue-full request ID，并将队列终态 ACK 计数与独立事务 ACK replay 验收拆分。`b8e5b574` 的 20ms shell flush 修正未解决所有突发消息漏观测（例如 request ID `...0334`），原因是等待发生在 one-shot `gz topic` 子进程退出之后，不能延长其 Transport publisher 生命周期。已改为新增 `tests/grasp_carry_publisher.cc`，由单个长生命周期 Gazebo Transport publisher 串行发送整个测试命令流，并在 EOF 前等待最终消息 flush；对应 CI 尚待执行，未通过前不计入已验收能力。
 - **并行回归：P104-08** —— 此前 20/20 纯 Python 测试通过；P104-07 本轮新增 CarryBus 人手交接连续性用例后，`tests/test_p104.py` 共 21 个用例，新增项待 CI 验证。继续扩展真实 RGB-D 遮挡、四相机切换和跟踪重捕获验证。
 - **未关闭的仿真节点：P104-05/P104-06** —— 桌面/手部代理几何和自然收臂逻辑已通过静态/纯测试，但仍需完整 work_area.sdf 场景中的动态碰撞与轨迹验证。
 - **最终验收：P104-09** —— 完整双臂倒水递水 E2E 至少三轮、ROS 2/Gazebo 集成和 P102/P103/P97/P94 回归尚未完成。
@@ -2313,3 +2313,16 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 提交：`b8e5b5749a5235c5fd7a0956f520a7514696c47f` — `test: flush Gazebo one-shot command publishers`。
 - CI：Python run `42545031250` completed / success；ROS 2 executor run `42545031364` 与 Gazebo C++ / headless / ros_gz_bridge run `42545031460` 提交时仍在执行。
 - 验收边界：20ms flush 是针对短生命周期发布进程的测试可靠性修正，不改变插件队列容量或生产协议。必须等 headless ACK 计数通过且后续 CarryBus ↔ ROS 2 ↔ ros_gz_bridge ACK fault injection 实际执行成功，才能认定桥接链路初步通过；P104-07 仍未完成。
+
+
+### 8.61 将 headless Gazebo 命令流改为长生命周期 Transport publisher（2026-11-09）
+
+- 复核 run `42545031460` 的完整 ACK 日志：20ms flush 后此前缺失的 `...0352` 已出现，但另一个 request ID `...0334` 仍未观测到，严格逐请求 ACK cardinality 断言仍失败，桥接故障注入步骤继续被跳过。
+- 纠正 §8.60 的测试实现判断：`sleep 0.02` 位于 shell 函数中、在 `gz topic -p` 子进程退出后执行；它并没有延长 one-shot publisher 进程的生命周期，不能保证 Gazebo Transport 完成消息交付。
+- 新增 `tests/grasp_carry_publisher.cc`：创建单个 `gz::transport::Node` 和长期存活的 `/drink/carry` publisher，从 stdin 逐条读取命令并发布；每条消息之间短暂节流，EOF 后等待最终 flush。
+- 更新 `.github/workflows/p104-grasp-carry-cpp.yml`：编译该 helper，使用 FIFO 将原有全部测试命令（包括并发事务和 160 条队列饱和突发）写入同一个 publisher；结束时关闭 FIFO 并等待 publisher 正常退出。ACK 逐条精确计数、成功队列 FIFO 顺序及 bridge ACK fault injection 的验收条件均保持不变。
+- 提交：
+  - `8336ed1cb0c5813a2aafbe41367b1659c0afd4b4` — `test: add persistent Gazebo transport publisher`
+  - `015dc6640ee7820bc9874be0c2bc3e05ca77273c` — `test: use persistent Gazebo publisher in integration test`
+- 前置 CI `b8e5b57`：Python 和 ROS 2 executor 通过；Gazebo 仍在队列饱和 ACK 计数阶段失败，因此不构成 P104-07 验收。
+- 新 helper 与 workflow 的编译、headless 队列饱和、ACK replay 及 bridge 故障注入结果，必须等待本次提交的 CI 实际完成后再记录；P104-07 保持进行中。
