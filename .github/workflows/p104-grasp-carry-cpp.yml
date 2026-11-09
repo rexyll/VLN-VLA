@@ -285,6 +285,11 @@ jobs:
           # ROS setup scripts reference optional environment variables; source
           # before enabling nounset, then keep strict mode for the test itself.
           set -eo pipefail
+          # Launch Gazebo before sourcing ROS 2. The ROS setup can replace
+          # GZ_CONFIG_PATH with its ros_gz plugin directory, hiding the
+          # Gazebo Harmonic `sim` CLI command from the gz-tools loader.
+          gz sim -s -r -v 2 tests/grasp_carry_integration.sdf > /tmp/grasp-carry-bridge-gz.log 2>&1 &
+          SIM_PID=$!
           source /opt/ros/jazzy/setup.bash
           set -u
           cat > /tmp/grasp-carry-ros-bridge.yml <<'YAML'
@@ -300,8 +305,6 @@ jobs:
             direction: GZ_TO_ROS
           YAML
 
-          gz sim -s -r -v 2 tests/grasp_carry_integration.sdf > /tmp/grasp-carry-bridge-gz.log 2>&1 &
-          SIM_PID=$!
           BRIDGE_PID=""
           cleanup() {
             status=$?
