@@ -2957,3 +2957,12 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 失败日志中的共享 socket 为 `172.17.0.1:44300 -> 172.17.0.1:39637`。同一精确四元组反向 `39637 -> 44300` 在 `raw/PREROUTING` 命中 6 个包；正向四元组在 `raw/OUTPUT` 与 `raw/PREROUTING` 均为 0。nftables 快照确认该反向 PREROUTING DROP counter 为 6。当前证据证明实际 loopback/userland-proxy 路径与 socket 表面方向并不一致，但尚不能把 TCP tuple 方向等同于应用层 command/ACK 方向，也不能证明双向隔离。
 - 测试代码提交 `b90f69df33121c07158197466279ca1a7fefb1a0`：在 `raw` iptables hook 之前（nft priority `-301`）为精确 peer 的两个 TCP tuple 方向分别安装 nft `nftrace` 标记规则，并启动 `nft monitor trace` 收集真实 packet hook、tuple 和路径；失败诊断会附带 trace 输出。原有精确 DROP 规则、packet-counter 非零要求、独立 ACK observer、reverse probe、CarryBus 原 request ID 隔离、规则移除后同 ID waiter 恢复、bridge/Gazebo PID 存活及状态清理断言均保留，不因增加诊断而放宽。
 - **状态：等待 `b90f69d` 对应 Gazebo/ROS 2/Python CI。** 依据 nft trace 明确确认实际包方向与 hook 后再调整规则；只有双向 packet evidence、ACK 隔离、同 ID 恢复和资源清理全部通过，才可关闭该测试项。P104-07 继续“正在进行中”。
+
+
+### 8.127 userland proxy 双 TCP leg 的端口级 nft trace（2026-11-09，CI 待验收）
+
+- `b90f69df33121c07158197466279ca1a7fefb1a0` 对应 Gazebo run `42614365975` / job `129150443334` completed/failure；同 SHA ROS 2 executor run `42614365973` success，Python syntax run `42614366092` success。
+- 完整日志显示 bridge socket 为 `172.17.0.1:41510 -> 172.17.0.1:41391`，Ruby userland proxy 另有后端连接 `172.17.0.1:41391 -> 10.1.0.158:60382`，Gazebo Transport 进程 socket 为 `10.1.0.158:60382 -> 172.17.0.1:41391`。nft trace 实际捕获的 loopback PREROUTING 包为 `172.17.0.1:41391 -> 172.17.0.1:41510`，其 raw PREROUTING DROP 计数为 6；bridge 表面 tuple 正向 `41510 -> 41391` 在 OUTPUT/PREROUTING 均为 0。失败发生于 forward hook counter 断言，尚未执行 ACK observer 隔离和同 request ID 恢复验收。
+- 证据说明 userland proxy 将 bridge socket 与 Gazebo server socket 分成两条 TCP leg，且 NAT/loopback 路径改变可见地址与方向。不能简单把 bridge socket 的四元组正反向当作应用命令与 ACK 的包方向。
+- 测试代码提交 `1dce8177376a146decdf899ec78ac43f0a0b45bc`：将 nft trace 规则从精确 IP+端口 tuple 改为按相关 endpoint TCP source/destination port 匹配，覆盖 OUTPUT 与 PREROUTING，并保留原有 DROP counter、ACK observer、reverse probe、同 ID 恢复、进程存活和状态清理验收条件。目的在于捕获 NAT 前后不同地址的 proxy 第二条 TCP leg，不能据此提前判定双向断连通过。
+- **状态：等待 `1dce817` 对应 CI。** 根据 trace 输出定位 bridge→proxy 与 proxy→Gazebo 两段实际包路径，再决定在哪条 leg 注入双向隔离。P104-07 继续“正在进行中”。
