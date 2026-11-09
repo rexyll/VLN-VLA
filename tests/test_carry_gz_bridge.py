@@ -856,8 +856,14 @@ class TestCarryGazeboBridge(unittest.TestCase):
             restart_env = os.environ.copy()
             restart_env.pop("CARRY_GZ_CONFIG_PATH", None)
             saved_gz_config = os.environ.get("CARRY_GZ_CONFIG_PATH", "")
-            # Launch Gazebo without ROS setup's GZ_CONFIG_PATH override; it can hide gz sim.
+            # Restore the exact Gazebo CLI configuration captured before
+            # sourcing ROS 2. The post-source value is reserved for gz-tools
+            # metadata probes and may point at ros_gz plugin commands only.
             restart_env.pop("GZ_CONFIG_PATH", None)
+            launch_gz_config = os.environ.get(
+                "CARRY_GZ_LAUNCH_CONFIG_PATH", "")
+            if launch_gz_config:
+                restart_env["GZ_CONFIG_PATH"] = launch_gz_config
             probe_env = restart_env.copy()
             if saved_gz_config:
                 probe_env["GZ_CONFIG_PATH"] = saved_gz_config
@@ -874,7 +880,9 @@ class TestCarryGazeboBridge(unittest.TestCase):
                 while time.monotonic() < server_ready_deadline:
                     if restarted_sim.poll() is not None:
                         with open(server_log, encoding="utf-8") as log:
-                            self.fail("restarted Gazebo exited: " + log.read())
+                            self.fail(
+                        "restarted Gazebo exited (GZ_CONFIG_PATH=%r): %s" %
+                        (restart_env.get("GZ_CONFIG_PATH"), log.read()))
                     try:
                         topics = subprocess.check_output(
                             ["gz", "topic", "-l"], text=True,
