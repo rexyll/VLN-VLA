@@ -232,7 +232,7 @@ class TestCarryGazeboBridge(unittest.TestCase):
                 "plugin ACK was not observed before bridge restart")
 
             # Stop the actual bridge process, not merely the ROS subscriber.
-            os.kill(bridge_pid, signal.SIGTERM)
+            os.killpg(bridge_pid, signal.SIGTERM)
             deadline = time.monotonic() + 5.0
             while time.monotonic() < deadline:
                 try:
@@ -386,11 +386,13 @@ class TestCarryGazeboBridge(unittest.TestCase):
                         recovered_bridge.wait(timeout=3.0)
 
             finally:
-                restarted_bridge.terminate()
                 try:
+                    os.killpg(restarted_bridge.pid, signal.SIGTERM)
                     restarted_bridge.wait(timeout=3.0)
+                except ProcessLookupError:
+                    pass
                 except subprocess.TimeoutExpired:
-                    restarted_bridge.kill()
+                    os.killpg(restarted_bridge.pid, signal.SIGKILL)
                     restarted_bridge.wait(timeout=3.0)
 
 
