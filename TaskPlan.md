@@ -2614,3 +2614,15 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 提交 `8b8845f15879df7d62e1d2ba730b04e7b32854ed`（`ci: retry transient ROS apt source download failures`）将下载设置为 connect timeout 20s、单次 max time 120s、最多 8 次 retry、retry-all-errors、3s delay 和 240s retry budget。仍使用原始官方 release artifact 与 dpkg/apt 安装流程，不跳过 ROS 2 依赖或测试。
 - 新提交触发 Gazebo Harmonic、Python syntax、P104 pure math/kinematics、ROS 2 executor 检查（runs `42573400155`、`42573400112`、`42573400125`），记录时均为 in_progress。尚无证据证明 ROS source 下载成功，也尚未验证 topic-specific ACK socket discovery。
 - P104-07 继续“正在进行中”。CI 下载重试只是环境可靠性修正，不改变功能验收状态；下一步必须检查 Gazebo workflow 是否越过 ROS 安装步骤并完整执行 Transport ACK fault injection。
+
+### 8.88 修正 Gazebo topic 元数据查询瞬态失败与并发 ACK 测试时序（2026-11-09）
+
+- 核对 ROS apt source 重试修复后的 CI：
+  - Gazebo run `42573400155` 已成功完成依赖安装、GraspCarry 插件编译、bounded queue 测试、共享库检查及 headless ACK protocol；失败发生在 ROS 2 ↔ Gazebo bridge E2E 的 Transport peer discovery 阶段。
+  - 失败位置为 `gz topic -i -t /drink/carry/ack`，命令返回 exit code 255。原异常没有将命令合并输出完整写入测试诊断，因此目前不能断定是 Gazebo Transport discovery 瞬态、环境变量不一致或 topic 信息查询本身失败。
+  - 提交 `b7f8e7befbc572c53eca51735e1822ca6598181f`（`test: retry transient Gazebo topic metadata discovery`）：对只读 topic metadata 查询增加最多 10 次、每次间隔 250ms 的有限重试；单次命令最多等待 5 秒。最终失败时输出完整异常/命令输出及 GZ_CONFIG_PATH，便于区分瞬态发现失败与确定性 CLI/environment 错误。没有放宽唯一 publisher endpoint 匹配条件，也没有改变 DROP 目标或故障验收断言。
+  - ROS 2 executor run `42573400125` 已完成依赖安装并执行 11 个测试，其中 10 个通过；`test_executor_delivers_concurrent_ids_and_rejects_late_ack` 的两个并发 waiter 中，left 成功、right 超时。日志显示该测试在每个 waiter 的 emit 回调内立即 publish ACK，测试把 DDS ACK 投递与并发 waiter 注册/发布时序耦合，未能保证两个 waiter 均已登记后才投递各自 ACK。
+  - 提交 `520abbe9ca6a46c5d0313b418281b47c86cafffe`（`test: synchronize concurrent CarryBus ACK delivery`）：两个 waiter 先并发完成 request ID 登记，主测试线程确认两者均已登记后，再逐一发布各自匹配 ACK；保留 request ID 不同、两个 waiter 同时活动、真实 MultiThreadedExecutor 投递和事务结果均成功的断言。该修改只调整测试时序，不修改 CarryBus 生产代码。
+- 同批其余 CI：run `42573400112` 的 Python syntax 与 P104 pure math/kinematics 全部 success；TaskPlan 提交 `df620db` 对应的 Python run `42573440195` 与 ROS 2 executor run `42573440085` 均 success。
+- 两项新修订的 CI 尚待完成。Transport ACK socket 定位、DROP 实际生效、独立 Gazebo observer、waiter timeout 清理、同一 bridge 恢复尚未验收；executor 并发 ACK 回归也需在新时序下重新通过。
+- P104-07 继续“正在进行中”。下一步检查两个新提交触发的 Gazebo、Python 和 ROS 2 executor CI；只有 Transport 故障注入各断言全部成功后，才可推进桥接队列背压之后的工作。插件进程重启、长时间稳定性及 DrinkTask 完整编排仍未验收。
