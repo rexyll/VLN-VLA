@@ -2775,3 +2775,11 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
   - Python syntax run `42586657711`，已 completed/success。
 - 本次登记时 Gazebo job 正在安装 Gazebo Harmonic 开发依赖，ROS 2 executor job 正在安装 Jazzy runtime dependencies；二者均未进入最终测试步骤，不能标记为通过。后续必须读取 Gazebo job 完整日志，确认 whole-server-restart 的启动环境修复和所有原有事务断言。
 - 文档登记提交 `90de1781db186c30ca78e3c8acc1b9a252adf02e`。P104-07 仍“正在进行中”，whole Gazebo server restart 尚未验收。
+
+### 8.104 Gazebo CLI 命令清单与 ROS vendor 配置路径冲突修复（2026-11-09，CI 待验收）
+
+- `afffd0611dd1a138bfc34cf6a1af7895ccad031a` 的 Gazebo run `42586657607` 最终 failure；ROS 2 executor run `42586657624` success，Python run `42586657711` success。完整 Gazebo job 日志证明失败点仍是重启子进程启动阶段：`GZ_CONFIG_PATH` 不再为 None，而是 `/opt/ros/jazzy/opt/gz_transport_vendor/share/gz:/opt/ros/jazzy/opt/gz_msgs_vendor/share/gz`；执行 `gz` 时仅列出 help/log/msg/param/service/topic，没有 `sim` 命令。故上一轮“保留活动配置”并未恢复 Gazebo Harmonic CLI manifest，且不能将其视为通过。
+- 根因细化：ROS 2 setup 后的 vendor manifest 路径覆盖 Gazebo CLI command manifest 路径。重启时必须同时提供 Gazebo Harmonic 的 `gz-sim*.yaml` 所在目录与 ROS vendor manifest 目录。
+- 提交 `80b8878c0382a9529004d5d680f0d1c5c6793030`（ci: locate Gazebo sim CLI manifest for restart test）：workflow 在 source ROS 之前显式定位 `gz-sim*.yaml`，校验命中，并把其目录通过 `CARRY_GZ_SIM_CONFIG_DIR` 传给测试。
+- 提交 `620f6a87a92ff6e26329313e763713343f500988`（test: restore Gazebo sim manifest on server restart）：重启子进程的 `GZ_CONFIG_PATH` 由 Gazebo sim manifest 目录置前，再追加 ROS vendor manifest 路径；缺失或无效的 sim manifest 目录直接失败并输出诊断。未更改事务 deadline、重试节流、双向 socket readiness、request ID / ACK waiter 和清理断言。
+- 新提交必须验证 manifest 查找在 CI runner 上成功，重启后 `gz sim` 确实可启动，随后通过重启前后 ACK publisher 与 command subscriber 的真实 TCP peer、原 request ID ACK 交付、waiter True、pending/ACK/event 清理及 fresh request ID 成功。P104-07 继续“正在进行中”，whole-server restart 仍未验收。
