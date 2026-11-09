@@ -851,6 +851,14 @@ class TestCarryGazeboBridge(unittest.TestCase):
                     peer_network_diagnostics.append(
                         "command_ack_share_tcp_peer=%s" %
                         (command_peer == ack_peer))
+                    # ss -i exposes per-socket TCP byte counters and TCP_INFO;
+                    # retain snapshots around the partition to correlate
+                    # packet direction with bridge PID/FD and proxy sockets.
+                    peer_network_diagnostics.append(
+                        "tcp_info_before_partition=" +
+                        subprocess.check_output(
+                            ["sudo", "ss", "-Htnpi", "state", "established"],
+                            text=True, stderr=subprocess.STDOUT))
                     peer_network_diagnostics.append(
                         "netns self=%s bridge=%s gazebo=%s" %
                         (os.readlink("/proc/self/ns/net"),
@@ -1012,6 +1020,11 @@ class TestCarryGazeboBridge(unittest.TestCase):
                              "data: '%s'" % reverse_probe],
                             text=True, stderr=subprocess.STDOUT,
                             env=gz_env, timeout=5.0)
+                        peer_network_diagnostics.append(
+                            "tcp_info_after_bridge_request_and_reverse_probe=" +
+                            subprocess.check_output(
+                                ["sudo", "ss", "-Htnpi", "state", "established"],
+                                text=True, stderr=subprocess.STDOUT))
                         reverse_probe_deadline = time.monotonic() + 4.0
                         while time.monotonic() < reverse_probe_deadline:
                             with open(bidirectional_ack_log,
