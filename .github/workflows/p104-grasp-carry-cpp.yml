@@ -47,7 +47,7 @@ jobs:
             | sudo tee /etc/apt/sources.list.d/gazebo-stable.list > /dev/null
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            build-essential cmake pkg-config cppzmq-dev \
+            build-essential cmake pkg-config cppzmq-dev iptables iproute2 \\
             libgz-cmake3-dev \
             libgz-plugin2-dev \
             libgz-sim8-dev \
@@ -292,6 +292,7 @@ jobs:
           # Gazebo Harmonic `sim` CLI command from the gz-tools loader.
           gz sim -s -r -v 2 tests/grasp_carry_integration.sdf > /tmp/grasp-carry-bridge-gz.log 2>&1 &
           SIM_PID=$!
+          GZ_CONFIG_PATH_BEFORE_ROS="${GZ_CONFIG_PATH:-}"
           source /opt/ros/jazzy/setup.bash
           set -u
           cat > /tmp/grasp-carry-ros-bridge.yml <<'YAML'
@@ -351,4 +352,5 @@ jobs:
           done
           CARRY_BRIDGE_PID="$BRIDGE_PID" \
             CARRY_BRIDGE_CONFIG=/tmp/grasp-carry-ros-bridge.yml \
+            CARRY_GZ_CONFIG_PATH="$GZ_CONFIG_PATH_BEFORE_ROS" \
             python3 tests/test_carry_gz_bridge.py
