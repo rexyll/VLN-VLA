@@ -212,13 +212,13 @@ jobs:
           # effect, so discover the actual first rejected ID instead of
           # assuming an exact boundary from wall-clock service timing.
           sleep 0.5
-          for i in $(seq 1 160); do
+          for i in $(seq 1 512); do
             request_id=$((1700000000000000200 + i))
             publish "joint cup water_joint 0.001 $request_id"
           done
           first_rejected_i=0
           for _ in $(seq 1 30); do
-            for i in $(seq 1 160); do
+            for i in $(seq 1 512); do
               request_id=$((1700000000000000200 + i))
               if grep -Fq "fail joint cup water_joint $request_id queue-full" /tmp/grasp-carry-acks.log; then
                 first_rejected_i=$i
@@ -238,7 +238,7 @@ jobs:
             cat /tmp/grasp-carry-gz.log
             exit 1
           fi
-          test "$first_rejected_i" -le 160
+          test "$first_rejected_i" -le 512
 
           # Resume physics. Every request before the first rejected ID must
           # drain exactly once in FIFO order; every request from the rejection
@@ -260,7 +260,7 @@ jobs:
             test "$ack_line" -gt "$previous_ack_line"
             previous_ack_line=$ack_line
           done
-          for i in $(seq "$first_rejected_i" 160); do
+          for i in $(seq "$first_rejected_i" 512); do
             request_id=$((1700000000000000200 + i))
             reject_count=$(grep -Fc "fail joint cup water_joint $request_id queue-full" /tmp/grasp-carry-acks.log || true)
             test "$reject_count" -eq 1
