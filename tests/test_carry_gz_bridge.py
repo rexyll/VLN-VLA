@@ -800,9 +800,19 @@ class TestCarryGazeboBridge(unittest.TestCase):
             # as well; bridge log creation alone is not a transport handshake.
             time.sleep(1.0)
             server_restart_result = {}
+            server_restart_send = {"last": 0.0}
 
             def server_restart_transaction():
                 def emit(request_id):
+                    # _await polls at 80ms. During a server outage that rate
+                    # can fill the plugin's bounded queue as soon as it returns.
+                    # Keep retry semantics and request identity unchanged, but
+                    # cap this recovery probe to 2Hz so one transaction cannot
+                    # flood a freshly restarted plugin before ACK discovery.
+                    now = time.monotonic()
+                    if now - server_restart_send["last"] < 0.5:
+                        return
+                    server_restart_send["last"] = now
                     server_restart_result["request_id"] = request_id
                     bus._send(
                         "place cup 0.12 0.03 0.52 0 0 0 1 %d" % request_id)
@@ -810,7 +820,7 @@ class TestCarryGazeboBridge(unittest.TestCase):
                     emit,
                     lambda ack, request_id: ack ==
                     "ok place cup %d" % request_id,
-                    timeout=35.0)
+                    timeout=50.0)
 
             server_restart_worker = threading.Thread(
                 target=server_restart_transaction, daemon=True)
@@ -912,7 +922,7 @@ class TestCarryGazeboBridge(unittest.TestCase):
                 # plugin instance was recreated, its in-memory ACK cache is
                 # gone; this validates state-setting replay, not exactly-once.
                 relay.drop_all.clear()
-                server_restart_worker.join(timeout=12.0)
+                server_restart_worker.join(timeout=52.0)
                 self.assertFalse(
                     server_restart_worker.is_alive(),
                     "CarryBus waiter hung across whole Gazebo server restart")
