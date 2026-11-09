@@ -74,7 +74,7 @@ def _bridge_gz_transport_peer(
     else:
         raise ValueError("endpoint_kind must be publisher or subscriber")
     publisher_endpoints = set()
-    for address, port_text in re.findall(r"tcp://(\\[[^]]+\\]|[^:,\\s]+):(\\d+)", endpoint_section):
+    for address, port_text in re.findall(r"tcp://(\[[^]]+\]|[^:,\s]+):(\d+)", endpoint_section):
         host = address.strip("[]")
         try:
             ipaddress.ip_address(host)
