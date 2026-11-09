@@ -129,6 +129,98 @@ class TestCarryGazeboBridge(unittest.TestCase):
             self.assertFalse(bus.ack_by_request)
             self.assertFalse(bus._ack_events)
 
+            # Restart the Gazebo server itself while a transaction is active.
+            # This destroys the plugin instance and its in-memory completed-ACK
+            # cache. The operation is deliberately an idempotent absolute pose
+            # assignment: the same request ID may be re-applied after restart,
+            # but must not be mistaken for a durable exactly-once guarantee.
+            sim_pid = int(os.environ["CARRY_GZ_SIM_PID"])
+            relay.dropped_next.clear()
+            relay.drop_next.set()
+            plugin_restart_result = {}
+
+            def plugin_restart_transaction():
+                def emit_same_request(request_id):
+                    plugin_restart_result["request_id"] = request_id
+                    bus._send(
+                        "place cup 0 0 0.5 0 0 0 1 %d" % request_id)
+
+                plugin_restart_result["ok"] = bus._await(
+                    emit_same_request,
+                    lambda ack, request_id: ack ==
+                    "ok place cup %d" % request_id,
+                    timeout=20.0)
+
+            plugin_restart_worker = threading.Thread(
+                target=plugin_restart_transaction, daemon=True)
+            plugin_restart_worker.start()
+            self.assertTrue(
+                relay.dropped_next.wait(5.0),
+                "plugin ACK was not dropped before Gazebo restart")
+
+            # The original Gazebo process is owned by the workflow shell.
+            os.kill(sim_pid, signal.SIGTERM)
+            deadline = time.monotonic() + 8.0
+            while time.monotonic() < deadline:
+                try:
+                    with open("/proc/%d/stat" % sim_pid, encoding="utf-8") as stat:
+                        process_state = stat.read().split()[2]
+                    if process_state == "Z":
+                        break
+                except FileNotFoundError:
+                    break
+                time.sleep(0.05)
+            else:
+                os.kill(sim_pid, signal.SIGKILL)
+                self.fail("Gazebo process did not stop after SIGTERM")
+
+            sim_log = "/tmp/grasp-carry-gz-plugin-restarted.log"
+            with open(sim_log, "w", encoding="utf-8") as stream:
+                restarted_sim = subprocess.Popen(
+                    ["gz", "sim", "-s", "-r", "-v", "2",
+                     os.path.join(ROOT, "tests",
+                                  "grasp_carry_integration.sdf")],
+                    stdout=stream, stderr=subprocess.STDOUT,
+                    start_new_session=True)
+            try:
+                ready_deadline = time.monotonic() + 15.0
+                while time.monotonic() < ready_deadline:
+                    if restarted_sim.poll() is not None:
+                        with open(sim_log, encoding="utf-8") as log:
+                            self.fail("restarted Gazebo exited: " + log.read())
+                    with open(sim_log, encoding="utf-8") as log:
+                        sim_output = log.read()
+                    if ("[GraspCarry]" in sim_output and
+                            "就绪" in sim_output and
+                            relay.count_publishers(RAW_ACK_TOPIC) >= 1):
+                        break
+                    time.sleep(0.1)
+                else:
+                    with open(sim_log, encoding="utf-8") as log:
+                        self.fail("restarted GraspCarry plugin not ready: " +
+                                  log.read())
+
+                plugin_restart_worker.join(timeout=12.0)
+                self.assertFalse(
+                    plugin_restart_worker.is_alive(),
+                    "CarryBus waiter hung across Gazebo/plugin restart")
+                self.assertTrue(
+                    plugin_restart_result.get("ok"),
+                    "same request ID did not reach the restarted plugin")
+                self.assertGreater(
+                    plugin_restart_result.get("request_id", 0), 0)
+            finally:
+                restarted_sim.terminate()
+                try:
+                    restarted_sim.wait(timeout=5.0)
+                except subprocess.TimeoutExpired:
+                    restarted_sim.kill()
+                    restarted_sim.wait(timeout=3.0)
+
+            self.assertFalse(bus.pending_requests)
+            self.assertFalse(bus.ack_by_request)
+            self.assertFalse(bus._ack_events)
+
             # Exercise a real parameter_bridge process restart while a CarryBus
             # waiter is active. The plugin has accepted the command, but the
             # relay drops its terminal ACK; after restart, the same request ID
