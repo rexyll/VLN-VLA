@@ -820,7 +820,7 @@ class TestCarryGazeboBridge(unittest.TestCase):
                         stdout=ack_stream, stderr=subprocess.STDOUT,
                         env=observer_env)
                     firewall_rules = []
-                    firewall_rule_comments = {}
+                    firewall_rule_groups = {}
                     try:
                         time.sleep(1.0)
                         self.assertIsNone(
@@ -842,27 +842,27 @@ class TestCarryGazeboBridge(unittest.TestCase):
                                 "--sport", str(local_port),
                                 "-d", remote_host, "--dport",
                                 str(remote_port), "-j", "DROP"]
-                            # Both Gazebo Transport peers in this CI
-                            # topology advertise the same host address. The
-                            # bridge and Gazebo processes therefore exchange
-                            # packets through the local OUTPUT path; an INPUT
-                            # rule for the reverse tuple is not traversed
-                            # (confirmed by the zero INPUT counter in run
-                            # 42598022681). Match both TCP directions in
-                            # OUTPUT for same-address peers. For genuinely
-                            # distinct hosts, retain the normal INPUT/OUTPUT
-                            # split.
+                            # A same-address Gazebo peer can traverse either
+                            # the local OUTPUT path or the local INPUT path,
+                            # depending on the runner's routing/network setup.
+                            # Install each exact TCP direction in both chains
+                            # and aggregate their counters per direction. This
+                            # avoids assuming that an address equality alone
+                            # determines the netfilter hook traversed.
                             if local_host == remote_host:
                                 rule_specs = (
                                     ("OUTPUT", outbound, "forward"),
-                                    ("OUTPUT", inbound, "reverse"))
+                                    ("INPUT", outbound, "forward"),
+                                    ("OUTPUT", inbound, "reverse"),
+                                    ("INPUT", inbound, "reverse"))
                             else:
                                 rule_specs = (
-                                    ("INPUT", inbound, "input"),
-                                    ("OUTPUT", outbound, "output"))
+                                    ("INPUT", inbound, "reverse"),
+                                    ("OUTPUT", outbound, "forward"))
                             for chain, rule_args, direction in rule_specs:
-                                comment = "vla-bidir-%d-%d-%s" % (
-                                    os.getpid(), peer_index, direction)
+                                comment = "vla-bidir-%d-%d-%s-%s" % (
+                                    os.getpid(), peer_index, direction, chain.lower())
+                                rule_args = list(rule_args)
                                 rule_args[-2:-2] = [
                                     "-m", "comment", "--comment", comment]
                                 subprocess.check_call(
@@ -870,7 +870,9 @@ class TestCarryGazeboBridge(unittest.TestCase):
                                     rule_args)
                                 firewall_rules.append(
                                     (family, chain, rule_args, comment))
-                                firewall_rule_comments[comment] = family
+                                group_key = (peer_index, direction)
+                                firewall_rule_groups.setdefault(
+                                    group_key, []).append((comment, family))
                         os.kill(transport_bridge.pid, 0)
                         os.kill(int(os.environ["CARRY_SIM_PID"]), 0)
                         bidirectional_result = {}
@@ -903,36 +905,43 @@ class TestCarryGazeboBridge(unittest.TestCase):
                         with open(bidirectional_ack_log,
                                   encoding="utf-8") as stream:
                             observed_acks = stream.read()
-                        # Prove the exact four-tuple DROP rules actually
-                        # matched packets on both sockets and both host
-                        # directions. Without packet counters, an ACK seen by
-                        # the independent observer could mean either an
-                        # alternate peer path or a rule that never matched.
-                        for comment, family in firewall_rule_comments.items():
-                            save_command = (
-                                "ip6tables-save" if family == "ip6tables"
-                                else "iptables-save")
-                            saved_rules = subprocess.check_output(
-                                ["sudo", save_command, "-c", "-t", "filter"],
-                                text=True, stderr=subprocess.STDOUT)
-                            matching_lines = [
-                                line for line in saved_rules.splitlines()
-                                if "--comment %s" % comment in line]
-                            self.assertEqual(
-                                len(matching_lines), 1,
-                                "expected one installed firewall rule %s; "
-                                "ruleset: %s" % (comment, saved_rules))
-                            counter = re.match(
-                                r"\[(\d+):(\d+)\] ",
-                                matching_lines[0])
-                            self.assertIsNotNone(
-                                counter,
-                                "firewall packet counter missing for %s: %s"
-                                % (comment, matching_lines[0]))
+                        # Require packet evidence for both directions of each
+                        # real TCP peer. Same-address peers have duplicate
+                        # INPUT/OUTPUT hook candidates; their counters are
+                        # summed because only the traversed hook will match.
+                        for (peer_index, direction), rule_group in (
+                                firewall_rule_groups.items()):
+                            packet_total = 0
+                            evidence = []
+                            for comment, family in rule_group:
+                                save_command = (
+                                    "ip6tables-save" if family == "ip6tables"
+                                    else "iptables-save")
+                                saved_rules = subprocess.check_output(
+                                    ["sudo", save_command, "-c", "-t", "filter"],
+                                    text=True, stderr=subprocess.STDOUT)
+                                matching_lines = [
+                                    line for line in saved_rules.splitlines()
+                                    if "--comment %s" % comment in line]
+                                self.assertEqual(
+                                    len(matching_lines), 1,
+                                    "expected one installed firewall rule %s; "
+                                    "ruleset: %s" % (comment, saved_rules))
+                                counter = re.match(
+                                    r"\\[(\\d+):(\\d+)\\] ",
+                                    matching_lines[0])
+                                self.assertIsNotNone(
+                                    counter,
+                                    "firewall packet counter missing for %s: %s"
+                                    % (comment, matching_lines[0]))
+                                packets = int(counter.group(1))
+                                packet_total += packets
+                                evidence.append("%s=%d" % (comment, packets))
                             self.assertGreater(
-                                int(counter.group(1)), 0,
-                                "firewall rule %s did not match any packets: %s"
-                                % (comment, matching_lines[0]))
+                                packet_total, 0,
+                                "no INPUT/OUTPUT rule matched peer %d %s "
+                                "direction; counters: %s" %
+                                (peer_index, direction, ", ".join(evidence)))
                         self.assertNotIn(
                             "joint cup water_joint %d" % bidirectional_id,
                             observed_acks,
