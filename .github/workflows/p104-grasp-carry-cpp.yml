@@ -295,6 +295,8 @@ jobs:
           # Preserve Gazebo CLI discovery before ROS setup modifies GZ_CONFIG_PATH.
           printf 'Gazebo pre-ROS GZ_CONFIG_PATH=%s\n' "${GZ_CONFIG_PATH-<unset>}"
           export CARRY_GZ_PATH="$PATH"
+          env | grep '^GZ_' > /tmp/carry-gz-env-before-ros || true
+          export CARRY_GZ_ENV_FILE=/tmp/carry-gz-env-before-ros
           printf 'Gazebo pre-ROS commands: '
           gz --commands | tr '\n' ' '
           printf '\n'
@@ -368,4 +370,5 @@ jobs:
             CARRY_GZ_CONFIG_PATH_SET="$CARRY_GZ_CONFIG_PATH_SET" \
             CARRY_GZ_CONFIG_PATH="${CARRY_GZ_CONFIG_PATH-}" \
             CARRY_GZ_PATH="$CARRY_GZ_PATH" \
+            CARRY_GZ_ENV_FILE="$CARRY_GZ_ENV_FILE" \
             python3 tests/test_carry_gz_bridge.py
