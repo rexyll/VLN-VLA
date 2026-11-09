@@ -768,12 +768,14 @@ class TestCarryGazeboBridge(unittest.TestCase):
                         emit,
                         lambda ack, request_id: ack ==
                         "ok place cup %d" % request_id,
-                        timeout=6.0)
+                        # The established TCP socket may need multiple RTO
+                        # intervals to retransmit ACK data after DROP removal.
+                        timeout=25.0)
 
                 restored_worker = threading.Thread(
                     target=restored_transport_transaction, daemon=True)
                 restored_worker.start()
-                restored_worker.join(timeout=8.0)
+                restored_worker.join(timeout=27.0)
                 self.assertFalse(
                     restored_worker.is_alive(),
                     "CarryBus waiter hung after GZ transport recovery")
