@@ -880,21 +880,19 @@ class TestCarryGazeboBridge(unittest.TestCase):
                                 "--sport", str(local_port),
                                 "-d", remote_host, "--dport",
                                 str(remote_port), "-j", "DROP"]
-                            # A same-address Gazebo peer can traverse either
-                            # the local OUTPUT path or the local INPUT path,
-                            # depending on the runner's routing/network setup.
-                            # Install each exact TCP direction in both chains
-                            # and aggregate their counters per direction. This
-                            # avoids assuming that an address equality alone
-                            # determines the netfilter hook traversed.
+                            # For same-host userland-proxy traffic, the
+                            # bridge's outbound segment is visible in
+                            # raw/OUTPUT before nat/OUTPUT rewrites its target.
+                            # Return segments to the bridge can re-enter via
+                            # loopback PREROUTING (or a local OUTPUT path on
+                            # some runner layouts), so install the exact reverse
+                            # tuple at both pre-filter hooks and aggregate only
+                            # their real packet counters.
                             if local_host == remote_host:
-                                # Docker's userland proxy rewrites the
-                                # destination in nat/OUTPUT before
-                                # filter/OUTPUT. Match the original bridge to
-                                # proxy tuple in raw/OUTPUT before translation.
                                 rule_specs = (
                                     ("raw", "OUTPUT", outbound, "forward"),
-                                    ("raw", "OUTPUT", inbound, "reverse"))
+                                    ("raw", "OUTPUT", inbound, "reverse"),
+                                    ("raw", "PREROUTING", inbound, "reverse"))
                             else:
                                 rule_specs = (
                                     ("filter", "INPUT", inbound, "reverse"),
