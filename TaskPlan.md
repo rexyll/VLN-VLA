@@ -2853,3 +2853,10 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 本轮不降低断言，也不把 ACK observer 收到 ACK 解释为成功。新增的诊断与验收机制为每条 INPUT/OUTPUT 精确规则添加唯一 comment，并在 partition 期间通过 `iptables-save -c` / `ip6tables-save -c` 读取内核 packet counter；要求 command subscriber peer 与 ACK publisher peer 的四条规则都至少命中一个 packet，然后再判断独立 observer 是否出现当前 request ID 的 ACK。若规则计数为零，失败信息将指出具体 peer/direction/comment 和规则行；若计数均非零但 ACK 仍出现，则表明还存在未被这些规则覆盖的传输路径，需要进一步追踪实际 socket。
 - 测试代码分两次单文件提交：`2b2282a46aff02ccaa20df442cde1a96b8b7b5ab`（为四条规则增加唯一 comment、使用 xtables wait 并保存规则标识）；`bbc909aedef53d5eb85388ca1477bf88b0f302d3`（修正 `iptables-save` packet counter 的正则解析）。当前最新测试提交为 `bbc909a`，尚待其 Gazebo CI 完整日志验证；TaskPlan 本次登记后也会触发文档回归 workflow。
 - **当前状态：双向 Transport 断连与恢复仍未通过。** 下一步刷新 `bbc909a` 对应 Gazebo / ROS 2 / Python workflows；以四条规则真实 packet counter、partition 期间 ACK observer 不出现原 request ID、解除规则后同 ID waiter 成功、bridge/server PID 存活及 CarryBus 状态清理作为不可降低的验收条件。P104-07 继续“正在进行中”。
+
+
+### 8.114 防火墙规则 comment 参数顺序修正（2026-11-09，CI 待验收）
+
+- 提交 `bbc909aedef53d5eb85388ca1477bf88b0f302d3` 的 Gazebo run `42597442092` / job `129093445054` 已完成 failure；同提交 ROS 2 executor run `42597442157` success、Python syntax run `42597442045` success。完整 job log 显示 Gazebo 插件构建、bounded queue、headless ACK protocol、此前 bridge fault injection 和真实队列背压均成功；双向 partition 测试在安装第一条规则时即失败，iptables 返回 `Bad argument comment`。实际 argv 证明生成了 `-j -m comment --comment ... DROP`，即 comment match 被错误插入 jump target 之后，尚未执行 packet-counter 或 ACK partition 断言。
+- 修正提交 `b73c2842e4cadc46d63c9c18fd004e2a3f3f135e`：将 comment match 插入规则参数的 `-j DROP` 之前，形成合法顺序 `... -m comment --comment <unique> -j DROP`；保留四条规则 packet counter 必须大于零、partition 期间 ACK observer 不得出现当前 request ID、解除规则后原 ID waiter 成功及状态清理等全部断言，不降低验收标准。
+- `b73c284` 对应 Gazebo / ROS 2 / Python workflows 尚待 CI；以其 Gazebo 完整日志验证规则安装、四条 counter、双向隔离和同 ID 恢复。P104-07 继续“正在进行中”。
