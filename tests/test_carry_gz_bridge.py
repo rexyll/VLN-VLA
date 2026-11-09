@@ -170,6 +170,94 @@ def _bridge_gz_transport_peer(
 
 
 
+
+def _bridge_transport_data_peers(bridge_pid, before_snapshot,
+                                after_snapshot, diagnostics=None):
+    """Identify command/ACK bridge sockets from a successful transaction's TCP_INFO deltas."""
+    process_table = subprocess.check_output(
+        ["ps", "-eo", "pid=,ppid=,args="], text=True)
+    children = {}
+    for process_line in process_table.splitlines():
+        fields = process_line.strip().split(None, 2)
+        if len(fields) >= 2:
+            children.setdefault(int(fields[1]), set()).add(int(fields[0]))
+    bridge_pids = {bridge_pid}
+    frontier = [bridge_pid]
+    while frontier:
+        parent = frontier.pop()
+        for child in children.get(parent, ()):
+            if child not in bridge_pids:
+                bridge_pids.add(child)
+                frontier.append(child)
+
+    def snapshot_sockets(snapshot):
+        sockets = {}
+        lines = snapshot.splitlines()
+        for index, line in enumerate(lines[:-1]):
+            owner_pids = {
+                int(pid_text)
+                for pid_text in re.findall(r"pid=(\d+),fd=\d+", line)}
+            if not owner_pids.intersection(bridge_pids):
+                continue
+            fields = line.split()
+            if len(fields) < 4:
+                continue
+            try:
+                local_host, local_port_text = fields[2].rsplit(":", 1)
+                remote_host, remote_port_text = fields[3].rsplit(":", 1)
+                local_host = local_host.strip("[]")
+                remote_host = remote_host.strip("[]")
+                ipaddress.ip_address(local_host)
+                ipaddress.ip_address(remote_host)
+                peer = (local_host, int(local_port_text),
+                        remote_host, int(remote_port_text))
+            except ValueError:
+                continue
+            info = lines[index + 1]
+            sent = re.search(r"bytes_sent:(\d+)", info)
+            received = re.search(r"bytes_received:(\d+)", info)
+            if sent and received:
+                sockets[peer] = (int(sent.group(1)),
+                                 int(received.group(1)))
+        return sockets
+
+    before = snapshot_sockets(before_snapshot)
+    after = snapshot_sockets(after_snapshot)
+    deltas = []
+    for peer, (sent, received) in after.items():
+        old_sent, old_received = before.get(peer, (sent, received))
+        deltas.append((peer, sent - old_sent, received - old_received))
+    command_candidates = sorted(
+        ((sent_delta, peer) for peer, sent_delta, _ in deltas
+         if sent_delta > 0), reverse=True)
+    ack_candidates = sorted(
+        ((received_delta, peer) for peer, _, received_delta in deltas
+         if received_delta > 0), reverse=True)
+    if diagnostics is not None:
+        diagnostics.append("calibration_socket_deltas=%r" % deltas)
+    if not command_candidates or not ack_candidates:
+        raise AssertionError(
+            "successful CarryBus calibration did not expose both TCP data "
+            "directions; command candidates=%r ACK candidates=%r deltas=%r" %
+            (command_candidates, ack_candidates, deltas))
+    if (len(command_candidates) > 1 and
+            command_candidates[0][0] == command_candidates[1][0]):
+        raise AssertionError(
+            "CarryBus command socket calibration is ambiguous: %r" %
+            command_candidates)
+    if (len(ack_candidates) > 1 and
+            ack_candidates[0][0] == ack_candidates[1][0]):
+        raise AssertionError(
+            "CarryBus ACK socket calibration is ambiguous: %r" %
+            ack_candidates)
+    command_peer = command_candidates[0][1]
+    ack_peer = ack_candidates[0][1]
+    if command_peer == ack_peer:
+        raise AssertionError(
+            "CarryBus command and ACK calibration resolved to one TCP socket: "
+            "%r; deltas=%r" % (command_peer, deltas))
+    return command_peer, ack_peer
+
 def _gazebo_topic_endpoints(topic, gz_config_path, endpoint_kind):
     """Return the advertised TCP endpoints for one Gazebo topic direction."""
     env = os.environ.copy()
@@ -858,17 +946,24 @@ class TestCarryGazeboBridge(unittest.TestCase):
                     "tcp_info_before_calibration=" + calibration_before,
                     "tcp_info_after_calibration=" + calibration_after,
                 ]
-                command_peer = _bridge_gz_transport_peer(
+                # Keep topic metadata as supporting diagnostics, but do not
+                # use its advertised endpoint to choose the application data
+                # socket: both topics may advertise the same proxy listener.
+                _bridge_gz_transport_peer(
                     transport_bridge.pid, int(os.environ["CARRY_SIM_PID"]),
                     "/drink/carry",
                     os.environ.get("CARRY_GZ_CONFIG_PATH", ""),
                     endpoint_kind="subscriber",
                     diagnostics=transport_endpoint_diagnostics)
-                ack_peer = _bridge_gz_transport_peer(
+                _bridge_gz_transport_peer(
                     transport_bridge.pid, int(os.environ["CARRY_SIM_PID"]),
                     "/drink/carry/ack",
                     os.environ.get("CARRY_GZ_CONFIG_PATH", ""),
+                    endpoint_kind="publisher",
                     diagnostics=transport_endpoint_diagnostics)
+                command_peer, ack_peer = _bridge_transport_data_peers(
+                    transport_bridge.pid, calibration_before,
+                    calibration_after, transport_endpoint_diagnostics)
                 # Observe ACKs from an independent Gazebo subscriber.
                 # A separate command subscriber would see the bridge's
                 # publication on its own TCP connection and cannot prove
