@@ -2347,3 +2347,12 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 保留 `Publisher::HasConnections()` 的最多 10 秒订阅发现等待，以及 publisher 独立日志输出。队列容量与插件内部实现保持不变。
 - 提交：`11b91e1aa33cf5126364d41f4ddf06c0fddc78ed` — `fix: use supported Gazebo publisher advertise API`。
 - 修正后的 Gazebo 编译、headless 严格 ACK 计数与 bridge ACK fault injection 尚待 CI；P104-07 继续未完成。
+
+
+### 8.64 确保 publisher helper 变更触发 Gazebo 专项 CI（2026-11-09）
+
+- 复查 run `42546294262`：失败是 `Advertise(topic, 512)` 不符合 gz-transport13 API，已在 §8.63 通过 `11b91e1` 修正。
+- 检查 GitHub Actions 的路径过滤器后发现，Gazebo workflow 原先只监听插件目录、队列测试和 SDF 文件，没有监听新增的 `tests/grasp_carry_publisher.cc`。因此后续只修改 helper 源文件时，Gazebo 专项 workflow 不会自动触发，存在“普通 Python/ROS2 CI 通过但 C++ helper 未编译”的覆盖缺口。
+- 将 `tests/grasp_carry_publisher.cc` 加入 push 与 pull_request 两处 paths 列表，确保 helper API 或行为变更都会运行完整 Gazebo Harmonic / headless / bridge workflow。
+- 提交：`af5a68c2797fe3e34244d71c7905edcf4a78ea6f` — `ci: trigger Gazebo workflow for publisher helper changes`。
+- 当前 publisher helper 修正需由此提交触发的 Gazebo 专项 CI 实际编译并运行；P104-07 继续未完成。
