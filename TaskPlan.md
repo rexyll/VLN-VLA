@@ -9,7 +9,7 @@
 
 ## 当前执行位置（2026-11-08）
 
-- **当前主节点：P104-07** —— 继续完成 ROS 2 CarryBus 与 Gazebo GraspCarry 插件的事务端到端联调。ACK subscriber 的 gz-transport13 callback 类型已修复并编译通过（`c2c37bf`）。Gazebo run `42554780637` 的插件编译、队列单测和共享库检查通过，但 headless 饱和测试失败：日志确认 `...0329` 至 `...0393` 收到 queue-full，之后 `...0394` 等请求却被接受。根因是脚本在首次观察到 queue-full 后立即 unpause，而持久 publisher 仍在向 FIFO / Transport 发送后续命令；unpause 使尚未到达插件的后续请求进入队列，破坏了静态 accepted/rejected 边界。已修正为先关闭 FIFO 并等待 publisher 完整退出（含 500ms flush），再检查 queue-full ACK 并 unpause（提交 `fe4a202`）。修复后的 headless 严格 ACK 与 ROS 2 bridge fault injection 尚待 CI。ROS 2 executor run `42554801487` 与 Python syntax run `42554801461` 通过；P104-07 不得提前验收。
+- **当前主节点：P104-07** —— 继续完成 ROS 2 CarryBus 与 Gazebo GraspCarry 插件的事务端到端联调。Gazebo run `42555340660`（提交 `fe4a202`）：插件配置、C++ 编译、bounded queue 单测和共享库依赖检查通过；headless 协议测试在首次 ACK 丢失后的重试计数处失败，ROS 2 bridge fault injection 因此前置步骤失败而跳过。完整日志显示 subscriber 输出 `FIRST_ACK_DROPPED <payload>`，随后缓存 ACK 重放又输出同一 payload 的 `data:` 行；workflow 的 `grep -Fc <payload>` 把诊断行也计为业务 ACK，导致计数错误。这不是插件重复 ACK 的证据。已修正 subscriber：首次丢弃只输出不含 payload 的 `FIRST_ACK_DROPPED` 标记，payload 仍写入 marker 文件确认故障注入，业务 ACK 仍按 `data:` 行输出（提交 `c11f72a`）。`82f0e2b` 的 Python syntax 与 ROS 2 executor integration 均通过；subscriber 计数修复后的 C++ 编译、headless 与 bridge E2E 尚待 CI。P104-07 不得提前验收。
 - **并行回归：P104-08** —— 此前 20/20 纯 Python 测试通过；P104-07 本轮新增 CarryBus 人手交接连续性用例后，`tests/test_p104.py` 共 21 个用例，新增项待 CI 验证。继续扩展真实 RGB-D 遮挡、四相机切换和跟踪重捕获验证。
 - **未关闭的仿真节点：P104-05/P104-06** —— 桌面/手部代理几何和自然收臂逻辑已通过静态/纯测试，但仍需完整 work_area.sdf 场景中的动态碰撞与轨迹验证。
 - **最终验收：P104-09** —— 完整双臂倒水递水 E2E 至少三轮、ROS 2/Gazebo 集成和 P102/P103/P97/P94 回归尚未完成。
@@ -2433,3 +2433,13 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 修正 `.github/workflows/p104-grasp-carry-cpp.yml`：发布完 512 条饱和命令后，立即关闭 FIFO 写端、等待 publisher 退出（helper 保留 500ms final flush），再扫描完整 ACK 流并确定首个拒绝 ID；只有完成全部发送和 flush 后才 unpause。保留 accepted 请求 FIFO / 恰好一次 ACK，以及 rejected 请求恰好一个 queue-full ACK 的严格断言。
 - 提交：`fe4a2024b97783e163aa7c71a535ab153436b03c` — `test: drain Gazebo saturation publisher before resume`。
 - 该修复的 headless Gazebo 与 ROS 2 / ros_gz_bridge ACK fault injection 尚待新 CI 实际验证；P104-07 保持进行中。
+
+
+### 8.72 隔离 ACK 丢失诊断标记与业务 ACK 计数（2026-11-09）
+
+- 检查 Gazebo workflow run `42555340660`（提交 `fe4a202`）：依赖安装、插件配置与编译、bounded queue 单测、共享库依赖检查全部通过；headless 协议步骤在首个 ACK 丢失后的重试计数处失败，后续 ROS 2 / ros_gz_bridge fault injection 被跳过。
+- subscriber 完整日志确认：首次 terminal ACK 被故障注入丢弃时，旧格式输出 `FIRST_ACK_DROPPED <payload>`；相同 request ID 重试后，插件缓存 ACK 正常重放并输出 `data: "<payload>"`。workflow 的 `grep -Fc "<payload>"` 同时匹配诊断行和业务 ACK 行，因此把一次有效重放错误计为两次。该证据不能说明插件重复发布 ACK。
+- 修正 `tests/grasp_carry_subscriber.cc`：首次丢弃只输出固定诊断标记 `FIRST_ACK_DROPPED`，不再把 ACK payload 写入 stdout；payload 仍写入 marker 文件，供脚本确认故障注入确已发生。只有真实转发给测试端的 `data:` 行包含业务 ACK payload，因此既有精确计数断言无需放宽。
+- 提交：`c11f72a9717be889b477937583ea98204312f22c` — `fix: separate dropped ACK marker from ACK payload`。
+- `82f0e2b` 的 Python syntax 与 ROS 2 executor integration 均通过；本次 subscriber 输出修复的 C++ 编译、headless queue saturation 和后续 CarryBus ↔ ROS 2 ↔ ros_gz_bridge ACK loss/retry E2E 尚待新 CI。P104-07 保持未完成。
+
