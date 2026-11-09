@@ -2860,3 +2860,11 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 提交 `bbc909aedef53d5eb85388ca1477bf88b0f302d3` 的 Gazebo run `42597442092` / job `129093445054` 已完成 failure；同提交 ROS 2 executor run `42597442157` success、Python syntax run `42597442045` success。完整 job log 显示 Gazebo 插件构建、bounded queue、headless ACK protocol、此前 bridge fault injection 和真实队列背压均成功；双向 partition 测试在安装第一条规则时即失败，iptables 返回 `Bad argument comment`。实际 argv 证明生成了 `-j -m comment --comment ... DROP`，即 comment match 被错误插入 jump target 之后，尚未执行 packet-counter 或 ACK partition 断言。
 - 修正提交 `b73c2842e4cadc46d63c9c18fd004e2a3f3f135e`：将 comment match 插入规则参数的 `-j DROP` 之前，形成合法顺序 `... -m comment --comment <unique> -j DROP`；保留四条规则 packet counter 必须大于零、partition 期间 ACK observer 不得出现当前 request ID、解除规则后原 ID waiter 成功及状态清理等全部断言，不降低验收标准。
 - `b73c284` 对应 Gazebo / ROS 2 / Python workflows 尚待 CI；以其 Gazebo 完整日志验证规则安装、四条 counter、双向隔离和同 ID 恢复。P104-07 继续“正在进行中”。
+
+
+### 8.115 同主机 Gazebo Transport TCP 双向防火墙方向修正（2026-11-09，CI 待验收）
+
+- 对代码提交 `b73c2842e4cadc46d63c9c18fd004e2a3f3f135e` 的 Gazebo run `42598022681` / job `129095344169` 读取完整日志：GraspCarry 插件构建、原生 ACK 协议、真实 ROS 2 / ros_gz_bridge 集成及前序恢复测试均成功；双向 Transport partition 阶段失败于第一条 INPUT 规则的 packet counter 为 0。失败规则为 command peer 的反向四元组 `172.17.0.1:33104 <- 172.17.0.1:36553`，规则成功安装但未匹配数据包。同期 ROS 2 executor run `42598022624` 与 Python syntax run `42598022767` 均 success；TaskPlan 提交 `837517ee0c4983ed61d85df3d9337ce732063f4e` 对应 ROS 2 run `42598066896` 与 Python run `42598066917` 也均 success。
+- 根因定位：本次 CI 中 bridge 与 Gazebo 两个真实 TCP peer 的本地/远端地址均为 `172.17.0.1`，属于同主机同地址通信；反向数据包经过本机 OUTPUT 路径，而不是预期的 INPUT 链，因此 INPUT counter 为零。此前按不同主机网络路径固定安装 INPUT + OUTPUT 两条规则，不适用于此同主机拓扑。
+- 修复代码提交 `64b52af267a57ed286f6102a5d20629500fbe8d5`：按每个真实 peer 的 local/remote 地址关系选择精确四元组规则。若地址相同，则在 OUTPUT 链分别匹配 local→remote 与 remote→local 两个方向；若地址不同，则仍使用 INPUT 匹配反向流量、OUTPUT 匹配正向流量。两个 peer 各保留两个方向规则，共四条独立规则；每条规则仍要求内核 packet counter 大于零，partition 期间独立 ACK observer 不得出现当前 request ID，移除规则后原 request ID waiter 必须恢复成功，并继续检查 bridge/server PID 与 CarryBus 状态清理。未放宽双向隔离或恢复验收标准。
+- 修复提交 `64b52af267a57ed286f6102a5d20629500fbe8d5` 已触发 Gazebo run `42599099602`、ROS 2 executor run `42599099480`、Python syntax run `42599099669`；登记时三项均 in_progress。必须读取该提交对应 Gazebo 完整日志确认四条 OUTPUT 规则（本次同地址拓扑）均命中、ACK observer 未见原 ID、解除规则后原 ID 事务恢复成功；Python 与 ROS 回归也须完成。**双向 Transport 断连仍未验收，P104-07 继续“正在进行中”。**
