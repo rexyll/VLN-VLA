@@ -2868,3 +2868,11 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 根因定位：本次 CI 中 bridge 与 Gazebo 两个真实 TCP peer 的本地/远端地址均为 `172.17.0.1`，属于同主机同地址通信；反向数据包经过本机 OUTPUT 路径，而不是预期的 INPUT 链，因此 INPUT counter 为零。此前按不同主机网络路径固定安装 INPUT + OUTPUT 两条规则，不适用于此同主机拓扑。
 - 修复代码提交 `64b52af267a57ed286f6102a5d20629500fbe8d5`：按每个真实 peer 的 local/remote 地址关系选择精确四元组规则。若地址相同，则在 OUTPUT 链分别匹配 local→remote 与 remote→local 两个方向；若地址不同，则仍使用 INPUT 匹配反向流量、OUTPUT 匹配正向流量。两个 peer 各保留两个方向规则，共四条独立规则；每条规则仍要求内核 packet counter 大于零，partition 期间独立 ACK observer 不得出现当前 request ID，移除规则后原 request ID waiter 必须恢复成功，并继续检查 bridge/server PID 与 CarryBus 状态清理。未放宽双向隔离或恢复验收标准。
 - 修复提交 `64b52af267a57ed286f6102a5d20629500fbe8d5` 已触发 Gazebo run `42599099602`、ROS 2 executor run `42599099480`、Python syntax run `42599099669`；登记时三项均 in_progress。必须读取该提交对应 Gazebo 完整日志确认四条 OUTPUT 规则（本次同地址拓扑）均命中、ACK observer 未见原 ID、解除规则后原 ID 事务恢复成功；Python 与 ROS 回归也须完成。**双向 Transport 断连仍未验收，P104-07 继续“正在进行中”。**
+
+
+### 8.116 同地址 TCP peer 双链路钩子覆盖与方向计数聚合（2026-11-09，CI 待验收）
+
+- 对代码提交 `64b52af267a57ed286f6102a5d20629500fbe8d5` 的 Gazebo run `42599099602` / job `129098870692` 读取完整日志：GraspCarry 构建、原生 ACK、ROS 2/ros_gz_bridge 集成及此前 bridge 故障恢复阶段均成功；双向 partition 在规则计数断言失败。失败规则为 command peer 的正向 OUTPUT 四元组 `172.17.0.1:60412 → 172.17.0.1:45175`，packet counter 为零。由此可知，仅凭 local/remote IP 相同仍不足以推断实际 netfilter hook；上一次“同地址只使用 OUTPUT”假设未经实测成立。
+- 修订代码提交 `511665ab04b54609a7ea34373a0c3bc398ef8d91`：对于同地址 peer，将正向和反向两个精确 TCP 四元组分别同时安装到 INPUT 与 OUTPUT；对每个 peer/direction 聚合两条 hook 候选规则的 packet counter，只要求该方向至少有一个实际经过的 hook 命中。不同地址 peer 仍使用 INPUT 反向、OUTPUT 正向的标准路径。每条规则仍绑定真实 socket 的 local/remote IP 与端口，保留唯一 comment、规则唯一性检查和完整反向清理。
+- 双向断连的核心验收条件不变：两个真实 Gazebo Transport peer 的两个数据方向都必须有非零内核 packet counter；partition 期间 ACK observer 不得见到当前 request ID 的 terminal ACK；解除全部 DROP 规则后原 request ID waiter 必须成功；bridge 与 Gazebo server 持续存活；CarryBus pending/ACK/event 状态清空；后续 fresh request ID 严格递增。新增 INPUT/OUTPUT 候选 hook 只用于适配本机路由路径，不降低方向隔离验收标准。
+- **状态：代码已提交 main，等待 Gazebo / ROS 2 / Python CI 完整验收。** 需根据 `511665a` 对应 Gazebo 日志验证每个 peer/direction 的聚合计数、ACK 隔离与同 ID 恢复；不得仅凭规则安装成功或纯 Python/ROS 测试通过标记双向断连通过。P104-07 继续“正在进行中”。
