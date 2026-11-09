@@ -2556,3 +2556,10 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 本提交 `c36c5c7` 已直接进入 main。由该测试文件变更触发的 Python / ROS 2 executor CI 正在执行；在 CI 完成前不将本项标记为通过。
 - 此项是 CarryBus waiter/ACK 层确定性回归测试，不等同于 ROS↔Gazebo Transport 实际断连测试。bridge 进程存活但 Transport 不可达、桥接背压、Gazebo/GraspCarry 插件重启和 DrinkTask 完整编排仍是 P104-07 未完成验收项。
 - P104-07 保持“正在进行中”；下一步仍优先建立真实 Transport 故障注入，并在可观测的进程/连接/ACK 证据下验证恢复行为。
+
+### 8.82 修正迟到 ACK 测试中的 CarryBus 终态取消隔离（2026-11-09）
+
+- 检查 §8.81 新增的真实 ROS 2 executor 测试时，发现测试先对共享 bus 调用 cancel_waiters()，随后又在同一实例上启动 fresh waiter。cancel_waiters() 是实例级终态操作，因此后续 waiter 不可能正常注册；原测试在此处会超时，不能作为有效回归证据。
+- 修正为创建独立的 fresh_bus 实例，并复用同一个 ROS 2 executor。迟到 ACK 仍通过同一 ROS ACK topic 注入；断言旧 request ID 不进入新实例 ACK map，且新 waiter 只有收到自身 request ID 的 ACK 才成功；结束时核对 pending / ACK / Event 清理并取消 fresh_bus。
+- 最近两次 ROS 2 executor workflow 均在安装 ROS apt source 阶段因 GitHub release 下载 HTTP 504 失败，未执行 Python 集成测试。Python syntax workflow 对 1e8b1e1 成功，但不代表 executor integration 通过。
+- 本次只修正测试隔离，不改变生产 CarryBus 逻辑；修正后的 ROS 2 executor CI 结果仍待验证。P104-07 保持“正在进行中”，Transport 实际断连、桥接背压、插件重启和 DrinkTask 编排仍未验收。
