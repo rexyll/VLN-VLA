@@ -31,8 +31,10 @@ from vla_follow.carry import ACK_TOPIC, CARRY_TOPIC, CarryBus  # noqa: E402
 RAW_ACK_TOPIC = ACK_TOPIC + "_raw"
 
 
-def _bridge_gz_transport_peer(bridge_pid, sim_pid, topic, gz_config_path):
-    """Find the bridge socket connected to this topic's Gazebo publisher."""
+def _bridge_gz_transport_peer(
+        bridge_pid, sim_pid, topic, gz_config_path,
+        endpoint_kind="publisher"):
+    """Find the bridge socket connected to a Gazebo publisher or subscriber."""
     gz_env = os.environ.copy()
     gz_env.pop("CARRY_GZ_CONFIG_PATH", None)
     # Preserve the active ROS/Gazebo CLI configuration inherited from the
@@ -64,25 +66,24 @@ def _bridge_gz_transport_peer(bridge_pid, sim_pid, topic, gz_config_path):
                     "GZ_CONFIG_PATH=%r; last error: %s" %
                     (topic, gz_env.get("GZ_CONFIG_PATH"), topic_error))
             time.sleep(0.25)
-    publisher_section = topic_info.split("Subscribers", 1)[0]
+    topic_sections = topic_info.split("Subscribers", 1)
+    if endpoint_kind == "subscriber":
+        endpoint_section = topic_sections[1] if len(topic_sections) > 1 else ""
+    elif endpoint_kind == "publisher":
+        endpoint_section = topic_sections[0]
+    else:
+        raise ValueError("endpoint_kind must be publisher or subscriber")
     publisher_endpoints = set()
-    for address, port_text in re.findall(
-            r"tcp://(\[[^]]+\]|[^:,\s]+):(\d+)",
-            publisher_section):
+    for address, port_text in re.findall(r"tcp://(\\[[^]]+\\]|[^:,\\s]+):(\\d+)", endpoint_section):
         host = address.strip("[]")
         try:
             ipaddress.ip_address(host)
             publisher_endpoints.add((host, int(port_text)))
         except ValueError:
             continue
-    established = subprocess.check_output(
-        ["sudo", "ss", "-Htnp", "state", "established"],
-        text=True, stderr=subprocess.STDOUT)
-    listeners = subprocess.check_output(
-        ["sudo", "ss", "-Hltnp", "state", "listening"],
-        text=True, stderr=subprocess.STDOUT)
-    process_table = subprocess.check_output(
-        ["ps", "-eo", "pid=,ppid=,args="], text=True)
+    established = subprocess.check_output(["sudo", "ss", "-Htnp", "state", "established"], text=True, stderr=subprocess.STDOUT)
+    listeners = subprocess.check_output(["sudo", "ss", "-Hltnp", "state", "listening"], text=True, stderr=subprocess.STDOUT)
+    process_table = subprocess.check_output(["ps", "-eo", "pid=,ppid=,args="], text=True)
     children = {}
     for process_line in process_table.splitlines():
         fields = process_line.strip().split(None, 2)
@@ -98,19 +99,13 @@ def _bridge_gz_transport_peer(bridge_pid, sim_pid, topic, gz_config_path):
                     pids.add(child)
                     frontier.append(child)
         return pids
-
     sim_pids = descendants(sim_pid)
     bridge_pids = descendants(bridge_pid)
-
     peers = set()
     for line in established.splitlines():
         if not any("pid=%d," % pid in line for pid in bridge_pids):
             continue
         fields = line.split()
-        # `ss -Htnp state established` omits the state column:
-        # Recv-Q Send-Q Local-Address Peer-Address Process.
-        # The peer endpoint is therefore fields[3]; fields[4] is the
-        # optional process descriptor (for example, "users:(...)").
         if len(fields) < 4:
             continue
         local_endpoint, endpoint = fields[2], fields[3]
@@ -796,6 +791,10 @@ class TestCarryGazeboBridge(unittest.TestCase):
                 pre_restart_bridge.pid, int(os.environ["CARRY_SIM_PID"]),
                 "/drink/carry/ack",
                 os.environ.get("CARRY_GZ_CONFIG_PATH", ""))
+            _bridge_gz_transport_peer(
+                pre_restart_bridge.pid, int(os.environ["CARRY_SIM_PID"]),
+                "/drink/carry", os.environ.get("CARRY_GZ_CONFIG_PATH", ""),
+                endpoint_kind="subscriber")
             # Allow the independent ROS->GZ command socket to finish discovery
             # as well; bridge log creation alone is not a transport handshake.
             time.sleep(1.0)
@@ -917,6 +916,16 @@ class TestCarryGazeboBridge(unittest.TestCase):
                 else:
                     with open(restarted_bridge_log, encoding="utf-8") as log:
                         self.fail("bridge after Gazebo restart not ready: " + log.read())
+
+                # Require actual Gazebo Transport TCP peers in both directions;
+                # bridge log creation and ROS graph matches alone are insufficient.
+                _bridge_gz_transport_peer(
+                    restarted_server_bridge.pid, restarted_sim.pid,
+                    "/drink/carry/ack", saved_gz_config)
+                _bridge_gz_transport_peer(
+                    restarted_server_bridge.pid, restarted_sim.pid,
+                    "/drink/carry", saved_gz_config,
+                    endpoint_kind="subscriber")
 
                 # The retry carries the original request ID. Since the entire
                 # plugin instance was recreated, its in-memory ACK cache is
