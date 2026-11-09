@@ -132,6 +132,38 @@ def _bridge_gz_transport_peer(
     return next(iter(peers))
 
 
+
+def _gazebo_topic_endpoints(topic, gz_config_path, endpoint_kind):
+    """Return the advertised TCP endpoints for one Gazebo topic direction."""
+    env = os.environ.copy()
+    env.pop("CARRY_GZ_CONFIG_PATH", None)
+    if gz_config_path:
+        env["GZ_CONFIG_PATH"] = gz_config_path
+    try:
+        info = subprocess.check_output(
+            ["gz", "topic", "-i", "-t", topic],
+            text=True, stderr=subprocess.STDOUT, env=env, timeout=5.0)
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        return set()
+    sections = info.split("Subscribers", 1)
+    if endpoint_kind == "publisher":
+        section = sections[0]
+    elif endpoint_kind == "subscriber":
+        section = sections[1] if len(sections) > 1 else ""
+    else:
+        raise ValueError("endpoint_kind must be publisher or subscriber")
+    endpoints = set()
+    for address, port_text in re.findall(
+            r"tcp://(\\[[^]]+\\]|[^:,\\s]+):(\\d+)", section):
+        host = address.strip("[]")
+        try:
+            ipaddress.ip_address(host)
+            endpoints.add((host, int(port_text)))
+        except ValueError:
+            continue
+    return endpoints
+
+
 def _signal_process_group(pid, signum):
     """Signal a launcher process's actual group, tolerating setsid wrappers."""
     try:
@@ -472,6 +504,159 @@ class TestCarryGazeboBridge(unittest.TestCase):
                 else:
                     with open(transport_bridge_log, encoding="utf-8") as log:
                         self.fail("transport bridge not ready: " + log.read())
+
+                # Reload only the GraspCarry system plugin by removing and
+                # recreating its dedicated model entity. Gazebo server and
+                # parameter_bridge must remain the same live processes.
+                sim_pid = int(os.environ["CARRY_SIM_PID"])
+                bridge_pid = transport_bridge.pid
+                ack_peer_before = _bridge_gz_transport_peer(
+                    bridge_pid, sim_pid, "/drink/carry/ack",
+                    os.environ.get("CARRY_GZ_CONFIG_PATH", ""))
+                command_peer_before = _bridge_gz_transport_peer(
+                    bridge_pid, sim_pid, "/drink/carry",
+                    os.environ.get("CARRY_GZ_CONFIG_PATH", ""),
+                    endpoint_kind="subscriber")
+                relay.drop_all.set()
+                relay.dropped_next.clear()
+                plugin_reload_result = {}
+                plugin_reload_send = {"last": 0.0}
+
+                def plugin_reload_transaction():
+                    def emit(request_id):
+                        now = time.monotonic()
+                        if now - plugin_reload_send["last"] < 0.5:
+                            return
+                        plugin_reload_send["last"] = now
+                        plugin_reload_result["request_id"] = request_id
+                        bus._send(
+                            "place cup 0.11 0.03 0.52 0 0 0 1 %d" % request_id)
+                    plugin_reload_result["ok"] = bus._await(
+                        emit,
+                        lambda ack, request_id: ack ==
+                        "ok place cup %d" % request_id,
+                        timeout=30.0)
+
+                plugin_reload_worker = threading.Thread(
+                    target=plugin_reload_transaction, daemon=True)
+                plugin_reload_worker.start()
+                self.assertTrue(
+                    relay.dropped_next.wait(8.0),
+                    "plugin terminal ACK was not intercepted before reload")
+
+                remove_output = subprocess.check_output(
+                    ["gz", "service", "-s",
+                     "/world/grasp_carry_test/remove",
+                     "--reqtype", "gz.msgs.Entity",
+                     "--reptype", "gz.msgs.Boolean", "--timeout", "2000",
+                     "--req",
+                     'name: "grasp_carry_plugin_host", type: MODEL'],
+                    text=True, stderr=subprocess.STDOUT, env=gz_env,
+                    timeout=5.0)
+                self.assertIn("data: true", remove_output)
+                endpoint_deadline = time.monotonic() + 8.0
+                while time.monotonic() < endpoint_deadline:
+                    ack_endpoints = _gazebo_topic_endpoints(
+                        "/drink/carry/ack",
+                        os.environ.get("CARRY_GZ_CONFIG_PATH", ""),
+                        "publisher")
+                    command_endpoints = _gazebo_topic_endpoints(
+                        "/drink/carry",
+                        os.environ.get("CARRY_GZ_CONFIG_PATH", ""),
+                        "subscriber")
+                    if not ack_endpoints and not command_endpoints:
+                        break
+                    time.sleep(0.1)
+                else:
+                    self.fail(
+                        "GraspCarry endpoints remained advertised after "
+                        "removing its model/plugin")
+                os.kill(sim_pid, 0)
+                os.kill(bridge_pid, 0)
+
+                host_sdf = os.path.join(
+                    ROOT, "tests", "grasp_carry_plugin_host.sdf")
+                create_output = subprocess.check_output(
+                    ["gz", "service", "-s",
+                     "/world/grasp_carry_test/create",
+                     "--reqtype", "gz.msgs.EntityFactory",
+                     "--reptype", "gz.msgs.Boolean", "--timeout", "5000",
+                     "--req",
+                     'sdf_filename: "%s", name: "grasp_carry_plugin_host"'
+                     % host_sdf],
+                    text=True, stderr=subprocess.STDOUT, env=gz_env,
+                    timeout=8.0)
+                self.assertIn("data: true", create_output)
+                endpoint_deadline = time.monotonic() + 15.0
+                while time.monotonic() < endpoint_deadline:
+                    ack_endpoints = _gazebo_topic_endpoints(
+                        "/drink/carry/ack",
+                        os.environ.get("CARRY_GZ_CONFIG_PATH", ""),
+                        "publisher")
+                    command_endpoints = _gazebo_topic_endpoints(
+                        "/drink/carry",
+                        os.environ.get("CARRY_GZ_CONFIG_PATH", ""),
+                        "subscriber")
+                    if ack_endpoints and command_endpoints:
+                        break
+                    time.sleep(0.1)
+                else:
+                    self.fail(
+                        "GraspCarry endpoints did not return after "
+                        "recreating its model/plugin")
+                ack_peer_after = _bridge_gz_transport_peer(
+                    bridge_pid, sim_pid, "/drink/carry/ack",
+                    os.environ.get("CARRY_GZ_CONFIG_PATH", ""))
+                command_peer_after = _bridge_gz_transport_peer(
+                    bridge_pid, sim_pid, "/drink/carry",
+                    os.environ.get("CARRY_GZ_CONFIG_PATH", ""),
+                    endpoint_kind="subscriber")
+                os.kill(sim_pid, 0)
+                os.kill(bridge_pid, 0)
+                relay.drop_all.clear()
+                plugin_reload_worker.join(timeout=32.0)
+                self.assertFalse(
+                    plugin_reload_worker.is_alive(),
+                    "CarryBus waiter hung across plugin-only reload")
+                self.assertTrue(
+                    plugin_reload_result.get("ok"),
+                    "same-ID transaction did not recover after plugin-only reload")
+                self.assertGreater(plugin_reload_result.get("request_id", 0), 0)
+                self.assertFalse(bus.pending_requests)
+                self.assertFalse(bus.ack_by_request)
+                self.assertFalse(bus._ack_events)
+
+                fresh_plugin_result = {}
+
+                def fresh_after_plugin_reload():
+                    def emit(request_id):
+                        fresh_plugin_result["request_id"] = request_id
+                        bus._send(
+                            "place cup 0.10 0.03 0.52 0 0 0 1 %d" % request_id)
+                    fresh_plugin_result["ok"] = bus._await(
+                        emit,
+                        lambda ack, request_id: ack ==
+                        "ok place cup %d" % request_id,
+                        timeout=8.0)
+
+                fresh_plugin_worker = threading.Thread(
+                    target=fresh_after_plugin_reload, daemon=True)
+                fresh_plugin_worker.start()
+                fresh_plugin_worker.join(timeout=10.0)
+                self.assertFalse(
+                    fresh_plugin_worker.is_alive(),
+                    "fresh transaction hung after plugin-only reload")
+                self.assertTrue(
+                    fresh_plugin_result.get("ok"),
+                    "fresh transaction failed after plugin-only reload")
+                self.assertGreater(
+                    fresh_plugin_result.get("request_id", 0),
+                    plugin_reload_result["request_id"])
+                self.assertFalse(bus.pending_requests)
+                self.assertFalse(bus.ack_by_request)
+                self.assertFalse(bus._ack_events)
+                os.kill(sim_pid, 0)
+                os.kill(bridge_pid, 0)
 
                 # Partition only the established Gazebo->bridge ACK data socket.
                 # The bridge process and ROS side remain alive; a direct Gazebo
