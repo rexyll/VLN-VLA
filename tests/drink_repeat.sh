@@ -56,6 +56,22 @@ if ! [[ "$TAG" =~ ^[A-Za-z0-9._-]+$ ]] || [[ "$TAG" == "." || "$TAG" == ".." ]];
 fi
 
 mkdir -p "$OUTDIR"
+SUMMARY="$OUTDIR/drink_repeat_${TAG}.json"
+
+# Keep prior E2E evidence immutable: reusing a tag must never overwrite
+# archived round JSON or the previous aggregate report.
+if [[ -e "$SUMMARY" || -L "$SUMMARY" ]]; then
+    echo "Repeat summary already exists: $SUMMARY; choose a new tag." >&2
+    exit 2
+fi
+for ((i=1; i<=N; i++)); do
+    SNAPSHOT="$OUTDIR/drink_${TAG}_${i}.json"
+    if [[ -e "$SNAPSHOT" || -L "$SNAPSHOT" ]]; then
+        echo "Round evidence already exists: $SNAPSHOT; choose a new tag." >&2
+        exit 2
+    fi
+done
+
 RESULT="$ROOT/vla_ws/logs/test_drink.json"
 SNAPSHOTS=()
 FAILED=0
@@ -92,7 +108,6 @@ for ((i=1; i<=N; i++)); do
     fi
 done
 
-SUMMARY="$OUTDIR/drink_repeat_${TAG}.json"
 python3 - "$SUMMARY" "$N" "${SNAPSHOTS[@]}" <<'PY'
 import json
 import os
