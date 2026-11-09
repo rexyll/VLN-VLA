@@ -269,8 +269,19 @@ class TestCarryGazeboBridge(unittest.TestCase):
                     time.sleep(0.1)
                 else:
                     with open(sim_log, encoding="utf-8") as log:
-                        self.fail("restarted GraspCarry plugin not ready: " +
-                                  log.read())
+                        sim_output = log.read()
+                    process_dump = subprocess.run(
+                        ["ps", "-eo", "pid,ppid,pgid,stat,args"],
+                        capture_output=True, text=True).stdout
+                    command_dump = subprocess.run(
+                        ["gz", "--commands"], env=sim_env,
+                        capture_output=True, text=True, timeout=5.0)
+                    self.fail(
+                        "restarted GraspCarry plugin not ready; "
+                        "process poll=%r; gz commands=%r; "
+                        "sim log=%s; processes=%s" %
+                        (restarted_sim.poll(), command_dump.stdout,
+                         sim_output, process_dump))
 
                 relay.drop_all.clear()
                 plugin_restart_worker.join(timeout=12.0)
