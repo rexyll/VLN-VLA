@@ -40,6 +40,9 @@ int main()
       std::cerr << "failed to publish command: " << command << std::endl;
       return 1;
     }
+    // Yield briefly so the transport worker can deliver each message while
+    // remaining far faster than the simulator's command-consumption cadence.
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
   }
 
   // Allow the transport layer to flush the final message before teardown.
