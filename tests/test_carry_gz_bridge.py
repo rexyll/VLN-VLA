@@ -234,7 +234,7 @@ class TestCarryGazeboBridge(unittest.TestCase):
             with open(os.environ["CARRY_GZ_ENV_FILE"],
                       encoding="utf-8") as saved_env:
                 for line in saved_env:
-                    key, separator, value = line.rstrip("\\n").partition("=")
+                    key, separator, value = line.rstrip("\n").partition("=")
                     if separator:
                         sim_env[key] = value
 
