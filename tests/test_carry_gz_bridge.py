@@ -154,7 +154,7 @@ def _gazebo_topic_endpoints(topic, gz_config_path, endpoint_kind):
         raise ValueError("endpoint_kind must be publisher or subscriber")
     endpoints = set()
     for address, port_text in re.findall(
-            r"tcp://(\\[[^]]+\\]|[^:,\\s]+):(\\d+)", section):
+            r"tcp://(\[[^]]+\]|[^:,\s]+):(\d+)", section):
         host = address.strip("[]")
         try:
             ipaddress.ip_address(host)
@@ -517,6 +517,13 @@ class TestCarryGazeboBridge(unittest.TestCase):
                     bridge_pid, sim_pid, "/drink/carry",
                     os.environ.get("CARRY_GZ_CONFIG_PATH", ""),
                     endpoint_kind="subscriber")
+                plugin_gz_env = os.environ.copy()
+                plugin_saved_gz_config = plugin_gz_env.pop(
+                    "CARRY_GZ_CONFIG_PATH", "")
+                if plugin_saved_gz_config:
+                    plugin_gz_env["GZ_CONFIG_PATH"] = plugin_saved_gz_config
+                else:
+                    plugin_gz_env.pop("GZ_CONFIG_PATH", None)
                 relay.drop_all.set()
                 relay.dropped_next.clear()
                 plugin_reload_result = {}
@@ -551,7 +558,7 @@ class TestCarryGazeboBridge(unittest.TestCase):
                      "--reptype", "gz.msgs.Boolean", "--timeout", "2000",
                      "--req",
                      'name: "grasp_carry_plugin_host", type: MODEL'],
-                    text=True, stderr=subprocess.STDOUT, env=gz_env,
+                    text=True, stderr=subprocess.STDOUT, env=plugin_gz_env,
                     timeout=5.0)
                 self.assertIn("data: true", remove_output)
                 endpoint_deadline = time.monotonic() + 8.0
@@ -584,7 +591,7 @@ class TestCarryGazeboBridge(unittest.TestCase):
                      "--req",
                      'sdf_filename: "%s", name: "grasp_carry_plugin_host"'
                      % host_sdf],
-                    text=True, stderr=subprocess.STDOUT, env=gz_env,
+                    text=True, stderr=subprocess.STDOUT, env=plugin_gz_env,
                     timeout=8.0)
                 self.assertIn("data: true", create_output)
                 endpoint_deadline = time.monotonic() + 15.0
