@@ -3080,3 +3080,12 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - runner 对轮数、冷却时间和 tag 做输入校验；默认 3 轮、每轮间隔 10 秒，支持沿用 `P91_WARMUP` 与 `P91_FOLLOW_WATCH` 环境变量调整每轮随机活动和交权后跟随观察窗口。执行前提是完整 Gazebo/ROS 2 demo 已运行；runner 不负责启动/重启仿真，也不伪造仿真结果。
 - CI guard 工作流提交 `fccd1b659d1960b45efff1f7ca0ac600f7986348`：将 `tests/test_drink.py` 纳入 Python `py_compile`，并增加 `bash -n tests/drink_repeat.sh`。对应 Python run `42639797275` 的 `Compile changed Python modules` job `129237537451` 与 `Run P104 pure math and kinematics tests` job `129237537686` 均 success；ROS 2 executor run `42639797272` / job `129237537228` 也 completed/success。
 - **状态：runner 已提交 main，但尚未在真实仿真环境执行；0 轮新增 E2E 结果、0 轮新增通过证据。** 下一步运行 `bash tests/drink_repeat.sh 3 p104`，审查每轮 JSON 与汇总，遇失败先定位并修复根因；三轮真实完整链路及长时间稳定性通过前，P104-07 保持“正在进行中”。
+
+
+### 8.141 修复 DrinkTask 重复验收 runner 的 ROS 2 环境初始化（2026-11-09，修正后待 CI）
+
+- 复核 tests/drink_repeat.sh 的执行边界时发现：tools/start_scene.sh 与 tools/start_drink_demo.sh 都在各自子进程中 source ROS 2 Jazzy 和工作区 overlay；这不会把环境变量传回随后独立启动的重复验收 runner。runner 直接执行 python3 tests/test_drink.py 可能因此在导入 rclpy / vla_follow 前缺少 ROS 环境。
+- 修正提交：4cb5e8478336213c1af66116ccb797c9b5f59cc7。runner 现在显式检查 /opt/ros/jazzy/setup.bash 与 vla_ws/install/setup.bash 存在，再依次 source 两层环境，并确保 vla_ws/logs 已创建；缺少环境时以明确错误退出，不会误启动测试。
+- 前一版 runner 提交 47dcfe2b857370fd557ae4c392d521b1b67a2073 的 Python compile、纯 Python 测试、shell syntax guard 与 ROS 2 executor CI 已通过：Python run 42640070609（jobs 129238524574、129238525014）success；ROS 2 run 42640070526 / job 129238523625 success。该结果只证明静态/现有回归，不代表真实 DrinkTask 仿真已执行。
+- 本修正触发 Python run 42640905435 与 ROS 2 executor run 42640905434；TaskPlan 更新时两者均 in_progress，须等待终态并检查 job steps。
+- **状态：runner 环境初始化修正已提交 main，CI 待验收；真实 Gazebo DrinkTask E2E 仍未运行，新增完整 E2E 通过轮数仍为 0。** CI 通过后，下一步仍需在具备 Gazebo Harmonic、ROS 2 Jazzy 与工作区 install overlay 的仿真主机执行 bash tests/drink_repeat.sh 3 p104，审查每轮 JSON 与汇总。P104-07 保持“正在进行中”。
