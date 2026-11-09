@@ -2837,3 +2837,11 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 测试通过两个独立 `gz topic -e` observer 监视命令和 ACK：在双向 partition 期间，要求带唯一 request ID 的命令不出现在 Gazebo command observer 中，且对应 ACK 不出现在 ACK observer 中；保持 CarryBus waiter 活跃，移除四条规则后，要求同一个 request ID 的事务成功，随后验证 request ID 递增、bridge/server PID 存活及 pending/ACK/event 状态清空。原有单向 ACK partition 与队列背压测试保留。
 - 测试代码提交 `d9683e1a4f3e904dc130b559da4bffac2b480bbc`；修正请求等待逻辑的提交 `334c602e77fcffdd9b54593d7e53a94f399f6149`。后者为当前测试版本，已触发 Gazebo run `42595638807`、ROS 2 executor run `42595638534`、Python syntax run `42595638734`；登记时 Gazebo/ROS workflow 为 in_progress，Python 为 queued。前一提交 `d9683e1` 对应 Gazebo run `42595571991` 与 ROS 2 run `42595572190` 仍 in_progress，Python run `42595572076` success。以上均不得提前标记双向断连测试通过。
 - **当前状态：双向 Transport 断连测试已实现，等待最新提交 `334c602e` 的 Gazebo 集成日志和 Python/ROS 回归验收。** 若 observer 输出格式、socket peer 方向、iptables 精确规则或同 ID waiter 恢复断言失败，应依据完整 job log 修复，不得降低双向断连与恢复断言。P104-07 继续“正在进行中”。
+
+
+### 8.112 双向 Transport 测试断言修正（2026-11-09，CI 待复验）
+
+- 对提交 `334c602e77fcffdd9b54593d7e53a94f399f6149` 的 Gazebo run `42595638807`（job `129087471745`）读取完整日志：集成测试执行到双向 partition 阶段后失败，错误为 command observer 收到命令。此前提交 `d9683e1` 的 run `42595571991` 同样失败，但原因是 `_wait_for` 未定义；该 NameError 已在 `334c602e` 修正。
+- 对 observer 语义复核后确认：独立 `gz topic -e -t /drink/carry` subscriber 会在自身独立 TCP 连接上收到 bridge 发布的数据，即使 bridge 到 plugin 的另一条 TCP peer 已被精确防火墙规则阻断。因此它不能用来断言 plugin 是否收到命令。删除这一错误断言及无效 command observer，保留真实命令 peer + ACK peer 的双向 INPUT/OUTPUT 四元组 DROP 规则，以及独立 `/drink/carry/ack` observer 对 plugin terminal ACK 的检测。
+- 修订提交：`125920853e72ba788ac66cd402259f4d2689e452`。当前测试要求 partition 期间独立 ACK observer 不出现该 request ID 的 terminal ACK；移除防火墙规则后，原 request ID waiter 必须恢复成功，且 Gazebo/bridge 进程存活、CarryBus pending/ACK/event 清空。双向断连场景仍待此提交的 Gazebo CI 验收，不得标记通过。
+- 当前 P104-07 仍“正在进行中”；下一步读取 `125920853` 对应 Gazebo/ROS/Python CI，若 ACK observer 或同 ID waiter 仍失败，依据日志继续定位 socket 规则和恢复时序。
