@@ -844,6 +844,9 @@ class TestCarryGazeboBridge(unittest.TestCase):
                             (peer_name, local_host, local_port, remote_host,
                              remote_port, route_output))
                     peer_network_diagnostics.append(
+                        "command_ack_share_tcp_peer=%s" %
+                        (command_peer == ack_peer))
+                    peer_network_diagnostics.append(
                         "netns self=%s bridge=%s gazebo=%s" %
                         (os.readlink("/proc/self/ns/net"),
                          os.readlink("/proc/%d/ns/net" %
@@ -855,9 +858,15 @@ class TestCarryGazeboBridge(unittest.TestCase):
                         self.assertIsNone(
                             ack_observer.poll(),
                             "Gazebo ACK observer exited early")
+                        # Gazebo Transport may multiplex both topics
+                        # over one bridge TCP connection. Deduplicate identical
+                        # socket tuples: duplicate DROP rules shadow one another
+                        # and create false per-topic counter expectations.
+                        unique_transport_peers = list(dict.fromkeys(
+                            (command_peer, ack_peer)))
                         for peer_index, (local_host, local_port, remote_host,
                                          remote_port) in enumerate(
-                                (command_peer, ack_peer)):
+                                unique_transport_peers):
                             family = (
                                 "ip6tables" if ":" in remote_host
                                 else "iptables")
@@ -934,7 +943,40 @@ class TestCarryGazeboBridge(unittest.TestCase):
                             bidirectional_result.get("request_id"),
                             "bidirectional partition request was not issued")
                         bidirectional_id = bidirectional_result["request_id"]
-                        time.sleep(1.5)
+
+                        # Exercise the reverse direction on the same live
+                        # Gazebo Transport connection while the bridge peer is
+                        # firewalled. A native publisher reaches the plugin over
+                        # its own connection; the plugin's terminal ACK must
+                        # then traverse the blocked plugin->bridge direction.
+                        # The independent observer is expected to see this
+                        # probe ACK, while the CarryBus request above must not
+                        # appear because its bridge->plugin command is blocked.
+                        reverse_probe_id = bidirectional_id + 1000000000
+                        reverse_probe = (
+                            "joint cup water_joint 0.009 %d" %
+                            reverse_probe_id)
+                        subprocess.check_output(
+                            ["gz", "topic", "-t", "/drink/carry",
+                             "-m", "gz.msgs.StringMsg", "-p",
+                             "data: '%s'" % reverse_probe],
+                            text=True, stderr=subprocess.STDOUT,
+                            env=gz_env, timeout=5.0)
+                        reverse_probe_deadline = time.monotonic() + 4.0
+                        while time.monotonic() < reverse_probe_deadline:
+                            with open(bidirectional_ack_log,
+                                      encoding="utf-8") as stream:
+                                observed_acks = stream.read()
+                            if ("ok joint cup water_joint %d" %
+                                    reverse_probe_id) in observed_acks:
+                                break
+                            time.sleep(0.05)
+                        else:
+                            self.fail(
+                                "independent Gazebo ACK observer did not see "
+                                "reverse-direction probe ACK; output: " +
+                                observed_acks)
+                        time.sleep(1.0)
                         with open(bidirectional_ack_log,
                                   encoding="utf-8") as stream:
                             observed_acks = stream.read()
@@ -1011,11 +1053,16 @@ class TestCarryGazeboBridge(unittest.TestCase):
                                       "else echo conntrack-not-installed; fi"],
                                      text=True, stdout=subprocess.PIPE,
                                      stderr=subprocess.STDOUT).stdout))
-                        self.assertNotIn(
-                            "joint cup water_joint %d" % bidirectional_id,
+                        self.assertIn(
+                            "ok joint cup water_joint %d" % reverse_probe_id,
                             observed_acks,
-                            "plugin ACK appeared while both Transport peers "
-                            "were firewalled")
+                            "reverse-direction probe ACK was not independently "
+                            "observable")
+                        self.assertNotIn(
+                            "ok joint cup water_joint %d" % bidirectional_id,
+                            observed_acks,
+                            "CarryBus request reached the plugin while its "
+                            "Transport command direction was firewalled")
                         os.kill(transport_bridge.pid, 0)
                         os.kill(int(os.environ["CARRY_SIM_PID"]), 0)
                     finally:
