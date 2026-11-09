@@ -840,10 +840,11 @@ class TestCarryGazeboBridge(unittest.TestCase):
             restart_env = os.environ.copy()
             restart_env.pop("CARRY_GZ_CONFIG_PATH", None)
             saved_gz_config = os.environ.get("CARRY_GZ_CONFIG_PATH", "")
+            # Launch Gazebo without ROS setup's GZ_CONFIG_PATH override; it can hide gz sim.
+            restart_env.pop("GZ_CONFIG_PATH", None)
+            probe_env = restart_env.copy()
             if saved_gz_config:
-                restart_env["GZ_CONFIG_PATH"] = saved_gz_config
-            else:
-                restart_env.pop("GZ_CONFIG_PATH", None)
+                probe_env["GZ_CONFIG_PATH"] = saved_gz_config
             server_log = "/tmp/grasp-carry-gz-server-restarted.log"
             with open(server_log, "w", encoding="utf-8") as stream:
                 restarted_sim = subprocess.Popen(
@@ -861,7 +862,7 @@ class TestCarryGazeboBridge(unittest.TestCase):
                     try:
                         topics = subprocess.check_output(
                             ["gz", "topic", "-l"], text=True,
-                            stderr=subprocess.STDOUT, env=restart_env,
+                            stderr=subprocess.STDOUT, env=probe_env,
                             timeout=4.0)
                     except (subprocess.CalledProcessError,
                             subprocess.TimeoutExpired):
