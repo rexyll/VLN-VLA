@@ -9,7 +9,7 @@
 
 ## 当前执行位置（2026-11-08）
 
-- **当前主节点：P104-07** —— 继续完成 ROS 2 CarryBus 与 Gazebo GraspCarry 插件的事务端到端联调；插件构建、队列单测及共享库检查已通过；headless queue saturation 已改为动态发现首个 queue-full request ID，避免 pause/PreUpdate 边界竞态；首轮修订测试又将“队列溢出每个 request 的单次 ACK”与“同一 request 重试后的 ACK replay”放在同一统计窗口，导致 ACK 数量断言混淆，现拆分为独立验收：队列饱和测试要求每个输入 request 恰好一个终态 ACK，重试/ACK replay 由独立事务测试验证；最新 CI 正在执行，未通过前不计入已验收能力。
+- **当前主节点：P104-07** —— 继续完成 ROS 2 CarryBus 与 Gazebo GraspCarry 插件的事务端到端联调；插件构建、队列单测及共享库检查已通过。headless queue saturation 已动态发现首个 queue-full request ID，并将队列终态 ACK 计数与独立事务 ACK replay 验收拆分。针对 `5229d47` 的 CI 已确认 Python 与 ROS 2 executor 通过，但 Gazebo 测试在 160 条突发命令中漏观测一个拒绝 ACK（request ID `...0352`），桥接步骤因此跳过。已在 `b8e5b574` 为每次 one-shot `gz topic` 发布增加短暂 transport flush 窗口；对应 Gazebo / Python / ROS 2 CI 正在执行，未通过前不计入已验收能力。
 - **并行回归：P104-08** —— 此前 20/20 纯 Python 测试通过；P104-07 本轮新增 CarryBus 人手交接连续性用例后，`tests/test_p104.py` 共 21 个用例，新增项待 CI 验证。继续扩展真实 RGB-D 遮挡、四相机切换和跟踪重捕获验证。
 - **未关闭的仿真节点：P104-05/P104-06** —— 桌面/手部代理几何和自然收臂逻辑已通过静态/纯测试，但仍需完整 work_area.sdf 场景中的动态碰撞与轨迹验证。
 - **最终验收：P104-09** —— 完整双臂倒水递水 E2E 至少三轮、ROS 2/Gazebo 集成和 P102/P103/P97/P94 回归尚未完成。
@@ -2303,3 +2303,13 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 这次拆分避免用放宽 ACK 数量断言掩盖潜在重复 ACK；队列满载协议仍保留严格单 ACK 检查。
 - bridge E2E 尚未执行成功；P104-07 继续未完成。
 
+
+
+### 8.60 提高 headless Gazebo 突发命令发布的 transport flush 可靠性（2026-11-09）
+
+- 针对 §8.59 后的 CI run `42544346926` 检查完整 job log：插件配置、C++ 编译、队列单测、共享库依赖检查均通过；队列恢复后的已接收命令 FIFO 与 ACK 单次计数检查也通过。失败发生在 queue-full ACK 精确计数循环，日志中 request ID `1700000000000000352` 未观测到对应 ACK，导致后续 ros_gz_bridge 故障注入步骤被跳过。
+- 当前测试对每条命令均启动一个短生命周期 `gz topic -p` 进程；即使 CLI 返回成功，发布进程立即退出仍可能使 Gazebo Transport 的单条消息未完成交付。不能通过放宽 ACK 计数来掩盖该问题。
+- 修改 `.github/workflows/p104-grasp-carry-cpp.yml` 的 `publish()`：每次 one-shot 发布完成后等待 20ms，让 Transport 有时间完成发送，再退出发布子进程；原有每个 request 恰好一个终态 ACK、成功队列 FIFO 和顺序断言均保持不变。
+- 提交：`b8e5b5749a5235c5fd7a0956f520a7514696c47f` — `test: flush Gazebo one-shot command publishers`。
+- CI：Python run `42545031250` completed / success；ROS 2 executor run `42545031364` 与 Gazebo C++ / headless / ros_gz_bridge run `42545031460` 提交时仍在执行。
+- 验收边界：20ms flush 是针对短生命周期发布进程的测试可靠性修正，不改变插件队列容量或生产协议。必须等 headless ACK 计数通过且后续 CarryBus ↔ ROS 2 ↔ ros_gz_bridge ACK fault injection 实际执行成功，才能认定桥接链路初步通过；P104-07 仍未完成。
