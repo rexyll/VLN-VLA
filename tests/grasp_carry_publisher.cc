@@ -9,7 +9,7 @@
 int main()
 {
   gz::transport::Node node;
-  auto publisher = node.Advertise<gz::msgs::StringMsg>("/drink/carry", 512);
+  auto publisher = node.Advertise<gz::msgs::StringMsg>("/drink/carry");
 
   // Do not consume the command FIFO until the plugin subscriber has been
   // discovered. Advertise() alone only creates a local publisher endpoint;
