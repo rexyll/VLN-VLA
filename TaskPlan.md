@@ -10,7 +10,7 @@
 ## 当前执行位置（2026-11-09）
 
 - **当前主节点：P104-07（基础桥接事务、bridge 进程重启/停止恢复、ACK 回程 TCP socket 定向阻断与恢复、真实 ROS 2→ros_gz_bridge→Gazebo 路径队列背压、whole Gazebo server restart + bridge 重建、plugin-only model reload 均已通过 CI；当前修复双向 Gazebo Transport TCP 断连测试的防火墙命中验证，随后长时间稳定性及 DrinkTask 完整编排）** —— 以 `tests/test_carry_gz_bridge.py` 为当前真实集成验收入口。该测试在 ROS 2 `MultiThreadedExecutor` + Gazebo + `ros_gz_bridge` 环境中覆盖：首个 terminal ACK 丢失后的同 ID 重试/插件缓存重放；两个并发 joint 事务的 ACK/request ID 隔离；实际停止并重启 `parameter_bridge` 时活动 waiter 的恢复；bridge 停止期间事务超时、pending/ACK/Event 清理，以及 bridge 恢复后新事务使用更大的 request ID 成功完成。对应提交 `97394a3` 的 Gazebo run `42565700320`、Python run `42565700274`、ROS 2 executor run `42565700237` 均 success；TaskPlan 后续提交 `7ec12fc` 的 Python run `42566028793` 与 ROS 2 executor run `42566028713` 也均 success。此前 Gazebo 插件进程重启实验因新 server/plugin ACK endpoint 未能可靠恢复而隔离，不能计作通过。下一步先建立 bridge 进程存活但 Gazebo Transport 实际不可达的可控故障注入，再验证队列背压与插件重启语义；P104-07 不关闭。
-- **并行回归：P104-08** —— 此前 20/20 纯 Python 测试通过；P104-07 本轮新增 CarryBus 人手交接连续性用例后，`tests/test_p104.py` 共 21 个用例，仍需继续扩展真实 RGB-D 遮挡、四相机切换和跟踪重捕获验证。
+- **当前主节点：P104-07（基础 bridge 事务、bridge/server 重启恢复、plugin-only reload、真实 ROS 2→ros_gz_bridge→Gazebo 队列背压，以及双向 Gazebo Transport TCP 分区与同 request ID 恢复专项均已有 CI 通过证据；当前转入 DrinkTask 完整编排的重复 E2E 与长时间稳定性验收）**。CarryBus 专项入口为 `tests/test_carry_gz_bridge.py`，完整喝水任务入口为 `tests/test_drink.py`：覆盖人随机活动、GO_DRINK/语音触发、人到服务位、倒水递杯、人手接回、杯子放回、撤离及 follower handback。新增 `tests/drink_repeat.sh`，用于在已启动的 Gazebo/ROS 2 demo 上顺序执行 N 轮完整 E2E、逐轮保存 JSON、汇总阶段/耗时/杯子回位/跟随指标；失败即停止，避免在未完成状态上启动下一轮。该 runner 目前仅完成代码提交，尚未在真实仿真环境执行，因此不能计作重复 E2E 通过。双向 Transport 专项代码 `e461041e` 的 Gazebo run `42636185159`、ROS 2 run `42636185152`、Python run `42636185140` 均 success；TaskPlan 更新 `a4c11de0` 的 Python run `42638409172` 与 ROS 2 run `42638409062` 也均 success。下一步在完整场景启动后运行 `bash tests/drink_repeat.sh 3 p104`，以三轮真实结果和长时间运行证据决定 P104-07 是否可关闭。
 - **未关闭的仿真节点：P104-05/P104-06** —— 桌面/手部代理几何和自然收臂逻辑已通过静态/纯测试，但仍需完整 work_area.sdf 场景中的动态碰撞与轨迹验证。
 - **最终验收：P104-09** —— 完整双臂倒水递水 E2E 至少三轮、ROS 2/Gazebo 集成和 P102/P103/P97/P94 回归尚未完成。
 - **分支纪律：** 所有后续改动仅提交到 main；不创建新分支或 PR，不擅自合并其他分支。
@@ -3071,3 +3071,11 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 本轮通过的双向 Transport 隔离测试在真实 `parameter_bridge` command/ACK 数据连接上分别要求 command socket outbound（forward）和 ACK socket inbound（reverse）的 raw/filter packet counter 非零；reverse probe 由独立 Gazebo ACK observer 观察到，而被隔离的 CarryBus 原 request ID terminal ACK 不得出现在 observer 中。测试随后移除精确 TCP DROP 规则，要求原 request ID waiter 在 13 秒窗口内恢复成功、request ID 大于前一笔恢复事务、bridge 与 Gazebo server PID 仍存活，并检查 `pending_requests`、`ack_by_request`、`_ack_events` 全部为空。上述断言均位于该测试成功结束前；完整测试日志最终为 `Ran 1 test in 67.089s — OK`。
 - 该通过结果首次闭合此前双向断连测试的主要证据链：实际 TCP socket 校准、loopback/userland-proxy hook 路由、command/ACK 语义方向、真实 packet counter、ACK observer 隔离、同 ID waiter 恢复和状态清理。此前失败的 `cd3e637` / `e461041` 迭代原因及修复过程保留在 §8.137–§8.138，不回写为历史通过。
 - **状态：双向 Transport 分区恢复专项测试通过；P104-07 总体仍“正在进行中”。** 尚需完成该节点余下的端到端 DrinkTask 验收、长时间稳定性/重复运行验证及相关 TaskPlan 剩余任务；不能因单个专项测试通过而关闭 P104-07。
+
+
+### 8.140 完整 DrinkTask E2E 顺序重复验收入口（2026-11-09，代码已提交，仿真待执行）
+
+- 当前已有完整喝水任务验收脚本 `tests/test_drink.py`，但它是单轮 observer 测试；原有 `tests/eval_repeat.sh` 面向跟随指标评测，不适用于完整 DrinkTask 状态机的重复触发与结果归档。为避免把多个业务任务并发叠加，本轮新增 `tests/drink_repeat.sh`（代码提交 `47dcfe2b857370fd557ae4c392d521b1b67a2073`）。
+- runner 要求先按 `tools/start_scene.sh`、`tools/start_drink_demo.sh` 启动完整环境，然后顺序启动每轮 `tests/test_drink.py` observer。每轮前清除旧 JSON，结束后将 `vla_ws/logs/test_drink.json` 归档到 `tests/out/drink_<tag>_<round>.json`；生成汇总 `tests/out/drink_repeat_<tag>.json`，记录完成/通过轮数、阶段列表、逻辑/墙上耗时、杯子回位误差/倾角及 handback 后跟随指标的中位数/最小/最大值。若某轮失败或缺少结果 JSON，立即停止后续轮次，防止在任务状态不确定时再次下发 GO_DRINK。
+- runner 对轮数、冷却时间和 tag 做输入校验；默认 3 轮、每轮间隔 10 秒，支持沿用 `P91_WARMUP` 与 `P91_FOLLOW_WATCH` 环境变量调整每轮随机活动和交权后跟随观察窗口。执行前提是完整 Gazebo/ROS 2 demo 已运行；runner 不负责启动/重启仿真，也不伪造仿真结果。
+- **状态：runner 已提交 main，但尚未在真实仿真环境执行；0 轮新增 E2E 结果、0 轮新增通过证据。** 下一步运行 `bash tests/drink_repeat.sh 3 p104`，审查每轮 JSON 与汇总，遇失败先定位并修复根因；三轮真实完整链路及长时间稳定性通过前，P104-07 保持“正在进行中”。
