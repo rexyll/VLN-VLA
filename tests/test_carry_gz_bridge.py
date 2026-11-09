@@ -78,13 +78,20 @@ def _bridge_gz_transport_peer(bridge_pid, sim_pid):
         if not any("pid=%d," % pid in line for pid in bridge_pids):
             continue
         fields = line.split()
-        if len(fields) < 5:
+        # `ss -Htnp state established` omits the state column:
+        # Recv-Q Send-Q Local-Address Peer-Address Process.
+        # The peer endpoint is therefore fields[3]; fields[4] is the
+        # optional process descriptor (for example, "users:(...)").
+        if len(fields) < 4:
             continue
-        endpoint = fields[4]
+        endpoint = fields[3]
         host, port_text = endpoint.rsplit(":", 1)
         host = host.strip("[]")
-        ipaddress.ip_address(host)
-        port = int(port_text)
+        try:
+            ipaddress.ip_address(host)
+            port = int(port_text)
+        except ValueError:
+            continue
         # The ACK subscriber is an outgoing bridge connection to a Gazebo
         # publisher's listening port. The command path is the inverse: its
         # accepted bridge socket sees a Gazebo ephemeral client port.
