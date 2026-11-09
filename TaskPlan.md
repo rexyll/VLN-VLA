@@ -3000,3 +3000,11 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - `3ec7f792a95cf3b02dbacc80eb7a25677d7a56b1` 的 Gazebo run `42624080133` / job `129183225753` 在新增诊断代码中过早引用 `bridge_pids`，触发 `UnboundLocalError`；随后 `b6da3d6` 将采集移至 PID descendants 建立之后。该轮不是 C++ 编译错误，而是 Gazebo 集成测试运行期诊断异常。
 - 诊断增强提交 `7fea933b7927e6b11f990a7936cdc817c3fa7849`：同时记录 bridge 和 Gazebo 进程树的 established sockets、socket PID/FD 对应的 `/proc/<pid>/fd/<fd>` inode 链接，以及相关进程命令行；不改变故障注入规则或验收条件。随后 `02d8296d1c3e8ecc3f37445e5502e9e387260623` 修正 socket owner PID/FD 解析正则，确保能正确提取 `ss -p` 的 `pid=...,fd=...` 字段。
 - **状态：等待 `02d8296` 的 Python、ROS 2、Gazebo CI。** 使用 socket inode、PID/FD、process cmdline 和 TCP_INFO 将 bridge↔proxy 与 proxy↔Gazebo 两条 leg 关联；在证据确认前不调整隔离目标。P104-07 继续“正在进行中”，双向 Transport 断连未通过。
+
+
+### 8.132 将 userland proxy 自身 socket FD 纳入 inode 映射（2026-11-09，CI 待验收）
+
+- 最新检查确认 `68ac8c9b` 的 Python run `42625950971` success，ROS 2 executor run `42625950977` / job `129189680807` success；其 Gazebo 构建并未在该 SHA 上触发。`02d8296d` 的 Python run `42625831358` success、ROS 2 executor run `42625831418` / job `129189249245` success，但 Gazebo build run `42625831563` / job `129189249848` 在最新查询时仍显示 in_progress；`7fea933b` 的 Python `42625749393` 与 ROS 2 `42625749539` success，Gazebo build run `42625749407` / job `129188951016` 也仍显示 in_progress。日志端点暂不可取（GitHub 返回 BlobNotFound），不能推断构建通过或失败。
+- 检查 `02d8296d` 代码后发现：虽然已从 `ss -Htnp` 提取所有 established socket owner PID 并记录进程命令行，但 `/proc/<pid>/fd/<fd>` inode 链接仍只遍历 bridge 和 Gazebo descendants 的 socket 行，遗漏了独立 Ruby/Docker userland proxy 进程的 FD inode。这会使 proxy 的 bridge-facing 与 Gazebo-facing 两条连接无法通过 socket inode 精确关联。
+- 测试提交 `3edb39c7407138a6d5e54f7ab83427d5372b523f`：将 FD inode 采集扩展到 `ss` 输出中的全部 established socket owner（包含 userland proxy），并把 inode symlink 与完整 socket tuple 一并记录；不改变 endpoint 匹配逻辑、DROP 规则、counter 门槛、ACK observer、reverse probe、原 request ID 恢复及资源清理断言。
+- **状态：等待 `3edb39c` 的 Python、ROS 2、Gazebo CI。** 后续通过同一 socket inode 将 bridge、proxy 两端 FD 与 Gazebo 进程 socket 对齐，再确定故障注入连接。P104-07 继续“正在进行中”；双向 Transport 断连仍未验收。
