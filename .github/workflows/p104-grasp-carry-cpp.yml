@@ -47,7 +47,7 @@ jobs:
             | sudo tee /etc/apt/sources.list.d/gazebo-stable.list > /dev/null
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            build-essential cmake pkg-config cppzmq-dev iptables iproute2 \\
+            build-essential cmake pkg-config cppzmq-dev iptables iproute2 \
             libgz-cmake3-dev \
             libgz-plugin2-dev \
             libgz-sim8-dev \
