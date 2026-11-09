@@ -907,7 +907,7 @@ class TestCarryGazeboBridge(unittest.TestCase):
                                 "expected one installed firewall rule %s; "
                                 "ruleset: %s" % (comment, saved_rules))
                             counter = re.match(
-                                r"\\[(\\d+):(\\d+)\\] ",
+                                r"\[(\d+):(\d+)\] ",
                                 matching_lines[0])
                             self.assertIsNotNone(
                                 counter,
