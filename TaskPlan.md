@@ -7,10 +7,10 @@
 > 基线：当前工程已完成"语音驱动的机器人跟随人"（距离 0.5~1.5m / 方位 ±10° /
 > 0 接触 / 0 丢失），本轮在其之上叠加**双臂操作**与**人主动去喝水**两条新链路。
 
-## 当前执行位置（2026-11-08）
+## 当前执行位置（2026-11-09）
 
-- **当前主节点：P104-07** —— 继续完成 ROS 2 CarryBus 与 Gazebo GraspCarry 插件事务端到端联调。提交 `c11f72a` 的 Gazebo run `42556287907` 已通过依赖安装、插件配置/编译、bounded queue 单测和共享库检查，但 headless 队列排空失败，bridge 因前置失败跳过。完整日志确认 ACK 诊断污染已修复：首次丢弃只输出 `FIRST_ACK_DROPPED`，成功重放只产生一条业务 payload。新的失败根因是 FIFO 文件描述符继承：workflow 在打开 FIFO 写端 fd 3 后才启动 ACK subscriber，subscriber 子进程继承 fd 3，导致 publisher 在 `wait "$PUB_PID"` 时无法观察 EOF；等待恰好耗满 subscriber 的 300 秒 timeout，之后才 unpause，ACK observer 已退出，因此队列中已接受请求的成功 ACK 无人接收。已在 subscriber 启动命令显式关闭子进程 fd 3（提交 `80c756d`），保留所有 FIFO、ACK 单次计数与顺序断言。CarryBus 侧另修复 waiter 取消检查与初次 emit 之间的竞态：在 `_ack_lock` 内完成取消检查和实际 emit，并新增确定性并发测试（提交 `0e72de8`、`817bd37`）。这些改动的 CI 尚待验证；P104-07 不得提前验收。
-- **并行回归：P104-08** —— 此前 20/20 纯 Python 测试通过；P104-07 本轮新增 CarryBus 人手交接连续性用例后，`tests/test_p104.py` 共 21 个用例，新增项待 CI 验证。继续扩展真实 RGB-D 遮挡、四相机切换和跟踪重捕获验证。
+- **当前主节点：P104-07（桥接基础链路已通过，继续做故障恢复与生产编排边界验证）** —— Gazebo run `42558244831` 已完整通过：Gazebo Harmonic 依赖安装、GraspCarry 插件配置/编译、bounded queue 单测、共享库依赖、headless ACK protocol、以及 CarryBus → ROS 2 → ros_gz_bridge → Gazebo 的 ACK fault-injection E2E 全部 success。桥接测试实际丢弃首个 terminal ACK，验证 CarryBus 重试后插件缓存 ACK 重放成功，并在同一真实链路中并发执行两个 joint 事务，确认请求成功且 pending/ACK/Event 状态清理。修复 ROS 环境覆盖 Gazebo CLI 插件发现路径的启动顺序问题后，提交 `f923928` 的 Gazebo workflow 全绿；Python 与 ROS 2 executor workflow 在 `f923928` 和 TaskPlan 文档提交 `1073007` 上也全绿。该结果证明当前 ACK 重试、缓存重放、并发隔离与基本清理链路，但不覆盖 bridge 进程重启、transport 断连恢复、背压和完整 DrinkTask 抓取/释放编排，因此 P104-07 不关闭。
+- **并行回归：P104-08** —— 此前 20/20 纯 Python 测试通过；P104-07 本轮新增 CarryBus 人手交接连续性用例后，`tests/test_p104.py` 共 21 个用例，仍需继续扩展真实 RGB-D 遮挡、四相机切换和跟踪重捕获验证。
 - **未关闭的仿真节点：P104-05/P104-06** —— 桌面/手部代理几何和自然收臂逻辑已通过静态/纯测试，但仍需完整 work_area.sdf 场景中的动态碰撞与轨迹验证。
 - **最终验收：P104-09** —— 完整双臂倒水递水 E2E 至少三轮、ROS 2/Gazebo 集成和 P102/P103/P97/P94 回归尚未完成。
 - **分支纪律：** 所有后续改动仅提交到 main；不创建新分支或 PR，不擅自合并其他分支。
@@ -2469,3 +2469,17 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 不改变 headless 队列验收条件、ACK 丢失故障注入、request ID 隔离或事务清理断言。
 - 提交：`f9239280df9d53e24b6d9aa0ef7334620590eb25` — `fix: launch Gazebo before sourcing ROS environment`。
 - 本修复的 Gazebo / bridge CI 尚待运行；需确认第二个 Gazebo 实例正常启动、ROS↔Gazebo 双向 bridge 建立，且 ACK 首次丢失、同 request ID 重试缓存重放、并发事务隔离及清理均通过。P104-07 仍未完成。
+
+
+### 8.75 CarryBus ↔ ROS 2 ↔ Gazebo 基础事务桥接 E2E 首次全绿（2026-11-09）
+
+- 检查修复 Gazebo CLI 环境顺序后的 run `42558244831`，job `128968684235` 所有步骤均 completed / success：
+  - Gazebo Harmonic 与 ROS 2 Jazzy / ros_gz_bridge 依赖安装；
+  - GraspCarry 插件 CMake 配置、编译、bounded queue 单元测试和共享库运行时依赖；
+  - headless Gazebo ACK protocol（包括队列饱和、FIFO 排空、accepted FIFO 与 rejected queue-full ACK 精确计数）；
+  - ROS 2 CarryBus 经双向 ros_gz_bridge 到 Gazebo 插件的事务 E2E。
+- 桥接 E2E 的 ACK fault injector 确实丢弃首个 terminal ACK；CarryBus 通过重发相同事务恢复，插件从 completed ACK cache 重放结果。随后同一真实链路并发提交两个 joint 事务，二者均成功，且 `pending_requests`、`ack_by_request`、`_ack_events` 均清空。
+- 启动失败根因是 ROS 2 Jazzy setup 改变 Gazebo CLI 插件发现环境；将 Gazebo 仿真启动移动到 source ROS 环境之前后，Gazebo headless 与 bridge 步骤均实际执行并成功。修复提交：`f9239280df9d53e24b6d9aa0ef7334620590eb25`；根 TaskPlan 更新提交：`1073007a544459ee7f28f52071d3afa59aa84fe9`。
+- 关联 CI：`42558244831` Gazebo C++ / bridge、`42558244835` Python syntax、`42558244839` ROS 2 executor integration 均 completed / success；文档提交 `1073007` 对应的 `42558258661` Python syntax 与 `42558258709` ROS 2 executor integration 也均 completed / success。
+- 验收边界：本次只证明 headless plugin 协议、ACK 丢失后的缓存重放、并发事务隔离和基本状态清理。尚未验证 bridge 进程重启、transport 断连恢复、桥接队列背压、长时间运行稳定性，以及 DrinkTask 真实抓取/释放动作链路。不得将本轮结果等同于完整双臂倒水递水 E2E；P104-07 保持进行中。
+- 下一步：在真实 ROS 2 executor 与 Gazebo 链路上加入 bridge/transport 故障恢复测试，明确断连期间 waiter 的超时/取消终态和恢复后的 request ID 隔离，再进入 DrinkTask 编排级验证。
