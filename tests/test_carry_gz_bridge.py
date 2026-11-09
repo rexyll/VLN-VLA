@@ -181,7 +181,11 @@ class TestCarryGazeboBridge(unittest.TestCase):
                     if restarted_bridge.poll() is not None:
                         with open(bridge_log, encoding="utf-8") as log:
                             self.fail("restarted bridge exited: " + log.read())
-                    if (relay.count_publishers(RAW_ACK_TOPIC) >= 1 and
+                    with open(bridge_log, encoding="utf-8") as log:
+                        bridge_output = log.read()
+                    if ("Creating GZ->ROS Bridge" in bridge_output and
+                            "Creating ROS->GZ Bridge" in bridge_output and
+                            relay.count_publishers(RAW_ACK_TOPIC) >= 1 and
                             bus.pub.get_subscription_count() > 0):
                         break
                     time.sleep(0.1)
