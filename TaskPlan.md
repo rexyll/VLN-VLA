@@ -2459,3 +2459,13 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
   - `80c756d69249de164c2ff647cdcb3944acb709d7` — `fix: close inherited FIFO writer in Gazebo ACK subscriber`。
 - `c11f72a` 的 Python syntax 与 ROS 2 executor integration 已通过；上述三项新提交的 CI 尚待运行。新的 Gazebo headless 队列排空与后续 CarryBus ↔ ROS 2 ↔ ros_gz_bridge ACK 丢失重试 E2E 仍未验收，P104-07 保持未完成。
 
+
+
+### 8.74 修复 ROS 2 环境覆盖 Gazebo CLI 插件路径导致桥接仿真无法启动（2026-11-09）
+
+- 检查 Gazebo run `42557232219`（workflow 变更前的提交 `80c756d`）：Gazebo Harmonic 插件编译、bounded queue 单测、共享库依赖检查及 headless ACK protocol 全部通过；队列饱和测试已在约 15 秒内完成，publisher EOF / subscriber 生命周期修复有效。
+- 后续 ROS 2 / ros_gz_bridge E2E 步骤失败。日志显示先执行 `source /opt/ros/jazzy/setup.bash`，再运行第二个 `gz sim`；此时 `gz` 只列出 log / msg / param / service / topic 命令，不再识别 Gazebo Harmonic 的 `sim` 子命令，导致仿真进程未启动，随后 ACK topic 等待失败。与 headless 步骤成功启动 Gazebo 的差异是桥接步骤先加载 ROS 环境。
+- 判断 ROS 2 setup 对 Gazebo CLI 插件发现环境（尤其 `GZ_CONFIG_PATH`）的修改使 `gz` 无法加载 Harmonic sim 命令插件。修复桥接步骤的启动顺序：先在原始 Gazebo 环境中启动 `gz sim` 并记录 PID，再 source ROS 2 Jazzy 环境并启动 `ros_gz_bridge`。仿真进程启动后，其进程环境独立于后续 shell 的 ROS 环境变更。
+- 不改变 headless 队列验收条件、ACK 丢失故障注入、request ID 隔离或事务清理断言。
+- 提交：`f9239280df9d53e24b6d9aa0ef7334620590eb25` — `fix: launch Gazebo before sourcing ROS environment`。
+- 本修复的 Gazebo / bridge CI 尚待运行；需确认第二个 Gazebo 实例正常启动、ROS↔Gazebo 双向 bridge 建立，且 ACK 首次丢失、同 request ID 重试缓存重放、并发事务隔离及清理均通过。P104-07 仍未完成。
