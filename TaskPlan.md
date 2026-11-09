@@ -9,7 +9,7 @@
 
 ## 当前执行位置（2026-11-08）
 
-- **当前主节点：P104-07** —— 继续完成 ROS 2 CarryBus 与 Gazebo GraspCarry 插件的事务端到端联调。Gazebo run `42555340660`（提交 `fe4a202`）：插件配置、C++ 编译、bounded queue 单测和共享库依赖检查通过；headless 协议测试在首次 ACK 丢失后的重试计数处失败，ROS 2 bridge fault injection 因此前置步骤失败而跳过。完整日志显示 subscriber 输出 `FIRST_ACK_DROPPED <payload>`，随后缓存 ACK 重放又输出同一 payload 的 `data:` 行；workflow 的 `grep -Fc <payload>` 把诊断行也计为业务 ACK，导致计数错误。这不是插件重复 ACK 的证据。已修正 subscriber：首次丢弃只输出不含 payload 的 `FIRST_ACK_DROPPED` 标记，payload 仍写入 marker 文件确认故障注入，业务 ACK 仍按 `data:` 行输出（提交 `c11f72a`）。`82f0e2b` 的 Python syntax 与 ROS 2 executor integration 均通过；subscriber 计数修复后的 C++ 编译、headless 与 bridge E2E 尚待 CI。P104-07 不得提前验收。
+- **当前主节点：P104-07** —— 继续完成 ROS 2 CarryBus 与 Gazebo GraspCarry 插件事务端到端联调。提交 `c11f72a` 的 Gazebo run `42556287907` 已通过依赖安装、插件配置/编译、bounded queue 单测和共享库检查，但 headless 队列排空失败，bridge 因前置失败跳过。完整日志确认 ACK 诊断污染已修复：首次丢弃只输出 `FIRST_ACK_DROPPED`，成功重放只产生一条业务 payload。新的失败根因是 FIFO 文件描述符继承：workflow 在打开 FIFO 写端 fd 3 后才启动 ACK subscriber，subscriber 子进程继承 fd 3，导致 publisher 在 `wait "$PUB_PID"` 时无法观察 EOF；等待恰好耗满 subscriber 的 300 秒 timeout，之后才 unpause，ACK observer 已退出，因此队列中已接受请求的成功 ACK 无人接收。已在 subscriber 启动命令显式关闭子进程 fd 3（提交 `80c756d`），保留所有 FIFO、ACK 单次计数与顺序断言。CarryBus 侧另修复 waiter 取消检查与初次 emit 之间的竞态：在 `_ack_lock` 内完成取消检查和实际 emit，并新增确定性并发测试（提交 `0e72de8`、`817bd37`）。这些改动的 CI 尚待验证；P104-07 不得提前验收。
 - **并行回归：P104-08** —— 此前 20/20 纯 Python 测试通过；P104-07 本轮新增 CarryBus 人手交接连续性用例后，`tests/test_p104.py` 共 21 个用例，新增项待 CI 验证。继续扩展真实 RGB-D 遮挡、四相机切换和跟踪重捕获验证。
 - **未关闭的仿真节点：P104-05/P104-06** —— 桌面/手部代理几何和自然收臂逻辑已通过静态/纯测试，但仍需完整 work_area.sdf 场景中的动态碰撞与轨迹验证。
 - **最终验收：P104-09** —— 完整双臂倒水递水 E2E 至少三轮、ROS 2/Gazebo 集成和 P102/P103/P97/P94 回归尚未完成。
@@ -2442,4 +2442,20 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 修正 `tests/grasp_carry_subscriber.cc`：首次丢弃只输出固定诊断标记 `FIRST_ACK_DROPPED`，不再把 ACK payload 写入 stdout；payload 仍写入 marker 文件，供脚本确认故障注入确已发生。只有真实转发给测试端的 `data:` 行包含业务 ACK payload，因此既有精确计数断言无需放宽。
 - 提交：`c11f72a9717be889b477937583ea98204312f22c` — `fix: separate dropped ACK marker from ACK payload`。
 - `82f0e2b` 的 Python syntax 与 ROS 2 executor integration 均通过；本次 subscriber 输出修复的 C++ 编译、headless queue saturation 和后续 CarryBus ↔ ROS 2 ↔ ros_gz_bridge ACK loss/retry E2E 尚待新 CI。P104-07 保持未完成。
+
+
+
+### 8.73 修复 Gazebo 饱和测试 FIFO EOF 被 ACK subscriber 阻塞及 CarryBus 初次发送取消竞态（2026-11-09）
+
+- 检查 Gazebo run `42556287907` 的完整 job log：Gazebo Harmonic / ROS 2 依赖安装、GraspCarry 插件配置与编译、bounded queue 单测、共享库依赖检查通过；headless 步骤失败，bridge 步骤跳过。
+- ACK subscriber 输出证据确认 §8.72 修复有效：首次丢弃只出现 `FIRST_ACK_DROPPED`，相同 request ID 的缓存 ACK 重放只输出一条业务 ACK payload，之前的误计数已消失。
+- 进一步从 workflow 时间戳定位新的失败：FIFO 写端 fd 3 在启动 subscriber 前已由 shell 打开；subscriber 子进程继承该写端。即使 shell 执行 `exec 3>&-`，subscriber 仍持有 FIFO writer，publisher 无法收到 EOF，因此 `wait "$PUB_PID"` 一直等待。日志中 pause 在 `03:27:56` 生效、unpause 直到 `03:32:57` 才发生，间隔约 300 秒，恰好对应 subscriber 的 `timeout 300s`。subscriber 超时退出后 publisher 才看到 EOF；脚本随后 unpause，但 ACK observer 已退出，已入队的 128 条命令无法被观察到成功 ACK，最终 FIFO 排空断言失败。该问题属于测试进程文件描述符生命周期，不是队列容量或 ACK 协议错误。
+- 修正 `.github/workflows/p104-grasp-carry-cpp.yml`：subscriber 启动命令显式添加 `3>&-`，避免继承 FIFO 写端；publisher 在 shell 关闭唯一写端后即可正常收到 EOF、完成 500ms flush 并退出，ACK subscriber 在 unpause 和队列排空期间继续运行。严格 accepted FIFO、每条 accepted/rejected request 恰好一个 ACK 的断言均保留。
+- 同轮复核 `CarryBus._await()`：初始重试路径原先先在 `_ack_lock` 内检查 `_waiters_cancelled`，释放锁后才调用 `emit()`；shutdown 可能恰好在两者之间取消 waiter，仍让一个新命令发往正在销毁的 ROS 节点。现改为在同一 `_ack_lock` 临界区完成取消检查与初次 emit，和既有 ACK 成功后的重复 emit 取消语义一致。
+- 新增 `tests/test_carry_ros2_executor.py::test_cancel_waiter_serializes_with_initial_emit`：用两个线程和事件屏障确定性制造初次 emit 与 `cancel_waiters()` 的竞争，要求取消在当前发送结束后生效、不得再有第二次发送，且 waiter / ACK / Event 状态全部清理。
+- 提交：
+  - `0e72de8ef39ef116232dde52994c716d810a319f` — `fix: serialize CarryBus emits with waiter cancellation`。
+  - `817bd3737baa8e7daf6e9934a3391c081ccd5001` — `test: cover CarryBus initial emit cancellation race`。
+  - `80c756d69249de164c2ff647cdcb3944acb709d7` — `fix: close inherited FIFO writer in Gazebo ACK subscriber`。
+- `c11f72a` 的 Python syntax 与 ROS 2 executor integration 已通过；上述三项新提交的 CI 尚待运行。新的 Gazebo headless 队列排空与后续 CarryBus ↔ ROS 2 ↔ ros_gz_bridge ACK 丢失重试 E2E 仍未验收，P104-07 保持未完成。
 
