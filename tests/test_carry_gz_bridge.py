@@ -821,6 +821,33 @@ class TestCarryGazeboBridge(unittest.TestCase):
                         env=observer_env)
                     firewall_rules = []
                     firewall_rule_groups = {}
+                    peer_network_diagnostics = []
+                    for peer_name, peer in (("command", command_peer),
+                                            ("ack", ack_peer)):
+                        local_host, local_port, remote_host, remote_port = peer
+                        route_command = (
+                            ["ip", "-6", "route", "get", remote_host,
+                             "from", local_host]
+                            if ":" in remote_host else
+                            ["ip", "route", "get", remote_host,
+                             "from", local_host])
+                        try:
+                            route_output = subprocess.check_output(
+                                route_command, text=True,
+                                stderr=subprocess.STDOUT).strip()
+                        except subprocess.CalledProcessError as exc:
+                            route_output = exc.output or str(exc)
+                        peer_network_diagnostics.append(
+                            "%s=%s:%d->%s:%d route=%s" %
+                            (peer_name, local_host, local_port, remote_host,
+                             remote_port, route_output))
+                    peer_network_diagnostics.append(
+                        "netns self=%s bridge=%s gazebo=%s" %
+                        (os.readlink("/proc/self/ns/net"),
+                         os.readlink("/proc/%d/ns/net" %
+                                     transport_bridge.pid),
+                         os.readlink("/proc/%d/ns/net" %
+                                     int(os.environ["CARRY_SIM_PID"]))))
                     try:
                         time.sleep(1.0)
                         self.assertIsNone(
@@ -940,8 +967,18 @@ class TestCarryGazeboBridge(unittest.TestCase):
                             self.assertGreater(
                                 packet_total, 0,
                                 "no INPUT/OUTPUT rule matched peer %d %s "
-                                "direction; counters: %s" %
-                                (peer_index, direction, ", ".join(evidence)))
+                                "direction; counters: %s; network diagnostics: %s; "
+                                "established sockets: %s; filter rules: %s" %
+                                (peer_index, direction, ", ".join(evidence),
+                                 " | ".join(peer_network_diagnostics),
+                                 subprocess.check_output(
+                                     ["sudo", "ss", "-Htnp", "state",
+                                      "established"], text=True,
+                                     stderr=subprocess.STDOUT),
+                                 subprocess.check_output(
+                                     ["sudo", "iptables-save", "-c", "-t",
+                                      "filter"], text=True,
+                                     stderr=subprocess.STDOUT)))
                         self.assertNotIn(
                             "joint cup water_joint %d" % bidirectional_id,
                             observed_acks,
