@@ -602,22 +602,44 @@ class TestCarryRos2Executor(unittest.TestCase):
                     self.assertNotIn(request_id, bus.ack_by_request)
                 self.assertFalse(bus._ack_events)
 
-            # Expire 9101, register a different waiter, then deliver its late ACK.
-            with bus._ack_lock:
-                bus.pending_requests.discard(9101)
-                bus.ack_by_request.pop(9101, None)
-                bus.pending_requests.add(9103)
-            ack_pub.publish(String(
-                data="ok joint cup water_joint 9101"))
+            # Use the actual timed-out request ID. Register a fresh waiter,
+            # inject the old terminal ACK while it is pending, and prove that
+            # only the fresh request's own ACK can complete it.
+            fresh_waiter_ready = threading.Event()
+            fresh_result = {}
+            fresh_ids = []
 
-            late_deadline = time.monotonic() + 1.0
-            while time.monotonic() < late_deadline:
-                with bus._ack_lock:
-                    self.assertNotIn(9101, bus.ack_by_request)
-                    self.assertNotIn(9103, bus.ack_by_request)
-                time.sleep(0.01)
+            def fresh_emit(request_id):
+                fresh_ids.append(request_id)
+                fresh_waiter_ready.set()
+
+            fresh_waiter = threading.Thread(target=lambda: fresh_result.setdefault(
+                "ok", bus._await(
+                    fresh_emit,
+                    lambda ack, rid: ack == "ok fresh %d" % rid,
+                    2.0)))
+            fresh_waiter.start()
+            self.assertTrue(fresh_waiter_ready.wait(timeout=2.0),
+                            "fresh waiter did not register")
+            self.assertEqual(len(fresh_ids), 1)
+            fresh_id = fresh_ids[0]
+            self.assertGreater(fresh_id, timed_out_id)
+
+            ack_pub.publish(String(
+                data="ok timeout %d" % timed_out_id))
+            time.sleep(0.15)
             with bus._ack_lock:
-                for request_id in (9101, 9102, 9103, 9104, 9105):
+                self.assertIn(fresh_id, bus.pending_requests)
+                self.assertNotIn(timed_out_id, bus.ack_by_request)
+                self.assertNotIn(fresh_id, bus.ack_by_request)
+
+            ack_pub.publish(String(data="ok fresh %d" % fresh_id))
+            fresh_waiter.join(timeout=3.0)
+            self.assertFalse(fresh_waiter.is_alive(),
+                             "fresh waiter did not finish after matching ACK")
+            self.assertEqual(fresh_result, {"ok": True})
+            with bus._ack_lock:
+                for request_id in (timed_out_id, fresh_id, 9102, 9103, 9104, 9105):
                     bus.pending_requests.discard(request_id)
                     bus.ack_by_request.pop(request_id, None)
         finally:
