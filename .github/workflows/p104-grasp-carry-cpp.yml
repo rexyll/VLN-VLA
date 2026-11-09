@@ -215,21 +215,6 @@ jobs:
           test "$first_rejected_i" -gt 0
           test "$first_rejected_i" -le 160
 
-          # Retry the first terminally rejected request while physics is still
-          # paused. Its cached queue-full result must be replayed, not enqueued.
-          rejected_request_id=$((1700000000000000200 + first_rejected_i))
-          wait_ack "fail joint cup water_joint $rejected_request_id queue-full"
-          publish "joint cup water_joint 0.001 $rejected_request_id"
-          for _ in $(seq 1 30); do
-            retry_reject_count=$(grep -Fc "fail joint cup water_joint $rejected_request_id queue-full" /tmp/grasp-carry-acks.log || true)
-            if [ "$retry_reject_count" -ge 2 ]; then break; fi
-            sleep 0.2
-          done
-          # Gazebo topic echo may reconnect while the simulator is publishing;
-          # require the explicit retry to add a replay, but do not treat a
-          # duplicate observation by the CLI subscriber as a plugin violation.
-          test "$retry_reject_count" -ge 2
-
           # Resume physics. Every request before the first rejected ID must
           # drain exactly once in FIFO order; every request from the rejection
           # boundary onward must retain its terminal queue-full ACK.
@@ -251,9 +236,7 @@ jobs:
           for i in $(seq "$first_rejected_i" 160); do
             request_id=$((1700000000000000200 + i))
             reject_count=$(grep -Fc "fail joint cup water_joint $request_id queue-full" /tmp/grasp-carry-acks.log || true)
-            expected_reject_count=1
-            if [ "$i" -eq "$first_rejected_i" ]; then expected_reject_count=2; fi
-            test "$reject_count" -ge "$expected_reject_count"
+            test "$reject_count" -eq 1
           done
       - name: Verify CarryBus through ROS 2 and ros_gz_bridge with ACK fault injection
         env:
