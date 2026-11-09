@@ -165,7 +165,7 @@ class TestCarryGazeboBridge(unittest.TestCase):
                 "plugin ACK was not dropped before Gazebo restart")
 
             # The original Gazebo process is owned by the workflow shell.
-            os.kill(sim_pid, signal.SIGTERM)
+            os.killpg(sim_pid, signal.SIGTERM)
             deadline = time.monotonic() + 8.0
             while time.monotonic() < deadline:
                 try:
@@ -177,7 +177,7 @@ class TestCarryGazeboBridge(unittest.TestCase):
                     break
                 time.sleep(0.05)
             else:
-                os.kill(sim_pid, signal.SIGKILL)
+                os.killpg(sim_pid, signal.SIGKILL)
                 self.fail("Gazebo process did not stop after SIGTERM")
 
             sim_log = "/tmp/grasp-carry-gz-plugin-restarted.log"
@@ -228,7 +228,7 @@ class TestCarryGazeboBridge(unittest.TestCase):
                 try:
                     restarted_sim.wait(timeout=5.0)
                 except subprocess.TimeoutExpired:
-                    restarted_sim.kill()
+                    os.killpg(restarted_sim.pid, signal.SIGKILL)
                     restarted_sim.wait(timeout=3.0)
 
             self.assertFalse(bus.pending_requests)
