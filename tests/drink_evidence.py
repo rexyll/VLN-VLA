@@ -94,3 +94,17 @@ def summarize_round_evidence(result, root):
         'shots': list(shots) if isinstance(shots, list) else [],
         'missing_shot_labels': sorted(missing),
     }
+
+
+def validate_observer_result(result):
+    """Validate the observer JSON contract before screenshot archival."""
+    if not isinstance(result, dict):
+        raise ValueError('expected a JSON object')
+    shots = result.get('shots', [])
+    if not isinstance(shots, list):
+        raise ValueError('shots must be a JSON array')
+    if not all(isinstance(path, str) and path for path in shots):
+        raise ValueError('screenshot paths must be non-empty strings')
+    if 'evidence' in result and not isinstance(result['evidence'], dict):
+        raise ValueError('evidence must be a JSON object when present')
+    return shots
