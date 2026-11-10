@@ -1403,7 +1403,7 @@ class TestP104(unittest.TestCase):
             source = stream.read()
 
         main_start = source.index('def main():')
-        main_end = source.index("\\n\\nif __name__ == '__main__':", main_start)
+        main_end = source.index("\n\nif __name__ == '__main__':", main_start)
         main_body = source[main_start:main_end]
         self.assertIn('try:', main_body)
         self.assertIn('finally:', main_body)
@@ -1414,7 +1414,7 @@ class TestP104(unittest.TestCase):
         self.assertIn('rclpy.shutdown()', main_body)
 
         report_start = source.index('def report(node, res):')
-        report_end = source.index('\\n\\ndef main():', report_start)
+        report_end = source.index('\n\ndef main():', report_start)
         report_body = source[report_start:report_end]
         self.assertNotIn('destroy_node()', report_body)
         self.assertNotIn('rclpy.shutdown()', report_body)
