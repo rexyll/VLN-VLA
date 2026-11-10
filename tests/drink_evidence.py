@@ -30,9 +30,14 @@ def summarize_round_evidence(result, root):
     evidence = result.get('evidence') or {}
     declared = evidence.get('screenshots_archived')
     labels = result.get('shot_labels', [])
-    missing = set(missing_required_shots(labels))
-    labels_ok = (
+    labels_well_formed = (
         isinstance(labels, list)
+        and all(isinstance(label, str) for label in labels)
+    )
+    missing = set(missing_required_shots(
+        labels if labels_well_formed else []))
+    labels_ok = (
+        labels_well_formed
         and set(labels) >= REQUIRED_SHOT_LABELS
         and not missing
     )
@@ -42,15 +47,19 @@ def summarize_round_evidence(result, root):
     paths_ok = isinstance(shots, list)
     if paths_ok:
         for path in shots:
-            if not isinstance(path, str) or not path or os.path.isabs(path):
+            if (not isinstance(path, str) or not path or '\\x00' in path
+                    or os.path.isabs(path)):
                 paths_ok = False
                 break
-            candidate = os.path.realpath(os.path.join(root_real, path))
             try:
-                inside_root = os.path.commonpath((root_real, candidate)) == root_real
-            except ValueError:
+                candidate = os.path.realpath(os.path.join(root_real, path))
+                inside_root = (
+                    os.path.commonpath((root_real, candidate)) == root_real)
+                exists = os.path.isfile(candidate)
+            except (OSError, ValueError):
                 inside_root = False
-            if not inside_root or not os.path.isfile(candidate):
+                exists = False
+            if not inside_root or not exists:
                 paths_ok = False
                 break
             resolved.append(candidate)
