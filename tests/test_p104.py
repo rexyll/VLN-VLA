@@ -108,6 +108,16 @@ from vla_follow import carry as C  # noqa: E402
 
 class TestP104(unittest.TestCase):
 
+    def test_repeat_runner_rechecks_round_acceptance_before_next_round(self):
+        runner_path = os.path.join(ROOT, 'tests', 'drink_repeat.sh')
+        with open(runner_path, encoding='utf-8') as stream:
+            runner = stream.read()
+        gate = runner.index('summary = summarize_round_evidence(result, root)')
+        stop = runner.index('FAILED=1', gate)
+        cooldown = runner.index('if (( i < N && COOLDOWN > 0 ))')
+        self.assertLess(gate, stop)
+        self.assertLess(stop, cooldown)
+
     def test_drink_screenshot_acceptance_requires_each_unique_event(self):
         complete = [
             'arrive', 'present', 'grip', 'drink', 'takeback', 'placed',
