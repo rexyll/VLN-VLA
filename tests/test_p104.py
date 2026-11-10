@@ -15,7 +15,8 @@ import threading
 import unittest
 from unittest.mock import patch
 import xml.etree.ElementTree as ET
-from drink_evidence import REQUIRED_SHOT_LABELS, missing_required_shots
+from drink_evidence import (REQUIRED_SHOT_LABELS, missing_required_shots,
+                            should_stop_terminal_observer)
 
 import numpy as np
 
@@ -115,6 +116,18 @@ class TestP104(unittest.TestCase):
             ['arrive', 'grip', 'handback', 'placed', 'takeback'])
         self.assertEqual(
             missing_required_shots(None), sorted(REQUIRED_SHOT_LABELS))
+
+    def test_done_state_waits_for_final_placed_screenshot(self):
+        self.assertFalse(should_stop_terminal_observer(
+            'DONE', [], 0.0))
+        self.assertTrue(should_stop_terminal_observer(
+            'DONE', ['placed'], 0.0))
+        self.assertTrue(should_stop_terminal_observer(
+            'DONE', [], 3.0))
+        self.assertTrue(should_stop_terminal_observer(
+            'ERROR', [], 0.0))
+        self.assertFalse(should_stop_terminal_observer(
+            'PRESENT', [], 10.0))
 
     def test_rgbd_pair_requires_two_fresh_synchronised_frames(self):
         self.assertTrue(V.sensor_pair_fresh(10.00, 10.08, 10.12))
