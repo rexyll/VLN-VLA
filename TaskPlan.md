@@ -3642,3 +3642,11 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 测试修正提交 `80fe97b70dbce2906af9f2e7f063da3bb46dd30a`：将 here-doc 结束标记定位字符串改为真实换行分隔符，再从验收门代码块范围内检查严格解析调用。
 - §8.200 runner 提交 `75aa34f11808` 的 Python run `42820191141` 与 ROS 2 executor run `42820191021` 均 completed/success。测试提交 `6075eebf598a` 的 Python run `42820210773` 失败于全文件范围断言；后续提交 `54473f65f5aa` 的 Python run `42820320657` 失败于 here-doc 边界定位。TaskPlan 提交 `06cdaefa2533` 的 Python run `42820258022` 也继承旧全文件断言失败；其 ROS 2 executor run `42820257993` 仍需刷新。测试提交 `54473f65f5aa` 的 ROS 2 executor run `42820320778` 与 TaskPlan 提交 `6d4be8875cc3` 的 Python/ROS 2 executor runs 需分别刷新终态。
 - **状态：runner 严格解析门控的 Python 与 ROS 2 executor CI 已通过；测试断言先后出现范围过宽和换行定位错误，现已再次修正并提交 main，等待新提交 CI。真实 Gazebo DrinkTask E2E 通过轮数仍为 0；三轮完整 E2E 与长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
+
+
+### 8.203 修正 Python 静态测试中的换行字面量语法（2026-11-10，测试再次修正，CI 待验收）
+
+- §8.202 测试提交 `80fe97b70dbc` 的 Python run `42820430479` 失败，且 Compile changed Python modules job 也失败。检查当前文件定位到上一轮把 here-doc 边界写成带真实换行的单引号 Python 字符串，导致测试模块语法错误；这属于测试源码转义错误，不是 runner 功能问题。
+- 测试修正提交 `86b8c23d9262d7f358c29548b8d3ea25ab020088`：将边界字面量改为 Python 字符串中的转义换行 `\\nPY\\n        then`，使测试在运行时定位 runner 文件中的真实换行，同时保持源文件语法合法。
+- §8.201 测试提交 `54473f65f5aa` 的 Python run `42820320657` 因边界字符串未匹配失败；§8.202 测试提交 `80fe97b70dbc` 的 Python run `42820430479` 因测试源语法错误失败。两次失败原因已由 CI 日志确认并分别修正，不作为通过结果。§8.202 TaskPlan 提交 `6d4be8875cc3` 的 Python run `42820363144` 继承了测试断言问题；其 ROS 2 executor run `42820363166` 当时仍运行。最新修正提交及本 TaskPlan 更新提交均需独立 CI 验收。
+- **状态：runner 严格解析门控本身的 Python 与 ROS 2 executor CI 已通过；静态回归测试边界提取先后经历范围和转义问题，现已修正并提交 main，等待 CI。真实 Gazebo DrinkTask E2E 通过轮数仍为 0；三轮完整 E2E 和长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
