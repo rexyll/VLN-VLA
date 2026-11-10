@@ -15,6 +15,7 @@ import threading
 import unittest
 from unittest.mock import patch
 import xml.etree.ElementTree as ET
+from drink_evidence import REQUIRED_SHOT_LABELS, missing_required_shots
 
 import numpy as np
 
@@ -99,6 +100,21 @@ from vla_follow import carry as C  # noqa: E402
 
 
 class TestP104(unittest.TestCase):
+
+    def test_drink_screenshot_acceptance_requires_each_unique_event(self):
+        complete = [
+            'arrive', 'present', 'grip', 'drink', 'takeback', 'placed',
+            'handback',
+        ]
+        self.assertEqual(REQUIRED_SHOT_LABELS, set(complete))
+        self.assertEqual(missing_required_shots(complete), [])
+        self.assertEqual(
+            missing_required_shots(complete + ['present', 'present']), [])
+        self.assertEqual(
+            missing_required_shots(['present', 'present', 'drink']),
+            ['arrive', 'grip', 'handback', 'placed', 'takeback'])
+        self.assertEqual(
+            missing_required_shots(None), sorted(REQUIRED_SHOT_LABELS))
 
     def test_rgbd_pair_requires_two_fresh_synchronised_frames(self):
         self.assertTrue(V.sensor_pair_fresh(10.00, 10.08, 10.12))
