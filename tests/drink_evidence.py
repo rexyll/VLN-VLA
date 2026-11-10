@@ -86,10 +86,19 @@ def summarize_round_evidence(result, root):
         and unique_paths
     )
     task_ok = result.get('ok') is True
+    # The observer's task JSON and its process exit status are independent
+    # signals. A valid-looking result must not pass if the observer crashed
+    # or otherwise exited non-zero after writing it.
+    observer_exit_code = result.get('observer_exit_code', 0)
+    process_ok = (isinstance(observer_exit_code, int)
+                  and not isinstance(observer_exit_code, bool)
+                  and observer_exit_code == 0)
     return {
         'task_ok': task_ok,
+        'process_ok': process_ok,
+        'observer_exit_code': observer_exit_code,
         'archive_ok': archive_ok,
-        'ok': task_ok and archive_ok,
+        'ok': task_ok and process_ok and archive_ok,
         'screenshots_archived': declared if archive_ok else 0,
         'shots': list(shots) if isinstance(shots, list) else [],
         'missing_shot_labels': sorted(missing),
