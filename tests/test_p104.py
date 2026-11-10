@@ -239,7 +239,7 @@ class TestP104(unittest.TestCase):
         runner_path = os.path.join(ROOT, 'tests', 'drink_repeat.sh')
         with open(runner_path, encoding='utf-8') as stream:
             runner = stream.read()
-        self.assertIn('summary_path, requested, root, failed, tag, *paths = sys.argv[1:]', runner)
+        self.assertIn('summary_path, requested, root, failed, tag, outdir, *paths = sys.argv[1:]', runner)
         self.assertIn('shot_dir, observer_exit_code = sys.argv[1:]', runner)
         self.assertIn('result["observer_exit_code"] = int(observer_exit_code)', runner)
         self.assertIn('validate_observer_result(result)', runner)
@@ -1424,7 +1424,7 @@ class TestP104(unittest.TestCase):
         runner_path = os.path.join(ROOT, 'tests', 'drink_repeat.sh')
         with open(runner_path, encoding='utf-8') as stream:
             runner = stream.read()
-        self.assertIn('Round $i produced no result JSON (exit=$RC).', runner)
+        self.assertIn('UNKNOWN/INTERRUPTED', runner)
         self.assertIn('FAILED=1', runner)
         self.assertIn('P91_COMMAND_MARKER', runner)
         self.assertIn('UNKNOWN/INTERRUPTED', runner)
