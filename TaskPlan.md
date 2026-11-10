@@ -3615,3 +3615,13 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 测试提交 `d4747c119264c3c48f92fd92157e87143cb471ea`：新增 `NaN`、`Infinity`、嵌套 `-Infinity` 拒绝测试，并验证合法有限数值 JSON 正常读取。
 - 本修复强化离线证据输入契约；没有启动 Gazebo，也没有执行 `tests/test_drink.py`，不增加真实 DrinkTask E2E 通过轮数。三个代码提交及本 TaskPlan 提交的 Python/ROS 2 executor CI 均需按各自 SHA 刷新终态。
 - **状态：严格 JSON 解析 helper、runner 接入及回归测试已提交 main，等待 CI 验收。真实 Gazebo DrinkTask E2E 通过轮数仍为 0；三轮完整 E2E 与长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
+
+
+### 8.200 在下一轮启动前使用严格 JSON 解析验收快照（2026-11-10，runner 与回归测试已提交，CI 待验收）
+
+- §8.199 后续 CI 已全部通过：helper 提交 `cf71e490376795db94bd1fd7665ea681052af801` 的 Python run `42818362000`、ROS 2 executor run `42818361722` 均 completed/success；runner 提交 `4858c94cb34882ca16a0554e92a091457d4b8343` 的 Python run `42818368186`、ROS 2 executor run `42818367996` 均通过；测试提交 `d4747c119264c3c48f92fd92157e87143cb471ea` 的 Python run `42818397420`、ROS 2 executor run `42818397425` 均通过；TaskPlan 提交 `5a250c8b5b11ff34bde72c15d8c5669c5e76d24a` 的 Python run `42818460780`、ROS 2 executor run `42818460682` 均通过。
+- 继续沿多轮 runner 的轮次验收门审查发现：observer 原始 JSON 归档与批次最终汇总已使用 `load_json_strict()`，但决定是否启动下一轮的中间验收门仍使用默认 `json.load()`。若快照在归档后、下一轮验收前被替换或篡改为含 `NaN`/`Infinity` 的 JSON，该门可能接受非标准 JSON 并继续启动下一轮；之后最终批次汇总才将其标为无效，违反“每轮证据验收后才允许下一轮”的严格顺序。
+- runner 提交 `75aa34f11808a739321e1f27c3667afa57e14857`：下一轮启动前的验收门改为调用 `load_json_strict()`，统一原始归档、逐轮门控和最终汇总的 JSON 输入契约。
+- 回归测试提交 `6075eebf598a706833908fadcb74f39a43817f08`：静态检查确认门控导入并调用严格解析 helper，且不再使用默认 `json.load(stream)`。
+- 该修复加固轮次间的证据门控；没有运行 Gazebo，也没有执行 `tests/test_drink.py`，不增加真实 DrinkTask E2E 通过轮数。
+- **状态：runner 与回归测试已提交 main，等待各自 Python/ROS 2 executor CI 终态验收。真实 Gazebo DrinkTask E2E 通过轮数仍为 0；三轮完整 E2E 和长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
