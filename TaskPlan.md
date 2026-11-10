@@ -3199,3 +3199,12 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 更正 §8.153 当时记录的待验收状态：上述最终修复版本及其 TaskPlan 更新的 CI 已全部结束并通过。中间提交 `13b8f257b6f8465cfb16622346828890066e7d38` 的 Python run `42753673093` 曾因多余右花括号导致语法检查失败；最终提交 `4bdb73f8` 已修正并通过，失败历史保留，不计作通过。
 - CI 范围仅为指定 Python 模块编译、P104 纯 Python/运动学测试、runner shell 语法检查及 CarryBus ROS 2 executor 集成；没有启动完整 Gazebo DrinkTask 场景，也没有生成新的真实 E2E JSON/截图。
 - **状态：到场截图重试修复和对应 TaskPlan 记录均通过 CI；真实 DrinkTask E2E 新增通过轮数仍为 0。** 下一步仍需在具备 ROS 2 Jazzy、Gazebo Harmonic 与已构建工作区的仿真环境执行 `bash tests/drink_repeat.sh 3 <new-tag>`，审查三轮 JSON、截图归档与 summary，并完成长时间稳定性验证。P104-07 保持“正在进行中”。
+
+
+
+### 8.155 强制完整 DrinkTask 九阶段按规定顺序出现（2026-11-10，代码已提交，CI 待验收）
+
+- 复核 `tests/test_drink.py` 的完整流程判据时发现：原实现只检查九个必需阶段是否都曾出现在 `w.stages`，没有检查出现顺序。若阶段状态异常乱序，但九个阶段最终都出现，阶段完整性检查仍可能误判通过。
+- 修正提交：`d5f13d7a55864009455aec63a9fac4eda81e0813`。现在提取观测到的必需阶段序列，要求其与 `PREPARE → PRESENT → HANDOVER → PERSON_DRINK → TAKE_BACK → PUT_BACK → RETREAT → HANDBACK → DONE` 完全一致；缺失、乱序或必需阶段重复进入都会使完整流程判据失败。原有逻辑仿真时间小于 300 秒要求不变。
+- 此项是测试验收判据收紧，不代表已经观察到实际乱序故障，也没有更改生产状态机或动作行为。
+- **状态：顺序判据已提交 main，等待 Python 编译/纯测试与 ROS 2 executor CI；完整 Gazebo DrinkTask E2E 仍未执行，新增通过轮数仍为 0。** CI 通过后仍需在完整仿真环境运行三轮重复验收及长时间稳定性测试。P104-07 保持“正在进行中”。
