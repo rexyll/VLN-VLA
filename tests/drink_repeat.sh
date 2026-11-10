@@ -140,12 +140,12 @@ import tempfile
 source_json, snapshot_json, root, shot_dir, observer_exit_code = sys.argv[1:]
 sys.path.insert(0, os.path.join(root, "tests"))
 from drink_evidence import (archive_observer_screenshots,
-                            validate_observer_result, write_json_atomic)
+                            validate_observer_result, write_json_atomic,
+                            load_json_strict)
 
 archive_published = False
 try:
-    with open(source_json, encoding="utf-8") as stream:
-        result = json.load(stream)
+    result = load_json_strict(source_json)
     # Reject scalar/array/null JSON and malformed screenshot fields before
     # mutating the observer payload or creating an archive directory.
     validate_observer_result(result)
@@ -220,14 +220,14 @@ summary_path, requested, root, failed, tag, *paths = sys.argv[1:]
 sys.path.insert(0, os.path.join(root, "tests"))
 from drink_evidence import (summarize_round_evidence, summarize_numeric_values,
                             summarize_batch_status,
-                            finite_numeric_value, write_json_atomic)
+                            finite_numeric_value, write_json_atomic,
+                            load_json_strict)
 
 rows = []
 invalid_rounds = []
 for path in paths:
     try:
-        with open(path, encoding="utf-8") as stream:
-            result = json.load(stream)
+        result = load_json_strict(path)
     except (OSError, ValueError) as exc:
         message = str(exc)
         print("Invalid round result %s: %s" % (path, message), file=sys.stderr)
