@@ -44,6 +44,7 @@ from vla_follow import drink_poses as P       # noqa: E402
 from vla_follow import scene_layout as L      # noqa: E402
 from vla_follow.drink_task import DrinkTask   # noqa: E402
 from vla_follow.pngsnap import save_png       # noqa: E402
+from drink_evidence import missing_required_shots  # noqa: E402
 
 LOG_DIR = os.path.join(ROOT, 'vla_ws', 'logs')
 TOTAL_TIMEOUT = 420.0
@@ -402,12 +403,11 @@ def main():
 
     # A raw image count can be satisfied by unrelated/repeated images. Require
     # one event-linked frame for every critical DrinkTask milestone instead.
-    required_shots = {'arrive', 'present', 'grip', 'drink', 'takeback',
-                      'placed', 'handback'}
-    missing_shots = sorted(required_shots - set(res['shot_labels']))
+    missing_shots = missing_required_shots(res['shot_labels'])
+    required_count = 7
     res['missing_shot_labels'] = missing_shots
     step('[9] 关键事件截图 %d/%d 张' %
-         (len(required_shots) - len(missing_shots), len(required_shots)),
+         (required_count - len(missing_shots), required_count),
          not missing_shots, '缺少=%s' % (missing_shots or '无'))
 
     res['ok'] = not fails
