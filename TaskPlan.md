@@ -3134,3 +3134,11 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 修正提交：`29aa7aa978dcfe5fbc23848f6b1b7546fd7b1669`。runner 在创建输出目录后检查系统是否提供 `flock`，并以非阻塞方式获取全局 `tests/out/.drink_repeat.lock` 文件锁；若另一个重复验收批次正在运行，则以 exit 2 拒绝启动。文件描述符随进程退出自动释放锁，锁文件本身不作为轮次证据路径，也不影响已有 tag 的 JSON/截图冲突检查。
 - 该锁覆盖所有 tag，而不只是同 tag，因为仿真场景和 observer 临时产物均为共享资源。未改变单轮验收判据、轮数、冷却时间、截图归档、失败即停止或历史证据不可覆盖规则。
 - **状态：并发互斥修复已提交 main，Python 与 ROS 2 executor CI 待验收；真实 DrinkTask E2E 新增通过轮数仍为 0。** CI 通过后仍需在具备 ROS 2 Jazzy、Gazebo Harmonic 和已构建工作区的仿真主机执行三轮完整 E2E 与长时间稳定性测试。P104-07 保持“正在进行中”。
+
+### 8.147 DrinkTask E2E 观测器处理仿真真值短暂缺失（2026-11-10，代码已提交，CI 待验收）
+
+- 复核 `tests/test_drink.py` 时发现两处异步真值读取缺少空值保护：随机活动 warmup 结束后，person/cup/robot 的动态位姿可能短暂缺失；收到 DRINK 事件时，person 位姿或 yaw 也可能在该帧暂不可用。原实现直接解包/索引 `None`，会让 Python 异常退出，无法按正常失败路径写出诊断 JSON。
+- 提交 `5e2313da03c782e288a342f6bb577ef45bdcc25a`：warmup 后重新确认 person/cup/robot 真值仍可用；若缺失，记录失败步骤并调用统一 `report()` 输出结果 JSON，不发送 GO_DRINK。
+- 提交 `887d32c9e3fa4aaa1bc305e5ea18156fe5e187a5`：收到 DRINK 后若 person 平面位置或 yaw 暂时缺失，则本轮 observer spin 后重试采样；数据恢复后再计算到位偏差和朝向，不因单帧缺失崩溃。
+- 未放宽验收阈值、未伪造位置数据；若真值持续缺失，原有流程仍会因未满足到位验收而失败。修复目标仅是将瞬时消息缺口转化为可诊断的测试行为。
+- **状态：两项观测器健壮性修复已提交 main；对应 Python 与 ROS 2 executor CI 待验收。真实 DrinkTask E2E 仍未在完整仿真环境执行，新增通过轮数仍为 0。**
