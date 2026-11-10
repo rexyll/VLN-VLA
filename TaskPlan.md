@@ -3097,3 +3097,11 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 修正提交：`8aff6a399e9f37744cd35180ab736d6a69dcab7b`。runner 在启动任何一轮任务前，先检查汇总文件及本次全部预期轮次文件；若目标路径已存在（包括符号链接），立即以 exit 2 退出并要求使用新 tag，不覆盖旧证据。检查发生在循环发送 `GO_DRINK` 之前。
 - 本修正只改变验收产物命名冲突时的保护行为，不改变 DrinkTask 状态机、单轮验收阈值、轮间冷却、失败即停止或真实仿真前置条件。
 - **状态：证据防覆盖修正已提交 main，等待 Python CI（含 `bash -n tests/drink_repeat.sh`）验收。** 此提交不能证明 Gazebo 已运行；真实 DrinkTask E2E 通过轮数仍为 0。P104-07 保持“正在进行中”。
+
+
+### 8.143 按轮次归档 DrinkTask 截图，保持 JSON 与图像证据一致（2026-11-10，代码已提交，CI 待验收）
+
+- 进一步检查 `tests/test_drink.py` 与 `tests/drink_repeat.sh` 的证据生命周期：单轮 observer 将截图固定写入 `vla_ws/logs/p91_*.png`，但重复 runner 原先只复制每轮 JSON。后续轮次会覆盖固定截图路径，导致较早轮次 JSON 中的 `shots` 指针最终指向新一轮图像，破坏跨轮审计一致性。
+- 修正提交：`c816cf4ed7ee34444e67da78a1469fcc18377538`。runner 现在在每轮完成后，将 JSON 中列出的每张截图复制到独立目录 `tests/out/drink_<tag>_<round>_shots/`，并把该轮 JSON 的 `shots` 改为相对仓库根目录的归档路径；同时写入 `evidence.screenshots_archived`。任一声明的截图源文件缺失或复制失败时，该轮证据归档失败并停止后续轮次，不把不完整轮次算作已归档。
+- 保持既有行为：每轮只触发一次 `tests/test_drink.py`；失败即停止；tag 冲突预检避免覆盖既有 JSON/汇总；summary 仍汇总实际 JSON 中的状态和指标。没有改变业务状态机和单轮验收阈值。
+- **状态：代码已提交 main，等待 Python CI（shell syntax 与纯 Python 检查）及 ROS 2 executor CI。** 本次仅改进证据归档，没有 Gazebo 实际运行记录；新增 DrinkTask E2E 通过轮数仍为 0，P104-07 保持“正在进行中”。
