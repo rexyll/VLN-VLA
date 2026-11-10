@@ -197,7 +197,7 @@ for path in paths:
         "follow_in_band_pct": follow.get("in_band_pct"),
         "stages": result.get("stages", []),
         "shot_labels": result.get("shot_labels", []),
-        "missing_shot_labels": result.get("missing_shot_labels", []),
+        "missing_shot_labels": evidence["missing_shot_labels"],
         "fails": result.get("fails", []),
     })
 
