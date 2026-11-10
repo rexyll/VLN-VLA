@@ -23,23 +23,47 @@ def should_stop_terminal_observer(state, saved_labels, terminal_elapsed,
     return terminal_elapsed >= grace_seconds
 
 def summarize_round_evidence(result, root):
-    """Validate that every screenshot referenced by a round was archived."""
+    """Validate required event labels and unique, in-repository archived files."""
     import os
 
     shots = result.get('shots', [])
     evidence = result.get('evidence') or {}
     declared = evidence.get('screenshots_archived')
-    paths_ok = (
-        isinstance(shots, list)
-        and all(isinstance(path, str) and path
-                and os.path.isfile(os.path.join(root, path))
-                for path in shots)
+    labels = result.get('shot_labels', [])
+    missing = set(missing_required_shots(labels))
+    labels_ok = (
+        isinstance(labels, list)
+        and set(labels) >= REQUIRED_SHOT_LABELS
+        and not missing
     )
+
+    root_real = os.path.realpath(root)
+    resolved = []
+    paths_ok = isinstance(shots, list)
+    if paths_ok:
+        for path in shots:
+            if not isinstance(path, str) or not path or os.path.isabs(path):
+                paths_ok = False
+                break
+            candidate = os.path.realpath(os.path.join(root_real, path))
+            try:
+                inside_root = os.path.commonpath((root_real, candidate)) == root_real
+            except ValueError:
+                inside_root = False
+            if not inside_root or not os.path.isfile(candidate):
+                paths_ok = False
+                break
+            resolved.append(candidate)
+
+    unique_paths = paths_ok and len(set(resolved)) == len(resolved)
     archive_ok = (
         isinstance(declared, int)
         and not isinstance(declared, bool)
-        and declared == len(shots)
+        and declared == len(REQUIRED_SHOT_LABELS)
+        and len(shots) == len(REQUIRED_SHOT_LABELS)
+        and labels_ok
         and paths_ok
+        and unique_paths
     )
     task_ok = bool(result.get('ok'))
     return {
@@ -48,4 +72,5 @@ def summarize_round_evidence(result, root):
         'ok': task_ok and archive_ok,
         'screenshots_archived': declared if archive_ok else 0,
         'shots': list(shots) if isinstance(shots, list) else [],
+        'missing_shot_labels': sorted(missing),
     }
