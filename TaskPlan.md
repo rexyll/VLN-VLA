@@ -3545,3 +3545,13 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 测试修正提交 4256d85bbb02ff4f2865144091c440799ff722f6：将字段名断言改为检查 runner 确实初始化 invalid_rounds 并对无效快照追加文件名/错误原因；保留对 summarize_batch_status()、**batch_status、runner_failed 与 all_passed 判据的检查。
 - 修正提交 430206a490b8 的 Python run 42805700459 失败；ROS 2 executor run 42805700421 写入时仍 in_progress。随后提交的测试修正 4256d85bbb02 与本 TaskPlan 更新的 Python/ROS 2 executor runs 需刷新确认，不能用前序失败/成功结果替代。
 - **状态：批次统计 helper 和行为测试已通过独立 CI；runner 静态测试断言继续收敛到实际跨文件数据流，最新修正已进入 main，待 CI 验收。真实 Gazebo DrinkTask E2E 通过轮数仍为 0，三轮 E2E 与长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
+
+### 8.192 在批次 SUMMARY 中逐项列出未生成的轮次文件（2026-11-10，helper、runner 与测试已提交，CI 待验收）
+
+- 刷新 §8.191 后续 CI：测试提交 4256d85bbb02 的 Python run 42805819231 与 ROS 2 executor run 42805819128 均 completed/success；TaskPlan 提交 f163afc212e6 的 Python run 42805860207 与 ROS 2 executor run 42805859791 均 completed/success。批次状态静态测试的跨文件断言修正已通过两条工作流。
+- 继续审查 runner 的实际中断路径发现：当某轮没有生成结果 JSON 时，runner 会停止后续轮次，SUMMARY 的 failed_rounds 能反映未通过数，但 invalid_rounds 只列出已存在但内容无效的文件；没有单独的 missing_rounds 列表，无法从 SUMMARY 直接定位哪些预期轮次文件根本未生成。
+- helper 提交 5587f65189d741123f64c38c360f9bb06946f31e：summarize_batch_status() 增加 missing_rounds 参数及输出字段；任何缺失轮次均使 all_passed=false。
+- runner 提交 683b8344f09b04c1dcf745ef92274aa4af31b72d：将 TAG 传入批次汇总阶段，以 drink_<tag>_<round>.json 预期文件名对照已解析轮次与无效轮次清单，逐项列出未生成的轮次文件。
+- 回归测试提交 26dcb1c09c76e0d8b426c09766cf07e7b6ee93b0：验证两轮缺失时 missing_rounds 的具体轮次编号和文件名、失败数及 all_passed=false；静态回归检查 runner 的缺失轮次生成和传递路径。
+- 此修复只增强批次证据报告；没有运行 Gazebo DrinkTask 实例，也没有增加真实 E2E 通过轮数。§8.192 的 Python 与 ROS 2 executor CI 尚待终态刷新。
+- **状态：三个代码提交已进入 main，CI 待验收；真实 Gazebo DrinkTask E2E 新增通过轮数仍为 0，三轮完整 E2E 与长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
