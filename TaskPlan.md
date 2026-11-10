@@ -3718,3 +3718,15 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 修正提交 Python run 42826479760 与 ROS 2 executor run 42826479752 在记录时均 queued；此前 TaskPlan 提交 4e2908ed378a 的 Python run 42826398621 也因同一测试问题失败，ROS 2 executor run 42826398997 仍 in_progress。所有工作流必须按各自 SHA 刷新终态。
 - 本次未启动 Gazebo，未执行完整 tests/test_drink.py 或 tests/drink_repeat.sh；真实 Gazebo DrinkTask E2E 新增通过轮数仍为 0，至少三轮真实 E2E 和长时间稳定性验证未完成。
 - **状态：observer 生命周期代码已提交；新增静态回归测试的换行定位错误已修正并提交，等待修正后 CI。P104-07 保持“正在进行中”。**
+
+
+### 8.211 清理失败必须阻止 observer 报告成功（2026-11-10，功能与回归测试已提交，CI 待验收）
+
+- 刷新 §8.210 及 observer 生命周期修正的历史 CI：TaskPlan 提交 `78b5400a1071` 的 Python syntax run `42826521517` 与 CarryBus ROS 2 executor run `42826521487` 均 completed/success；测试边界修正提交 `0a7f0b4cae74` 的 Python run `42826479760` 与 ROS 2 executor run `42826479752` 均 completed/success；observer 生命周期代码提交 `a63cf7f17831` 的 Python run `42826295583` 与 ROS 2 executor run `42826295498` 均 completed/success。
+- 进一步审查发现，旧 `main()` 虽然在 finally 中记录节点销毁或 ROS 2 shutdown 异常，但 observer 原本返回 0 时仍可能以成功退出，导致资源清理失败被误报为通过。
+- helper 提交 `5fe459ef4b692e9ce14acebef0d989268ad5d6c8`：在 `tests/drink_evidence.py` 增加 `cleanup_observer_resources()`，统一尝试销毁节点与关闭已初始化的 ROS 2 context；任一清理步骤失败均返回失败标记，且节点销毁失败不会阻断 shutdown 尝试。该提交 Python run `42829438833` 的编译与纯测试 jobs 均 success；其 ROS 2 executor run `42829438955` 记录时 in_progress。
+- observer 逻辑提交 `702afda622478a1c1e55de0cad1898a8dfab14ca`：`main()` 在 finally 中调用 helper；若 observer 原本成功但清理失败，改以退出码 3 结束。原始 observer 异常仍继续传播，helper 的清理异常仅记录，不覆盖原异常。该提交 Python 编译 job success，但纯测试 job failure：旧静态断言仍要求 `return _run_observer(node)`，与新的结果变量写法不符；这属于过期断言，已修正。
+- 回归测试提交 `31e13c1b787a24540463c158cfb378b8ac78955e` 增加 helper 的正常清理、节点销毁失败后仍尝试 shutdown、shutdown 失败和未初始化 context 等纯测试；但同一提交仍继承旧静态断言，Python 纯测试 job `42829489086` failure，编译 job success。其 ROS 2 executor run `42829489211` 记录时 in_progress。
+- 测试断言修正提交 `62963fc0972b5c952e64585e4cc52c9acf05ff01` 与进一步统一断言提交 `a21ce478269149638326dbfa91560b0364bf4810`：将静态检查更新为新 `main()` 结构，确认 cleanup helper 调用、清理失败时退出码 3，以及 report/main 不重复释放资源。`62963fc0972b` 的 Python/ROS 2 runs `42829534958/42829534831` 记录时 in_progress；最新 `a21ce4782691` 的 Python/ROS 2 runs `42829594583/42829594604` 记录时 queued。需要刷新最终提交 CI 后才能验收。
+- 本轮未启动 Gazebo，未运行完整 `tests/test_drink.py` 或 `tests/drink_repeat.sh`。上述纯测试只验证清理 helper 的可控错误路径和静态调用契约，不替代 ROS 2 运行时异常/中断测试。真实 Gazebo DrinkTask E2E 新增通过轮数仍为 0；至少三轮真实 E2E 与长时间稳定性验证未完成。
+- **状态：observer 资源清理失败现在会阻止退出码 0；对应纯测试和静态断言已提交 main，等待最终 CI。P104-07 保持“正在进行中”。**
