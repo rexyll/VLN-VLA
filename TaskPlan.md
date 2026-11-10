@@ -3410,3 +3410,12 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 本节 CI：Python run `42791921695`、ROS 2 executor run `42791921580`，写入时均为 queued，未标记通过。
 - §8.176 最终验收：helper `e783e71e9591` 的 Python/ROS 2 runs `42791110363`、`42791110810`；测试 `91419322d010` 的 runs `42791128145`、`42791128322`；TaskPlan `e60d648db758` 的 runs `42791182525)、`42791182610)，均 completed/success。
 - **状态：序列化异常回归测试已提交 main，CI 待验收；完整 DrinkTask Gazebo E2E 新增通过轮数仍为 0，三轮真实任务验收与长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
+
+### 8.178 统一 DrinkTask 每轮快照与聚合 SUMMARY 的原子 JSON 发布（2026-11-10，runner 已提交，CI 验收中）
+
+- 审查多轮 runner 的文件发布路径时发现：聚合 SUMMARY 已调用共享 `write_json_atomic()`，但每轮快照仍使用内嵌的 `mkstemp()/fdopen()/os.replace()` 实现。若 `os.fdopen()` 在接管描述符前失败，该路径仍可能泄漏原始文件描述符，且与共享 helper 的失败清理语义重复。
+- runner 提交 `929320e43aee4ac70d55211fd06663e954afcf74`：每轮截图归档成功后，改为调用共享 `write_json_atomic(result, snapshot_json)` 发布轮次 JSON；保留“先完整发布截图归档、再原子发布 JSON”的顺序，并复用 helper 已覆盖的 fdopen 失败关闭描述符、临时文件清理、旧目标保护等行为。不改变 DrinkTask 执行流程、失败轮次停止策略、汇总字段或成功判据。
+- §8.177 序列化异常回归最终验收：测试提交 `cb9f1478a2a62ec7f2157a9f608dc14097223427` 的 Python run `42791921695` 与 ROS 2 executor run `42791921580` 均 completed/success；TaskPlan 提交 `8c8a1ce2c77639131a4f21d7a2197bda9aa24aa2` 的 Python run `42791963735` 与 ROS 2 executor run `42791964213` 均 completed/success。
+- 本节 runner 提交触发的 CI：Python run `42793471848` 与 ROS 2 executor run `42793472171`，写入本节时均 queued；不得提前标记通过。离线 CI 仍不等同于真实 Gazebo DrinkTask E2E。
+- **状态：每轮 JSON 快照已统一复用原子写入 helper，等待本提交 Python 与 ROS 2 executor CI 最终验收；真实 DrinkTask Gazebo E2E 新增通过轮数仍为 0，三轮真实任务验收与长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
+
