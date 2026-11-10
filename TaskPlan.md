@@ -3241,3 +3241,13 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 在 §8.158 将截图判据抽取到共享模块后，进一步消除 `tests/test_drink.py` 中截图总数分母的重复常量，避免未来调整必需标签集合时显示的总数与实际判据不一致。
 - 修正提交：`9acc61397ea1d637762944b4464b06d77949a9f3`。单轮验收输出的必需截图总数现在由 `len(REQUIRED_SHOT_LABELS)` 得出，与 `missing_required_shots()` 使用同一来源。
 - **状态：代码已提交 main，Python 与 ROS 2 executor CI 待验收；真实 DrinkTask E2E 新增通过轮数仍为 0。P104-07 保持“正在进行中”。**
+
+### 8.160 为 DONE 阶段的 placed 截图保留有界重试窗口（2026-11-10，代码已提交，CI 待验收）
+
+- 审查 §8.156~§8.159 的关键截图链路时发现：阶段截图在图像未就绪时会继续重试，但 observer 在第一次观察到终态 DONE 后立即退出。若 DONE 状态消息先于对应相机帧到达，placed 截图只尝试一次，后续帧无法再被采集；这与“截图未就绪则继续重试”的既有设计不一致。
+- 修复提交 3d6fcc5cfaf5200ff7c63739cac21a0ff382a47a：在无 ROS/Gazebo 依赖的 tests/drink_evidence.py 增加 should_stop_terminal_observer()，统一表达终态退出条件；ERROR、FAIL_PREPARE、FAIL_HANDOVER 仍立即退出，DONE 则在 placed 标签已成功保存时退出。
+- 集成提交 3fc9125b912000977bf24657b766d29f46560339：tests/test_drink.py 记录首次进入终态的单调时钟时间；若 DONE 后 placed 图像尚未就绪，继续 observer spin，最多等待 3 秒。成功保存截图则立即退出；超过窗口仍未保存时退出，后续必需标签检查照常失败，不伪造截图、不放宽七项截图要求。
+- 回归测试提交 4e4160557147424615b3024095064512457be9b2：tests/test_p104.py 覆盖 DONE 尚未保存时继续等待、placed 保存后退出、3 秒窗口到期退出、错误终态立即退出，以及非终态不提前退出。
+- 该修复只处理终态截图证据采集时序，不改变 DrinkTask 生产状态机、任务动作、九阶段顺序、图像新鲜度阈值或其他验收阈值。
+- 前序 §8.158~§8.159 相关 Python 与 ROS 2 executor CI 已复核全部 completed/success：Python runs 42755658543、42755669729、42755681768、42755700727、42755722124、42755738391；ROS 2 executor runs 42755658421、42755669519、42755681773、42755700383、42755722381、42755738357。这些 CI 仅验证 Python 编译/纯测试和 CarryBus ROS 2 executor，不代表完整 Gazebo DrinkTask E2E。
+- **状态：终态截图有界重试修复及回归测试已提交 main，当前提交的 Python 与 ROS 2 executor CI 待验收；真实 DrinkTask E2E 新增通过轮数仍为 0。完整三轮 E2E 与长时间稳定性验证未完成，P104-07 保持“正在进行中”。**
