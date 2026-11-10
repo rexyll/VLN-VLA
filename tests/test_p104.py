@@ -22,7 +22,7 @@ from drink_evidence import (REQUIRED_SHOT_LABELS, missing_required_shots,
                             summarize_round_evidence,
                             validate_observer_result,
                             archive_observer_screenshots,
-                            write_json_atomic)
+                            write_json_atomic, summarize_numeric_values)
 
 import numpy as np
 
@@ -107,6 +107,19 @@ from vla_follow import carry as C  # noqa: E402
 
 
 class TestP104(unittest.TestCase):
+
+    def test_drink_summary_metrics_exclude_boolean_and_non_finite_values(self):
+        summary = summarize_numeric_values([
+            1, 3.5, True, False, float('nan'), float('inf'),
+            float('-inf'), '4', None,
+        ])
+        self.assertEqual(summary, {
+            'median': 2.25, 'min': 1.0, 'max': 3.5,
+        })
+        self.assertIsNone(summarize_numeric_values([
+            True, False, float('nan'), float('inf'), 'not-a-number',
+        ]))
+        self.assertIsNone(summarize_numeric_values([10 ** 10000]))
 
     def test_repeat_runner_rechecks_round_acceptance_before_next_round(self):
         runner_path = os.path.join(ROOT, 'tests', 'drink_repeat.sh')
