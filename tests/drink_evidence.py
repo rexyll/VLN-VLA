@@ -85,7 +85,7 @@ def summarize_round_evidence(result, root):
         and paths_ok
         and unique_paths
     )
-    task_ok = bool(result.get('ok'))
+    task_ok = result.get('ok') is True
     return {
         'task_ok': task_ok,
         'archive_ok': archive_ok,
