@@ -197,7 +197,11 @@ class TestP104(unittest.TestCase):
             runner.index('result["observer_exit_code"] = int(observer_exit_code)'))
         self.assertIn('"$RC" <<\'PY\'', runner)
         self.assertIn('"process_ok": evidence["process_ok"]', runner)
-        self.assertIn('"all_passed": (int(failed) == 0 and len(rows) == int(requested)', runner)
+        self.assertIn('batch_status = summarize_batch_status(int(requested), rows, invalid_rounds)', runner)
+        self.assertIn('"failed_rounds"', runner)
+        self.assertIn('"invalid_rounds"', runner)
+        self.assertIn('"runner_failed": int(failed) != 0', runner)
+        self.assertIn('"all_passed": batch_status["all_passed"] and int(failed) == 0', runner)
 
     def test_drink_screenshot_acceptance_requires_each_unique_event(self):
         complete = [
