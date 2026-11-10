@@ -3283,3 +3283,11 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - §8.162/§8.163 相关 Python CI 已通过：runs `42781112443`、`42781329486`、`42781388953`、`42781471231`、`42781582140`、`42781612187`、`42781733655`、`42781762853` 均 completed/success。初始 helper 提交 `9a136be8` 的 Python run `42781052203` 曾因旧测试夹具未同步更新而失败；随后测试夹具更新后的 run `42781112443` 通过。
 - ROS 2 executor CI 中，run `42781389198` 曾在既有测试 `test_executor_delivers_concurrent_ids_and_rejects_late_ack` 的 fresh ACK waiter 断言失败（期望 `{"ok": True}`，实际 `{"ok": False}`）；该提交只改动 DrinkTask Python 证据 helper，未改 CarryBus executor。后续 ROS 2 runs `42781471130`、`42781582121`、`42781612622` 已 completed/success；runs `42781733575`、`42781762887` 在本轮记录时仍 in_progress。另有较早 runs `42781112456`、`42781329472`、`42781513339` 仍在运行，待刷新终态。
 - **状态：严格截图归档验收及畸形 JSON 防御性处理已提交 main；Python CI 已通过，ROS 2 executor 有一次独立并发 ACK 回归失败但后续多次通过，剩余 run 待终态确认。真实 DrinkTask Gazebo E2E 新增通过轮数仍为 0，三轮完整验收与长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
+
+### 8.164 将轮次成功标志限定为 JSON 布尔 true（2026-11-10，代码已提交，CI 待验收）
+
+- 继续审查汇总 JSON 的类型边界时发现：Python 的 `bool("false")` 仍为 true。若结果文件中的 `ok` 被错误序列化为字符串 `"false"`，仅用 truthiness 会把失败轮次当作任务成功。
+- helper 提交 `2f6cac18e41bb7e9fe298f0bdb830670d1577c19`：`task_ok` 现在只接受 `result["ok"] is True`，字符串、数字或其他 truthy 值均不能代替 JSON 布尔 true。
+- 回归测试提交 `3524c749b7ec007730d50ddc671af106ee747111`：增加 `ok="false"` 必须判失败的用例。
+- §8.163 当前 CI：Python run `42781868409` 已 completed/success；ROS 2 executor run `42781868252` 当时仍 in_progress。此前 §8.163 的 ROS 2 executor run `42781733575` 已 completed/success；另有 `42781762887` 仍 in_progress。§8.162 的多轮归档代码及测试已取得多个 Python success 和 ROS 2 success（`42781112456`、`42781471130`、`42781582121`、`42781612622`、`42781733575`），但有一次既有并发 ACK 测试的独立失败，详见 §8.163，不将单次失败隐藏或误归因于 DrinkTask 证据 helper。
+- **状态：严格 JSON 类型判据已提交 main，最新 Python 与 ROS 2 executor CI 待验收；真实 DrinkTask Gazebo E2E 新增通过轮数仍为 0，三轮完整验收和长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
