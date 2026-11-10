@@ -66,8 +66,13 @@ if [[ -e "$SUMMARY" || -L "$SUMMARY" ]]; then
 fi
 for ((i=1; i<=N; i++)); do
     SNAPSHOT="$OUTDIR/drink_${TAG}_${i}.json"
+    SHOTDIR="$OUTDIR/drink_${TAG}_${i}_shots"
     if [[ -e "$SNAPSHOT" || -L "$SNAPSHOT" ]]; then
         echo "Round evidence already exists: $SNAPSHOT; choose a new tag." >&2
+        exit 2
+    fi
+    if [[ -e "$SHOTDIR" || -L "$SHOTDIR" ]]; then
+        echo "Round screenshot archive already exists: $SHOTDIR; choose a new tag." >&2
         exit 2
     fi
 done
