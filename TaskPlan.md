@@ -3530,3 +3530,11 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 测试修正提交 ac5fcb59a5991fda36bc0f1b5621ce148584cdf9：静态回归改为检查 summarize_batch_status() 调用、failed_rounds、invalid_rounds、runner_failed 和最终 all_passed 联合判据，不再绑定旧实现字符串。
 - 本项是回归断言同步，不改变 runner 运行逻辑。修正提交 ac5fcb59a599 的 Python run 42805575952 与 ROS 2 executor run 42805575765 已触发，当前均 queued；需单独刷新终态。§8.188 的 runner 和 TaskPlan 旧提交失败状态保留，不覆盖或伪报为通过。
 - **状态：§8.188 helper 与行为测试 CI 已通过；runner 的旧静态断言已修正并提交 main，等待修正后 Python/ROS 2 executor CI。真实 Gazebo DrinkTask E2E 新增通过轮数仍为 0；三轮完整 E2E 和长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
+
+### 8.190 放宽批次 SUMMARY 回归断言，检查 runner 的真实数据流而非 helper 内部字段（2026-11-10，测试修正已提交，CI 待复验）
+
+- §8.189 的首轮断言修正提交 ac5fcb59a599 后，Python run 42805575952 仍失败：日志指出静态测试要求 runner 源码字面包含 failed_rounds，但该字段由 summarize_batch_status() 返回并通过 **batch_status 展开写入 SUMMARY，字段名实际定义在 helper 中。这是测试过度绑定跨文件实现细节，不是批次状态 helper 的行为失败；新增批次行为测试仍通过，Python 编译和 shell 语法检查也通过。
+- 测试修正提交 430206a490b8cd2f5ee8e4c0922d2afee90c93e9：将 failed_rounds 字面量断言改为检查 runner 使用 **batch_status 展开结果，同时保留对 helper 调用、invalid_rounds、runner_failed 和最终 all_passed 联合判据的检查。
+- §8.188 runner `34be90b096be` 的 ROS 2 executor run `42805412261` 已 completed/success；TaskPlan `204d495c7102` 的 Python run `42805496876` 已 completed/failure（与旧静态断言相同），其 ROS 2 executor run `42805496603` 写入时仍 in_progress。修正提交 ac5fcb59a599 的 Python run 42805575952 失败，ROS 2 executor run 42805575765 写入时仍 in_progress；上述旧结果不作为本次修正的验收证据。
+- 本次新修正提交 430206a490b8 的 Python 与 ROS 2 executor CI 需刷新后单独验收。真实 Gazebo DrinkTask E2E 新增通过轮数仍为 0；不将 Python 纯测试或 CarryBus executor CI 视为完整 DrinkTask E2E。
+- **状态：批次状态 helper 与行为测试通过；runner 的静态回归断言经过两轮同步修正，最新修正已提交 main，等待 CI。真实三轮 Gazebo DrinkTask E2E 和长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
