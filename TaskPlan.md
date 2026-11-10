@@ -3687,3 +3687,12 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 本次没有修改 runner：在未定义中断时 observer 子进程清理、任务状态安全确认和中断报告契约前，简单增加 trap 可能只终止 shell 而遗留正在执行的 ROS 2 observer，或在仿真任务尚未进入安全终态时误发起后续动作。该项作为明确的运维限制保留，不把部分归档提升为完整批次验收。
 - 本次仅完成静态控制流审查，没有向运行中的仿真发送 SIGINT/SIGTERM，也没有启动 Gazebo 或执行 `tests/test_drink.py`；真实 Gazebo DrinkTask E2E 新增通过轮数仍为 0。
 - **状态：§8.207 中断路径风险已识别并明确记录；未作缺乏安全语义的信号处理改动。完整 Gazebo DrinkTask E2E、至少三轮真实 E2E 与长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
+
+
+### 8.208 明确 DrinkTask observer 异常退出时的 ROS 2 清理缺口（2026-11-10，控制流审查）
+
+- 复核 §8.207 后进一步读取 `tests/test_drink.py`：正常路径通过 `report(node, res)` 写出结果后销毁 observer 节点并调用 `rclpy.shutdown()`；但 `main()` 的节点创建、任务观测与结果生成没有覆盖全流程的 `try/finally`。未捕获异常或 `KeyboardInterrupt` 可能绕过 `report()`，导致 observer 的节点销毁与 ROS 2 shutdown 清理未执行。
+- observer 在发出唯一的 `GO_DRINK` 后只是只读监视器；实际 DrinkTask 状态机由常驻 demo 节点运行。observer 进程退出不等于常驻任务停止，也不构成任务取消确认。因此，在 GO_DRINK 之后发生中断时，runner 必须把任务状态视为未知/未验收，不得仅凭 observer 退出就自动发起下一轮。
+- 本次未修改 `test_drink.py` 或 runner：将全流程包装进安全清理结构需要同步处理节点构造失败、报告写入失败、提前返回、KeyboardInterrupt 与 SIGTERM，并保证清理异常不覆盖原始退出状态；简单增加信号 trap 或重复 shutdown 不足以证明安全。后续应先设计可测试的 observer 生命周期封装与“任务状态未知”批次终态，再实现并加入模拟异常/中断测试。
+- 本次为静态代码审查；没有向仿真发送中断信号，没有启动 Gazebo，也没有执行完整 DrinkTask E2E。真实 Gazebo DrinkTask E2E 新增通过轮数仍为 0。
+- **状态：已定位 observer 异常退出时 ROS 2 清理可能被绕过的具体路径；尚未实施修复，P104-07 保持“正在进行中”。完整 Gazebo DrinkTask E2E、至少三轮真实 E2E 与长时间稳定性验证未完成。**
