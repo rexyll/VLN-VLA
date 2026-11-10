@@ -192,7 +192,7 @@ import sys
 summary_path, requested, root, *paths = sys.argv[1:]
 sys.path.insert(0, os.path.join(root, "tests"))
 from drink_evidence import (summarize_round_evidence, summarize_numeric_values,
-                            write_json_atomic)
+                            finite_numeric_value, write_json_atomic)
 
 rows = []
 for path in paths:
@@ -219,13 +219,13 @@ for path in paths:
         "archive_ok": evidence["archive_ok"],
         "screenshots_archived": evidence["screenshots_archived"],
         "shots": evidence["shots"],
-        "elapsed_s": result.get("elapsed_s"),
-        "sim_elapsed_s": result.get("sim_elapsed_s"),
-        "cup_home_mm": result.get("cup_home_mm"),
-        "cup_tilt_deg": result.get("cup_tilt_deg"),
-        "follow_travel_m": follow.get("travel_m"),
-        "follow_end_distance_m": follow.get("d_end_m"),
-        "follow_in_band_pct": follow.get("in_band_pct"),
+        "elapsed_s": finite_numeric_value(result.get("elapsed_s")),
+        "sim_elapsed_s": finite_numeric_value(result.get("sim_elapsed_s")),
+        "cup_home_mm": finite_numeric_value(result.get("cup_home_mm")),
+        "cup_tilt_deg": finite_numeric_value(result.get("cup_tilt_deg")),
+        "follow_travel_m": finite_numeric_value(follow.get("travel_m")),
+        "follow_end_distance_m": finite_numeric_value(follow.get("d_end_m")),
+        "follow_in_band_pct": finite_numeric_value(follow.get("in_band_pct")),
         "stages": result.get("stages", []),
         "shot_labels": result.get("shot_labels", []),
         "missing_shot_labels": evidence["missing_shot_labels"],
