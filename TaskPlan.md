@@ -3462,3 +3462,12 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 回归测试提交 `c33a8f75cc7e607c1b1f2033468295b5a0b1bae1`：新增嵌套 NaN 拒绝测试，确认发布失败、旧 SUMMARY 内容保留且临时文件清理。
 - 该修复是全局 JSON 发布边界防护；遇到非标准数值将使当前证据发布失败并由 runner 非零退出，而不是悄悄把污染数据写入报告。不会改变任务成功判据或 Gazebo 行为。
 - **状态：helper 与回归测试已提交 main，等待对应 Python 与 ROS 2 executor CI 终态验收；真实 DrinkTask Gazebo E2E 新增通过轮数仍为 0，三轮真实任务验收与长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
+
+
+### 8.183 将 runner 进程失败状态纳入多轮 SUMMARY 总体验收（2026-11-10，runner 与回归测试已提交，CI 待验收）
+
+- 继续审查 SUMMARY 的 all_passed 语义，发现 runner 在某轮结果 JSON 和截图证据均通过，但 observer 进程最终退出码非零时，会设置 FAILED=1 并停止后续轮次；然而 SUMMARY 的 all_passed 原先只依据已归档轮数和每轮 evidence.ok 计算，可能出现 runner 最终退出失败、报告却显示 all_passed=true 的矛盾状态。
+- runner 提交 `6784b46a8ff81900251ac602e5785d409e39b25a`：将批次 FAILED 状态传入聚合脚本；只有 FAILED 为 0、完成轮数等于请求轮数且每轮证据均通过，SUMMARY 才能报告 all_passed=true。
+- 回归测试提交 `fc857901cb4ac844df6e3ae001b1987b06295223`：增加静态控制流回归，确认聚合脚本接收 failed 参数，且 all_passed 判断包含 runner 失败状态。
+- §8.182 CI 刷新结果：helper `492a4e1c8789` 的 Python run `42798957280` completed/success，ROS 2 executor run `42798956650` 写入时仍 in_progress；测试 `c33a8f75cc7e` 的 Python run `42798979726` 与 ROS 2 executor run `42798979995` 写入时仍 in_progress；TaskPlan 上一提交 `4fc3444b7e80` 的 Python run `42799015049` 与 ROS 2 executor run `42799014633` 写入时 queued。上述未完成项不标记通过。
+- **状态：runner 与回归测试已提交 main，等待本节 CI 终态验收；真实 DrinkTask Gazebo E2E 新增通过轮数仍为 0，三轮真实任务验收与长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
