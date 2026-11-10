@@ -74,6 +74,7 @@ class Watch(object):
         self.cmds = []
         self.hands = {}
         self.img = None
+        self.img_received_at = None
         self.t0 = time.time()
         # 仿真时钟(见 _clock_cb): "全流程用时"要用逻辑时长, 不能跟机器快慢走
         self.sim = None
@@ -114,6 +115,7 @@ class Watch(object):
 
     def _img_cb(self, m):
         self.img = m
+        self.img_received_at = time.monotonic()
 
     def spin(self, s):
         self.node.spin_for(s)
@@ -131,7 +133,10 @@ class Watch(object):
         self.pub.publish(String(data=json.dumps({'action': action})))
 
     def shot(self, tag):
-        if self.img is None:
+        # Do not let a cached frame from before a camera stall masquerade as
+        # evidence for the current stage. Retry on later observer spins.
+        if (self.img is None or self.img_received_at is None
+                or time.monotonic() - self.img_received_at > 2.0):
             return None
         path = os.path.join(LOG_DIR, 'p91_%s.png' % tag)
         save_png(path, self.img.data, self.img.width, self.img.height,
