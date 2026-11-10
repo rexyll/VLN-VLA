@@ -126,8 +126,16 @@ class TestP104(unittest.TestCase):
         self.assertEqual(complete['failed_rounds'], 0)
         self.assertTrue(complete['all_passed'])
 
-        missing = summarize_batch_status(2, [passed], [])
-        self.assertEqual(missing['failed_rounds'], 1)
+        missing = summarize_batch_status(
+            3, [passed], [], [
+                {'round': 2, 'file': 'drink_case_2.json'},
+                {'round': 3, 'file': 'drink_case_3.json'},
+            ])
+        self.assertEqual(missing['failed_rounds'], 2)
+        self.assertEqual(missing['missing_rounds'], [
+            {'round': 2, 'file': 'drink_case_2.json'},
+            {'round': 3, 'file': 'drink_case_3.json'},
+        ])
         self.assertFalse(missing['all_passed'])
 
 
@@ -197,7 +205,9 @@ class TestP104(unittest.TestCase):
             runner.index('result["observer_exit_code"] = int(observer_exit_code)'))
         self.assertIn('"$RC" <<\'PY\'', runner)
         self.assertIn('"process_ok": evidence["process_ok"]', runner)
-        self.assertIn('batch_status = summarize_batch_status(int(requested), rows, invalid_rounds)', runner)
+        self.assertIn('missing_rounds = [', runner)
+        self.assertIn('summarize_batch_status(', runner)
+        self.assertIn('int(requested), rows, invalid_rounds, missing_rounds', runner)
         self.assertIn('**batch_status', runner)
         self.assertIn('invalid_rounds = []', runner)
         self.assertIn('invalid_rounds.append(', runner)
