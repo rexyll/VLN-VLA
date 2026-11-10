@@ -119,12 +119,16 @@ import tempfile
 
 source_json, snapshot_json, root, shot_dir, observer_exit_code = sys.argv[1:]
 sys.path.insert(0, os.path.join(root, "tests"))
-from drink_evidence import archive_observer_screenshots, write_json_atomic
+from drink_evidence import (archive_observer_screenshots,
+                            validate_observer_result, write_json_atomic)
 
 archive_published = False
 try:
     with open(source_json, encoding="utf-8") as stream:
         result = json.load(stream)
+    # Reject scalar/array/null JSON and malformed screenshot fields before
+    # mutating the observer payload or creating an archive directory.
+    validate_observer_result(result)
     # Persist the process outcome with the archived result so per-round
     # status and aggregate passed_rounds cannot disagree.
     result["observer_exit_code"] = int(observer_exit_code)
