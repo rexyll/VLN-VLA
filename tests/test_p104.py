@@ -162,6 +162,13 @@ class TestP104(unittest.TestCase):
         self.assertLess(gate, stop)
         self.assertLess(stop, cooldown)
 
+    def test_repeat_summary_requires_runner_exit_success(self):
+        runner_path = os.path.join(ROOT, 'tests', 'drink_repeat.sh')
+        with open(runner_path, encoding='utf-8') as stream:
+            runner = stream.read()
+        self.assertIn('root, failed, *paths = sys.argv[1:]', runner)
+        self.assertIn('"all_passed": (int(failed) == 0 and len(rows) == int(requested)', runner)
+
     def test_drink_screenshot_acceptance_requires_each_unique_event(self):
         complete = [
             'arrive', 'present', 'grip', 'drink', 'takeback', 'placed',
