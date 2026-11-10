@@ -191,12 +191,12 @@ PY
     fi
 done
 
-python3 - "$SUMMARY" "$N" "$ROOT" "$FAILED" "${SNAPSHOTS[@]}" <<'PY'
+python3 - "$SUMMARY" "$N" "$ROOT" "$FAILED" "$TAG" "${SNAPSHOTS[@]}" <<'PY'
 import json
 import os
 import sys
 
-summary_path, requested, root, failed, *paths = sys.argv[1:]
+summary_path, requested, root, failed, tag, *paths = sys.argv[1:]
 sys.path.insert(0, os.path.join(root, "tests"))
 from drink_evidence import (summarize_round_evidence, summarize_numeric_values,
                             summarize_batch_status,
@@ -249,7 +249,15 @@ for path in paths:
 def numeric_summary(key):
     return summarize_numeric_values(row.get(key) for row in rows)
 
-batch_status = summarize_batch_status(int(requested), rows, invalid_rounds)
+represented = {row["file"] for row in rows}
+represented.update(item["file"] for item in invalid_rounds)
+missing_rounds = [
+    {"round": index, "file": "drink_%s_%d.json" % (tag, index)}
+    for index in range(1, int(requested) + 1)
+    if "drink_%s_%d.json" % (tag, index) not in represented
+]
+batch_status = summarize_batch_status(
+    int(requested), rows, invalid_rounds, missing_rounds)
 report = {
     **batch_status,
     "runner_failed": int(failed) != 0,
