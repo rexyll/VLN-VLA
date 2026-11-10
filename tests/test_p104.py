@@ -167,6 +167,8 @@ class TestP104(unittest.TestCase):
         with open(runner_path, encoding='utf-8') as stream:
             runner = stream.read()
         self.assertIn('root, failed, *paths = sys.argv[1:]', runner)
+        self.assertIn('result["observer_exit_code"] = RC', runner)
+        self.assertIn('"process_ok": evidence["process_ok"]', runner)
         self.assertIn('"all_passed": (int(failed) == 0 and len(rows) == int(requested)', runner)
 
     def test_drink_screenshot_acceptance_requires_each_unique_event(self):
