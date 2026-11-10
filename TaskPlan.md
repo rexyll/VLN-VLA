@@ -3291,3 +3291,11 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 回归测试提交 `3524c749b7ec007730d50ddc671af106ee747111`：增加 `ok="false"` 必须判失败的用例。
 - §8.163 当前 CI：Python run `42781868409` 已 completed/success；ROS 2 executor run `42781868252` 当时仍 in_progress。此前 §8.163 的 ROS 2 executor run `42781733575` 已 completed/success；另有 `42781762887` 仍 in_progress。§8.162 的多轮归档代码及测试已取得多个 Python success 和 ROS 2 success（`42781112456`、`42781471130`、`42781582121`、`42781612622`、`42781733575`），但有一次既有并发 ACK 测试的独立失败，详见 §8.163，不将单次失败隐藏或误归因于 DrinkTask 证据 helper。
 - **状态：严格 JSON 类型判据已提交 main，最新 Python 与 ROS 2 executor CI 待验收；真实 DrinkTask Gazebo E2E 新增通过轮数仍为 0，三轮完整验收和长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
+
+### 8.165 在多轮汇总入口拒绝非对象 JSON，避免 helper 之前发生类型异常（2026-11-10，代码已提交，CI 待验收）
+
+- 复核 §8.163 的畸形 JSON 防御后发现：helper 已能拒绝非 dict 顶层结果，但 `drink_repeat.sh` 汇总循环在调用 helper 前仍先执行 `result.get("follow")`；若 JSON 顶层是数组、字符串或 null，runner 会在到达 helper 前异常退出。
+- runner 提交 `0e1b0110ae2daf6452b8119bcd8f19f9b270572c`：先验证每轮 JSON 顶层为 object；非 object 结果记录错误并跳过该轮，使最终 `completed_rounds` 少于请求轮数、`all_passed=false`。同时将非 object 的 follow 字段归一化为空对象，避免摘要提取阶段异常。
+- §8.164 Python CI 已通过：run `42781982479`（helper 严格布尔）与 `42782016342`（测试字符串 `"false"`）均 completed/success。对应 ROS 2 executor runs `42781982245`、`42782016930` 在本轮复核时仍 in_progress。
+- §8.163 Python run `42781868409` completed/success；ROS 2 run `42781868252` 当时仍 in_progress。§8.162/§8.163 的后续 ROS 2 run `42781733575` 已通过，`42781762887` 仍 in_progress。
+- **状态：runner 顶层 JSON 类型防御已提交 main，等待 Python shell/纯测试及 ROS 2 executor CI；真实 DrinkTask Gazebo E2E 新增通过轮数仍为 0，三轮完整验收与长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
