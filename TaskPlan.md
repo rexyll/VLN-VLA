@@ -3660,7 +3660,7 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 回归测试提交 `32185164aedd7af2d2f52f958b9257fcca3fd611`：新增静态断言，限定检查 runner 最终 SUMMARY 复核 here-doc，要求使用严格解析 helper 且不调用普通 `json.load()`。Python run `42822330259` queued，ROS 2 executor run `42822330424` in_progress。
 - 本节 TaskPlan 初次记录提交 `e5e4aba1f4b6fc2bfc22e9fef5dd9fc52f6c50bd`：Python run `42822344464` 与 ROS 2 executor run `42822344574` 均 queued；后续需刷新终态。
 - 本节只记录证据解析一致性加固；未启动 Gazebo，未执行 `tests/test_drink.py` 或 `tests/drink_repeat.sh`，真实 Gazebo DrinkTask E2E 新增通过轮数仍为 0。
-- **状态：最终 SUMMARY 严格解析修正已提交 main，Python 与 ROS 2 executor CI 待终态验收；完整 Gazebo DrinkTask E2E、至少三轮真实 E2E 和长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
+- **状态：最终 SUMMARY 严格解析修正已提交 main；runner 提交 `fc0d4923f254` 的 Python run `42822322097` 与 ROS 2 run `42822322179` 均 completed/success。完整 Gazebo DrinkTask E2E、至少三轮真实 E2E 和长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
 
 
 ### 8.205 修正最终 SUMMARY 严格解析静态测试的 here-doc 边界转义（2026-11-10，测试修正已提交，CI 待验收）
@@ -3668,4 +3668,13 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - §8.204 首轮 CI 显示 runner 提交 `fc0d4923f254` 的 Python run `42822322097` 已通过；回归测试提交 `32185164aedd` 的 Python run `42822330259` 失败，Compile changed Python modules 通过，shell `bash -n` 通过，P104 纯测试 41 项中 40 项通过、1 项失败。失败点是新增静态测试在定位最终 SUMMARY here-doc 时将换行写成字面反斜杠-n，导致 `ValueError: substring not found`；TaskPlan 提交 `e5e4aba1f4b6` 的 Python run `42822344464` 继承相同测试失败。两次失败均为测试定位字符串转义问题，不是 runner 严格解析功能失败。
 - 测试修正提交 `f10500e542666cc476f61efccb16799a682754e1`：将结束标记定位字符串改为 Python 源码中的转义换行，使运行时匹配 runner 文件中的真实换行；不修改 runner 逻辑。
 - 后续 CI 复核：测试修正提交 `f10500e542666cc476f61efccb16799a682754e1` 的 Python run `42822567449` completed/success（编译 job 与 P104 纯测试 job 均通过）；其 ROS 2 executor run `42822567481` 记录时仍 in_progress。§8.205 TaskPlan 首次记录提交 `eec797003b62f3142c5b3c80c3dd1e6f9489a23a` 的 Python run `42822578054` completed/success，ROS 2 executor run `42822578003` 仍 in_progress。后续 SHA 更新提交 `3fbc379c9cf7d614d7abb406e99fb19eec41eeea` 的 Python run `42822601008` completed/success，ROS 2 executor run `42822600854` 仍 in_progress。较早 TaskPlan 提交 `5b816c339662` 的 Python run `42822406039` 继承旧静态测试转义错误而失败，其 ROS 2 executor run `42822406216` success；该历史失败不代表当前修正失败。runner 与测试旧提交的 ROS 2 executor runs 仍需刷新；不能用 Python job 结果替代 ROS 2 executor 结果。
-- **状态：最终 SUMMARY 已切换严格 JSON 解析；静态测试 here-doc 边界已修正并提交 main，等待 Python 与 ROS 2 executor CI 验收。真实 Gazebo DrinkTask E2E 新增通过轮数仍为 0，三轮完整 E2E 与长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
+- **状态：最终 SUMMARY 已切换严格 JSON 解析；静态测试 here-doc 边界修正已提交并通过 CI。修正提交 `f10500e54266` 的 Python run `42822567449` 与 ROS 2 run `42822567481` 均 completed/success；后续 TaskPlan 提交 `eec797003b62` 的 Python run `42822578054` 与 ROS 2 run `42822578003` 均 completed/success；TaskPlan SHA 更新提交 `3fbc379c9cf7` 的 Python run `42822601008` 与 ROS 2 run `42822600854` 均 completed/success。最新 TaskPlan 提交 `1a95501a83a1` 的 Python run `42822713215` 与 ROS 2 run `42822713209` 均 completed/success。真实 Gazebo DrinkTask E2E 新增通过轮数仍为 0，三轮完整 E2E 与长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
+
+
+### 8.206 多轮批次汇总与异常轮次计数审查（2026-11-10，代码审查完成）
+
+- 刷新并确认 §8.204/§8.205 后续 CI：runner `fc0d4923f254` 的 Python run `42822322097`、ROS 2 executor run `42822322179` 均成功；测试修正 `f10500e54266` 的 Python run `42822567449`、ROS 2 executor run `42822567481` 均成功；TaskPlan 提交 `eec797003b62`、`3fbc379c9cf7`、`1a95501a83a1` 的 Python 与 ROS 2 executor runs 分别为 `42822578054/42822578003`、`42822601008/42822600854`、`42822713215/42822713209`，全部 completed/success。
+- 重新审查 `tests/drink_repeat.sh` 的批次组装逻辑与 `summarize_batch_status()`：成功/失败的合法 JSON 轮次进入 `rounds`；解析失败或非对象 JSON 进入 `invalid_rounds`；没有成功归档快照的请求轮次进入 `missing_rounds`；`failed_rounds` 按请求轮数减去通过轮数计算；`all_passed` 同时要求请求轮数为正、有效轮次记录数与请求数一致、无 invalid/missing、所有轮次严格 `ok is True)，并且 runner 自身退出状态为成功。轮次失败或证据归档失败会停止后续任务，不会被当作通过。
+- 同时确认 SUMMARY 原子发布失败的回归测试已覆盖：模拟 `os.replace()` 失败、`os.fdopen()` 失败和 JSON 序列化失败，均验证旧 SUMMARY 保留且临时文件清理；不重复增加同类测试。
+- 本次审查未发现需要改变现有统计/控制逻辑的确定性缺陷，因此没有为了增加提交数量而修改 runner。该结论仅来自代码路径与现有纯测试审查，不代表真实 Gazebo 运行验收。
+- **状态：§8.204—§8.206 对应 Python 与 ROS 2 executor CI 已通过；多轮汇总、invalid/missing 计数和原子发布失败路径审查完成。真实 Gazebo DrinkTask E2E 通过轮数仍为 0，至少三轮真实 E2E 与长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
