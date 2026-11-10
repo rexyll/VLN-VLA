@@ -1421,11 +1421,31 @@ class TestP104(unittest.TestCase):
         open_file.assert_called_once()
         close_file.assert_called_once_with(731)
 
-        # The caller must not reach GO_DRINK unless marker creation returns.
-        send_position = source.index("w.send('GO_DRINK')")
-        marker_position = source.index(
-            '_create_command_attempt_marker(marker_path)')
-        self.assertLess(marker_position, send_position)
+        # The command wrapper must not publish when marker creation fails.
+        publish = next(node for node in tree.body
+                       if isinstance(node, ast.FunctionDef)
+                       and node.name == '_publish_drink_command')
+        isolated_publish = ast.Module(body=[helper, publish], type_ignores=[])
+        namespace = {'os': os}
+        exec(compile(isolated_publish, observer_path, 'exec'), namespace)
+
+        class Watch:
+            def __init__(self):
+                self.sent = []
+            def send(self, action):
+                self.sent.append(action)
+
+        watch = Watch()
+        with patch('os.open', return_value=732):
+            with patch('os.fdopen', side_effect=original_error):
+                with patch('os.close') as close_file:
+                    with self.assertRaises(OSError) as publish_error:
+                        namespace['_publish_drink_command'](
+                            watch, '/tmp/unused-marker')
+        self.assertIs(publish_error.exception, original_error)
+        close_file.assert_called_once_with(732)
+        self.assertEqual(watch.sent, [])
+
 
     def test_command_marker_success_flushes_and_fsyncs(self):
         observer_path = os.path.join(ROOT, 'tests', 'test_drink.py')
