@@ -55,7 +55,21 @@ if ! [[ "$TAG" =~ ^[A-Za-z0-9._-]+$ ]] || [[ "$TAG" == "." || "$TAG" == ".." ]];
     exit 2
 fi
 
+# Never follow a pre-existing output-directory symlink outside the repository.
+if [[ -L "$OUTDIR" ]]; then
+    echo "DrinkTask output directory must not be a symlink: $OUTDIR" >&2
+    exit 2
+fi
 mkdir -p "$OUTDIR"
+TESTS_REAL="$(realpath -e "$ROOT/tests")"
+OUTDIR_REAL="$(realpath -e "$OUTDIR")"
+case "$OUTDIR_REAL/" in
+    "$TESTS_REAL"/*) ;;
+    *)
+        echo "DrinkTask output directory escapes tests/: $OUTDIR_REAL" >&2
+        exit 2
+        ;;
+esac
 
 # All runs share one live Gazebo demo and fixed observer output paths. A
 # process-wide lock prevents concurrent batches (even with different tags)
