@@ -110,14 +110,14 @@ for ((i=1; i<=N; i++)); do
         # Archive each round's screenshots alongside its JSON. The observer
         # writes fixed filenames under vla_ws/logs, so leaving paths untouched
         # would make older JSON point at images overwritten by later rounds.
-        if ! python3 - "$RESULT" "$SNAPSHOT" "$ROOT" "$OUTDIR/drink_${TAG}_${i}_shots" <<'PY'
+        if ! python3 - "$RESULT" "$SNAPSHOT" "$ROOT" "$OUTDIR/drink_${TAG}_${i}_shots" "$RC" <<'PY'
 import json
 import os
 import shutil
 import sys
 import tempfile
 
-source_json, snapshot_json, root, shot_dir = sys.argv[1:]
+source_json, snapshot_json, root, shot_dir, observer_exit_code = sys.argv[1:]
 sys.path.insert(0, os.path.join(root, "tests"))
 from drink_evidence import archive_observer_screenshots, write_json_atomic
 
@@ -127,7 +127,7 @@ try:
         result = json.load(stream)
     # Persist the process outcome with the archived result so per-round
     # status and aggregate passed_rounds cannot disagree.
-    result["observer_exit_code"] = RC
+    result["observer_exit_code"] = int(observer_exit_code)
     archive_observer_screenshots(result, root, shot_dir)
     archive_published = True
 
