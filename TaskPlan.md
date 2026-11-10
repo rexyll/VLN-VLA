@@ -3381,3 +3381,11 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - runner 提交 549ad1cd5cda02fd062cf59c81b9587ca2ffc0c4：多轮 SUMMARY 改为调用共享 write_json_atomic()；summary 内容、round 判据和统计字段不变。
 - 本项补齐最终聚合报告的文件发布原子性，不代表真实 Gazebo DrinkTask E2E 已运行或通过。
 - **状态：helper、失败路径回归测试与 runner 修改已提交 main，等待本节 Python 与 ROS 2 executor CI；完整 DrinkTask Gazebo E2E 新增通过轮数仍为 0，三轮真实任务验收与长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
+
+### 8.175 修正原子汇总 JSON 测试的序列化断言方式（2026-11-10，测试修正已提交，CI 待复验）
+
+- §8.174 首轮 Python CI 暴露的是新增测试的断言表达问题，而非原子写入实现失败：测试将 JSON 换行转义写成了字面反斜杠，导致把合法 JSON 文本误判为错误。
+- 失败证据：Python runs 42789721809（测试提交 aa168878）与 42789758645（runner 提交 549ad1cd）均在 test_json_publication_is_atomic_and_cleans_failed_temporary_file 的最终字符串比较处失败；Python 编译步骤成功。失败测试已确认临时文件清理与旧 SUMMARY 保留断言先行通过。
+- 修正提交 8c6e59d4140bd83a6fe838e7906336dbea16a210：新增 json 导入，将成功发布后的断言改为 json.load() 解码后比较对象值，避免依赖空白和换行编码细节。
+- §8.174 helper 提交 3d54e08b 的 Python run 42789676986 已 completed/success；其 ROS 2 executor run 42789676615 在当时仍运行。§8.174 测试与 runner 的首轮 Python 失败已如实记录；后续提交的 CI 结果另行复核。
+- **状态：测试断言修正已提交 main，等待最新 Python 与 ROS 2 executor CI；§8.174 原子汇总实现仍需通过修正后的回归测试确认。完整 DrinkTask Gazebo E2E 新增通过轮数仍为 0，P104-07 保持“正在进行中”。**
