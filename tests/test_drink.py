@@ -156,6 +156,22 @@ class Watch(object):
         return path
 
 
+
+def _create_command_attempt_marker(marker_path):
+    """Durably record that GO_DRINK publication is about to be attempted."""
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+    fd = os.open(marker_path, flags, 0o600)
+    try:
+        stream = os.fdopen(fd, 'w', encoding='utf-8')
+    except BaseException:
+        os.close(fd)
+        raise
+    with stream:
+        stream.write('GO_DRINK command attempt started\\n')
+        stream.flush()
+        os.fsync(stream.fileno())
+
+
 def _run_observer(node):
     w = Watch(node)
     fails = []
@@ -228,15 +244,7 @@ def _run_observer(node):
     # pre-command observer failure and must not retry automatically.
     marker_path = os.environ.get('P91_COMMAND_MARKER')
     if marker_path:
-        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
-        fd = os.open(marker_path, flags, 0o600)
-        try:
-            with os.fdopen(fd, 'w', encoding='utf-8') as marker:
-                marker.write('GO_DRINK command attempt started\\n')
-                marker.flush()
-                os.fsync(marker.fileno())
-        except BaseException:
-            raise
+        _create_command_attempt_marker(marker_path)
     w.send('GO_DRINK')
     sim0 = w.sim
     step('[2] 已下发 GO_DRINK', True,
