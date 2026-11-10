@@ -22,7 +22,8 @@ from drink_evidence import (REQUIRED_SHOT_LABELS, missing_required_shots,
                             summarize_round_evidence,
                             validate_observer_result,
                             archive_observer_screenshots,
-                            write_json_atomic, summarize_numeric_values)
+                            write_json_atomic, summarize_numeric_values,
+                            finite_numeric_value)
 
 import numpy as np
 
@@ -120,6 +121,21 @@ class TestP104(unittest.TestCase):
             True, False, float('nan'), float('inf'), 'not-a-number',
         ]))
         self.assertIsNone(summarize_numeric_values([10 ** 10000]))
+
+    def test_numeric_summary_normalizes_values_and_avoids_median_overflow(self):
+        largest = sys.float_info.max
+        self.assertEqual(finite_numeric_value(2), 2.0)
+        self.assertEqual(finite_numeric_value(-0.5), -0.5)
+        for invalid in (True, False, float('nan'), float('inf'),
+                        float('-inf'), '3', None, 10 ** 10000):
+            self.assertIsNone(finite_numeric_value(invalid))
+
+        same_sign = summarize_numeric_values([largest, largest])
+        self.assertEqual(same_sign['median'], largest)
+        self.assertEqual(same_sign['min'], largest)
+        self.assertEqual(same_sign['max'], largest)
+        opposite_sign = summarize_numeric_values([-largest, largest])
+        self.assertEqual(opposite_sign['median'], 0.0)
 
     def test_repeat_runner_rechecks_round_acceptance_before_next_round(self):
         runner_path = os.path.join(ROOT, 'tests', 'drink_repeat.sh')
