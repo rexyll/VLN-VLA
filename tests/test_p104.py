@@ -190,6 +190,15 @@ class TestP104(unittest.TestCase):
                     {'shots': []}, root,
                     os.path.join(os.path.dirname(root), 'outside_archive'))
 
+            # A lexically in-repository target must still be rejected when
+            # an existing parent symlink resolves outside the repository.
+            archive_link = os.path.join(root, 'archive_link')
+            os.symlink(os.path.dirname(root), archive_link)
+            with self.assertRaises(ValueError):
+                archive_observer_screenshots(
+                    {'shots': []}, root,
+                    os.path.join(archive_link, 'escaped_archive'))
+
     def test_round_summary_requires_complete_archived_screenshots(self):
         with tempfile.TemporaryDirectory() as root:
             shot_dir = os.path.join(root, 'round_shots')
