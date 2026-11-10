@@ -168,6 +168,18 @@ class TestP104(unittest.TestCase):
             with open(target, encoding='utf-8') as stream:
                 self.assertEqual(json.load(stream), {'all_passed': True})
 
+            # If fdopen fails before taking ownership, close the raw descriptor.
+            with patch('os.fdopen', side_effect=OSError('simulated fdopen failure')):
+                with patch('os.close', wraps=os.close) as close_fd:
+                    with self.assertRaises(OSError):
+                        write_json_atomic({'all_passed': False}, target)
+                    close_fd.assert_called_once()
+            with open(target, encoding='utf-8') as stream:
+                self.assertEqual(json.load(stream), {'all_passed': True})
+            leftovers = [name for name in os.listdir(root)
+                         if name.startswith('.drink-json-')]
+            self.assertEqual(leftovers, [])
+
     def test_screenshot_archive_is_atomic_and_adds_optional_evidence(self):
         with tempfile.TemporaryDirectory() as root:
             source_dir = os.path.join(root, 'source')
