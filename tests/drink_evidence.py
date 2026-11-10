@@ -140,6 +140,30 @@ def write_json_atomic(payload, path):
             pass
         raise
 
+
+def summarize_numeric_values(values):
+    """Summarize finite JSON numeric values, excluding booleans and invalid numbers."""
+    import math
+    import statistics
+
+    numbers = []
+    for value in values:
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            continue
+        try:
+            number = float(value)
+        except (OverflowError, ValueError):
+            continue
+        if math.isfinite(number):
+            numbers.append(number)
+    if not numbers:
+        return None
+    return {
+        'median': round(statistics.median(numbers), 3),
+        'min': round(min(numbers), 3),
+        'max': round(max(numbers), 3),
+    }
+
 def archive_observer_screenshots(result, root, shot_dir):
     """Atomically archive observer screenshots and attach archive metadata."""
     import os
