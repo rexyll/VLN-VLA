@@ -153,6 +153,10 @@ class TestP104(unittest.TestCase):
             self.assertFalse(summarize_round_evidence(
                 missing_label, root)['archive_ok'])
 
+            duplicate_label = dict(result, shot_labels=labels + [labels[0]])
+            self.assertFalse(summarize_round_evidence(
+                duplicate_label, root)['archive_ok'])
+
             duplicate_path = dict(result, shots=shots[:-1] + [shots[0]])
             self.assertFalse(summarize_round_evidence(
                 duplicate_path, root)['archive_ok'])
@@ -168,7 +172,7 @@ class TestP104(unittest.TestCase):
             self.assertFalse(summarize_round_evidence(
                 malformed_labels, root)['archive_ok'])
 
-            nul_path = dict(result, shots=shots[:-1] + ['round_shots/bad\\x00.png'])
+            nul_path = dict(result, shots=shots[:-1] + ['round_shots/bad\x00.png'])
             self.assertFalse(summarize_round_evidence(
                 nul_path, root)['archive_ok'])
 
