@@ -3492,3 +3492,13 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 回归测试提交 `a5d20c09fb8add298bbaeaca51c2372c5b1a1322`：断言归档 worker 从 `sys.argv` 接收退出码、将其转换为整数，并验证 runner 调用确实传入 `"$RC"`。
 - 本修复解决 runner 运行时参数传递缺陷；当前提交 CI 需重新验收。完整 Gazebo DrinkTask E2E 仍未在本轮执行，不能据此增加真实通过轮数。
 - **状态：runner 与回归测试修复已提交 main，等待 Python 与 ROS 2 executor CI；真实 DrinkTask Gazebo E2E 新增通过轮数仍为 0，三轮真实任务验收及长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
+
+
+### 8.186 单轮证据验收必须包含明确的 observer 退出状态（2026-11-10，helper 与回归测试已提交，CI 待验收）
+
+- 在 §8.185 修复退出码传递后，继续检查 summarize_round_evidence() 的输入契约，发现其对缺失的 observer_exit_code 默认取 0。这样一份没有记录 observer 进程退出结果的旧格式/残缺 JSON，只要任务标志和截图归档看似完整，仍可能被误判为进程成功；这与“进程状态是独立验收信号”的原则不一致。
+- helper 提交 5c93dfac25fd3c802d0bee67ef8ac482ccce7067：取消缺失退出码默认成功，只有显式提供非布尔整数 0 才令 process_ok=true。runner 已在归档快照前写入实际退出码，因此正常新格式路径不受影响；缺失、布尔值、字符串及非零退出码均不能通过单轮验收。
+- 回归测试提交 23ef97967ecc58ce2a34c894cbadbfa5ce48fb1a：正常通过样例显式提供退出码 0，并增加缺失、布尔 true、字符串 "0" 三种无效退出状态测试，验证任务 JSON 与截图即使完整也不能掩盖进程状态缺失或类型错误。
+- §8.185 CI 刷新结果：runner 16ae2ba63756 的 Python run 42802364001 completed/failure（失败发生在测试断言尚未随实现更新的独立提交窗口），其 ROS 2 executor run 42802363848 completed/success；后续测试 a5d20c09fb8a 的 Python run 42802380457 与 ROS 2 executor run 42802380586 均 completed/success；TaskPlan cf7f838bd5b8 的 Python run 42802439854 与 ROS 2 executor run 42802440082 均 completed/success。
+- 本节两个新提交的 CI 尚未完成，必须单独刷新验收。离线纯测试和 CarryBus executor 集成不等同于完整 Gazebo DrinkTask E2E。
+- **状态：helper 与回归测试已提交 main，等待本节 Python 与 ROS 2 executor CI 终态验收；真实 DrinkTask Gazebo E2E 新增通过轮数仍为 0，三轮真实任务验收及长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
