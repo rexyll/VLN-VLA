@@ -1397,6 +1397,72 @@ class TestP104(unittest.TestCase):
                                 for a, b in zip(_lo, _hi)))
 
 
+    def test_command_marker_fdopen_failure_closes_descriptor_and_preserves_error(self):
+        observer_path = os.path.join(ROOT, 'tests', 'test_drink.py')
+        with open(observer_path, encoding='utf-8') as stream:
+            source = stream.read()
+        import ast
+        tree = ast.parse(source)
+        helper = next(node for node in tree.body
+                      if isinstance(node, ast.FunctionDef)
+                      and node.name == '_create_command_attempt_marker')
+        isolated = ast.Module(body=[helper], type_ignores=[])
+        namespace = {'os': os}
+        exec(compile(isolated, observer_path, 'exec'), namespace)
+
+        original_error = OSError('fdopen injected failure')
+        with patch('os.open', return_value=731) as open_file, \\
+                patch('os.fdopen', side_effect=original_error), \\
+                patch('os.close') as close_file:
+            with self.assertRaises(OSError) as caught:
+                namespace['_create_command_attempt_marker']('/tmp/unused-marker')
+        self.assertIs(caught.exception, original_error)
+        open_file.assert_called_once()
+        close_file.assert_called_once_with(731)
+
+        # The caller must not reach GO_DRINK unless marker creation returns.
+        send_position = source.index("w.send('GO_DRINK')")
+        marker_position = source.index(
+            '_create_command_attempt_marker(marker_path)')
+        self.assertLess(marker_position, send_position)
+
+    def test_command_marker_success_flushes_and_fsyncs(self):
+        observer_path = os.path.join(ROOT, 'tests', 'test_drink.py')
+        with open(observer_path, encoding='utf-8') as stream:
+            source = stream.read()
+        import ast
+        tree = ast.parse(source)
+        helper = next(node for node in tree.body
+                      if isinstance(node, ast.FunctionDef)
+                      and node.name == '_create_command_attempt_marker')
+        isolated = ast.Module(body=[helper], type_ignores=[])
+        namespace = {'os': os}
+        exec(compile(isolated, observer_path, 'exec'), namespace)
+
+        class Stream:
+            def __init__(self):
+                self.writes = []
+                self.flushed = False
+            def __enter__(self):
+                return self
+            def __exit__(self, *_args):
+                return False
+            def write(self, value):
+                self.writes.append(value)
+            def flush(self):
+                self.flushed = True
+            def fileno(self):
+                return 731
+
+        stream = Stream()
+        with patch('os.open', return_value=731), \\
+                patch('os.fdopen', return_value=stream), \\
+                patch('os.fsync') as sync_file:
+            namespace['_create_command_attempt_marker']('/tmp/unused-marker')
+        self.assertEqual(stream.writes, ['GO_DRINK command attempt started\\n'])
+        self.assertTrue(stream.flushed)
+        sync_file.assert_called_once_with(731)
+
     def test_drink_observer_owns_ros_cleanup_in_main_finally(self):
         observer_path = os.path.join(ROOT, 'tests', 'test_drink.py')
         with open(observer_path, encoding='utf-8') as stream:
@@ -1433,7 +1499,7 @@ class TestP104(unittest.TestCase):
         self.assertIn('os.O_EXCL', source)
         self.assertLess(source.index('_create_command_attempt_marker(marker_path)'), source.index("w.send('GO_DRINK')"))
         marker_start = source.index('def _create_command_attempt_marker(')
-        marker_end = source.index('\\n\\ndef _run_observer(', marker_start)
+        marker_end = source.index('\n\ndef _run_observer(', marker_start)
         marker_body = source[marker_start:marker_end]
         self.assertIn('except BaseException:', marker_body)
         self.assertIn('os.close(fd)', marker_body)
