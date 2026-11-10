@@ -3661,3 +3661,11 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 本节 TaskPlan 初次记录提交 `e5e4aba1f4b6fc2bfc22e9fef5dd9fc52f6c50bd`：Python run `42822344464` 与 ROS 2 executor run `42822344574` 均 queued；后续需刷新终态。
 - 本节只记录证据解析一致性加固；未启动 Gazebo，未执行 `tests/test_drink.py` 或 `tests/drink_repeat.sh`，真实 Gazebo DrinkTask E2E 新增通过轮数仍为 0。
 - **状态：最终 SUMMARY 严格解析修正已提交 main，Python 与 ROS 2 executor CI 待终态验收；完整 Gazebo DrinkTask E2E、至少三轮真实 E2E 和长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
+
+
+### 8.205 修正最终 SUMMARY 严格解析静态测试的 here-doc 边界转义（2026-11-10，测试修正已提交，CI 待验收）
+
+- §8.204 首轮 CI 显示 runner 提交 `fc0d4923f254` 的 Python run `42822322097` 已通过；回归测试提交 `32185164aedd` 的 Python run `42822330259` 失败，Compile changed Python modules 通过，shell `bash -n` 通过，P104 纯测试 41 项中 40 项通过、1 项失败。失败点是新增静态测试在定位最终 SUMMARY here-doc 时将换行写成字面反斜杠-n，导致 `ValueError: substring not found`；TaskPlan 提交 `e5e4aba1f4b6` 的 Python run `42822344464` 继承相同测试失败。两次失败均为测试定位字符串转义问题，不是 runner 严格解析功能失败。
+- 测试修正提交 `COMMIT_SHA_PENDING`：将结束标记定位字符串改为 Python 源码中的转义换行，使运行时匹配 runner 文件中的真实换行；不修改 runner 逻辑。
+- runner 的 ROS 2 executor run `42822322179`、测试提交的 ROS 2 executor run `42822330424`、TaskPlan 提交的 ROS 2 executor run `42822344574` 在本节记录时仍未全部终态，需继续刷新；不能用 Python job 结果替代 ROS 2 executor 结果。
+- **状态：最终 SUMMARY 已切换严格 JSON 解析；静态测试 here-doc 边界已修正并提交 main，等待 Python 与 ROS 2 executor CI 验收。真实 Gazebo DrinkTask E2E 新增通过轮数仍为 0，三轮完整 E2E 与长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
