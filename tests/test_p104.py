@@ -1485,7 +1485,7 @@ class TestP104(unittest.TestCase):
         with open(observer_path, encoding='utf-8') as stream:
             source = stream.read()
         main_start = source.index('def main():')
-        main_end = source.index("\\n\\nif __name__ == '__main__':", main_start)
+        main_end = source.index("\n\nif __name__ == '__main__':", main_start)
         main_body = source[main_start:main_end]
         self.assertIn('cleanup_observer_resources(', main_body)
         self.assertIn('if cleanup_failed and result == 0:', main_body)
