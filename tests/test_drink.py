@@ -155,9 +155,7 @@ class Watch(object):
         return path
 
 
-def main():
-    rclpy.init()
-    node = DrinkTask(observer_only=True)
+def _run_observer(node):
     w = Watch(node)
     fails = []
     res = {'ok': False, 'fails': fails, 'shots': [], 'shot_labels': []}
@@ -433,13 +431,32 @@ def report(node, res):
     with open(path, 'w', encoding='utf-8') as f:
         json.dump(res, f, ensure_ascii=False, indent=2)
     print('结果 JSON: %s' % path)
-    try:
-        node.destroy_node()
-        if rclpy.ok():
-            rclpy.shutdown()
-    except Exception:
-        pass
     return 0 if res.get('ok') else 2
+
+
+def main():
+    initialized = False
+    node = None
+    try:
+        rclpy.init()
+        initialized = True
+        node = DrinkTask(observer_only=True)
+        return _run_observer(node)
+    finally:
+        # One owner controls ROS 2 teardown for every return/exception path.
+        # An interrupted observer after GO_DRINK is not task cancellation;
+        # without an accepted result the repeat runner stops the batch.
+        if node is not None:
+            try:
+                node.destroy_node()
+            except Exception as exc:
+                print('observer node cleanup failed: %s' % exc, file=sys.stderr)
+        if initialized:
+            try:
+                if rclpy.ok():
+                    rclpy.shutdown()
+            except Exception as exc:
+                print('ROS 2 shutdown failed: %s' % exc, file=sys.stderr)
 
 
 if __name__ == '__main__':
