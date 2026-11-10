@@ -172,6 +172,13 @@ def _create_command_attempt_marker(marker_path):
         os.fsync(stream.fileno())
 
 
+def _publish_drink_command(watch, marker_path):
+    """Persist the attempt marker before publishing the one-shot command."""
+    if marker_path:
+        _create_command_attempt_marker(marker_path)
+    watch.send('GO_DRINK')
+
+
 def _run_observer(node):
     w = Watch(node)
     fails = []
@@ -243,9 +250,7 @@ def _run_observer(node):
     # the repeat runner can distinguish an unknown task outcome from a
     # pre-command observer failure and must not retry automatically.
     marker_path = os.environ.get('P91_COMMAND_MARKER')
-    if marker_path:
-        _create_command_attempt_marker(marker_path)
-    w.send('GO_DRINK')
+    _publish_drink_command(w, marker_path)
     sim0 = w.sim
     step('[2] 已下发 GO_DRINK', True,
          '人从 (%+.2f,%+.2f) 出发, 目标 (%.2f,%.2f)'
