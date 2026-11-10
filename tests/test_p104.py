@@ -1537,6 +1537,59 @@ class TestP104(unittest.TestCase):
         namespace['_publish_drink_command'](Watch(), None)
         self.assertEqual(events, [('send', 'GO_DRINK')])
 
+    def test_publish_failure_after_durable_marker_leaves_attempt_evidence(self):
+        observer_path = os.path.join(ROOT, 'tests', 'test_drink.py')
+        with open(observer_path, encoding='utf-8') as stream:
+            source = stream.read()
+        import ast
+        tree = ast.parse(source)
+        helper = next(node for node in tree.body
+                      if isinstance(node, ast.FunctionDef)
+                      and node.name == '_create_command_attempt_marker')
+        publish = next(node for node in tree.body
+                       if isinstance(node, ast.FunctionDef)
+                       and node.name == '_publish_drink_command')
+        isolated = ast.Module(body=[helper, publish], type_ignores=[])
+        events = []
+        send_error = RuntimeError('injected command transport failure')
+
+        class MarkerStream:
+            def __enter__(self):
+                return self
+            def __exit__(self, *_args):
+                events.append('close')
+                return False
+            def write(self, value):
+                events.append(('write', value))
+            def flush(self):
+                events.append('flush')
+            def fileno(self):
+                return 751
+
+        class Watch:
+            def send(self, action):
+                events.append(('send', action))
+                raise send_error
+
+        namespace = {'os': os}
+        exec(compile(isolated, observer_path, 'exec'), namespace)
+        marker_stream = MarkerStream()
+        with patch('os.open', side_effect=lambda *_args: events.append('open') or 751):
+            with patch('os.fdopen',
+                       side_effect=lambda *_args, **_kwargs:
+                       events.append('fdopen') or marker_stream):
+                with patch('os.fsync',
+                           side_effect=lambda _fd: events.append('fsync')):
+                    with self.assertRaises(RuntimeError) as caught:
+                        namespace['_publish_drink_command'](
+                            Watch(), '/tmp/unused-marker')
+
+        self.assertIs(caught.exception, send_error)
+        self.assertEqual(events, [
+            'open', 'fdopen',
+            ('write', 'GO_DRINK command attempt started\\n'),
+            'flush', 'fsync', 'close', ('send', 'GO_DRINK')])
+
     def test_drink_observer_owns_ros_cleanup_in_main_finally(self):
         observer_path = os.path.join(ROOT, 'tests', 'test_drink.py')
         with open(observer_path, encoding='utf-8') as stream:
