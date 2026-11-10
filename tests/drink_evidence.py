@@ -108,13 +108,15 @@ def summarize_round_evidence(result, root):
 
 
 
-def summarize_batch_status(requested_rounds, rows, invalid_rounds):
-    """Return explicit batch counts; malformed/missing rounds can never pass."""
+def summarize_batch_status(requested_rounds, rows, invalid_rounds,
+                          missing_rounds=None):
+    """Return explicit batch counts and identify missing/invalid rounds."""
     requested = int(requested_rounds)
     passed = sum(1 for row in rows if isinstance(row, dict)
                  and row.get('ok') is True)
     completed = len(rows)
     invalid = list(invalid_rounds)
+    missing = list(missing_rounds or [])
     failed = max(0, requested - passed)
     return {
         'requested_rounds': requested,
@@ -122,9 +124,10 @@ def summarize_batch_status(requested_rounds, rows, invalid_rounds):
         'passed_rounds': passed,
         'failed_rounds': failed,
         'invalid_rounds': invalid,
+        'missing_rounds': missing,
         'all_passed': (
             requested > 0 and completed == requested and not invalid
-            and passed == requested
+            and not missing and passed == requested
         ),
     }
 
