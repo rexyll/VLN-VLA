@@ -191,7 +191,8 @@ import sys
 
 summary_path, requested, root, *paths = sys.argv[1:]
 sys.path.insert(0, os.path.join(root, "tests"))
-from drink_evidence import (summarize_round_evidence, summarize_numeric_values,\n                            write_json_atomic)
+from drink_evidence import (summarize_round_evidence, summarize_numeric_values,
+                            write_json_atomic)
 
 rows = []
 for path in paths:
