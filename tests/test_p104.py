@@ -1447,6 +1447,43 @@ class TestP104(unittest.TestCase):
         self.assertEqual(watch.sent, [])
 
 
+    def test_existing_command_marker_blocks_go_drink_publication(self):
+        observer_path = os.path.join(ROOT, 'tests', 'test_drink.py')
+        with open(observer_path, encoding='utf-8') as stream:
+            source = stream.read()
+        import ast
+        tree = ast.parse(source)
+        helper = next(node for node in tree.body
+                      if isinstance(node, ast.FunctionDef)
+                      and node.name == '_create_command_attempt_marker')
+        publish = next(node for node in tree.body
+                       if isinstance(node, ast.FunctionDef)
+                       and node.name == '_publish_drink_command')
+        isolated = ast.Module(body=[helper, publish], type_ignores=[])
+        namespace = {'os': os}
+        exec(compile(isolated, observer_path, 'exec'), namespace)
+
+        class Watch:
+            def __init__(self):
+                self.sent = []
+            def send(self, action):
+                self.sent.append(action)
+
+        watch = Watch()
+        collision = FileExistsError('marker already exists')
+        with patch('os.open', side_effect=collision) as open_file:
+            with patch('os.fdopen') as fdopen_file:
+                with self.assertRaises(FileExistsError) as caught:
+                    namespace['_publish_drink_command'](
+                        watch, '/tmp/existing-marker')
+        self.assertIs(caught.exception, collision)
+        open_file.assert_called_once()
+        self.assertEqual(open_file.call_args.args[1],
+                         os.O_WRONLY | os.O_CREAT | os.O_EXCL)
+        self.assertEqual(open_file.call_args.args[2], 0o600)
+        fdopen_file.assert_not_called()
+        self.assertEqual(watch.sent, [])
+
     def test_command_marker_success_flushes_and_fsyncs(self):
         observer_path = os.path.join(ROOT, 'tests', 'test_drink.py')
         with open(observer_path, encoding='utf-8') as stream:
