@@ -229,6 +229,7 @@ def main():
     # ---- [3] 跟踪全流程 + 关键阶段抓图
     shots_done = set()
     arrive = None
+    arrive_shot_done = False
     deadline = time.time() + TOTAL_TIMEOUT
     while time.time() < deadline:
         w.spin(0.15)
@@ -254,9 +255,16 @@ def main():
                 print('    [人到场] pos=(%.3f, %.3f) 目标=(%.3f, %.3f) 差 %.1fmm'
                       % (px, py, L.PERSON_SPOT[0], L.PERSON_SPOT[1],
                          arrive['to_spot_mm']))
-                sh = w.shot('arrive', not_before=w.cmd_received_at[-1])
-                if sh:
-                    res['shots'].append(sh)
+        }
+        # Unlike stage screenshots, arrival evidence used to be attempted
+        # only once when the pose first became available. If the camera frame
+        # was not ready at that instant, the required arrival image was lost.
+        # Retry on each observer spin until a post-command frame is saved.
+        if arrive is not None and not arrive_shot_done:
+            sh = w.shot('arrive', not_before=w.cmd_received_at[-1])
+            if sh:
+                res['shots'].append(sh)
+                arrive_shot_done = True
         if tag and tag not in shots_done:
             sh = w.shot(tag, not_before=w.state_changed_at)
             if sh:
