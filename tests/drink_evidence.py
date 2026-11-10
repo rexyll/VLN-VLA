@@ -110,6 +110,27 @@ def validate_observer_result(result):
     return shots
 
 
+
+def write_json_atomic(payload, path):
+    """Publish a JSON document with a same-directory atomic replacement."""
+    import json
+    import os
+    import tempfile
+
+    parent = os.path.dirname(os.path.abspath(path))
+    fd, temporary = tempfile.mkstemp(
+        prefix='.drink-json-', suffix='.tmp', dir=parent)
+    try:
+        with os.fdopen(fd, 'w', encoding='utf-8') as stream:
+            json.dump(payload, stream, ensure_ascii=False, indent=2)
+        os.replace(temporary, path)
+    except BaseException:
+        try:
+            os.unlink(temporary)
+        except FileNotFoundError:
+            pass
+        raise
+
 def archive_observer_screenshots(result, root, shot_dir):
     """Atomically archive observer screenshots and attach archive metadata."""
     import os
