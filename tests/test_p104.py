@@ -23,7 +23,7 @@ from drink_evidence import (REQUIRED_SHOT_LABELS, missing_required_shots,
                             validate_observer_result,
                             archive_observer_screenshots,
                             write_json_atomic, summarize_numeric_values,
-                            finite_numeric_value)
+                            finite_numeric_value, summarize_batch_status)
 
 import numpy as np
 
@@ -108,6 +108,28 @@ from vla_follow import carry as C  # noqa: E402
 
 
 class TestP104(unittest.TestCase):
+
+    def test_batch_status_counts_invalid_and_missing_rounds_as_failures(self):
+        passed = {'ok': True}
+        failed = {'ok': False}
+        status = summarize_batch_status(
+            3, [passed, failed], [{'file': 'round_3.json', 'error': 'invalid JSON'}])
+        self.assertEqual(status['requested_rounds'], 3)
+        self.assertEqual(status['completed_rounds'], 2)
+        self.assertEqual(status['passed_rounds'], 1)
+        self.assertEqual(status['failed_rounds'], 2)
+        self.assertEqual(status['invalid_rounds'], [
+            {'file': 'round_3.json', 'error': 'invalid JSON'}])
+        self.assertFalse(status['all_passed'])
+
+        complete = summarize_batch_status(2, [passed, passed], [])
+        self.assertEqual(complete['failed_rounds'], 0)
+        self.assertTrue(complete['all_passed'])
+
+        missing = summarize_batch_status(2, [passed], [])
+        self.assertEqual(missing['failed_rounds'], 1)
+        self.assertFalse(missing['all_passed'])
+
 
     def test_drink_summary_metrics_exclude_boolean_and_non_finite_values(self):
         summary = summarize_numeric_values([
