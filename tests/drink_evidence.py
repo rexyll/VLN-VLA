@@ -107,6 +107,27 @@ def summarize_round_evidence(result, root):
     }
 
 
+
+def summarize_batch_status(requested_rounds, rows, invalid_rounds):
+    """Return explicit batch counts; malformed/missing rounds can never pass."""
+    requested = int(requested_rounds)
+    passed = sum(1 for row in rows if isinstance(row, dict)
+                 and row.get('ok') is True)
+    completed = len(rows)
+    invalid = list(invalid_rounds)
+    failed = max(0, requested - passed)
+    return {
+        'requested_rounds': requested,
+        'completed_rounds': completed,
+        'passed_rounds': passed,
+        'failed_rounds': failed,
+        'invalid_rounds': invalid,
+        'all_passed': (
+            requested > 0 and completed == requested and not invalid
+            and passed == requested
+        ),
+    }
+
 def validate_observer_result(result):
     """Validate the observer JSON contract before screenshot archival."""
     if not isinstance(result, dict):
