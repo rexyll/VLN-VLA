@@ -1397,5 +1397,34 @@ class TestP104(unittest.TestCase):
                                 for a, b in zip(_lo, _hi)))
 
 
+    def test_drink_observer_owns_ros_cleanup_in_main_finally(self):
+        observer_path = os.path.join(ROOT, 'tests', 'test_drink.py')
+        with open(observer_path, encoding='utf-8') as stream:
+            source = stream.read()
+
+        main_start = source.index('def main():')
+        main_end = source.index("\\n\\nif __name__ == '__main__':", main_start)
+        main_body = source[main_start:main_end]
+        self.assertIn('try:', main_body)
+        self.assertIn('finally:', main_body)
+        self.assertIn('node = DrinkTask(observer_only=True)', main_body)
+        self.assertIn('return _run_observer(node)', main_body)
+        self.assertIn('node.destroy_node()', main_body)
+        self.assertIn('if rclpy.ok():', main_body)
+        self.assertIn('rclpy.shutdown()', main_body)
+
+        report_start = source.index('def report(node, res):')
+        report_end = source.index('\\n\\ndef main():', report_start)
+        report_body = source[report_start:report_end]
+        self.assertNotIn('destroy_node()', report_body)
+        self.assertNotIn('rclpy.shutdown()', report_body)
+
+        runner_path = os.path.join(ROOT, 'tests', 'drink_repeat.sh')
+        with open(runner_path, encoding='utf-8') as stream:
+            runner = stream.read()
+        self.assertIn('Round $i produced no result JSON (exit=$RC).', runner)
+        self.assertIn('FAILED=1', runner)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)
