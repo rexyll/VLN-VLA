@@ -26,8 +26,17 @@ def summarize_round_evidence(result, root):
     """Validate required event labels and unique, in-repository archived files."""
     import os
 
+    if not isinstance(result, dict):
+        return {
+            'task_ok': False, 'archive_ok': False, 'ok': False,
+            'screenshots_archived': 0, 'shots': [],
+            'missing_shot_labels': sorted(REQUIRED_SHOT_LABELS),
+        }
+
     shots = result.get('shots', [])
-    evidence = result.get('evidence') or {}
+    evidence = result.get('evidence')
+    if not isinstance(evidence, dict):
+        evidence = {}
     declared = evidence.get('screenshots_archived')
     labels = result.get('shot_labels', [])
     labels_well_formed = (
@@ -70,6 +79,7 @@ def summarize_round_evidence(result, root):
         isinstance(declared, int)
         and not isinstance(declared, bool)
         and declared == len(REQUIRED_SHOT_LABELS)
+        and isinstance(shots, list)
         and len(shots) == len(REQUIRED_SHOT_LABELS)
         and labels_ok
         and paths_ok
