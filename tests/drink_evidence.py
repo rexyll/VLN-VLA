@@ -271,3 +271,23 @@ def archive_observer_screenshots(result, root, shot_dir):
     finally:
         if staging is not None:
             shutil.rmtree(staging, ignore_errors=True)
+
+
+def cleanup_observer_resources(node, initialized, ros_ok, ros_shutdown,
+                               log_error):
+    """Release observer ROS resources; report cleanup failure without masking errors."""
+    failed = False
+    if node is not None:
+        try:
+            node.destroy_node()
+        except Exception as exc:
+            failed = True
+            log_error('observer node cleanup failed', exc)
+    if initialized:
+        try:
+            if ros_ok():
+                ros_shutdown()
+        except Exception as exc:
+            failed = True
+            log_error('ROS 2 shutdown failed', exc)
+    return failed
