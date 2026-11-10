@@ -3142,3 +3142,11 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 提交 `887d32c9e3fa4aaa1bc305e5ea18156fe5e187a5`：收到 DRINK 后若 person 平面位置或 yaw 暂时缺失，则本轮 observer spin 后重试采样；数据恢复后再计算到位偏差和朝向，不因单帧缺失崩溃。
 - 未放宽验收阈值、未伪造位置数据；若真值持续缺失，原有流程仍会因未满足到位验收而失败。修复目标仅是将瞬时消息缺口转化为可诊断的测试行为。
 - **状态：两项观测器健壮性修复已提交 main；对应 Python 与 ROS 2 executor CI 待验收。真实 DrinkTask E2E 仍未在完整仿真环境执行，新增通过轮数仍为 0。**
+
+
+### 8.148 修复 DrinkTask E2E 阶段截图变量未定义（2026-11-10，代码已提交，CI 待验收）
+
+- 对照 `tests/test_drink.py` 的阶段截图映射 `SHOT_AT` 与主循环发现：循环在执行 `if tag` 前没有为当前状态赋值，`tag` 在该作用域未定义。完整 E2E 在首次进入阶段截图判断时会触发 `NameError`，导致任务观察器异常退出，不能完成状态机验收。
+- 修正提交：`689dbc60a760b271c657f8061f45a69598db0404`。每次 observer spin 后立即根据当前状态执行 `tag = SHOT_AT.get(w.state)`，再按既有去重逻辑保存阶段截图；不改变任务状态机、阶段顺序、截图判据或通过阈值。
+- 此前真值短暂缺失修复提交 `5e2313da03c782e288a342f6bb577ef45bdcc25a` 的 Python run `42749579671`、ROS 2 run `42749579636` 均 completed/success；提交 `887d32c9e3fa4aaa1bc305e5ea18156fe5e187a5` 的 Python run `42749601573`、ROS 2 run `42749601536` 均 completed/success；TaskPlan 提交 `562d6b5074bd49f54930dca008df17e7416e714d` 的 Python run `42749622501`、ROS 2 run `42749622378` 均 completed/success。上述 CI 仅覆盖 Python 编译/纯测试及 CarryBus ROS 2 executor，不代表完整 Gazebo DrinkTask E2E 已运行。
+- **状态：截图阶段变量修复已提交 main；代码提交触发的 Python run `42750403623` 与 ROS 2 executor run `42750403489` 当前 queued，待终态验收。真实 DrinkTask E2E 新增通过轮数仍为 0；P104-07 保持“正在进行中”。**
