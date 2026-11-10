@@ -3441,3 +3441,14 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - **状态：helper、runner 与回归测试已提交 main，等待对应 Python 与 ROS 2 executor CI 终态验收；完整 DrinkTask Gazebo E2E 新增通过轮数仍为 0，三轮真实任务验收与长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
 
 - 实施过程中的 runner 提交 `0ee1d5141d6bdc3f02033f84b8f519a138171194` 曾因多行 Python import 的换行转义错误导致 shell 内嵌 Python 语法无效；已在提交 `c3f49156877b23b88a6ba90cc27ac19fca503c64` 修正为真实换行。该修复后的 Python CI run `42797445327` 与 ROS 2 executor run `42797445092` 写入时仍 queued，待验收；不得把前序 CI 当作修复提交的验收证据。
+
+
+### 8.181 防止非有限指标值进入多轮 SUMMARY，并避免极值中位数溢出（2026-11-10，helper、测试与 runner 已提交，CI 待验收）
+
+- 在 §8.180 的指标过滤后继续检查最终 SUMMARY 的实际 JSON 序列化路径，发现过滤器只作用于聚合 metrics；每轮明细 rows 仍直接复制 observer JSON 中的 elapsed_s、cup_home_mm、跟随指标等字段。Python JSON 解析可接受 NaN/Infinity 扩展值，导致这些明细字段仍可能把非标准 NaN/Infinity 写回最终 SUMMARY。
+- 同时发现原 statistics.median() 对两个同号、接近最大有限 float 的样本可能先执行加法再除以 2，产生 Infinity；单个样本均有限并不保证中位数计算过程不溢出。
+- helper 提交 3ad82a101e88ce1f64051e0e7792905f62a2f7bb：新增 finite_numeric_value() 作为单值规范化入口，排除 bool、非数值、NaN/Infinity 和 float 范围外整数；summarize_numeric_values() 统一复用该函数，并在偶数样本时先分别除以 2 再相加，避免中位数中间结果溢出。
+- 回归测试提交 cbabc733bc7ee86bd826e6cf6042838c72f9171a：覆盖单值规范化，以及两个最大有限同号 float 的中位数、正负最大有限 float 的中位数，验证不产生 Infinity。
+- runner 提交 f73a776f8b9a27a2fd8b5da674bc04e9b36350ba：写入每轮 SUMMARY 明细前，先对七项数值字段逐一调用 finite_numeric_value()；无效值统一记为 JSON null，防止 NaN/Infinity 绕过聚合指标过滤后污染最终报告。
+- 本节只加固多轮汇总数据规范化与数值边界；不改变 DrinkTask 动作、任务成功判据、截图证据要求或失败停止策略。上一轮 §8.180 helper、runner 修复、测试和 TaskPlan 对应的 Python 与 ROS 2 executor CI 均已刷新为 completed/success；本节三个新提交的 CI 尚待运行及复核。
+- **状态：helper、测试与 runner 已提交 main，等待本节 Python 与 ROS 2 executor CI 终态验收；完整 DrinkTask Gazebo E2E 新增通过轮数仍为 0，三轮真实任务验收与长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
