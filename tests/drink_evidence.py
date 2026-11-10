@@ -131,7 +131,7 @@ def write_json_atomic(payload, path):
                 pass
             raise
         with stream:
-            json.dump(payload, stream, ensure_ascii=False, indent=2)
+            json.dump(payload, stream, ensure_ascii=False, indent=2, allow_nan=False)
         os.replace(temporary, path)
     except BaseException:
         try:
