@@ -169,6 +169,10 @@ class TestP104(unittest.TestCase):
         self.assertIn('root, failed, *paths = sys.argv[1:]', runner)
         self.assertIn('shot_dir, observer_exit_code = sys.argv[1:]', runner)
         self.assertIn('result["observer_exit_code"] = int(observer_exit_code)', runner)
+        self.assertIn('validate_observer_result(result)', runner)
+        self.assertLess(
+            runner.index('validate_observer_result(result)'),
+            runner.index('result["observer_exit_code"] = int(observer_exit_code)'))
         self.assertIn('"$RC" <<\'PY\'', runner)
         self.assertIn('"process_ok": evidence["process_ok"]', runner)
         self.assertIn('"all_passed": (int(failed) == 0 and len(rows) == int(requested)', runner)
