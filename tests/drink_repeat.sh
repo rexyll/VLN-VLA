@@ -297,10 +297,12 @@ echo "Repeat summary: $SUMMARY"
 if (( FAILED != 0 )); then
     exit 1
 fi
-python3 - "$SUMMARY" <<'PY'
-import json
+python3 - "$SUMMARY" "$ROOT" <<'PY'
+import os
 import sys
-with open(sys.argv[1], encoding="utf-8") as stream:
-    result = json.load(stream)
+summary_path, root = sys.argv[1:]
+sys.path.insert(0, os.path.join(root, "tests"))
+from drink_evidence import load_json_strict
+result = load_json_strict(summary_path)
 sys.exit(0 if result.get("all_passed") else 1)
 PY
