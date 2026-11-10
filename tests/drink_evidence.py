@@ -118,7 +118,9 @@ def archive_observer_screenshots(result, root, shot_dir):
 
     shots = validate_observer_result(result)
     root_real = os.path.realpath(root)
-    shot_dir = os.path.abspath(shot_dir)
+    # Resolve existing parent symlinks before creating staging directories;
+    # lexical containment alone would allow an in-repository symlink to escape.
+    shot_dir = os.path.realpath(os.path.abspath(shot_dir))
     try:
         if os.path.commonpath((root_real, shot_dir)) != root_real:
             raise ValueError('screenshot archive must be inside repository root')
