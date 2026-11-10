@@ -3512,3 +3512,13 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - §8.186 CI：最终 TaskPlan 提交 6b36ec6c5558 的 Python run 42803479134 与 ROS 2 executor run 42803479078 均 completed/success；测试提交 23ef97967ecc 的 Python run 42803393781 与 ROS 2 executor run 42803393452 均 completed/success。helper 单独提交 5c93dfac25fd 的 Python run 42803363269 因旧测试样例未同步而 failure，ROS 2 executor run 42803363231 success；随后更新测试与TaskPlan提交均通过。
 - 本节 runner、测试及本TaskPlan提交的CI需分别刷新；ROS 2 executor CI仍不是完整 tests/test_drink.py + work_area.sdf DrinkTask E2E。
 - **状态：输入预检与回归测试已提交 main，等待 CI 终态验收；完整真实 Gazebo DrinkTask E2E 通过轮数仍为 0，三轮真实任务验收及长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
+
+### 8.188 在多轮 DrinkTask SUMMARY 中显式记录无效、缺失和失败轮次（2026-11-10，helper、测试与 runner 已提交，CI 待验收）
+
+- 刷新 §8.187 后续 CI：runner d155e61551d9、测试 f2b779d4e26d、TaskPlan 13eb2d8cde68 的 Python 与 ROS 2 executor 工作流均已 completed/success。§8.187 的 observer JSON 顶层结构预检因此获得两条专项 CI 的通过证据；这些工作流仍不执行完整 Gazebo DrinkTask E2E。
+- 继续审查批次 SUMMARY 时发现：轮次 JSON 若无法读取/解析，或顶层不是 JSON object，runner 会打印错误并跳过该文件。虽然 completed_rounds != requested_rounds 会使 all_passed=false，但报告没有明确列出哪些轮次无效，也没有独立 failed_rounds 数量，降低了批次证据的可审计性。
+- helper 提交 8102dba5f88daf06d895138545d5f6d75c8e0882：新增 summarize_batch_status()，统一计算 requested/completed/passed/failed 轮数、无效轮次清单和严格的 all_passed 判据；缺失、无效或未通过轮次均计入失败数。
+- 回归测试提交 fbf7de9a52aeae48b49e91edf49db171e52c269c：覆盖完整通过批次、存在失败/无效 JSON 轮次、轮次缺失三种情况，验证失败计数及 all_passed 判据。
+- runner 提交 34be90b096be65e9dcf7444fa5a2dca8ce29e12d：解析每个轮次快照失败或顶层类型错误时，将文件名和错误原因写入 invalid_rounds；SUMMARY 新增 failed_rounds、invalid_rounds、runner_failed，并继续要求 runner 状态、轮数完整性和所有轮次证据同时成功才允许 all_passed=true。
+- 本项增强的是批次结果可审计性与离线纯测试；没有运行真实 Gazebo observer，也没有增加任何 DrinkTask E2E 通过轮数。
+- **状态：三个代码提交已进入 main；本节 Python 与 ROS 2 executor CI 待终态验收。真实 Gazebo DrinkTask E2E 新增通过轮数仍为 0；三轮完整 E2E 和长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
