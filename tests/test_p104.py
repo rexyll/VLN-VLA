@@ -1411,11 +1411,12 @@ class TestP104(unittest.TestCase):
         exec(compile(isolated, observer_path, 'exec'), namespace)
 
         original_error = OSError('fdopen injected failure')
-        with patch('os.open', return_value=731) as open_file, \\
-                patch('os.fdopen', side_effect=original_error), \\
-                patch('os.close') as close_file:
-            with self.assertRaises(OSError) as caught:
-                namespace['_create_command_attempt_marker']('/tmp/unused-marker')
+        with patch('os.open', return_value=731) as open_file:
+            with patch('os.fdopen', side_effect=original_error):
+                with patch('os.close') as close_file:
+                    with self.assertRaises(OSError) as caught:
+                        namespace['_create_command_attempt_marker'](
+                            '/tmp/unused-marker')
         self.assertIs(caught.exception, original_error)
         open_file.assert_called_once()
         close_file.assert_called_once_with(731)
@@ -1455,10 +1456,11 @@ class TestP104(unittest.TestCase):
                 return 731
 
         stream = Stream()
-        with patch('os.open', return_value=731), \\
-                patch('os.fdopen', return_value=stream), \\
-                patch('os.fsync') as sync_file:
-            namespace['_create_command_attempt_marker']('/tmp/unused-marker')
+        with patch('os.open', return_value=731):
+            with patch('os.fdopen', return_value=stream):
+                with patch('os.fsync') as sync_file:
+                    namespace['_create_command_attempt_marker'](
+                        '/tmp/unused-marker')
         self.assertEqual(stream.writes, ['GO_DRINK command attempt started\\n'])
         self.assertTrue(stream.flushed)
         sync_file.assert_called_once_with(731)
