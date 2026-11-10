@@ -3299,3 +3299,11 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - §8.164 Python CI 已通过：run `42781982479`（helper 严格布尔）与 `42782016342`（测试字符串 `"false"`）均 completed/success。对应 ROS 2 executor runs `42781982245`、`42782016930` 在本轮复核时仍 in_progress。
 - §8.163 Python run `42781868409` completed/success；ROS 2 run `42781868252` 当时仍 in_progress。§8.162/§8.163 的后续 ROS 2 run `42781733575` 已通过，`42781762887` 仍 in_progress。
 - **状态：runner 顶层 JSON 类型防御已提交 main，等待 Python shell/纯测试及 ROS 2 executor CI；真实 DrinkTask Gazebo E2E 新增通过轮数仍为 0，三轮完整验收与长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
+
+### 8.166 扩大 CarryBus fresh ACK 集成测试的超时预算，消除 CI 负载下的测试自身超时（2026-11-10，代码已提交，CI 待验收）
+
+- 对照 ROS 2 executor CI 失败日志发现，既有测试 `test_executor_delivers_concurrent_ids_and_rejects_late_ack` 在创建 fresh CarryBus waiter 后只给 `_await` 2 秒预算；同一测试还要等待 waiter 注册、发布并检查 stale ACK，再发布 fresh ACK。在 CI 调度负载下，测试自身可能在 fresh ACK 发布前耗尽 2 秒，表现为 pending request 已被清理或最终结果为 false。
+- 失败证据：run `42781389198` 在 fresh waiter 最终结果断言失败；run `42781982245` 更早在 fresh ACK 发布前检查 pending request 时失败。两次均定位到同一个既有 executor 集成测试，不是 DrinkTask helper 或 runner 的测试失败。
+- 修正提交 `289ede10a150d72637fc9665bd1001079b7ad5be`：仅将该测试的 fresh waiter 超时从 2 秒提高到 5 秒、join 等待从 3 秒提高到 6 秒；不修改 CarryBus 生产代码、ACK 匹配逻辑、请求超时语义或其他验收阈值。
+- §8.165 runner 顶层 JSON guard 对应 Python run `42782163001` 已 completed/success；对应 ROS 2 executor run `42782162664` 在本轮记录时仍 in_progress。§8.164 Python runs `42781982479`、`42782016342` 和 ROS 2 run `42782078838` 均 completed/success；另一次 ROS 2 run `42781982245` 在上述测试中失败。§8.163 TaskPlan run `42782204431`（Python）与 `42782204915`（ROS 2 executor）均 completed/success。
+- **状态：fresh ACK 集成测试超时预算修正已提交 main，等待最新 Python 与 ROS 2 executor CI；真实 DrinkTask Gazebo E2E 新增通过轮数仍为 0，三轮完整验收与长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
