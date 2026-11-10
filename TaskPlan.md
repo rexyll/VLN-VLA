@@ -3805,3 +3805,13 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - `tests/test_p104.py` 提交 `88958ac36e46cd033ea272753786606bb1c995bc`：新增隔离 AST 执行的成功路径测试，以事件序列断言严格顺序为 open → fdopen → write → flush → fsync → close → send(GO_DRINK)；并验证 marker_path=None 时不创建 marker、仍调用一次 GO_DRINK。该测试不启动 ROS 2/Gazebo，不宣称仿真端已接收命令。
 - 本次仅增加纯 Python 动态契约测试；没有启动 Gazebo，没有运行完整 `tests/test_drink.py` 或 `tests/drink_repeat.sh`。新提交 CI 尚待刷新终态；完整 Gazebo DrinkTask E2E 新增通过轮数仍为 0。
 - **状态：GO_DRINK 发布封装的成功、失败和 marker 可选路径均已有隔离动态回归覆盖，等待最新 CI；P104-07 保持“正在进行中”。完整 Gazebo DrinkTask E2E、至少三轮真实 E2E 与长时间稳定性验证未完成。**
+
+
+### 8.220 验证命令发送异常时保留已持久化的 UNKNOWN 证据（2026-11-10，回归测试已提交，CI 待验收）
+
+- 刷新 §8.219 两个提交的 Actions：测试提交 `88958ac36e46` 的 Python syntax run `42839603900` 与 CarryBus ROS 2 executor run `42839604231` 均 completed/success；TaskPlan 提交 `f2656b96f90f` 的 Python syntax run `42839679568` 与 CarryBus ROS 2 executor run `42839680223` 均 completed/success。两个 ROS 2 job 均实际执行 `Run CarryBus executor integration test` 并成功。
+- 复核命令尝试 marker 的边界：已有测试覆盖 marker 写入/flush/fsync/关闭后才调用 `watch.send('GO_DRINK')`，也覆盖 marker 创建失败时不发送；但未覆盖 marker 已持久化、随后发送函数抛异常的组合故障。
+- `tests/test_p104.py` 提交 `59aacf3432ee906d8b31ad8a52f0de742b860702`：新增隔离 AST 执行的动态测试，注入 `watch.send()` 异常，并断言原异常对象向上传播，同时事件顺序仍为 open → fdopen → write → flush → fsync → close → send。该测试证明命令发送异常不会回滚已创建的尝试标记，为 runner 在结果 JSON 缺失时将该轮归类为 UNKNOWN/INTERRUPTED 提供调用层证据。
+- 证据边界：该测试仅验证本地 marker 持久化与发送异常传播，不证明 ROS 2/Gazebo 是否收到命令，也不证明完整 runner 在真实进程中断时的端到端行为；没有启动 Gazebo，未执行完整 `tests/test_drink.py` 或 `tests/drink_repeat.sh`。
+- 最新测试提交及本 TaskPlan 后续提交的 Python 编译、纯测试和 CarryBus executor CI 必须刷新到终态后才能验收。完整 Gazebo DrinkTask E2E 新增通过轮数仍为 0；至少三轮真实 E2E 与长时间稳定性验证未完成。
+- **状态：发送异常发生在 marker 持久化之后的动态回归覆盖已提交 main，等待 CI；P104-07 保持“正在进行中”。完整 Gazebo DrinkTask E2E、至少三轮真实 E2E 与长时间稳定性验证未完成。**
