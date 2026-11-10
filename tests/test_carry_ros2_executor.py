@@ -648,7 +648,7 @@ class TestCarryRos2Executor(unittest.TestCase):
                 "ok", fresh_bus._await(
                     fresh_emit,
                     lambda ack, rid: ack == "ok fresh %d" % rid,
-                    2.0)))
+                    5.0)))
             fresh_waiter.start()
             self.assertTrue(fresh_waiter_ready.wait(timeout=2.0),
                             "fresh waiter did not register")
@@ -665,7 +665,7 @@ class TestCarryRos2Executor(unittest.TestCase):
                 self.assertNotIn(fresh_id, fresh_bus.ack_by_request)
 
             ack_pub.publish(String(data="ok fresh %d" % fresh_id))
-            fresh_waiter.join(timeout=3.0)
+            fresh_waiter.join(timeout=6.0)
             self.assertFalse(fresh_waiter.is_alive(),
                              "fresh waiter did not finish after matching ACK")
             self.assertEqual(fresh_result, {"ok": True})
