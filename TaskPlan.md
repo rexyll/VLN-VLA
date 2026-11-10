@@ -3761,3 +3761,12 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - `tests/test_p104.py` 提交 `be85b053c7fb737b6516967121fc4f54849c607f`：静态回归契约检查 marker helper 在 GO_DRINK 之前调用，并包含 fdopen 失败时关闭 fd 与成功写入后 fsync 的保护。
 - 该改动仅处理 observer 本地文件描述符生命周期，不改变 Gazebo 任务状态机、不取消任务、不自动重试。当前静态测试契约尚未由最新 CI 验收；完整 DrinkTask E2E 未执行。
 - **状态：marker 创建时 fdopen 失败的资源清理缺口已修复，等待 CI。P104-07 继续“正在进行中”；完整 Gazebo DrinkTask E2E 通过轮数仍为 0。**
+
+
+### 8.215 修正 marker helper 回归边界并加入 fdopen 故障注入测试（2026-11-10，测试已提交，CI 待验收）
+
+- 刷新 §8.214 的 Actions 终态：marker helper 代码提交 `18fd7adbb3d4` 的 Python syntax run `42833335910` completed/success、CarryBus ROS 2 executor run `42833335981` completed/success；测试提交 `be85b053c7fb` 的 Python run `42833353704` completed/failure、ROS 2 executor run `42833353744` completed/success；TaskPlan 提交 `eb3708595835` 的 Python run `42833379838` completed/failure、ROS 2 executor run `42833379511` completed/success。
+- 失败日志确认，Python 纯测试中的 `test_drink_observer_owns_ros_cleanup_in_main_finally` 使用了双重转义的字面 `\\n\\n` 搜索边界，无法匹配源码中 helper 与 `_run_observer()` 之间的真实换行；其余 46 项测试通过，失败不来自 Python 编译或 observer 运行逻辑。
+- `tests/test_p104.py` 修正提交 `ce18ea771f90b0bd433a2db7181a259e33b922d3`：将源码边界定位改为真实换行匹配；增加隔离 AST 执行的动态故障注入测试，模拟 `os.fdopen()` 抛出指定异常，验证原异常对象被保留且已打开 fd 被关闭；同时验证正常路径写入 marker、flush 并 fsync。静态顺序断言继续确保 marker 创建成功之前不会执行 `w.send('GO_DRINK')`。
+- 该测试提交触发的 Python 纯测试与编译 CI 尚待刷新；此前失败 run 保留为失败，不回写为成功。本次没有启动 Gazebo、没有执行完整 `tests/test_drink.py`，也没有进行真实 DrinkTask E2E。
+- **状态：marker helper 的失败/成功路径动态回归覆盖与旧边界断言修复已提交 main，等待 CI 验收。完整 Gazebo DrinkTask E2E 通过轮数仍为 0；三轮完整 E2E 与长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
