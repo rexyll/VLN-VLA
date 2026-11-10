@@ -3342,3 +3342,13 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - runner 提交 `444bcdd3f7ba1e6ffe7f1ee46b351e4a4adbda92`：归档阶段改为导入并调用共享 helper，不再复制维护字段校验代码；验证失败仍输出明确诊断并以归档失败状态退出。截图复制、归档路径及 summary 语义不变。
 - 该项建立的是 runner 输入契约的离线回归覆盖，不代表已运行完整 runner 或真实 Gazebo observer，也不代表完整 DrinkTask E2E 通过。
 - **状态：三个代码提交已进入 main；本节 TaskPlan 更新后等待 Python 编译/纯测试与 ROS 2 executor CI。真实 DrinkTask Gazebo E2E 新增通过轮数仍为 0；三轮完整 E2E 与长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
+
+
+### 8.171 让 DrinkTask 截图归档与轮次 JSON 发布具备原子性（2026-11-10，代码已提交，CI 待验收）
+
+- 复核 §8.170 的归档失败路径时发现：runner 逐张截图直接写入最终归档目录；若中途遇到缺失文件或复制失败，会留下部分截图目录。由于 runner 会拒绝复用已有归档目录，这类半成品会污染证据目录。JSON 快照也直接写最终文件，写入中断可能留下不完整结果。
+- helper 提交 `1cb73ad30a5d5e6b8d2975906a91ef8e7e7edba6`：新增 `archive_observer_screenshots()`，先在同一父目录的临时 staging 目录完成全部截图复制，成功后通过目录 rename 一次性发布；任何复制/验证失败都会清理 staging，不留下半成品最终目录。保留 evidence 缺省兼容及共享字段校验。
+- 回归测试提交 `aae45eb5cf4680176107be6f6c3f861df8605668`：覆盖 evidence 缺省时成功归档并创建计数、归档目录已存在时拒绝覆盖、复制中途遇到缺失截图时不发布最终目录且清理 staging。
+- runner 提交 `6d06eeb6f870d5f7a279a5941c5833c345bce748`：归档逻辑改用共享原子 helper；截图目录完整发布后，再将 JSON 写入同目录临时文件并用 `os.replace` 原子发布，避免 summary 读取到半截快照。
+- 本项是本地文件归档原子性与离线单元测试增强；不代表完整 runner 或真实 Gazebo observer 已运行，也不代表 DrinkTask E2E 通过。
+- **状态：三个代码提交已进入 main；等待 Python 编译/纯测试与 ROS 2 executor CI。真实 DrinkTask Gazebo E2E 新增通过轮数仍为 0；三轮完整 E2E 与长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
