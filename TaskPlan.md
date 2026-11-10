@@ -3587,3 +3587,12 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 回归测试提交 `1451c573561775ee9791e48446746525ca7a5743`：新增静态回归，检查符号链接拒绝、真实路径解析、目录包含关系检查均先于互斥锁文件创建。
 - 本修复保护 runner 的证据输出目录，不代表执行过 Gazebo DrinkTask。Python 与 ROS 2 executor CI 对这两个新提交尚待终态验收；若静态测试失败，将按实际日志继续修正。
 - **状态：输出目录边界保护和回归测试已进入 main，CI 待验收；真实 Gazebo DrinkTask E2E 新增通过轮数仍为 0，三轮完整 E2E 与长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
+
+
+### 8.197 阻止 DrinkTask 多轮互斥锁符号链接写入（2026-11-10，runner 与回归测试已提交，CI 待验收）
+
+- 刷新 §8.196 后续 CI：runner 提交 `e9ce2e19a4265336e724ee1e9009f14202cd4da0` 的 Python run 42810146166 与 ROS 2 executor run 42810146263 均 completed/success；回归测试提交 `1451c573561775ee9791e48446746525ca7a5743` 的 Python run 42810172393 与 ROS 2 executor run 42810172418 均 completed/success；TaskPlan 提交 `4f448cc1ff11e32a798fafc95bb5a9f7946db3e6` 的 Python run 42810207573 与 ROS 2 executor run 42810207687 均 completed/success。§8.196 验收通过。
+- 继续检查发现：输出目录真实路径虽已约束在 `tests/` 内，但互斥锁文件 `.drink_repeat.lock` 在 shell 重定向时未单独拒绝符号链接；预置锁文件符号链接可能让 shell 打开仓库外目标。旧的 `>` 重定向还会先截断既有锁 inode。
+- runner 提交 `487fe7f10ce03953bc8b2c9b488503ab435fcc8b`：将锁路径显式保存为 `LOCKFILE`，重定向前拒绝符号链接（包括悬空链接），并改用 `>>` 打开，避免截断已有锁文件内容；之后仍由 `flock -n` 执行互斥。
+- 回归测试提交 `1afc6e56fa9843c61de276e55e567ad25ddac076`：新增静态断言，确保符号链接检查先于文件打开、追加模式先于 flock，且旧的截断式重定向不存在。
+- **状态：§8.196 已由 Python 与 ROS 2 executor CI 双通过；§8.197 runner 与测试已提交 main，CI 待验收。真实 Gazebo DrinkTask E2E 新增通过轮数仍为 0，三轮完整 E2E 与长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
