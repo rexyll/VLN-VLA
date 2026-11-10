@@ -174,14 +174,12 @@ PY
         # Do not start another round merely because the observer process exited
         # zero: the persisted task result and archived evidence are authoritative.
         if ! python3 - "$SNAPSHOT" "$ROOT" <<'PY'
-import json
 import os
 import sys
 root = sys.argv[2]
 sys.path.insert(0, os.path.join(root, "tests"))
-from drink_evidence import summarize_round_evidence
-with open(sys.argv[1], encoding="utf-8") as stream:
-    result = json.load(stream)
+from drink_evidence import load_json_strict, summarize_round_evidence
+result = load_json_strict(sys.argv[1])
 summary = summarize_round_evidence(result, root)
 if not summary["ok"]:
     print("Round result failed task/evidence acceptance; stopping repeat batch.",
