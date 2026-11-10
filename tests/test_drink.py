@@ -255,7 +255,6 @@ def main():
                 print('    [人到场] pos=(%.3f, %.3f) 目标=(%.3f, %.3f) 差 %.1fmm'
                       % (px, py, L.PERSON_SPOT[0], L.PERSON_SPOT[1],
                          arrive['to_spot_mm']))
-        }
         # Unlike stage screenshots, arrival evidence used to be attempted
         # only once when the pose first became available. If the camera frame
         # was not ready at that instant, the required arrival image was lost.
