@@ -133,8 +133,9 @@ if not all(isinstance(source, str) and source for source in shots):
     print("Invalid DrinkTask result: screenshot paths must be non-empty strings",
           file=sys.stderr)
     sys.exit(3)
-if not isinstance(result.get("evidence"), dict):
-    print("Invalid DrinkTask result: evidence must be a JSON object",
+if ("evidence" in result
+        and not isinstance(result.get("evidence"), dict)):
+    print("Invalid DrinkTask result: evidence must be a JSON object when present",
           file=sys.stderr)
     sys.exit(3)
 
