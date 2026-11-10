@@ -12,11 +12,13 @@
 import os
 import sys
 import threading
+import tempfile
 import unittest
 from unittest.mock import patch
 import xml.etree.ElementTree as ET
 from drink_evidence import (REQUIRED_SHOT_LABELS, missing_required_shots,
-                            should_stop_terminal_observer)
+                            should_stop_terminal_observer,
+                            summarize_round_evidence)
 
 import numpy as np
 
@@ -116,6 +118,33 @@ class TestP104(unittest.TestCase):
             ['arrive', 'grip', 'handback', 'placed', 'takeback'])
         self.assertEqual(
             missing_required_shots(None), sorted(REQUIRED_SHOT_LABELS))
+
+    def test_round_summary_requires_complete_archived_screenshots(self):
+        with tempfile.TemporaryDirectory() as root:
+            shot = os.path.join(root, 'round_shots', 'placed.png')
+            os.makedirs(os.path.dirname(shot))
+            with open(shot, 'wb') as stream:
+                stream.write(b'png-placeholder')
+            rel = os.path.relpath(shot, root)
+            result = {
+                'ok': True,
+                'shots': [rel],
+                'evidence': {'screenshots_archived': 1},
+            }
+            summary = summarize_round_evidence(result, root)
+            self.assertTrue(summary['ok'])
+            self.assertTrue(summary['archive_ok'])
+            self.assertEqual(summary['screenshots_archived'], 1)
+
+            missing = dict(result, shots=['round_shots/missing.png'])
+            self.assertFalse(summarize_round_evidence(missing, root)['archive_ok'])
+
+            wrong_count = dict(result, evidence={'screenshots_archived': 2})
+            self.assertFalse(summarize_round_evidence(
+                wrong_count, root)['archive_ok'])
+
+            task_failed = dict(result, ok=False)
+            self.assertFalse(summarize_round_evidence(task_failed, root)['ok'])
 
     def test_done_state_waits_for_final_placed_screenshot(self):
         self.assertFalse(should_stop_terminal_observer(
