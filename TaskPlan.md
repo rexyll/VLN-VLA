@@ -3678,3 +3678,12 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 同时确认 SUMMARY 原子发布失败的回归测试已覆盖：模拟 `os.replace()` 失败、`os.fdopen()` 失败和 JSON 序列化失败，均验证旧 SUMMARY 保留且临时文件清理；不重复增加同类测试。
 - 本次审查未发现需要改变现有统计/控制逻辑的确定性缺陷，因此没有为了增加提交数量而修改 runner。该结论仅来自代码路径与现有纯测试审查，不代表真实 Gazebo 运行验收。
 - **状态：§8.204—§8.206 对应 Python 与 ROS 2 executor CI 已通过；多轮汇总、invalid/missing 计数和原子发布失败路径审查完成。真实 Gazebo DrinkTask E2E 通过轮数仍为 0，至少三轮真实 E2E 与长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
+
+
+### 8.207 多轮 DrinkTask runner 的异常中断语义审查（2026-11-10，代码路径审查）
+
+- 刷新 §8.206 的待验收工作流：TaskPlan 提交 `e9764654e9c4` 的 Python run `42824017058`（纯测试与 Python 编译两个 jobs）及 ROS 2 executor run `42824016906` 均 completed/success。
+- 沿 `tests/drink_repeat.sh` 从启动、逐轮 observer、截图归档、快照发布、轮次门控到批次 SUMMARY 的控制流审查 SIGINT/SIGTERM 中断行为。当前脚本没有安装信号 trap；若 shell 在批次汇总阶段前被终止，可能留下已发布的逐轮快照/截图目录，但不会执行最终批次 SUMMARY 生成步骤。此时不能仅凭部分轮次文件推断整个请求批次完成；没有 `drink_repeat_<tag>.json` 就应视为批次证据不完整。重新执行必须使用新 tag，遵守现有证据不可覆盖约束。
+- 本次没有修改 runner：在未定义中断时 observer 子进程清理、任务状态安全确认和中断报告契约前，简单增加 trap 可能只终止 shell 而遗留正在执行的 ROS 2 observer，或在仿真任务尚未进入安全终态时误发起后续动作。该项作为明确的运维限制保留，不把部分归档提升为完整批次验收。
+- 本次仅完成静态控制流审查，没有向运行中的仿真发送 SIGINT/SIGTERM，也没有启动 Gazebo 或执行 `tests/test_drink.py`；真实 Gazebo DrinkTask E2E 新增通过轮数仍为 0。
+- **状态：§8.207 中断路径风险已识别并明确记录；未作缺乏安全语义的信号处理改动。完整 Gazebo DrinkTask E2E、至少三轮真实 E2E 与长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
