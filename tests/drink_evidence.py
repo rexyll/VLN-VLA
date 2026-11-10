@@ -2,6 +2,17 @@
 # -*- coding: utf-8 -*-
 """Pure helpers for DrinkTask evidence acceptance; safe to import without ROS."""
 
+def load_json_strict(path):
+    """Load RFC-compliant JSON and reject NaN/Infinity extensions."""
+    import json
+
+    def reject_constant(value):
+        raise ValueError('non-standard JSON numeric constant: %s' % value)
+
+    with open(path, encoding='utf-8') as stream:
+        return json.load(stream, parse_constant=reject_constant)
+
+
 REQUIRED_SHOT_LABELS = frozenset({
     'arrive', 'present', 'grip', 'drink', 'takeback', 'placed', 'handback',
 })
