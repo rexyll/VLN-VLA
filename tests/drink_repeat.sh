@@ -120,23 +120,13 @@ source_json, snapshot_json, root, shot_dir = sys.argv[1:]
 with open(source_json, encoding="utf-8") as stream:
     result = json.load(stream)
 
-# Treat malformed observer output as a failed round, not as an exception
-# that prevents the batch summary from recording the incomplete evidence.
-if not isinstance(result, dict):
-    print("Invalid DrinkTask result: expected a JSON object", file=sys.stderr)
-    sys.exit(3)
-shots = result.get("shots", [])
-if not isinstance(shots, list):
-    print("Invalid DrinkTask result: shots must be a JSON array", file=sys.stderr)
-    sys.exit(3)
-if not all(isinstance(source, str) and source for source in shots):
-    print("Invalid DrinkTask result: screenshot paths must be non-empty strings",
-          file=sys.stderr)
-    sys.exit(3)
-if ("evidence" in result
-        and not isinstance(result.get("evidence"), dict)):
-    print("Invalid DrinkTask result: evidence must be a JSON object when present",
-          file=sys.stderr)
+# Share the exact observer/runner contract with the offline unit tests.
+sys.path.insert(0, os.path.join(root, "tests"))
+from drink_evidence import validate_observer_result
+try:
+    shots = validate_observer_result(result)
+except ValueError as exc:
+    print("Invalid DrinkTask result: %s" % exc, file=sys.stderr)
     sys.exit(3)
 
 archived = []
