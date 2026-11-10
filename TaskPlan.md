@@ -3372,3 +3372,12 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 本项只修复归档目标路径约束，不改变截图标签、任务动作、证据数量或 E2E 成功判据。
 - §8.172 的 Python runs 42788207991 与 42788273928、ROS 2 executor runs 42788208338 与 42788274010 均已复核为 completed/success。以上是本节修改之前的 CI 结果，不能作为 §8.173 的验收证据。
 - **状态：helper 与回归测试已提交 main，等待本节最新 Python 与 ROS 2 executor CI；真实 DrinkTask Gazebo E2E 新增通过轮数仍为 0，完整三轮 E2E 与长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
+
+### 8.174 将 DrinkTask 多轮汇总 JSON 也改为原子发布（2026-11-10，helper、测试与 runner 已提交，CI 待验收）
+
+- 审查 §8.171/§8.172 的原子性覆盖时发现：每轮截图目录与轮次 JSON 已采用 staging/临时文件发布，但重复 runner 最后的聚合 SUMMARY 仍直接以最终路径打开并写入。若进程在写入期间中断，可能留下半截汇总 JSON，破坏后续证据审计。
+- helper 提交 3d54e08b479e20fe3da34ca8ee7be6fdd06efc34：新增 write_json_atomic()，在目标文件同一目录创建临时文件，完整序列化后用 os.replace 发布；异常时清理临时文件并保留已有目标文件。
+- 测试提交 aa168878bfde94fa179cae5832c462838bc2b9ab：模拟 os.replace 发布失败，验证旧 SUMMARY 内容保持不变且临时文件被清理；随后验证成功发布得到完整 JSON。
+- runner 提交 549ad1cd5cda02fd062cf59c81b9587ca2ffc0c4：多轮 SUMMARY 改为调用共享 write_json_atomic()；summary 内容、round 判据和统计字段不变。
+- 本项补齐最终聚合报告的文件发布原子性，不代表真实 Gazebo DrinkTask E2E 已运行或通过。
+- **状态：helper、失败路径回归测试与 runner 修改已提交 main，等待本节 Python 与 ROS 2 executor CI；完整 DrinkTask Gazebo E2E 新增通过轮数仍为 0，三轮真实任务验收与长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
