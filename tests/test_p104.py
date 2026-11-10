@@ -243,6 +243,9 @@ class TestP104(unittest.TestCase):
         self.assertIn('shot_dir, observer_exit_code = sys.argv[1:]', runner)
         self.assertIn('result["observer_exit_code"] = int(observer_exit_code)', runner)
         self.assertIn('validate_observer_result(result)', runner)
+        self.assertIn('from drink_evidence import load_json_strict, summarize_round_evidence', runner)
+        self.assertIn('result = load_json_strict(sys.argv[1])', runner)
+        self.assertNotIn('result = json.load(stream)', runner)
         self.assertLess(
             runner.index('validate_observer_result(result)'),
             runner.index('result["observer_exit_code"] = int(observer_exit_code)'))
