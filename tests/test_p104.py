@@ -245,9 +245,7 @@ class TestP104(unittest.TestCase):
         self.assertIn('validate_observer_result(result)', runner)
         self.assertIn('from drink_evidence import load_json_strict, summarize_round_evidence', runner)
         gate_start = runner.index('if ! python3 - "$SNAPSHOT" "$ROOT"')
-        gate_end = runner.index('
-PY
-        then', gate_start)
+        gate_end = runner.index('\nPY\n        then', gate_start)
         acceptance_gate = runner[gate_start:gate_end]
         self.assertIn('result = load_json_strict(sys.argv[1])', acceptance_gate)
         self.assertNotIn('json.load(', acceptance_gate)
