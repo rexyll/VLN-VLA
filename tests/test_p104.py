@@ -326,7 +326,16 @@ class TestP104(unittest.TestCase):
             summary = summarize_round_evidence(result, root)
             self.assertTrue(summary['ok'])
             self.assertTrue(summary['archive_ok'])
+            self.assertTrue(summary['process_ok'])
             self.assertEqual(summary['screenshots_archived'], 7)
+
+            # A complete task JSON and screenshot archive must still fail
+            # acceptance when the observer process exited non-zero.
+            crashed_observer = dict(result, observer_exit_code=7)
+            crashed_summary = summarize_round_evidence(crashed_observer, root)
+            self.assertFalse(crashed_summary['process_ok'])
+            self.assertFalse(crashed_summary['ok'])
+            self.assertEqual(crashed_summary['observer_exit_code'], 7)
 
             missing_file = dict(result, shots=shots[:-1] + ['round_shots/missing.png'])
             self.assertFalse(summarize_round_evidence(
