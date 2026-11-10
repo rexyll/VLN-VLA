@@ -3625,3 +3625,12 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 回归测试提交 `6075eebf598a706833908fadcb74f39a43817f08`：静态检查确认门控导入并调用严格解析 helper，且不再使用默认 `json.load(stream)`。
 - 该修复加固轮次间的证据门控；没有运行 Gazebo，也没有执行 `tests/test_drink.py`，不增加真实 DrinkTask E2E 通过轮数。
 - **状态：runner 与回归测试已提交 main，等待各自 Python/ROS 2 executor CI 终态验收。真实 Gazebo DrinkTask E2E 通过轮数仍为 0；三轮完整 E2E 和长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
+
+
+### 8.201 将严格解析静态断言限定在下一轮验收门范围内（2026-11-10，测试修正已提交，CI 待验收）
+
+- §8.200 runner 提交 `75aa34f11808` 的 Python run `42820191141` 已 completed/success，shell 语法、Python 编译和纯测试通过；ROS 2 executor run `42820191021` 当时仍运行。
+- 测试提交 `6075eebf598a` 的 Python run `42820210773` 失败。日志显示 41 项测试中仅 `test_repeat_summary_requires_runner_exit_success` 失败：断言在整个 runner 文件中禁止 `result = json.load(stream)`，但批次脚本末尾读取刚刚由严格原子写入的最终 SUMMARY 仍使用标准解析器；该读取不属于下一轮启动前的轮次证据门。runner 的新验收门本身已经调用 `load_json_strict()`，shell 语法和编译均通过，其他 40 项测试通过。
+- 测试修正提交 `54473f65f5aadf457b693146528c27e25bb6399d`：静态测试现在仅提取 `SNAPSHOT` 验收门的 here-doc 代码块，要求该代码块调用严格解析并拒绝其中的 `json.load()`，不再错误约束 runner 其他独立阶段的 SUMMARY 读取逻辑。
+- §8.200 TaskPlan 提交 `06cdaefa2533` 的 Python run `42820258022` 当时 in_progress，ROS 2 executor run `42820257993` queued；runner ROS 2 executor run `42820191021`、测试提交旧 ROS 2 executor run `42820210744` 也需刷新终态。最新测试修正及本 TaskPlan 提交需单独验收。
+- **状态：严格解析门控 runner 已提交且其 Python CI 通过；首轮静态断言范围过宽，已收窄并提交 main，等待修正后 CI。真实 Gazebo DrinkTask E2E 通过轮数仍为 0；三轮完整 E2E 和长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
