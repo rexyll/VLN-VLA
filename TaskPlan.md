@@ -3563,3 +3563,10 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - runner 提交 683b8344f09b 的 ROS 2 executor run 42807090225、helper 提交 5587f65189d7 的 ROS 2 executor run 42807064759、测试提交 26dcb1c09c76 的 ROS 2 executor run 42807118379 在记录时尚未全部终态；需分别刷新，不能用 Python job 结果替代。
 - 测试修正提交 105fc406d1d1 与后续 TaskPlan 提交的 Python/ROS 2 executor CI 待验收。真实 Gazebo DrinkTask E2E 新增通过轮数仍为 0。
 - **状态：missing_rounds helper 与 runner 逻辑已提交 main；最新静态断言修正已提交 main，CI 待验收。三轮完整 Gazebo DrinkTask E2E 与长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
+
+### 8.194 验收缺失轮次清单的参数契约修正（2026-11-10，Python 纯测试通过，ROS 2 executor CI 待终态）
+
+- 测试修正提交 105fc406d1d1 的 Python run 42807241390 已 completed/success：编译 job 和 P104 pure tests 均通过，runner 参数解包静态断言与新增 missing_rounds 行为测试通过。
+- TaskPlan 提交 2cb6707bd529 的 Python run 42807281480 在本次记录时，编译 job 与 P104 pure tests 均 completed/success；其 ROS 2 executor run 42807281239 仍 in_progress，ROS 2 apt repository 配置进行中。测试修正提交 105fc406d1d1 的 ROS 2 executor run 42807241481 仍在安装 ROS 2 Jazzy 依赖，尚未进入 CarryBus executor test。
+- 早期提交 683b8344f09b、26dcb1c09c76、debc54d1e8aa 的 Python CI 失败均来自旧静态断言没有同步新增 tag 参数；对应 runner/helper ROS 2 executor jobs 当时仍在运行，不能把它们当作当前提交的终态结果。
+- **状态：runner 缺失轮次清单及静态回归修正已进入 main；Python 编译与纯测试已通过。ROS 2 executor CI 待终态验收。真实 Gazebo DrinkTask E2E 新增通过轮数仍为 0；三轮 E2E 和长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
