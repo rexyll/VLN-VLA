@@ -176,6 +176,13 @@ class TestP104(unittest.TestCase):
             self.assertFalse(summarize_round_evidence(
                 nul_path, root)['archive_ok'])
 
+            malformed_result = summarize_round_evidence(None, root)
+            self.assertFalse(malformed_result['ok'])
+
+            malformed_fields = dict(result, shots=None, evidence=[])
+            self.assertFalse(summarize_round_evidence(
+                malformed_fields, root)['archive_ok'])
+
             task_failed = dict(result, ok=False)
             self.assertFalse(summarize_round_evidence(
                 task_failed, root)['ok'])
