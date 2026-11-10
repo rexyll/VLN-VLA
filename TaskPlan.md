@@ -3439,3 +3439,5 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 回归测试提交 `9fc8c0fd33f08219f02b386074c0405b68c6506f`：覆盖正常整数/浮点数、布尔值、NaN、正负 Infinity、数字字符串、空值，以及超出 float 范围的大整数；断言只统计有效有限数值，无有效样本时返回 None。
 - 本项只加固聚合报告的指标数据质量，不改变 DrinkTask 任务成功判据、截图归档验收或 Gazebo 行为。
 - **状态：helper、runner 与回归测试已提交 main，等待对应 Python 与 ROS 2 executor CI 终态验收；完整 DrinkTask Gazebo E2E 新增通过轮数仍为 0，三轮真实任务验收与长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
+
+- 实施过程中的 runner 提交 `0ee1d5141d6bdc3f02033f84b8f519a138171194` 曾因多行 Python import 的换行转义错误导致 shell 内嵌 Python 语法无效；已在提交 `c3f49156877b23b88a6ba90cc27ac19fca503c64` 修正为真实换行。该修复后的 Python CI run `42797445327` 与 ROS 2 executor run `42797445092` 写入时仍 queued，待验收；不得把前序 CI 当作修复提交的验收证据。
