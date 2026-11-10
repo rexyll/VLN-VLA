@@ -179,7 +179,14 @@ for path in paths:
         print("Invalid round result %s: %s" % (path, exc), file=sys.stderr)
         continue
 
-    follow = result.get("follow") or {}
+    if not isinstance(result, dict):
+        print("Invalid round result %s: expected a JSON object" % path,
+              file=sys.stderr)
+        continue
+
+    follow = result.get("follow")
+    if not isinstance(follow, dict):
+        follow = {}
     evidence = summarize_round_evidence(result, root)
     rows.append({
         "file": os.path.basename(path),
