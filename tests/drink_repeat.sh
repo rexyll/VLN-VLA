@@ -132,7 +132,7 @@ for index, source in enumerate(result.get("shots", []), 1):
     archived.append(os.path.relpath(destination, root))
 
 result["shots"] = archived
-result["evidence"] = {"screenshots_archived": len(archived)}
+result.setdefault("evidence", {})["screenshots_archived"] = len(archived)
 with open(snapshot_json, "w", encoding="utf-8") as stream:
     json.dump(result, stream, ensure_ascii=False, indent=2)
 PY
@@ -160,13 +160,16 @@ PY
     fi
 done
 
-python3 - "$SUMMARY" "$N" "${SNAPSHOTS[@]}" <<'PY'
+python3 - "$SUMMARY" "$N" "$ROOT" "${SNAPSHOTS[@]}" <<'PY'
 import json
 import os
 import statistics
 import sys
 
-summary_path, requested, *paths = sys.argv[1:]
+summary_path, requested, root, *paths = sys.argv[1:]
+sys.path.insert(0, os.path.join(root, "tests"))
+from drink_evidence import summarize_round_evidence
+
 rows = []
 for path in paths:
     try:
@@ -177,9 +180,14 @@ for path in paths:
         continue
 
     follow = result.get("follow") or {}
+    evidence = summarize_round_evidence(result, root)
     rows.append({
         "file": os.path.basename(path),
-        "ok": bool(result.get("ok")),
+        "ok": evidence["ok"],
+        "task_ok": evidence["task_ok"],
+        "archive_ok": evidence["archive_ok"],
+        "screenshots_archived": evidence["screenshots_archived"],
+        "shots": evidence["shots"],
         "elapsed_s": result.get("elapsed_s"),
         "sim_elapsed_s": result.get("sim_elapsed_s"),
         "cup_home_mm": result.get("cup_home_mm"),
