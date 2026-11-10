@@ -56,6 +56,20 @@ if ! [[ "$TAG" =~ ^[A-Za-z0-9._-]+$ ]] || [[ "$TAG" == "." || "$TAG" == ".." ]];
 fi
 
 mkdir -p "$OUTDIR"
+
+# All runs share one live Gazebo demo and fixed observer output paths. A
+# process-wide lock prevents concurrent batches (even with different tags)
+# from issuing overlapping GO_DRINK commands or overwriting live screenshots.
+if ! command -v flock >/dev/null 2>&1; then
+    echo "flock is required to serialize DrinkTask repeat runs." >&2
+    exit 2
+fi
+exec 9>"$OUTDIR/.drink_repeat.lock"
+if ! flock -n 9; then
+    echo "Another DrinkTask repeat run is active; refusing concurrent execution." >&2
+    exit 2
+fi
+
 SUMMARY="$OUTDIR/drink_repeat_${TAG}.json"
 
 # Keep prior E2E evidence immutable: reusing a tag must never overwrite
