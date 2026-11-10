@@ -3742,3 +3742,12 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 安全边界：标记是保守的命令尝试边界，不是 Gazebo ACK 或任务执行确认；进程被 SIGKILL、机器断电、磁盘故障时无法保证 fsync/文件系统行为超出本机文件系统承诺。标记不自动取消任务、不自动重试，也不把未知状态计为成功。标记在成功轮次也保留以供审计；新批次必须使用新的 tag。
 - 本轮仅提交代码和静态回归断言；尚未运行真实 ROS 2/Gazebo DrinkTask，也未向仿真发送中断信号。完整 Gazebo DrinkTask E2E 新增通过轮数仍为 0；至少三轮真实 E2E 与长时间稳定性验证未完成。
 - **状态：GO_DRINK 命令尝试后的 observer 无结果中断现已具备独立批次 UNKNOWN/INTERRUPTED 证据表达，等待 CI 验收。P104-07 保持“正在进行中”。**
+
+
+### 8.213 修正 UNKNOWN/INTERRUPTED runner 变更引起的过期静态断言（2026-11-10，断言修正已提交，CI 待验收）
+
+- §8.212 的 observer 标记提交 `0d3dd8529eae`：Python syntax run `42832247839` completed/success；CarryBus executor run `42832247825` 当时仍 in_progress。
+- runner 提交 `a12e462ddda7`：shell syntax 检查通过、Python compile job 通过，但纯测试 job `42832272506` failure。读取完整 job log 后定位为两项静态断言仍绑定旧 runner 文案/旧 SUMMARY 参数解包：一项期待旧的“produced no result JSON”文案，另一项期待旧的 argv 解包形式；runner 新增 UNKNOWN/INTERRUPTED 分类与 outdir 参数后，这两项断言未同步更新。未发现 shell syntax 或 Python 编译错误。
+- 测试修正提交 `8e6879402268f4d187fbc7ec4507dbe180a3bbaf`：将两项静态断言更新为 UNKNOWN/INTERRUPTED 文案及新的 outdir 参数契约；不改变 runner/observer 运行逻辑。
+- observer 标记、runner 分类、静态断言三部分均已提交 main；最新测试修正与本 TaskPlan 的 CI 必须刷新到终态后才能验收。此前失败 run 保留为失败，不回写为成功。
+- **状态：测试断言与新契约已对齐，等待 CI；完整 Gazebo DrinkTask E2E 新增通过轮数仍为 0。P104-07 保持“正在进行中”。**
