@@ -192,6 +192,22 @@ class TestP104(unittest.TestCase):
         self.assertLess(gate, stop)
         self.assertLess(stop, cooldown)
 
+    def test_repeat_output_directory_rejects_symlink_escape(self):
+        runner_path = os.path.join(ROOT, 'tests', 'drink_repeat.sh')
+        with open(runner_path, encoding='utf-8') as stream:
+            runner = stream.read()
+        guard = runner.index('if [[ -L "$OUTDIR" ]]')
+        create = runner.index('mkdir -p "$OUTDIR"', guard)
+        resolve = runner.index('OUTDIR_REAL="$(realpath -e "$OUTDIR")"', create)
+        containment = runner.index('"$TESTS_REAL"/*)', resolve)
+        lock = runner.index('exec 9>"$OUTDIR/.drink_repeat.lock"')
+        self.assertLess(guard, create)
+        self.assertLess(create, resolve)
+        self.assertLess(resolve, containment)
+        self.assertLess(containment, lock)
+        self.assertIn('DrinkTask output directory must not be a symlink', runner)
+        self.assertIn('DrinkTask output directory escapes tests/', runner)
+
     def test_repeat_summary_requires_runner_exit_success(self):
         runner_path = os.path.join(ROOT, 'tests', 'drink_repeat.sh')
         with open(runner_path, encoding='utf-8') as stream:
