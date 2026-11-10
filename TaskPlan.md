@@ -3650,3 +3650,13 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 测试修正提交 `86b8c23d9262d7f358c29548b8d3ea25ab020088`：将边界字面量改为 Python 字符串中的转义换行 `\\nPY\\n        then`，使测试在运行时定位 runner 文件中的真实换行，同时保持源文件语法合法。
 - §8.201 测试提交 `54473f65f5aa` 的 Python run `42820320657` 因边界字符串未匹配失败；§8.202 测试提交 `80fe97b70dbc` 的 Python run `42820430479` 因测试源语法错误失败。两次失败原因已由 CI 日志确认并分别修正，不作为通过结果。§8.202 TaskPlan 提交 `6d4be8875cc3` 的 Python run `42820363144` 继承了测试断言问题；其 ROS 2 executor run `42820363166` 当时仍运行。最新修正提交及本 TaskPlan 更新提交均需独立 CI 验收。
 - **状态：runner 严格解析门控本身的 Python 与 ROS 2 executor CI 已通过；静态回归测试边界提取先后经历范围和转义问题，现已修正并提交 main，等待 CI。真实 Gazebo DrinkTask E2E 通过轮数仍为 0；三轮完整 E2E 和长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
+
+
+### 8.204 对最终批次 SUMMARY 状态复核使用严格 JSON 解析（2026-11-10，runner 与回归测试已提交，CI 待验收）
+
+- 刷新 §8.203 后续 CI：测试修正提交 `86b8c23d9262` 的 Python run `42820538413` 与 ROS 2 executor run `42820538297` 均 completed/success；TaskPlan 提交 `09c026baee3a` 的 Python run `42820577629` 与 ROS 2 executor run `42820577700` 均 completed/success。此前几次失败的测试提交均已由后续修正覆盖，不把旧失败记录改写为成功。
+- 继续检查批次结束路径发现：原始 observer JSON、每轮快照门控和批次逐轮汇总都已使用 `load_json_strict()`，但 runner 最后读取刚发布的批次 SUMMARY、决定退出码时仍调用普通 `json.load()`。SUMMARY 正常情况下由 `allow_nan=False` 原子写入，因此当前写入路径不会主动产生 NaN/Infinity；但最终状态复核仍应遵守同一严格 JSON 契约，避免文件在发布后被替换或损坏时接受非标准数值。
+- runner 提交 `PENDING`：最终 SUMMARY 退出状态检查改为导入并调用 `load_json_strict()`；不改变批次统计、原子发布和任务执行逻辑。
+- 回归测试提交 `PENDING`：新增静态断言，限定检查 runner 最终 SUMMARY 复核 here-doc，要求使用严格解析 helper 且不调用普通 `json.load()`。
+- 本节只记录证据解析一致性加固；未启动 Gazebo，未执行 `tests/test_drink.py` 或 `tests/drink_repeat.sh`，真实 Gazebo DrinkTask E2E 新增通过轮数仍为 0。
+- **状态：最终 SUMMARY 严格解析修正已提交 main，Python 与 ROS 2 executor CI 待终态验收；完整 Gazebo DrinkTask E2E、至少三轮真实 E2E 和长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
