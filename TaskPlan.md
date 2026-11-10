@@ -3778,3 +3778,13 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 修正提交 `2f24f515f06f3f71cb465c7ffe7cab6b5a8ac134`：将多重 mock 上下文改为显式嵌套 `with`，避免依赖续行转义；保留 fdopen 故障注入、原异常对象身份、fd 关闭和正常路径 flush/fsync 断言。
 - 本次没有改动 observer 运行逻辑，也没有启动 Gazebo 或执行真实 DrinkTask E2E。新提交 Python 编译/纯测试与 ROS 2 executor CI 需刷新终态。
 - **状态：marker 动态回归测试的语法问题已修正并提交 main，等待 CI。真实 Gazebo DrinkTask E2E 通过轮数仍为 0；P104-07 保持“正在进行中”。**
+
+
+### 8.217 将 marker 失败门禁提升为真实命令发布调用层故障注入（2026-11-10，代码与测试已提交，CI 待验收）
+
+- 刷新 §8.216 后最终 CI：提交 `2f24f515f06f` 的 Python run `42835554378` 与 ROS 2 executor run `42835554377` 均 completed/success；TaskPlan 提交 `cdbe246646ee` 的 Python run `42835588312` 与 ROS 2 executor run `42835588168` 均 completed/success。Python job 内编译与 P104 纯测试、ROS 2 job 内 CarryBus executor integration 均通过。
+- 复核既有故障注入的覆盖边界：此前测试动态执行 marker helper 并验证 fdopen 失败关闭 fd、保留异常；对“marker 调用早于 GO_DRINK”的部分仅作静态源码顺序断言，尚未动态验证命令发布函数是否会在 marker 失败后被阻断。
+- `tests/test_drink.py` 提交 `802a350852a1f944eb38146e7f56165b121c835c`：抽取 `_publish_drink_command(watch, marker_path)`，统一封装“先持久化 marker、再调用 `watch.send('GO_DRINK')`”的门禁；observer 调用该函数，marker 创建异常自然向上传播，发布动作不会执行。
+- `tests/test_p104.py` 提交 `cc60b47f0bfa8341086ff97ec163e8e65970de31`：将原先仅静态的顺序验证升级为隔离 AST 执行调用层；注入 `os.fdopen()` 异常后验证原异常身份、fd 关闭且 mock Watch 的发送记录为空。helper 独立失败/成功路径测试继续保留。
+- 当前两项新提交触发的 Python 编译、P104 纯测试和 CarryBus executor CI 尚未刷新终态。本轮没有启动 Gazebo，也未执行完整 `tests/test_drink.py` / `tests/drink_repeat.sh`。
+- **状态：GO_DRINK 发布调用层已建立 marker 故障门禁并补动态回归覆盖，等待 CI。完整 Gazebo DrinkTask E2E 新增通过轮数仍为 0；三轮 E2E 与长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
