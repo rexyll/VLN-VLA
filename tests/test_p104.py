@@ -1431,7 +1431,13 @@ class TestP104(unittest.TestCase):
         self.assertIn('"unknown_rounds": unknown_rounds', runner)
         self.assertIn('P91_COMMAND_MARKER', source)
         self.assertIn('os.O_EXCL', source)
-        self.assertLess(source.index('os.open(marker_path'), source.index("w.send('GO_DRINK')"))
+        self.assertLess(source.index('_create_command_attempt_marker(marker_path)'), source.index("w.send('GO_DRINK')"))
+        marker_start = source.index('def _create_command_attempt_marker(')
+        marker_end = source.index('\\n\\ndef _run_observer(', marker_start)
+        marker_body = source[marker_start:marker_end]
+        self.assertIn('except BaseException:', marker_body)
+        self.assertIn('os.close(fd)', marker_body)
+        self.assertIn('os.fsync(stream.fileno())', marker_body)
 
 
     def test_observer_cleanup_success_releases_node_and_context(self):
