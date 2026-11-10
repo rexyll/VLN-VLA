@@ -3604,3 +3604,14 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 测试修正提交 `c8da0aa02388e65aa663086606053913db80ae43`：将目录检查测试的锁操作定位锚点改为当前 `LOCKFILE="$OUTDIR/.drink_repeat.lock"` 声明，不改 runner 运行逻辑。
 - §8.197 的 ROS 2 executor jobs 在上述 Python 静态测试失败后仍处于依赖安装/运行阶段，须继续刷新其终态；本次不能把 ROS 2 executor 结果计为通过。
 - **状态：锁文件符号链接拒绝和追加式打开已提交 main；测试静态断言已同步修正，CI 待验收。真实 Gazebo DrinkTask E2E 新增通过轮数仍为 0，三轮完整 E2E 与长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
+
+
+### 8.199 严格拒绝 DrinkTask 轮次证据中的非标准 JSON 数值常量（2026-11-10，helper、runner 与测试已提交，CI 待验收）
+
+- §8.198 的 Python 与 ROS 2 executor CI 均已 completed/success：修正提交 `c8da0aa02388` 的 Python run `42816347706`、ROS 2 executor run `42816347652` 均通过；TaskPlan 提交 `b0d5123ca49d` 的 Python run `42816397913`、ROS 2 executor run `42816398037` 均通过。
+- 继续审查多轮证据的 JSON 解析路径发现：Python 标准库 `json.load()` 默认接受 `NaN`、`Infinity` 和 `-Infinity` 这类非标准 JSON 常量。指标字段虽会过滤非有限数值，但轮次中的 `stages`、`fails` 等结构化字段会原样进入批次 SUMMARY；被篡改或异常生成的轮次快照可能因此使最终 `allow_nan=False` 原子发布失败，整份批次报告无法生成，也不能明确列为无效轮次。
+- helper 提交 `cf71e490376795db94bd1fd7665ea681052af801`：新增 `load_json_strict()`，通过 JSON `parse_constant` 回调拒绝非标准数值常量，并保留正常 JSON 数值解析。
+- runner 提交 `4858c94cb34882ca16a0554e92a091457d4b8343`：observer 原始结果归档前和批次 SUMMARY 逐轮读取时统一调用严格解析；归档入口将其作为证据归档异常处理，批次汇总入口将异常快照记录进 `invalid_rounds`，不会把非标准常量透传到最终报告。
+- 测试提交 `d4747c119264c3c48f92fd92157e87143cb471ea`：新增 `NaN`、`Infinity`、嵌套 `-Infinity` 拒绝测试，并验证合法有限数值 JSON 正常读取。
+- 本修复强化离线证据输入契约；没有启动 Gazebo，也没有执行 `tests/test_drink.py`，不增加真实 DrinkTask E2E 通过轮数。三个代码提交及本 TaskPlan 提交的 Python/ROS 2 executor CI 均需按各自 SHA 刷新终态。
+- **状态：严格 JSON 解析 helper、runner 接入及回归测试已提交 main，等待 CI 验收。真实 Gazebo DrinkTask E2E 通过轮数仍为 0；三轮完整 E2E 与长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
