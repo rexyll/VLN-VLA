@@ -219,6 +219,7 @@ def main():
     deadline = time.time() + TOTAL_TIMEOUT
     while time.time() < deadline:
         w.spin(0.15)
+        tag = SHOT_AT.get(w.state)
         # 人真正"到位并开口"的时刻 = /robot/command 收到 DRINK(那是它说完话
         # 的产物)。person_walk 的 GOTO/DRINK 是它**自己**的状态机, 不对外播。
         if arrive is None and w.cmds:
