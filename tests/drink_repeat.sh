@@ -143,6 +143,29 @@ PY
             break
         fi
         SNAPSHOTS+=("$SNAPSHOT")
+
+        # Do not start another round merely because the observer process exited
+        # zero: the persisted task result and archived evidence are authoritative.
+        if ! python3 - "$SNAPSHOT" "$ROOT" <<'PY'
+import json
+import os
+import sys
+root = sys.argv[2]
+sys.path.insert(0, os.path.join(root, "tests"))
+from drink_evidence import summarize_round_evidence
+with open(sys.argv[1], encoding="utf-8") as stream:
+    result = json.load(stream)
+summary = summarize_round_evidence(result, root)
+if not summary["ok"]:
+    print("Round result failed task/evidence acceptance; stopping repeat batch.",
+          file=sys.stderr)
+    sys.exit(1)
+PY
+        then
+            echo "Round $i failed acceptance; stopping before the next task." >&2
+            FAILED=1
+            break
+        fi
     else
         echo "Round $i produced no result JSON (exit=$RC)." >&2
         FAILED=1
