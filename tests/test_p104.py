@@ -180,6 +180,16 @@ class TestP104(unittest.TestCase):
                          if name.startswith('.drink-json-')]
             self.assertEqual(leftovers, [])
 
+            # Serialization failures after opening the temporary file must
+            # close it, remove the temporary path, and preserve old SUMMARY.
+            with self.assertRaises(TypeError):
+                write_json_atomic({'not_json': object()}, target)
+            with open(target, encoding='utf-8') as stream:
+                self.assertEqual(json.load(stream), {'all_passed': True})
+            leftovers = [name for name in os.listdir(root)
+                         if name.startswith('.drink-json-')]
+            self.assertEqual(leftovers, [])
+
     def test_screenshot_archive_is_atomic_and_adds_optional_evidence(self):
         with tempfile.TemporaryDirectory() as root:
             source_dir = os.path.join(root, 'source')
