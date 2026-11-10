@@ -187,6 +187,10 @@ class TestP104(unittest.TestCase):
             self.assertFalse(summarize_round_evidence(
                 task_failed, root)['ok'])
 
+            truthy_string = dict(result, ok="false")
+            self.assertFalse(summarize_round_evidence(
+                truthy_string, root)['ok'])
+
     def test_done_state_waits_for_final_placed_screenshot(self):
         self.assertFalse(should_stop_terminal_observer(
             'DONE', [], 0.0))
