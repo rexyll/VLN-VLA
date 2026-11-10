@@ -446,8 +446,8 @@ class TestCarryRos2Executor(unittest.TestCase):
             transaction_results = {}
             transaction_ids = {}
             start = threading.Barrier(3)
-
             both_registered = threading.Event()
+            both_finished = threading.Event()
 
             def run_transaction(name):
                 start.wait(timeout=3.0)
@@ -460,7 +460,9 @@ class TestCarryRos2Executor(unittest.TestCase):
                 transaction_results[name] = bus._await(
                     emit,
                     lambda ack, rid: ack == "ok transaction %s %d" % (name, rid),
-                    4.0)
+                    6.0)
+                if len(transaction_results) == 2:
+                    both_finished.set()
 
             waiters = [
                 threading.Thread(target=run_transaction, args=("left",)),
@@ -472,21 +474,19 @@ class TestCarryRos2Executor(unittest.TestCase):
             self.assertTrue(
                 both_registered.wait(timeout=1.0),
                 "both concurrent CarryBus waiters did not register")
-            # Publish only after both request IDs are pending. This separates
-            # executor delivery from DDS discovery / publisher startup timing
-            # and ensures the test actually exercises two overlapping waiters.
-            # Re-send the same terminal ACKs while both waiters remain
-            # pending. This models duplicate delivery on the reliable topic
-            # and makes the test assert request-ID isolation independently of
-            # a single publish's scheduling latency.
-            ack_deadline = time.monotonic() + 3.5
-            while (time.monotonic() < ack_deadline and
-                   len(transaction_results) < 2):
+            # Publish only after both request IDs are pending. Use bounded
+            # retries rather than flooding the reliable DDS queue: a large
+            # duplicate burst can delay the very callbacks this test observes.
+            for attempt in range(3):
                 for name in ("left", "right"):
                     ack_pub.publish(String(
                         data="ok transaction %s %d" %
                         (name, transaction_ids[name])))
-                time.sleep(0.05)
+                if both_finished.wait(timeout=0.25):
+                    break
+            self.assertTrue(
+                both_finished.wait(timeout=1.0),
+                "executor did not complete both concurrent transactions")
             for waiter in waiters:
                 waiter.join(timeout=1.0)
                 self.assertFalse(waiter.is_alive(),
