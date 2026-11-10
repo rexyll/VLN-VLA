@@ -88,7 +88,40 @@ for ((i=1; i<=N; i++)); do
 
     SNAPSHOT="$OUTDIR/drink_${TAG}_${i}.json"
     if [[ -s "$RESULT" ]]; then
-        cp "$RESULT" "$SNAPSHOT"
+        # Archive each round's screenshots alongside its JSON. The observer
+        # writes fixed filenames under vla_ws/logs, so leaving paths untouched
+        # would make older JSON point at images overwritten by later rounds.
+        if ! python3 - "$RESULT" "$SNAPSHOT" "$ROOT" "$OUTDIR/drink_${TAG}_${i}_shots" <<'PY'
+import json
+import os
+import shutil
+import sys
+
+source_json, snapshot_json, root, shot_dir = sys.argv[1:]
+with open(source_json, encoding="utf-8") as stream:
+    result = json.load(stream)
+
+archived = []
+for index, source in enumerate(result.get("shots", []), 1):
+    if not os.path.isfile(source):
+        print("Missing screenshot evidence: %s" % source, file=sys.stderr)
+        sys.exit(3)
+    os.makedirs(shot_dir, exist_ok=True)
+    name = "%02d_%s" % (index, os.path.basename(source))
+    destination = os.path.join(shot_dir, name)
+    shutil.copy2(source, destination)
+    archived.append(os.path.relpath(destination, root))
+
+result["shots"] = archived
+result["evidence"] = {"screenshots_archived": len(archived)}
+with open(snapshot_json, "w", encoding="utf-8") as stream:
+    json.dump(result, stream, ensure_ascii=False, indent=2)
+PY
+        then
+            echo "Round $i evidence archival failed (test exit=$RC)." >&2
+            FAILED=1
+            break
+        fi
         SNAPSHOTS+=("$SNAPSHOT")
     else
         echo "Round $i produced no result JSON (exit=$RC)." >&2
