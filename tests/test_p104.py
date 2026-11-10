@@ -199,7 +199,8 @@ class TestP104(unittest.TestCase):
         self.assertIn('"process_ok": evidence["process_ok"]', runner)
         self.assertIn('batch_status = summarize_batch_status(int(requested), rows, invalid_rounds)', runner)
         self.assertIn('**batch_status', runner)
-        self.assertIn('"invalid_rounds"', runner)
+        self.assertIn('invalid_rounds = []', runner)
+        self.assertIn('invalid_rounds.append(', runner)
         self.assertIn('"runner_failed": int(failed) != 0', runner)
         self.assertIn('"all_passed": batch_status["all_passed"] and int(failed) == 0', runner)
 
