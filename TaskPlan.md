@@ -3634,3 +3634,11 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 测试修正提交 `54473f65f5aadf457b693146528c27e25bb6399d`：静态测试现在仅提取 `SNAPSHOT` 验收门的 here-doc 代码块，要求该代码块调用严格解析并拒绝其中的 `json.load()`，不再错误约束 runner 其他独立阶段的 SUMMARY 读取逻辑。
 - §8.200 TaskPlan 提交 `06cdaefa2533` 的 Python run `42820258022` 当时 in_progress，ROS 2 executor run `42820257993` queued；runner ROS 2 executor run `42820191021`、测试提交旧 ROS 2 executor run `42820210744` 也需刷新终态。最新测试修正及本 TaskPlan 提交需单独验收。
 - **状态：严格解析门控 runner 已提交且其 Python CI 通过；首轮静态断言范围过宽，已收窄并提交 main，等待修正后 CI。真实 Gazebo DrinkTask E2E 通过轮数仍为 0；三轮完整 E2E 和长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
+
+
+### 8.202 修正验收门静态测试的 here-doc 边界定位（2026-11-10，测试再次修正，CI 待验收）
+
+- §8.201 测试修正提交 `54473f65f5aa` 的 Python run `42820320657` 仍失败，但失败已从旧断言改为测试自身的定位错误：41 项测试中仅 `test_repeat_summary_requires_runner_exit_success` 抛出 `ValueError: substring not found`。日志显示测试源码把换行边界写成了字面反斜杠-n（`\\nPY\\n`），而 runner 文件包含真实换行；并非 runner 严格解析逻辑失败。
+- 测试修正提交 `80fe97b70dbce2906af9f2e7f063da3bb46dd30a`：将 here-doc 结束标记定位字符串改为真实换行分隔符，再从验收门代码块范围内检查严格解析调用。
+- §8.200 runner 提交 `75aa34f11808` 的 Python run `42820191141` 与 ROS 2 executor run `42820191021` 均 completed/success。测试提交 `6075eebf598a` 的 Python run `42820210773` 失败于全文件范围断言；后续提交 `54473f65f5aa` 的 Python run `42820320657` 失败于 here-doc 边界定位。TaskPlan 提交 `06cdaefa2533` 的 Python run `42820258022` 也继承旧全文件断言失败；其 ROS 2 executor run `42820257993` 仍需刷新。测试提交 `54473f65f5aa` 的 ROS 2 executor run `42820320778` 与 TaskPlan 提交 `6d4be8875cc3` 的 Python/ROS 2 executor runs 需分别刷新终态。
+- **状态：runner 严格解析门控的 Python 与 ROS 2 executor CI 已通过；测试断言先后出现范围过宽和换行定位错误，现已再次修正并提交 main，等待新提交 CI。真实 Gazebo DrinkTask E2E 通过轮数仍为 0；三轮完整 E2E 与长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
