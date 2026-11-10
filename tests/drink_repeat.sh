@@ -184,12 +184,12 @@ PY
     fi
 done
 
-python3 - "$SUMMARY" "$N" "$ROOT" "${SNAPSHOTS[@]}" <<'PY'
+python3 - "$SUMMARY" "$N" "$ROOT" "$FAILED" "${SNAPSHOTS[@]}" <<'PY'
 import json
 import os
 import sys
 
-summary_path, requested, root, *paths = sys.argv[1:]
+summary_path, requested, root, failed, *paths = sys.argv[1:]
 sys.path.insert(0, os.path.join(root, "tests"))
 from drink_evidence import (summarize_round_evidence, summarize_numeric_values,
                             finite_numeric_value, write_json_atomic)
@@ -239,7 +239,8 @@ report = {
     "requested_rounds": int(requested),
     "completed_rounds": len(rows),
     "passed_rounds": sum(row["ok"] for row in rows),
-    "all_passed": len(rows) == int(requested) and all(row["ok"] for row in rows),
+    "all_passed": (int(failed) == 0 and len(rows) == int(requested)
+                    and all(row["ok"] for row in rows)),
     "metrics": {
         key: numeric_summary(key) for key in (
             "elapsed_s", "sim_elapsed_s", "cup_home_mm", "cup_tilt_deg",
