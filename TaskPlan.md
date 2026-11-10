@@ -3158,3 +3158,11 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 修正提交：`65bec79e4ad6938457ee8859a4e3fa2043e4e9b7`。现在只有 `w.shot(tag)` 成功返回实际截图路径并加入结果 JSON 后，才把标签加入 `shots_done`；图像尚未到达时会在后续 observer spin 中继续重试。没有降低至少 4 张截图的验收要求，也没有伪造图像证据。
 - 前一阶段截图变量修复提交 `689dbc60a760b271c657f8061f45a69598db0404` 的 Python run `42750403623`（compile 与 pure math/kinematics jobs）和 ROS 2 executor run `42750403489` 均 completed/success；对应 TaskPlan 提交 `5f3bd1edb7bde965889adaf6ecc771daa584a2f2` 的 Python run `42750434771` 与 ROS 2 run `42750434780` 也均 completed/success。
 - **状态：截图重试修复已提交 main；当前代码提交的 Python run `42751494592` 与 ROS 2 executor run `42751494280` 均 queued，待验收。CI 只覆盖编译/纯 Python 与 CarryBus ROS 2 executor，不代表完整 Gazebo DrinkTask E2E。真实 E2E 新增通过轮数仍为 0，P104-07 保持“正在进行中”。**
+
+
+### 8.150 拒绝使用相机停流前的缓存帧作为阶段截图证据（2026-11-10，代码已提交，CI 待验收）
+
+- 复核 `tests/test_drink.py` 的截图重试逻辑时发现：上一轮修复保证“没有图像时继续重试”，但 `Watch.img` 会一直保留最后一帧。若相机随后停止发布，`shot()` 仍会反复保存同一张旧图像，并将其计入当前阶段证据，可能把过期画面误当作本阶段截图。
+- 修正提交：`6e8ffa9e3eaef289baff855b4af5b668d17d0691`。图像回调现在记录单调时钟接收时间；截图时若没有图像，或最后一帧距当前超过 2 秒，则返回未就绪，保留既有重试行为，不写入截图结果。相机恢复发布新帧后，后续 observer spin 可继续尝试保存。
+- 该保护只过滤超过 2 秒未更新的缓存帧，不降低至少 4 张截图的验收要求，不改变状态机、任务阈值或截图归档规则。尚未有真实 Gazebo 场景实测证据，2 秒窗口仍需在完整场景运行时验证是否适合实际相机发布频率。
+- **状态：相机帧新鲜度保护已提交 main，Python 与 ROS 2 executor CI 待验收；真实 DrinkTask E2E 新增通过轮数仍为 0。P104-07 保持“正在进行中”。**
