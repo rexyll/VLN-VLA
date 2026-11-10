@@ -89,7 +89,9 @@ def summarize_round_evidence(result, root):
     # The observer's task JSON and its process exit status are independent
     # signals. A valid-looking result must not pass if the observer crashed
     # or otherwise exited non-zero after writing it.
-    observer_exit_code = result.get('observer_exit_code', 0)
+    # A missing process status is not evidence of a successful observer run.
+    # The repeat runner must persist the real exit code before acceptance.
+    observer_exit_code = result.get('observer_exit_code')
     process_ok = (isinstance(observer_exit_code, int)
                   and not isinstance(observer_exit_code, bool)
                   and observer_exit_code == 0)
