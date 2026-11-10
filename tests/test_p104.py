@@ -9,6 +9,7 @@
 
 此脚本只验证纯函数与运动路径分段逻辑，不替代 Gazebo 遮挡/机械臂碰撞仿真。
 """
+import json
 import os
 import sys
 import threading
@@ -165,7 +166,7 @@ class TestP104(unittest.TestCase):
 
             write_json_atomic({'all_passed': True}, target)
             with open(target, encoding='utf-8') as stream:
-                self.assertEqual(stream.read(), '{\\n  "all_passed": true\\n}')
+                self.assertEqual(json.load(stream), {'all_passed': True})
 
     def test_screenshot_archive_is_atomic_and_adds_optional_evidence(self):
         with tempfile.TemporaryDirectory() as root:
