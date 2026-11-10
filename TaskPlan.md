@@ -3482,3 +3482,13 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 回归测试提交 `bc4946ec0b80f3dbd6ed89ca23c9e1578be23a41`：检查 runner 持久化退出码并输出进程状态字段。追加行为测试提交 `9a9dc2cba1bc14cb04d9db230b5cc42dc1e98611`：使用完整七类截图和有效任务 JSON，验证 observer 退出码为 7 时单轮仍必须失败。
 - 以上 CI 仅在提交后触发，当前不得提前标记成功；Python/ROS 2 executor 离线工作流也不等同于真实 Gazebo DrinkTask E2E。
 - **状态：helper、runner 与回归测试已提交 main，等待最新 Python 与 ROS 2 executor CI 终态验收；真实 DrinkTask Gazebo E2E 新增通过轮数仍为 0，三轮真实任务验收与长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
+
+
+### 8.185 修复重复 runner 未向归档子进程传递 observer 退出码（2026-11-10，runner 与回归测试已提交，CI 待验收）
+
+- 刷新 §8.184 提交对应 CI：helper `a177b519ab89`、runner `0c6188b5843e`、测试 `bc4946ec0b80`、行为测试 `9a9dc2cba1bc`、TaskPlan `c1355517af2f` 的 Python 与 ROS 2 executor 工作流均 completed/success。
+- 对真实 shell 执行路径进行逐行检查，发现 §8.184 在单引号 heredoc（`<<'PY'`）内直接引用 Shell 变量 `RC`。由于 heredoc 禁止变量展开，内嵌 Python 没有定义 `RC`，会在归档时触发 NameError；此前 CI 仅执行 Python/ROS 2 executor 工作流，未实际执行完整 repeat runner，因此未捕获此问题。
+- runner 修复提交 `16ae2ba637562d020f75851aece4fd465f417c75`：将 `$RC` 作为第五个命令行参数传入归档子进程，Python 显式解析 `observer_exit_code`，再写入轮次快照。保留单引号 heredoc，避免不安全的 Shell 源码插值。
+- 回归测试提交 `a5d20c09fb8add298bbaeaca51c2372c5b1a1322`：断言归档 worker 从 `sys.argv` 接收退出码、将其转换为整数，并验证 runner 调用确实传入 `"$RC"`。
+- 本修复解决 runner 运行时参数传递缺陷；当前提交 CI 需重新验收。完整 Gazebo DrinkTask E2E 仍未在本轮执行，不能据此增加真实通过轮数。
+- **状态：runner 与回归测试修复已提交 main，等待 Python 与 ROS 2 executor CI；真实 DrinkTask Gazebo E2E 新增通过轮数仍为 0，三轮真实任务验收及长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
