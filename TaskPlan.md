@@ -3272,3 +3272,14 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - runner 汇总字段提交 `651b2e3e21378eaca30236cfd37a37360cc15c30`：summary 的 `missing_shot_labels` 改为由统一 helper 重新计算，避免仅信任 JSON 内可能过时的缺失标签字段。
 - §8.161 的 Python run `42757027763`、`42757042616`、`42757069712`、`42757094252` 均 completed/success；ROS 2 executor run `42757027981`、`42757042606`、`42757069683` completed/success，最新 TaskPlan 对应的 `42757094337` 在本轮复核时仍 in_progress。后续提交的 CI 状态另行记录，不混用旧 run 结果。
 - **状态：严格归档验收 helper、回归测试及 summary 字段增强已提交 main，最新 CI 待验收；真实 DrinkTask Gazebo E2E 新增通过轮数仍为 0，三轮完整验收与长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
+
+### 8.163 对损坏轮次 JSON 与事件标签重复输入增加拒绝测试（2026-11-10，代码已提交，CI 部分通过）
+
+- 在 §8.162 的严格归档验收上继续检查异常输入：汇总 helper 原先仍假设轮次 JSON 顶层、evidence 和 shots 字段类型正确；畸形 JSON 可能使汇总进程直接抛异常，而不是把该轮明确标记为证据不合格。
+- helper 提交 `591753659b4e33f79a61f36a90641159af1c192d`：非 dict 顶层结果、非 dict evidence、非 list shots 均安全拒绝；仅在 shots 确认为列表后读取数量。
+- 回归测试提交 `36f1f073773cd493aaee0914e4a71ac24bdeed0d`：覆盖 None 顶层结果、错误类型 evidence/shots、非字符串标签、重复标签、NUL 字节路径、仓库外路径、重复路径、缺文件、数量不匹配和任务失败。
+- 判据进一步收紧：七个事件标签必须恰好各出现一次；截图路径必须恰好七条、互不重复，且真实文件解析路径必须留在仓库根目录内。
+- §8.161 runner 字段提交 `651b2e3e21378eaca30236cfd37a37360cc15c30` 的 Python run `42781263051` 与 ROS 2 executor run `42781262913` 均 completed/success。
+- §8.162/§8.163 相关 Python CI 已通过：runs `42781112443`、`42781329486`、`42781388953`、`42781471231`、`42781582140`、`42781612187`、`42781733655`、`42781762853` 均 completed/success。初始 helper 提交 `9a136be8` 的 Python run `42781052203` 曾因旧测试夹具未同步更新而失败；随后测试夹具更新后的 run `42781112443` 通过。
+- ROS 2 executor CI 中，run `42781389198` 曾在既有测试 `test_executor_delivers_concurrent_ids_and_rejects_late_ack` 的 fresh ACK waiter 断言失败（期望 `{"ok": True}`，实际 `{"ok": False}`）；该提交只改动 DrinkTask Python 证据 helper，未改 CarryBus executor。后续 ROS 2 runs `42781471130`、`42781582121`、`42781612622` 已 completed/success；runs `42781733575`、`42781762887` 在本轮记录时仍 in_progress。另有较早 runs `42781112456`、`42781329472`、`42781513339` 仍在运行，待刷新终态。
+- **状态：严格截图归档验收及畸形 JSON 防御性处理已提交 main；Python CI 已通过，ROS 2 executor 有一次独立并发 ACK 回归失败但后续多次通过，剩余 run 待终态确认。真实 DrinkTask Gazebo E2E 新增通过轮数仍为 0，三轮完整验收与长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
