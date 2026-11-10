@@ -245,10 +245,10 @@ def main():
                 if sh:
                     res['shots'].append(sh)
         if tag and tag not in shots_done:
-            shots_done.add(tag)
             sh = w.shot(tag)
             if sh:
                 res['shots'].append(sh)
+                shots_done.add(tag)
         if w.state in ('DONE', 'ERROR', 'FAIL_PREPARE', 'FAIL_HANDOVER'):
             break
 
