@@ -141,27 +141,37 @@ def write_json_atomic(payload, path):
         raise
 
 
-def summarize_numeric_values(values):
-    """Summarize finite JSON numeric values, excluding booleans and invalid numbers."""
+def finite_numeric_value(value):
+    """Return a finite float for a JSON number, excluding bool and invalid values."""
     import math
-    import statistics
 
-    numbers = []
-    for value in values:
-        if isinstance(value, bool) or not isinstance(value, (int, float)):
-            continue
-        try:
-            number = float(value)
-        except (OverflowError, ValueError):
-            continue
-        if math.isfinite(number):
-            numbers.append(number)
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    try:
+        number = float(value)
+    except (OverflowError, ValueError):
+        return None
+    return number if math.isfinite(number) else None
+
+
+def summarize_numeric_values(values):
+    """Summarize finite JSON numeric values without overflowing the median."""
+    numbers = sorted(
+        number for value in values
+        if (number := finite_numeric_value(value)) is not None)
     if not numbers:
         return None
+    middle = len(numbers) // 2
+    if len(numbers) % 2:
+        median = numbers[middle]
+    else:
+        # Halve before adding: (a + b) / 2 overflows for two large finite
+        # floats even when their mathematical mean is still representable.
+        median = numbers[middle - 1] / 2.0 + numbers[middle] / 2.0
     return {
-        'median': round(statistics.median(numbers), 3),
-        'min': round(min(numbers), 3),
-        'max': round(max(numbers), 3),
+        'median': round(median, 3),
+        'min': round(numbers[0], 3),
+        'max': round(numbers[-1], 3),
     }
 
 def archive_observer_screenshots(result, root, shot_dir):
