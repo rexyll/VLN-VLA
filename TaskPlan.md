@@ -3189,3 +3189,13 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 修正提交：4bdb73f8bf246b2364593cb57d0548ad7af8fd7a。新增独立的 arrive_shot_done 状态；person 到场数据确定后，每次 observer spin 都尝试保存到场截图，只有成功取得符合时间边界的新鲜帧并写入结果 JSON 后才停止重试。
 - 不改变 person 到位测量、阶段状态机、相机 2 秒新鲜度阈值、截图归档规则或至少 4 张截图的验收要求。到场截图仍要求图像接收时间晚于 DRINK 命令接收时间。
 - **状态：最终修复提交已在 main；代码提交 13b8f257 的 Python run 42753673093 与 ROS 2 executor run 42753672979 仍在运行；最终修复提交 4bdb73f8 的 ROS 2 executor run 42753688481 queued，Python run 待检查。真实 DrinkTask E2E 未执行，新增通过轮数仍为 0；P104-07 保持“正在进行中”。**
+
+
+
+### 8.154 到场截图重试修复及对应 TaskPlan 记录通过 CI（2026-11-10）
+
+- 最终代码提交 `4bdb73f8bf246b2364593cb57d0548ad7af8fd7a` 的 Python run `42753689390` 与 ROS 2 executor run `42753688481` 均已 completed/success。Python jobs `129622986045`（Compile changed Python modules）与 `129622986430`（P104 pure math/kinematics tests，包含 `bash -n tests/drink_repeat.sh`）均 success；ROS 2 executor job `129622983150` success。
+- 对应 TaskPlan 提交 `7022bc6302baaaa5d6d47b4220c842c63746871b` 的 Python run `42753712695` 与 ROS 2 executor run `42753712757` 均 completed/success。
+- 更正 §8.153 当时记录的待验收状态：上述最终修复版本及其 TaskPlan 更新的 CI 已全部结束并通过。中间提交 `13b8f257b6f8465cfb16622346828890066e7d38` 的 Python run `42753673093` 曾因多余右花括号导致语法检查失败；最终提交 `4bdb73f8` 已修正并通过，失败历史保留，不计作通过。
+- CI 范围仅为指定 Python 模块编译、P104 纯 Python/运动学测试、runner shell 语法检查及 CarryBus ROS 2 executor 集成；没有启动完整 Gazebo DrinkTask 场景，也没有生成新的真实 E2E JSON/截图。
+- **状态：到场截图重试修复和对应 TaskPlan 记录均通过 CI；真实 DrinkTask E2E 新增通过轮数仍为 0。** 下一步仍需在具备 ROS 2 Jazzy、Gazebo Harmonic 与已构建工作区的仿真环境执行 `bash tests/drink_repeat.sh 3 <new-tag>`，审查三轮 JSON、截图归档与 summary，并完成长时间稳定性验证。P104-07 保持“正在进行中”。
