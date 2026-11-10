@@ -3118,3 +3118,11 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
   - ROS 2 executor run `42741969851`：job `129584969370` success。
 - 本轮验收结论仅限 Python 语法/纯测试与 ROS 2 executor 集成；CI 未启动完整 Gazebo DrinkTask 场景，也没有生成新的真实任务 JSON/截图证据。
 - **状态：截图归档修复与对应 TaskPlan 记录均通过现有 CI；真实 DrinkTask E2E 新增通过轮数仍为 0。** 下一步仍需在 ROS 2 Jazzy + Gazebo Harmonic + 已构建工作区的仿真主机执行 `bash tests/drink_repeat.sh 3 p104`，审查每轮 JSON、截图归档与 summary；另需完成长时间稳定性验证。P104-07 保持“正在进行中”，不得因 CI guard 通过而关闭。
+
+
+### 8.145 防止 DrinkTask runner 覆盖既有截图归档目录（2026-11-10，代码已提交，CI 待验收）
+
+- 复核 `tests/drink_repeat.sh` 的不可变证据保护时发现：runner 已预检每轮 JSON 与 summary，但未预检 `tests/out/drink_<tag>_<round>_shots/`。若截图目录已存在而对应 JSON 不存在，归档阶段可能覆盖同名截图，违反历史证据不可变约束。
+- 修正提交：`7e081b3db2920f449b40f1c872bd6279491b7b36`。每轮任务开始前，现在同时检查 JSON 路径和截图归档目录；目录或符号链接已存在即 exit 2，要求使用新 tag。预检仍发生在任何 `GO_DRINK` 指令发送之前。
+- 本修正仅增强证据路径冲突保护，不改变 DrinkTask 状态机、单轮判据、截图复制逻辑、失败即停止或仿真启动前提。
+- **状态：代码已提交 main，Python 与 ROS 2 executor CI 待验收；真实 DrinkTask E2E 通过轮数仍为 0。** CI 通过后仍需在具备 ROS 2 Jazzy、Gazebo Harmonic 和已构建工作区的仿真主机执行三轮真实验收及长时间稳定性测试。P104-07 保持“正在进行中”。
