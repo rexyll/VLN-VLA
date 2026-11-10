@@ -24,7 +24,7 @@ from drink_evidence import (REQUIRED_SHOT_LABELS, missing_required_shots,
                             archive_observer_screenshots,
                             write_json_atomic, summarize_numeric_values,
                             finite_numeric_value, summarize_batch_status,
-                            load_json_strict)
+                            load_json_strict, cleanup_observer_resources)
 
 import numpy as np
 
@@ -1424,6 +1424,74 @@ class TestP104(unittest.TestCase):
             runner = stream.read()
         self.assertIn('Round $i produced no result JSON (exit=$RC).', runner)
         self.assertIn('FAILED=1', runner)
+
+
+    def test_observer_cleanup_success_releases_node_and_context(self):
+        calls = []
+
+        class Node:
+            def destroy_node(self):
+                calls.append('destroy')
+
+        failed = cleanup_observer_resources(
+            Node(), True,
+            lambda: calls.append('ok') or True,
+            lambda: calls.append('shutdown'),
+            lambda label, exc: self.fail('unexpected cleanup error: %s' % label))
+        self.assertFalse(failed)
+        self.assertEqual(calls, ['destroy', 'ok', 'shutdown'])
+
+    def test_observer_cleanup_failure_is_reported_and_shutdown_continues(self):
+        calls = []
+        errors = []
+
+        class Node:
+            def destroy_node(self):
+                calls.append('destroy')
+                raise RuntimeError('destroy failed')
+
+        failed = cleanup_observer_resources(
+            Node(), True,
+            lambda: calls.append('ok') or True,
+            lambda: calls.append('shutdown'),
+            lambda label, exc: errors.append((label, str(exc))))
+        self.assertTrue(failed)
+        self.assertEqual(calls, ['destroy', 'ok', 'shutdown'])
+        self.assertEqual(errors, [('observer node cleanup failed',
+                                   'destroy failed')])
+
+    def test_observer_shutdown_failure_is_reported(self):
+        errors = []
+        failed = cleanup_observer_resources(
+            None, True, lambda: True,
+            lambda: (_ for _ in ()).throw(RuntimeError('shutdown failed')),
+            lambda label, exc: errors.append((label, str(exc))))
+        self.assertTrue(failed)
+        self.assertEqual(errors, [('ROS 2 shutdown failed',
+                                   'shutdown failed')])
+
+    def test_observer_cleanup_skips_uninitialized_context(self):
+        calls = []
+        failed = cleanup_observer_resources(
+            None, False,
+            lambda: calls.append('ok'),
+            lambda: calls.append('shutdown'),
+            lambda label, exc: self.fail('unexpected cleanup error'))
+        self.assertFalse(failed)
+        self.assertEqual(calls, [])
+
+    def test_observer_main_does_not_report_success_after_cleanup_failure(self):
+        observer_path = os.path.join(ROOT, 'tests', 'test_drink.py')
+        with open(observer_path, encoding='utf-8') as stream:
+            source = stream.read()
+        main_start = source.index('def main():')
+        main_end = source.index("\\n\\nif __name__ == '__main__':", main_start)
+        main_body = source[main_start:main_end]
+        self.assertIn('cleanup_observer_resources(', main_body)
+        self.assertIn('if cleanup_failed and result == 0:', main_body)
+        self.assertIn('return 3', main_body)
+        self.assertNotIn('node.destroy_node()', main_body)
+        self.assertNotIn('rclpy.shutdown()', main_body)
 
 
 if __name__ == '__main__':
