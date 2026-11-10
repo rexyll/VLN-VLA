@@ -46,7 +46,8 @@ from vla_follow.drink_task import DrinkTask   # noqa: E402
 from vla_follow.pngsnap import save_png       # noqa: E402
 from drink_evidence import (REQUIRED_SHOT_LABELS,
                             missing_required_shots,
-                            should_stop_terminal_observer)  # noqa: E402
+                            should_stop_terminal_observer,
+                            cleanup_observer_resources)  # noqa: E402
 
 LOG_DIR = os.path.join(ROOT, 'vla_ws', 'logs')
 TOTAL_TIMEOUT = 420.0
@@ -437,27 +438,25 @@ def report(node, res):
 def main():
     initialized = False
     node = None
+    result = 2
     try:
         rclpy.init()
         initialized = True
         node = DrinkTask(observer_only=True)
-        return _run_observer(node)
+        result = _run_observer(node)
     finally:
         # One owner controls ROS 2 teardown for every return/exception path.
-        # An interrupted observer after GO_DRINK is not task cancellation;
-        # without an accepted result the repeat runner stops the batch.
-        if node is not None:
-            try:
-                node.destroy_node()
-            except Exception as exc:
-                print('observer node cleanup failed: %s' % exc, file=sys.stderr)
-        if initialized:
-            try:
-                if rclpy.ok():
-                    rclpy.shutdown()
-            except Exception as exc:
-                print('ROS 2 shutdown failed: %s' % exc, file=sys.stderr)
-
+        # An interrupted observer after GO_DRINK is not task cancellation.
+        cleanup_failed = cleanup_observer_resources(
+            node, initialized, rclpy.ok, rclpy.shutdown,
+            lambda label, exc: print('%s: %s' % (label, exc),
+                                     file=sys.stderr))
+    # If the observer passed but teardown did not, do not report success.
+    # Exceptions raised above still propagate; cleanup errors are logged and
+    # never replace the original exception.
+    if cleanup_failed and result == 0:
+        return 3
+    return result
 
 if __name__ == '__main__':
     sys.exit(main())
