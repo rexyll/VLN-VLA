@@ -187,12 +187,11 @@ done
 python3 - "$SUMMARY" "$N" "$ROOT" "${SNAPSHOTS[@]}" <<'PY'
 import json
 import os
-import statistics
 import sys
 
 summary_path, requested, root, *paths = sys.argv[1:]
 sys.path.insert(0, os.path.join(root, "tests"))
-from drink_evidence import summarize_round_evidence, write_json_atomic
+from drink_evidence import (summarize_round_evidence, summarize_numeric_values,\n                            write_json_atomic)
 
 rows = []
 for path in paths:
@@ -233,14 +232,7 @@ for path in paths:
     })
 
 def numeric_summary(key):
-    values = [row[key] for row in rows if isinstance(row.get(key), (int, float))]
-    if not values:
-        return None
-    return {
-        "median": round(statistics.median(values), 3),
-        "min": round(min(values), 3),
-        "max": round(max(values), 3),
-    }
+    return summarize_numeric_values(row.get(key) for row in rows)
 
 report = {
     "requested_rounds": int(requested),
