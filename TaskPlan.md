@@ -3250,4 +3250,14 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 回归测试提交 4e4160557147424615b3024095064512457be9b2：tests/test_p104.py 覆盖 DONE 尚未保存时继续等待、placed 保存后退出、3 秒窗口到期退出、错误终态立即退出，以及非终态不提前退出。
 - 该修复只处理终态截图证据采集时序，不改变 DrinkTask 生产状态机、任务动作、九阶段顺序、图像新鲜度阈值或其他验收阈值。
 - 前序 §8.158~§8.159 相关 Python 与 ROS 2 executor CI 已复核全部 completed/success：Python runs 42755658543、42755669729、42755681768、42755700727、42755722124、42755738391；ROS 2 executor runs 42755658421、42755669519、42755681773、42755700383、42755722381、42755738357。这些 CI 仅验证 Python 编译/纯测试和 CarryBus ROS 2 executor，不代表完整 Gazebo DrinkTask E2E。
-- **状态：终态截图有界重试修复及回归测试已提交 main，当前提交的 Python 与 ROS 2 executor CI 待验收；真实 DrinkTask E2E 新增通过轮数仍为 0。完整三轮 E2E 与长时间稳定性验证未完成，P104-07 保持“正在进行中”。**
+- **状态：终态截图有界重试修复及回归测试已提交 main，当前提交的 Python 与 ROS 2 executor CI 已全部 completed/success（Python run 42756161539；ROS 2 executor run 42756161544）；真实 DrinkTask E2E 新增通过轮数仍为 0。完整三轮 E2E 与长时间稳定性验证未完成，P104-07 保持“正在进行中”。**
+
+### 8.161 将截图归档完整性纳入 DrinkTask 多轮汇总通过条件（2026-11-10，代码已提交，CI 待验收）
+
+- 审查 §8.157 的多轮 summary 与 §8.143 的截图归档实现时发现：runner 会把截图路径写入每轮 JSON，并记录 evidence.screenshots_archived，但汇总只复制 shot_labels/missing_shot_labels，未验证归档文件是否真实存在，也未把归档完整性纳入 passed_rounds/all_passed。若归档文件在汇总前丢失，summary 仍可能仅按单轮 result.ok 统计通过。
+- helper 提交 987034d8417e9c67b531cc9d443cfc7f5ffa2515：tests/drink_evidence.py 新增 summarize_round_evidence()，校验截图列表类型、每个归档路径对应的文件存在、声明归档数量与路径数量一致，并将任务本身结果与归档结果分开返回。
+- 回归测试提交 96bde57cb997d4e098a0fc0ebb85a3cc32c4ab14：tests/test_p104.py 新增临时目录测试，覆盖完整归档通过、文件缺失、声明数量不一致和任务本身失败。
+- runner 提交 1cfb9d73c5bc747bbcd055724a3e9797ed042a6c：tests/drink_repeat.sh 的 summary 现在记录 task_ok、archive_ok、screenshots_archived 和归档截图路径；每轮 ok 与总 all_passed 同时要求任务结果通过、截图归档校验通过。归档时保留已有 evidence 字段，只更新 screenshots_archived。
+- 此项加强多轮证据审计，不改变 DrinkTask 任务动作、九阶段判据、七个关键截图标签或仿真阈值。历史 JSON 若无归档元数据会被明确视为归档证据不足，不会伪造为通过。
+- §8.160 的 Python run 42756161539 与 ROS 2 executor run 42756161544 已 completed/success；其余本轮新增提交的 CI 尚待验收。CarryBus ROS 2 executor CI 不代表完整 Gazebo DrinkTask E2E。
+- **状态：归档一致性 helper、单元测试与 runner 汇总增强已提交 main，等待 Python 编译/纯测试与 ROS 2 executor CI；真实 DrinkTask E2E 新增通过轮数仍为 0，完整三轮 E2E 和长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
