@@ -47,7 +47,7 @@ def summarize_round_evidence(result, root):
     paths_ok = isinstance(shots, list)
     if paths_ok:
         for path in shots:
-            if (not isinstance(path, str) or not path or '\\x00' in path
+            if (not isinstance(path, str) or not path or '\x00' in path
                     or os.path.isabs(path)):
                 paths_ok = False
                 break
