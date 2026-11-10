@@ -263,6 +263,13 @@ class TestP104(unittest.TestCase):
         self.assertIn('"runner_failed": int(failed) != 0', runner)
         self.assertIn('"all_passed": batch_status["all_passed"] and int(failed) == 0', runner)
 
+        final_check_start = runner.rindex('python3 - "$SUMMARY" "$ROOT"')
+        final_check_end = runner.index('\\nPY', final_check_start)
+        final_check = runner[final_check_start:final_check_end]
+        self.assertIn('from drink_evidence import load_json_strict', final_check)
+        self.assertIn('result = load_json_strict(summary_path)', final_check)
+        self.assertNotIn('json.load(', final_check)
+
     def test_drink_screenshot_acceptance_requires_each_unique_event(self):
         complete = [
             'arrive', 'present', 'grip', 'drink', 'takeback', 'placed',
