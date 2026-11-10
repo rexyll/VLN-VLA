@@ -3502,3 +3502,13 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - §8.185 CI 刷新结果：runner 16ae2ba63756 的 Python run 42802364001 completed/failure（失败发生在测试断言尚未随实现更新的独立提交窗口），其 ROS 2 executor run 42802363848 completed/success；后续测试 a5d20c09fb8a 的 Python run 42802380457 与 ROS 2 executor run 42802380586 均 completed/success；TaskPlan cf7f838bd5b8 的 Python run 42802439854 与 ROS 2 executor run 42802440082 均 completed/success。
 - 本节两个新提交的 CI 尚未完成，必须单独刷新验收。离线纯测试和 CarryBus executor 集成不等同于完整 Gazebo DrinkTask E2E。
 - **状态：helper 与回归测试已提交 main，等待本节 Python 与 ROS 2 executor CI 终态验收；真实 DrinkTask Gazebo E2E 新增通过轮数仍为 0，三轮真实任务验收及长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
+
+
+### 8.187 observer JSON 顶层结构预检，避免归档阶段类型异常（2026-11-10，runner 与回归测试已提交，CI 待验收）
+
+- 对多轮 runner 的归档输入路径进行审查，发现 observer 输出若为语法有效但顶层不是 JSON object（例如数组、null），runner 会在设置 observer_exit_code 时触发未捕获的 TypeError；批次虽会中断，但不会走明确的证据归档错误处理分支。
+- runner 提交 d155e61551d9ebd0275a0cbf57d25caeadf15e51：在修改 observer 结果前调用 validate_observer_result()，提前拒绝非对象、shots 类型错误及 evidence 类型错误；预检通过后才注入实际退出码、归档截图和发布 round JSON。
+- 回归测试提交 f2b779d4e26d52464dd8b849e92d324fbd9d7327：扩展 runner 静态回归，检查预检调用存在且发生在 observer_exit_code 注入之前；既有纯函数契约测试覆盖 null、数组和字段类型错误。
+- §8.186 CI：最终 TaskPlan 提交 6b36ec6c5558 的 Python run 42803479134 与 ROS 2 executor run 42803479078 均 completed/success；测试提交 23ef97967ecc 的 Python run 42803393781 与 ROS 2 executor run 42803393452 均 completed/success。helper 单独提交 5c93dfac25fd 的 Python run 42803363269 因旧测试样例未同步而 failure，ROS 2 executor run 42803363231 success；随后更新测试与TaskPlan提交均通过。
+- 本节 runner、测试及本TaskPlan提交的CI需分别刷新；ROS 2 executor CI仍不是完整 tests/test_drink.py + work_area.sdf DrinkTask E2E。
+- **状态：输入预检与回归测试已提交 main，等待 CI 终态验收；完整真实 Gazebo DrinkTask E2E 通过轮数仍为 0，三轮真实任务验收及长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
