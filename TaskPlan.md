@@ -3538,3 +3538,10 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - §8.188 runner `34be90b096be` 的 ROS 2 executor run `42805412261` 已 completed/success；TaskPlan `204d495c7102` 的 Python run `42805496876` 已 completed/failure（与旧静态断言相同），其 ROS 2 executor run `42805496603` 写入时仍 in_progress。修正提交 ac5fcb59a599 的 Python run 42805575952 失败，ROS 2 executor run 42805575765 写入时仍 in_progress；上述旧结果不作为本次修正的验收证据。
 - 本次新修正提交 430206a490b8 的 Python 与 ROS 2 executor CI 需刷新后单独验收。真实 Gazebo DrinkTask E2E 新增通过轮数仍为 0；不将 Python 纯测试或 CarryBus executor CI 视为完整 DrinkTask E2E。
 - **状态：批次状态 helper 与行为测试通过；runner 的静态回归断言经过两轮同步修正，最新修正已提交 main，等待 CI。真实三轮 Gazebo DrinkTask E2E 和长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
+
+### 8.191 修正无效轮次字段静态断言的跨文件边界（2026-11-10，测试再次修正，CI 待验收）
+
+- §8.190 的第二轮复验中，Python run 42805700459 再次失败于同一静态测试：测试要求 runner 源码字面包含 "invalid_rounds" JSON 字段名；实际字段由 helper 的 batch_status 返回，runner 负责构建 invalid_rounds 列表并将 batch_status 展开进 report。失败点仍是断言错误地要求 runner 重复声明 helper 管理的 JSON 字段，不是功能行为失败。该 run 的 Python 编译 job 与 shell syntax 检查均通过，新增批次行为测试通过。
+- 测试修正提交 4256d85bbb02ff4f2865144091c440799ff722f6：将字段名断言改为检查 runner 确实初始化 invalid_rounds 并对无效快照追加文件名/错误原因；保留对 summarize_batch_status()、**batch_status、runner_failed 与 all_passed 判据的检查。
+- 修正提交 430206a490b8 的 Python run 42805700459 失败；ROS 2 executor run 42805700421 写入时仍 in_progress。随后提交的测试修正 4256d85bbb02 与本 TaskPlan 更新的 Python/ROS 2 executor runs 需刷新确认，不能用前序失败/成功结果替代。
+- **状态：批次统计 helper 和行为测试已通过独立 CI；runner 静态测试断言继续收敛到实际跨文件数据流，最新修正已进入 main，待 CI 验收。真实 Gazebo DrinkTask E2E 通过轮数仍为 0，三轮 E2E 与长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
