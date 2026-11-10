@@ -3730,3 +3730,15 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 测试断言修正提交 `62963fc0972b5c952e64585e4cc52c9acf05ff01` 与进一步统一断言提交 `a21ce478269149638326dbfa91560b0364bf4810`：将静态检查更新为新 `main()` 结构，确认 cleanup helper 调用、清理失败时退出码 3，以及 report/main 不重复释放资源。`62963fc0972b` 的 Python/ROS 2 runs `42829534958/42829534831` 记录时 in_progress；最新 `a21ce4782691` 的 Python/ROS 2 runs `42829594583/42829594604` 记录时 queued。需要刷新最终提交 CI 后才能验收。
 - 本轮未启动 Gazebo，未运行完整 `tests/test_drink.py` 或 `tests/drink_repeat.sh`。上述纯测试只验证清理 helper 的可控错误路径和静态调用契约，不替代 ROS 2 运行时异常/中断测试。真实 Gazebo DrinkTask E2E 新增通过轮数仍为 0；至少三轮真实 E2E 与长时间稳定性验证未完成。
 - **状态：observer 资源清理失败现在会阻止退出码 0；对应纯测试和静态断言已提交 main，等待最终 CI。P104-07 保持“正在进行中”。**
+
+
+### 8.212 为 GO_DRINK 后 observer 中断建立 UNKNOWN/INTERRUPTED 批次证据（2026-11-10，代码与静态回归已提交，CI 待验收）
+
+- 刷新 §8.211 后续提交的 GitHub Actions：最新主线提交 `ffab622aa2dd` 对应 Python syntax run `42829647111` 与 CarryBus ROS 2 executor run `42829647036` 均 completed/success。更早的修正提交 `a21ce4782691` 的两项 CI 也均 success；历史中间提交的纯测试失败保留为历史记录，不覆盖最终修正后的通过结果。
+- 复核 observer 与 repeat runner 的实际控制流：`_run_observer()` 在发出 `GO_DRINK` 后若遇到 KeyboardInterrupt/异常，统一 ROS 2 finally 清理仍会执行，但 `report()` 不一定生成结果 JSON。runner 原先只能记录缺失轮次，无法从批次 SUMMARY 明确区分“尚未发出任务命令前失败”与“命令尝试后 observer 中断、仿真任务状态未知”。
+- `tests/test_drink.py` 提交 `0d3dd8529eaeb7e63402646ac8416179ab02230a`：在 `GO_DRINK` 发布前，若配置 `P91_COMMAND_MARKER`，使用 `O_CREAT|O_EXCL` 创建独占标记并 fsync；只有标记成功建立后才继续尝试发送命令。标记表示“命令尝试已开始”，不伪称命令必然被 Gazebo 接收。
+- `tests/drink_repeat.sh` 提交 `a12e462ddda7c1003952cf7c0ba3a86942a1592f`：每轮使用独立、不可覆盖的 `.started` 标记；若该轮没有可归档结果 JSON 且标记存在，明确报告 `UNKNOWN/INTERRUPTED` 并停止批次。批次 SUMMARY 增加 `unknown_rounds`，只将“缺失结果且存在命令尝试标记”的轮次归入未知状态；命令前失败仍保留为普通 missing round。已有有效结果的失败轮次仍按已知失败处理。
+- `tests/test_p104.py` 提交 `42d185beacdbb8d85391230f9ead9c8d886e7127`：新增静态契约断言，确保 runner 写入标记路径、识别 UNKNOWN/INTERRUPTED、汇总 unknown_rounds，且 observer 在 GO_DRINK 之前独占创建标记。
+- 安全边界：标记是保守的命令尝试边界，不是 Gazebo ACK 或任务执行确认；进程被 SIGKILL、机器断电、磁盘故障时无法保证 fsync/文件系统行为超出本机文件系统承诺。标记不自动取消任务、不自动重试，也不把未知状态计为成功。标记在成功轮次也保留以供审计；新批次必须使用新的 tag。
+- 本轮仅提交代码和静态回归断言；尚未运行真实 ROS 2/Gazebo DrinkTask，也未向仿真发送中断信号。完整 Gazebo DrinkTask E2E 新增通过轮数仍为 0；至少三轮真实 E2E 与长时间稳定性验证未完成。
+- **状态：GO_DRINK 命令尝试后的 observer 无结果中断现已具备独立批次 UNKNOWN/INTERRUPTED 证据表达，等待 CI 验收。P104-07 保持“正在进行中”。**
