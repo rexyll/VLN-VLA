@@ -157,7 +157,7 @@ def main():
     node = DrinkTask(observer_only=True)
     w = Watch(node)
     fails = []
-    res = {'ok': False, 'fails': fails, 'shots': []}
+    res = {'ok': False, 'fails': fails, 'shots': [], 'shot_labels': []}
 
     def step(tag, ok, detail=''):
         print('%s %-52s %s%s' % ('[OK]' if ok else '[NG]', tag,
@@ -263,11 +263,13 @@ def main():
             sh = w.shot('arrive', not_before=w.cmd_received_at[-1])
             if sh:
                 res['shots'].append(sh)
+                res['shot_labels'].append('arrive')
                 arrive_shot_done = True
         if tag and tag not in shots_done:
             sh = w.shot(tag, not_before=w.state_changed_at)
             if sh:
                 res['shots'].append(sh)
+                res['shot_labels'].append(tag)
                 shots_done.add(tag)
         if w.state in ('DONE', 'ERROR', 'FAIL_PREPARE', 'FAIL_HANDOVER'):
             break
@@ -364,6 +366,7 @@ def main():
     sh = w.shot('following')
     if sh:
         res['shots'].append(sh)
+        res['shot_labels'].append('following')
     step('[7] 交权后恢复跟随  撤离=%s 交权=%s  机器人走了 %.2fm  '
          '末段人机距离 %.2fm  在跟随带内 %.0f%%'
          % ('RETREAT' in w.stages, 'HANDBACK' in w.stages, travel, d_end,
@@ -397,7 +400,15 @@ def main():
          % (gopen, gclose, rl, rr, gl, gr, TAN, TOL, seam, vl, vr),
          ok_g and ok_r and ok_v and ok_gap and seam < 3.0)
 
-    step('[9] 截图 %d 张' % len(res['shots']), len(res['shots']) >= 4)
+    # A raw image count can be satisfied by unrelated/repeated images. Require
+    # one event-linked frame for every critical DrinkTask milestone instead.
+    required_shots = {'arrive', 'present', 'grip', 'drink', 'takeback',
+                      'placed', 'handback'}
+    missing_shots = sorted(required_shots - set(res['shot_labels']))
+    res['missing_shot_labels'] = missing_shots
+    step('[9] 关键事件截图 %d/%d 张' %
+         (len(required_shots) - len(missing_shots), len(required_shots)),
+         not missing_shots, '缺少=%s' % (missing_shots or '无'))
 
     res['ok'] = not fails
     return report(node, res)
