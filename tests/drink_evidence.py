@@ -121,7 +121,16 @@ def write_json_atomic(payload, path):
     fd, temporary = tempfile.mkstemp(
         prefix='.drink-json-', suffix='.tmp', dir=parent)
     try:
-        with os.fdopen(fd, 'w', encoding='utf-8') as stream:
+        try:
+            stream = os.fdopen(fd, 'w', encoding='utf-8')
+        except BaseException:
+            # fdopen did not take ownership of the descriptor.
+            try:
+                os.close(fd)
+            except OSError:
+                pass
+            raise
+        with stream:
             json.dump(payload, stream, ensure_ascii=False, indent=2)
         os.replace(temporary, path)
     except BaseException:
