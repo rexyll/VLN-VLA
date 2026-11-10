@@ -222,6 +222,21 @@ def _run_observer(node):
     # ---- [2] 下发唯一一条命令
     # 前一秒还有残留广播(DONE 心跳/上一轮的阶段), 先清零再发。
     w.reset()
+    # Persist a conservative command-attempt marker before publishing GO_DRINK.
+    # If this process is interrupted before report() writes its result JSON,
+    # the repeat runner can distinguish an unknown task outcome from a
+    # pre-command observer failure and must not retry automatically.
+    marker_path = os.environ.get('P91_COMMAND_MARKER')
+    if marker_path:
+        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+        fd = os.open(marker_path, flags, 0o600)
+        try:
+            with os.fdopen(fd, 'w', encoding='utf-8') as marker:
+                marker.write('GO_DRINK command attempt started\\n')
+                marker.flush()
+                os.fsync(marker.fileno())
+        except BaseException:
+            raise
     w.send('GO_DRINK')
     sim0 = w.sim
     step('[2] 已下发 GO_DRINK', True,
