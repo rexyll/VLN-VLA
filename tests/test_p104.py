@@ -19,7 +19,8 @@ import xml.etree.ElementTree as ET
 from drink_evidence import (REQUIRED_SHOT_LABELS, missing_required_shots,
                             should_stop_terminal_observer,
                             summarize_round_evidence,
-                            validate_observer_result)
+                            validate_observer_result,
+                            archive_observer_screenshots)
 
 import numpy as np
 
@@ -144,6 +145,38 @@ class TestP104(unittest.TestCase):
             with self.subTest(result=result):
                 with self.assertRaises(ValueError):
                     validate_observer_result(result)
+
+    def test_screenshot_archive_is_atomic_and_adds_optional_evidence(self):
+        with tempfile.TemporaryDirectory() as root:
+            source_dir = os.path.join(root, 'source')
+            os.makedirs(source_dir)
+            sources = []
+            for index in range(2):
+                path = os.path.join(source_dir, '%d.png' % index)
+                with open(path, 'wb') as stream:
+                    stream.write(b'image-%d' % index)
+                sources.append(path)
+
+            result = {'ok': True, 'shots': sources}
+            target = os.path.join(root, 'archive', 'round_shots')
+            archived = archive_observer_screenshots(result, root, target)
+            self.assertEqual(archived['evidence']['screenshots_archived'], 2)
+            self.assertEqual(len(archived['shots']), 2)
+            self.assertTrue(all(os.path.isfile(os.path.join(root, path))
+                                for path in archived['shots']))
+            with self.assertRaises(FileExistsError):
+                archive_observer_screenshots(result, root, target)
+
+            failed_target = os.path.join(root, 'archive', 'failed_shots')
+            failed_result = {'shots': [sources[0],
+                                       os.path.join(source_dir, 'missing.png')]}
+            with self.assertRaises(FileNotFoundError):
+                archive_observer_screenshots(
+                    failed_result, root, failed_target)
+            self.assertFalse(os.path.lexists(failed_target))
+            leftovers = [name for name in os.listdir(os.path.dirname(failed_target))
+                         if name.startswith('.drink-shots-')]
+            self.assertEqual(leftovers, [])
 
     def test_round_summary_requires_complete_archived_screenshots(self):
         with tempfile.TemporaryDirectory() as root:
