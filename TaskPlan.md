@@ -3797,3 +3797,11 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - `tests/test_p104.py` 修正提交 `728a0b74f9f78aaee4b2ed9110d0515f3ce58bad`：静态契约改为定位 `_publish_drink_command(w, marker_path)` 调用，并在 helper 函数体内断言 marker helper 先于 `watch.send('GO_DRINK')`。不再依赖 observer 直接调用 Watch.send 的旧实现。
 - 新提交 Python 编译、P104 纯测试和 CarryBus ROS 2 executor CI 尚待刷新；历史失败记录保留。真实 Gazebo DrinkTask E2E 未执行，新增通过轮数仍为 0。
 - **状态：发布封装与动态故障注入测试已提交，过期静态断言已修正；等待 CI。P104-07 保持“正在进行中”。**
+
+### 8.219 动态验证 GO_DRINK 成功发布路径与 marker 可选路径（2026-11-10，测试已提交，CI 待验收）
+
+- 刷新 §8.218 最新提交 `1e626ac0d517` 的 GitHub Actions：Python syntax run `42836992323` 与 CarryBus ROS 2 executor run `42836992246` 均 completed/success；发布封装静态契约修正提交 `728a0b74f9f7` 的 Python run `42836950507` 与 ROS 2 executor run `42836950694` 也均 completed/success。此前因旧断言失败的历史 run 保留为 failure，不回写。
+- 复核 `_publish_drink_command()` 的动态测试覆盖：已有故障注入只证明 marker 创建失败时不发送 GO_DRINK，尚未动态证明成功时必须先完成 marker 的写入、flush、fsync 和关闭，再发送 GO_DRINK；也未验证 marker_path 为 None 时的显式可选行为。
+- `tests/test_p104.py` 提交 `88958ac36e46cd033ea272753786606bb1c995bc`：新增隔离 AST 执行的成功路径测试，以事件序列断言严格顺序为 open → fdopen → write → flush → fsync → close → send(GO_DRINK)；并验证 marker_path=None 时不创建 marker、仍调用一次 GO_DRINK。该测试不启动 ROS 2/Gazebo，不宣称仿真端已接收命令。
+- 本次仅增加纯 Python 动态契约测试；没有启动 Gazebo，没有运行完整 `tests/test_drink.py` 或 `tests/drink_repeat.sh`。新提交 CI 尚待刷新终态；完整 Gazebo DrinkTask E2E 新增通过轮数仍为 0。
+- **状态：GO_DRINK 发布封装的成功、失败和 marker 可选路径均已有隔离动态回归覆盖，等待最新 CI；P104-07 保持“正在进行中”。完整 Gazebo DrinkTask E2E、至少三轮真实 E2E 与长时间稳定性验证未完成。**
