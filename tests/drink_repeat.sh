@@ -101,6 +101,11 @@ fi
 for ((i=1; i<=N; i++)); do
     SNAPSHOT="$OUTDIR/drink_${TAG}_${i}.json"
     SHOTDIR="$OUTDIR/drink_${TAG}_${i}_shots"
+    MARKER="$OUTDIR/drink_${TAG}_${i}.started"
+    if [[ -e "$MARKER" || -L "$MARKER" ]]; then
+        echo "Round command marker already exists: $MARKER; choose a new tag." >&2
+        exit 2
+    fi
     if [[ -e "$SNAPSHOT" || -L "$SNAPSHOT" ]]; then
         echo "Round evidence already exists: $SNAPSHOT; choose a new tag." >&2
         exit 2
@@ -119,9 +124,10 @@ for ((i=1; i<=N; i++)); do
     echo
     echo "========== DrinkTask E2E round $i/$N ($TAG) =========="
     rm -f "$RESULT"
+    MARKER="$OUTDIR/drink_${TAG}_${i}.started"
 
     set +e
-    python3 tests/test_drink.py
+    P91_COMMAND_MARKER="$MARKER" python3 tests/test_drink.py
     RC=$?
     set -e
 
@@ -192,7 +198,11 @@ PY
             break
         fi
     else
-        echo "Round $i produced no result JSON (exit=$RC)." >&2
+        if [[ -f "$MARKER" ]]; then
+            echo "Round $i outcome is UNKNOWN/INTERRUPTED after GO_DRINK attempt (exit=$RC); stopping batch." >&2
+        else
+            echo "Round $i produced no result JSON before a GO_DRINK marker (exit=$RC)." >&2
+        fi
         FAILED=1
         break
     fi
@@ -209,12 +219,12 @@ PY
     fi
 done
 
-python3 - "$SUMMARY" "$N" "$ROOT" "$FAILED" "$TAG" "${SNAPSHOTS[@]}" <<'PY'
+python3 - "$SUMMARY" "$N" "$ROOT" "$FAILED" "$TAG" "$OUTDIR" "${SNAPSHOTS[@]}" <<'PY'
 import json
 import os
 import sys
 
-summary_path, requested, root, failed, tag, *paths = sys.argv[1:]
+summary_path, requested, root, failed, tag, outdir, *paths = sys.argv[1:]
 sys.path.insert(0, os.path.join(root, "tests"))
 from drink_evidence import (summarize_round_evidence, summarize_numeric_values,
                             summarize_batch_status,
@@ -274,9 +284,15 @@ missing_rounds = [
     for index in range(1, int(requested) + 1)
     if "drink_%s_%d.json" % (tag, index) not in represented
 ]
+unknown_rounds = [
+    item for item in missing_rounds
+    if os.path.isfile(os.path.join(
+        outdir, "drink_%s_%d.started" % (tag, item["round"])))
+]
 batch_status = summarize_batch_status(
     int(requested), rows, invalid_rounds, missing_rounds)
 report = {
+    "unknown_rounds": unknown_rounds,
     **batch_status,
     "runner_failed": int(failed) != 0,
     "all_passed": batch_status["all_passed"] and int(failed) == 0,
