@@ -3150,3 +3150,11 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 修正提交：`689dbc60a760b271c657f8061f45a69598db0404`。每次 observer spin 后立即根据当前状态执行 `tag = SHOT_AT.get(w.state)`，再按既有去重逻辑保存阶段截图；不改变任务状态机、阶段顺序、截图判据或通过阈值。
 - 此前真值短暂缺失修复提交 `5e2313da03c782e288a342f6bb577ef45bdcc25a` 的 Python run `42749579671`、ROS 2 run `42749579636` 均 completed/success；提交 `887d32c9e3fa4aaa1bc305e5ea18156fe5e187a5` 的 Python run `42749601573`、ROS 2 run `42749601536` 均 completed/success；TaskPlan 提交 `562d6b5074bd49f54930dca008df17e7416e714d` 的 Python run `42749622501`、ROS 2 run `42749622378` 均 completed/success。上述 CI 仅覆盖 Python 编译/纯测试及 CarryBus ROS 2 executor，不代表完整 Gazebo DrinkTask E2E 已运行。
 - **状态：截图阶段变量修复已提交 main；代码提交触发的 Python run `42750403623` 与 ROS 2 executor run `42750403489` 当前 queued，待终态验收。真实 DrinkTask E2E 新增通过轮数仍为 0；P104-07 保持“正在进行中”。**
+
+
+### 8.149 修复 DrinkTask 阶段截图首次无相机帧时被永久跳过（2026-11-10，代码已提交，CI 待验收）
+
+- 对 `tests/test_drink.py` 的阶段截图流程继续做时序审查时发现：原逻辑在尝试截图前先将阶段标签加入 `shots_done`。若该阶段状态消息先于第一帧相机图像到达，`w.shot(tag)` 返回 `None`，但标签已被标记为完成；后续即使图像恢复，也不会重试该阶段截图，可能造成截图数量不足并使 E2E 验收失败。
+- 修正提交：`65bec79e4ad6938457ee8859a4e3fa2043e4e9b7`。现在只有 `w.shot(tag)` 成功返回实际截图路径并加入结果 JSON 后，才把标签加入 `shots_done`；图像尚未到达时会在后续 observer spin 中继续重试。没有降低至少 4 张截图的验收要求，也没有伪造图像证据。
+- 前一阶段截图变量修复提交 `689dbc60a760b271c657f8061f45a69598db0404` 的 Python run `42750403623`（compile 与 pure math/kinematics jobs）和 ROS 2 executor run `42750403489` 均 completed/success；对应 TaskPlan 提交 `5f3bd1edb7bde965889adaf6ecc771daa584a2f2` 的 Python run `42750434771` 与 ROS 2 run `42750434780` 也均 completed/success。
+- **状态：截图重试修复已提交 main；当前代码提交的 Python run `42751494592` 与 ROS 2 executor run `42751494280` 均 queued，待验收。CI 只覆盖编译/纯 Python 与 CarryBus ROS 2 executor，不代表完整 Gazebo DrinkTask E2E。真实 E2E 新增通过轮数仍为 0，P104-07 保持“正在进行中”。**
