@@ -3389,3 +3389,14 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 修正提交 8c6e59d4140bd83a6fe838e7906336dbea16a210：新增 json 导入，将成功发布后的断言改为 json.load() 解码后比较对象值，避免依赖空白和换行编码细节。
 - §8.174 helper 提交 3d54e08b 的 Python run 42789676986 已 completed/success；其 ROS 2 executor run 42789676615 在当时仍运行。§8.174 测试与 runner 的首轮 Python 失败已如实记录；后续提交的 CI 结果另行复核。
 - **状态：测试断言修正已提交 main，等待最新 Python 与 ROS 2 executor CI；§8.174 原子汇总实现仍需通过修正后的回归测试确认。完整 DrinkTask Gazebo E2E 新增通过轮数仍为 0，P104-07 保持“正在进行中”。**
+
+
+### 8.176 处理原子 JSON 发布在 fdopen 失败时的文件描述符泄漏（2026-11-10，代码与回归测试已提交，CI 验收中）
+
+- 对 §8.174 的 `write_json_atomic()` 做失败边界审查时发现：临时文件通过 `mkstemp()` 创建后，若 `os.fdopen()` 在接管文件描述符前抛出异常，原始描述符不会由文件对象关闭；虽然临时路径会被清理，但进程可能泄漏一个文件描述符。
+- helper 提交 `e783e71e9591f897180917c761f38c22257a6c80`：在 `fdopen()` 失败分支显式关闭原始描述符，再沿用统一异常路径清理临时文件；正常写入、原子替换及旧目标保留语义不变。
+- 测试提交 `91419322d010dbbd41280e2ff8f214b48cebc075`：模拟 `os.fdopen()` 失败，断言原始描述符关闭、临时文件清理、既有 SUMMARY 内容保持不变。
+- 本项只覆盖本地 JSON 发布 helper 的资源清理边界；不代表完整 runner、真实 Gazebo observer 或 DrinkTask E2E 已运行。
+- §8.174/§8.175 后续复核：TaskPlan 提交 `7c2f47d797a0154283dc446e95948d2faf856115` 的 Python run `42790085526` 与 ROS 2 executor run `42790085655` 均 completed/success；测试修正提交 `8c6e59d4140bd83a6fe838e7906336dbea16a210` 的 Python run `42790029888` 与 ROS 2 executor run `42790029744` 均 completed/success。
+- 本节新提交 CI：helper `e783e71e9591` 的 Python run `42791110363`、ROS 2 executor run `42791110810`；测试 `91419322d010` 的 Python run `42791128145`、ROS 2 executor run `42791128322`。写入 TaskPlan 时均仍在运行，不标记通过。
+- **状态：文件描述符失败清理修复与回归测试已进入 main，CI 待最终验收；完整 DrinkTask Gazebo E2E 新增通过轮数仍为 0，三轮真实任务验收与长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
