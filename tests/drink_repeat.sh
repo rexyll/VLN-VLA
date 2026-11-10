@@ -119,7 +119,7 @@ import tempfile
 
 source_json, snapshot_json, root, shot_dir = sys.argv[1:]
 sys.path.insert(0, os.path.join(root, "tests"))
-from drink_evidence import archive_observer_screenshots
+from drink_evidence import archive_observer_screenshots, write_json_atomic
 
 archive_published = False
 try:
@@ -129,19 +129,8 @@ try:
     archive_published = True
 
     # Publish the JSON only after the complete screenshot archive exists.
-    snapshot_dir = os.path.dirname(snapshot_json)
-    fd, temporary_json = tempfile.mkstemp(
-        prefix=".drink-result-", suffix=".json", dir=snapshot_dir)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as stream:
-            json.dump(result, stream, ensure_ascii=False, indent=2)
-        os.replace(temporary_json, snapshot_json)
-    except Exception:
-        try:
-            os.unlink(temporary_json)
-        except FileNotFoundError:
-            pass
-        raise
+    # The shared helper also closes the raw fd if fdopen fails.
+    write_json_atomic(result, snapshot_json)
 except (OSError, ValueError) as exc:
     if archive_published:
         shutil.rmtree(shot_dir, ignore_errors=True)
