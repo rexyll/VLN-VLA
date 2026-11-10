@@ -3770,3 +3770,11 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - `tests/test_p104.py` 修正提交 `ce18ea771f90b0bd433a2db7181a259e33b922d3`：将源码边界定位改为真实换行匹配；增加隔离 AST 执行的动态故障注入测试，模拟 `os.fdopen()` 抛出指定异常，验证原异常对象被保留且已打开 fd 被关闭；同时验证正常路径写入 marker、flush 并 fsync。静态顺序断言继续确保 marker 创建成功之前不会执行 `w.send('GO_DRINK')`。
 - 该测试提交触发的 Python 纯测试与编译 CI 尚待刷新；此前失败 run 保留为失败，不回写为成功。本次没有启动 Gazebo、没有执行完整 `tests/test_drink.py`，也没有进行真实 DrinkTask E2E。
 - **状态：marker helper 的失败/成功路径动态回归覆盖与旧边界断言修复已提交 main，等待 CI 验收。完整 Gazebo DrinkTask E2E 通过轮数仍为 0；三轮完整 E2E 与长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
+
+
+### 8.216 修正 marker 故障注入测试的续行语法（2026-11-10，修正已提交，CI 待验收）
+
+- §8.215 测试提交 `ce18ea771f90` 的 Python run `42835407635` 在编译阶段失败：新增多重 mock 上下文的续行符被写成多个反斜杠，触发 `SyntaxError: unexpected character after line continuation character`。同一提交的纯测试 job 尚未执行完；CarryBus executor run `42835407896` 记录时仍 in_progress。
+- 修正提交 `2f24f515f06f3f71cb465c7ffe7cab6b5a8ac134`：将多重 mock 上下文改为显式嵌套 `with`，避免依赖续行转义；保留 fdopen 故障注入、原异常对象身份、fd 关闭和正常路径 flush/fsync 断言。
+- 本次没有改动 observer 运行逻辑，也没有启动 Gazebo 或执行真实 DrinkTask E2E。新提交 Python 编译/纯测试与 ROS 2 executor CI 需刷新终态。
+- **状态：marker 动态回归测试的语法问题已修正并提交 main，等待 CI。真实 Gazebo DrinkTask E2E 通过轮数仍为 0；P104-07 保持“正在进行中”。**
