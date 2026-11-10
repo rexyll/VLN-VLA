@@ -3578,3 +3578,12 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 测试修正提交 775f0da577c4fbcbb043b347f2041a5dcecd76b8：只调整真实 ROS 2 executor 集成测试的并发 ACK 注入节奏与等待同步；没有修改 CarryBus 产品代码。此改动需要 ROS 2 Jazzy CI 实测验证，当前不能预先认定根因或宣称修复成功。
 - §8.193 TaskPlan 提交 2cb6707bd529 的 Python run 42807281480 success；其 ROS 2 executor run 42807281239 记录时仍 in_progress。TaskPlan 提交 7d0f90c1d1bf 的 Python run 42807421193 success；其 ROS 2 executor run 42807421107 记录时仍 in_progress。测试提交 775f0da577c4 的 Python/ROS 2 executor runs 已触发，待终态验收。
 - **状态：DrinkTask missing_rounds 纯测试已通过；CarryBus ROS 2 executor 的并发 waiter 测试出现一次真实 CI 超时，已对测试重复 ACK 注入改为有界重试，等待 ROS 2 CI 复验。真实 Gazebo DrinkTask E2E 新增通过轮数仍为 0。P104-07 保持“正在进行中”。**
+
+
+### 8.196 限制 DrinkTask 多轮证据输出目录逃逸（2026-11-10，runner 与回归测试已提交，CI 待验收）
+
+- 复核多轮 runner 的输出路径边界时发现：虽然每轮截图归档路径已有真实路径与符号链接逃逸校验，但固定输出目录 `tests/out` 在创建和写入前没有同等级的目录边界校验。若该目录预先被替换为指向仓库外部的符号链接，runner 可能把 JSON、截图归档和互斥锁写到仓库外。
+- runner 提交 `e9ce2e19a4265336e724ee1e9009f14202cd4da0`：在创建输出目录前拒绝 `tests/out` 本身为符号链接；创建后用 `realpath -e` 解析 `tests/` 与输出目录的真实路径，并要求输出目录真实路径仍位于 `tests/` 内，检查通过后才继续锁与证据文件操作。
+- 回归测试提交 `1451c573561775ee9791e48446746525ca7a5743`：新增静态回归，检查符号链接拒绝、真实路径解析、目录包含关系检查均先于互斥锁文件创建。
+- 本修复保护 runner 的证据输出目录，不代表执行过 Gazebo DrinkTask。Python 与 ROS 2 executor CI 对这两个新提交尚待终态验收；若静态测试失败，将按实际日志继续修正。
+- **状态：输出目录边界保护和回归测试已进入 main，CI 待验收；真实 Gazebo DrinkTask E2E 新增通过轮数仍为 0，三轮完整 E2E 与长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
