@@ -297,15 +297,20 @@ def main():
     need = ['PREPARE', 'PRESENT', 'HANDOVER', 'PERSON_DRINK',
             'TAKE_BACK', 'PUT_BACK', 'RETREAT', 'HANDBACK', 'DONE']
     miss = [s for s in need if s not in w.stages]
+    observed_order = [s for s in w.stages if s in need]
+    order_ok = observed_order == need
+    # Presence alone is insufficient: all nine required phases must be
+    # observed once and in the prescribed order. A reordered/re-entered
+    # phase must not be reported as a complete DrinkTask sequence.
     # 用**仿真时长**判: RTF 0.3 的机器上墙上时间没有可移植性(同一份代码
     # 300s / 390s 都可能), 而"机器人自己经历了多久"才是可比的。墙上时间
     # 仍然写进日志与 JSON, 便于对照机器快慢。
     sim_s = (res['sim_elapsed_s']
              if res.get('sim_elapsed_s') is not None else res['elapsed_s'])
-    step('[5] 动作全流程  阶段 %d/%d  缺 %s  逻辑用时 %.0fs(墙上 %.0fs)'
-         % (len(need) - len(miss), len(need), miss or '无', sim_s,
-            res['elapsed_s']),
-         not miss and sim_s < 300.0)
+    step('[5] 动作全流程  阶段 %d/%d  缺 %s  顺序=%s  逻辑用时 %.0fs(墙上 %.0fs)'
+         % (len(need) - len(miss), len(need), miss or '无',
+            '正确' if order_ok else observed_order, sim_s, res['elapsed_s']),
+         not miss and order_ok and sim_s < 300.0)
 
     # ---- [6] 杯子回到原位、杯轴竖直
     Tcup = pos('cup')
