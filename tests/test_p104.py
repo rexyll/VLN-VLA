@@ -164,6 +164,14 @@ class TestP104(unittest.TestCase):
             self.assertFalse(summarize_round_evidence(
                 outside_path, root)['archive_ok'])
 
+            malformed_labels = dict(result, shot_labels=[{}])
+            self.assertFalse(summarize_round_evidence(
+                malformed_labels, root)['archive_ok'])
+
+            nul_path = dict(result, shots=shots[:-1] + ['round_shots/bad\\x00.png'])
+            self.assertFalse(summarize_round_evidence(
+                nul_path, root)['archive_ok'])
+
             task_failed = dict(result, ok=False)
             self.assertFalse(summarize_round_evidence(
                 task_failed, root)['ok'])
