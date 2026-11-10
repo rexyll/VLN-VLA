@@ -3105,3 +3105,16 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 修正提交：`c816cf4ed7ee34444e67da78a1469fcc18377538`。runner 现在在每轮完成后，将 JSON 中列出的每张截图复制到独立目录 `tests/out/drink_<tag>_<round>_shots/`，并把该轮 JSON 的 `shots` 改为相对仓库根目录的归档路径；同时写入 `evidence.screenshots_archived`。任一声明的截图源文件缺失或复制失败时，该轮证据归档失败并停止后续轮次，不把不完整轮次算作已归档。
 - 保持既有行为：每轮只触发一次 `tests/test_drink.py`；失败即停止；tag 冲突预检避免覆盖既有 JSON/汇总；summary 仍汇总实际 JSON 中的状态和指标。没有改变业务状态机和单轮验收阈值。
 - **状态：代码已提交 main，等待 Python CI（shell syntax 与纯 Python 检查）及 ROS 2 executor CI。** 本次仅改进证据归档，没有 Gazebo 实际运行记录；新增 DrinkTask E2E 通过轮数仍为 0，P104-07 保持“正在进行中”。
+
+
+
+### 8.144 DrinkTask 重复验收 runner 截图归档修复通过 CI（2026-11-10）
+
+- 代码提交 `c816cf4ed7ee34444e67da78a1469fcc18377538` 的 CI 已全部通过：
+  - Python run `42741933087`：pure math/kinematics job `129584844853` success；changed Python modules job `129584845202` success。job steps 中 `bash -n tests/drink_repeat.sh` 与 P104 pure tests 均 completed/success。
+  - ROS 2 executor run `42741933093`：job `129584845394` success。
+- TaskPlan 更新提交 `eef9da8d696385c96ee9690d4a0e771a24cc9072` 的 CI 也已全部通过：
+  - Python run `42741969821`：pure math/kinematics job `129584969350` success；changed Python modules job `129584969646` success。
+  - ROS 2 executor run `42741969851`：job `129584969370` success。
+- 本轮验收结论仅限 Python 语法/纯测试与 ROS 2 executor 集成；CI 未启动完整 Gazebo DrinkTask 场景，也没有生成新的真实任务 JSON/截图证据。
+- **状态：截图归档修复与对应 TaskPlan 记录均通过现有 CI；真实 DrinkTask E2E 新增通过轮数仍为 0。** 下一步仍需在 ROS 2 Jazzy + Gazebo Harmonic + 已构建工作区的仿真主机执行 `bash tests/drink_repeat.sh 3 p104`，审查每轮 JSON、截图归档与 summary；另需完成长时间稳定性验证。P104-07 保持“正在进行中”，不得因 CI guard 通过而关闭。
