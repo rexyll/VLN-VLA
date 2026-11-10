@@ -199,20 +199,25 @@ import sys
 summary_path, requested, root, failed, *paths = sys.argv[1:]
 sys.path.insert(0, os.path.join(root, "tests"))
 from drink_evidence import (summarize_round_evidence, summarize_numeric_values,
+                            summarize_batch_status,
                             finite_numeric_value, write_json_atomic)
 
 rows = []
+invalid_rounds = []
 for path in paths:
     try:
         with open(path, encoding="utf-8") as stream:
             result = json.load(stream)
     except (OSError, ValueError) as exc:
-        print("Invalid round result %s: %s" % (path, exc), file=sys.stderr)
+        message = str(exc)
+        print("Invalid round result %s: %s" % (path, message), file=sys.stderr)
+        invalid_rounds.append({"file": os.path.basename(path), "error": message})
         continue
 
     if not isinstance(result, dict):
-        print("Invalid round result %s: expected a JSON object" % path,
-              file=sys.stderr)
+        message = "expected a JSON object"
+        print("Invalid round result %s: %s" % (path, message), file=sys.stderr)
+        invalid_rounds.append({"file": os.path.basename(path), "error": message})
         continue
 
     follow = result.get("follow")
@@ -244,12 +249,11 @@ for path in paths:
 def numeric_summary(key):
     return summarize_numeric_values(row.get(key) for row in rows)
 
+batch_status = summarize_batch_status(int(requested), rows, invalid_rounds)
 report = {
-    "requested_rounds": int(requested),
-    "completed_rounds": len(rows),
-    "passed_rounds": sum(row["ok"] for row in rows),
-    "all_passed": (int(failed) == 0 and len(rows) == int(requested)
-                    and all(row["ok"] for row in rows)),
+    **batch_status,
+    "runner_failed": int(failed) != 0,
+    "all_passed": batch_status["all_passed"] and int(failed) == 0,
     "metrics": {
         key: numeric_summary(key) for key in (
             "elapsed_s", "sim_elapsed_s", "cup_home_mm", "cup_tilt_deg",
