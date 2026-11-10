@@ -3429,3 +3429,13 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 本项修复重复 runner 的控制流安全性，不代表真实 Gazebo DrinkTask E2E 已执行。§8.178 每轮快照复用原子 JSON helper 的 Python run `42793471848`、ROS 2 executor run `42793472171`，以及 TaskPlan 之前 runner 提交 `929320e43aee` 的 Python run `42793471848`、ROS 2 executor run `42793472171` 均已 completed/success。
 - 本节 runner 提交 `d08a2c408f63` 的 Python run `42795953327` / ROS 2 executor run `42795953807`，以及测试提交 `fe8fe23e694f` 的 Python run `42795970524` / ROS 2 executor run `42795970988`，写入时均 queued/in_progress，未标记通过。
 - **状态：runner 与回归测试已提交 main，等待对应 CI 终态验收；完整 DrinkTask Gazebo E2E 新增通过轮数仍为 0，三轮真实任务验收与长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
+
+
+### 8.180 拒绝布尔值、非有限数与超范围整数污染多轮 SUMMARY 指标（2026-11-10，helper、runner 与回归测试已提交，CI 验收中）
+
+- 复核多轮 SUMMARY 的 metrics 聚合时发现：Python 中 `bool` 是 `int` 的子类，原过滤条件 `isinstance(value, (int, float))` 会把 `true/false` 当作数值样本；JSON 解析也可能接受 NaN/Infinity 扩展值，导致统计结果生成非有限数字，而超出 float 范围的任意大整数还可能在中位数计算或序列化时触发异常。
+- helper 提交 `fec3900e2f7f2f851a45481ff731aeb33ed49f4c`：新增 `summarize_numeric_values()`，仅接受可转换为有限 float 的 int/float，明确排除 bool、NaN、正负 Infinity、字符串及超范围整数；无有效样本时返回 null。
+- runner 提交 `0ee1d5141d6bdc3f02033f84b8f519a138171194`：聚合 metrics 统一调用共享 helper，移除原先直接依赖 `isinstance(int,float)` 的统计实现。
+- 回归测试提交 `9fc8c0fd33f08219f02b386074c0405b68c6506f`：覆盖正常整数/浮点数、布尔值、NaN、正负 Infinity、数字字符串、空值，以及超出 float 范围的大整数；断言只统计有效有限数值，无有效样本时返回 None。
+- 本项只加固聚合报告的指标数据质量，不改变 DrinkTask 任务成功判据、截图归档验收或 Gazebo 行为。
+- **状态：helper、runner 与回归测试已提交 main，等待对应 Python 与 ROS 2 executor CI 终态验收；完整 DrinkTask Gazebo E2E 新增通过轮数仍为 0，三轮真实任务验收与长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
