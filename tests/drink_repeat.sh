@@ -180,7 +180,7 @@ import sys
 
 summary_path, requested, root, *paths = sys.argv[1:]
 sys.path.insert(0, os.path.join(root, "tests"))
-from drink_evidence import summarize_round_evidence
+from drink_evidence import summarize_round_evidence, write_json_atomic
 
 rows = []
 for path in paths:
@@ -244,8 +244,7 @@ report = {
     "rounds": rows,
 }
 os.makedirs(os.path.dirname(summary_path), exist_ok=True)
-with open(summary_path, "w", encoding="utf-8") as stream:
-    json.dump(report, stream, ensure_ascii=False, indent=2)
+write_json_atomic(report, summary_path)
 print(json.dumps(report, ensure_ascii=False, indent=2))
 PY
 
