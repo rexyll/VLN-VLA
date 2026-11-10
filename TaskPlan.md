@@ -3419,3 +3419,13 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 本节 runner 提交触发的 CI：Python run `42793471848` 与 ROS 2 executor run `42793472171`，写入本节时均 queued；不得提前标记通过。离线 CI 仍不等同于真实 Gazebo DrinkTask E2E。
 - **状态：每轮 JSON 快照已统一复用原子写入 helper，等待本提交 Python 与 ROS 2 executor CI 最终验收；真实 DrinkTask Gazebo E2E 新增通过轮数仍为 0，三轮真实任务验收与长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
 
+
+
+### 8.179 在启动下一轮前独立复核本轮任务与证据验收（2026-11-10，runner 与回归测试已提交，CI 验收中）
+
+- 复核 `drink_repeat.sh` 的停止条件时发现：原 runner 只根据 `tests/test_drink.py` 的进程退出码决定是否启动下一轮。若 observer 进程意外以退出码 0 结束、但结果 JSON 的 `ok` 并非严格布尔 true，或归档截图/七个关键事件标签未满足验收，runner 仍可能继续发送下一轮 GO_DRINK；最终 SUMMARY 虽会将该轮标为失败，但停止策略已经失效。
+- runner 提交 `d08a2c408f63455385a4e6a9294300de9253fbee`：每轮 JSON 与截图归档成功发布后、进入 cooldown/下一轮之前，重新调用共享 `summarize_round_evidence()`。只有任务结果和截图证据均满足严格验收时才允许继续；否则立即设置失败状态并停止批次，同时保留本轮 JSON 与截图用于诊断。原有非零进程退出码停止策略仍保留。
+- 回归测试提交 `fe8fe23e694f0f6c0298eee904f8a46de631f997`：增加 runner 顺序保护测试，确认结果验收与失败停止逻辑位于 cooldown/下一轮之前。
+- 本项修复重复 runner 的控制流安全性，不代表真实 Gazebo DrinkTask E2E 已执行。§8.178 每轮快照复用原子 JSON helper 的 Python run `42793471848`、ROS 2 executor run `42793472171`，以及 TaskPlan 之前 runner 提交 `929320e43aee` 的 Python run `42793471848`、ROS 2 executor run `42793472171` 均已 completed/success。
+- 本节 runner 提交 `d08a2c408f63` 的 Python run `42795953327` / ROS 2 executor run `42795953807`，以及测试提交 `fe8fe23e694f` 的 Python run `42795970524` / ROS 2 executor run `42795970988`，写入时均 queued/in_progress，未标记通过。
+- **状态：runner 与回归测试已提交 main，等待对应 CI 终态验收；完整 DrinkTask Gazebo E2E 新增通过轮数仍为 0，三轮真实任务验收与长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
