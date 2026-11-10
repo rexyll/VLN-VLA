@@ -222,27 +222,27 @@ def main():
         # 人真正"到位并开口"的时刻 = /robot/command 收到 DRINK(那是它说完话
         # 的产物)。person_walk 的 GOTO/DRINK 是它**自己**的状态机, 不对外播。
         if arrive is None and w.cmds:
-            px, py = xy('person')
-            # P95: "面向谁" 要跟**服务位**比, 不能跟机器人当前位置比 ——
-            # 人开口那一刻 follower 还带着机器人在他周围绕(跟到 1.0m、还在
-            # 调整), 而人刻意面向服务位: 那是 prepare_present 第一件事就要
-            # place_robot 过去的地方, 也是 PERSON_SPOT / CUP_PRESENT_R 那套
-            # 布局数字的前提。跟机器人现位置比, 实测会报 45° 的"没面向
-            # 机器人", 其实人站得很正、递杯也很准。
-            face = wrap_deg(math.degrees(
-                math.atan2(L.SERVE_POSE[1] - py, L.SERVE_POSE[0] - px)
-                - yaw('person')))
-            arrive = {'to_spot_mm': math.hypot(px - L.PERSON_SPOT[0],
-                                               py - L.PERSON_SPOT[1]) * 1000.0,
-                      'face_deg': abs(face),
-                      'pos': [round(px, 3), round(py, 3)]}
-            print('    [人到场] pos=(%.3f, %.3f) 目标=(%.3f, %.3f) 差 %.1fmm'
-                  % (px, py, L.PERSON_SPOT[0], L.PERSON_SPOT[1],
-                     arrive['to_spot_mm']))
-            sh = w.shot('arrive')
-            if sh:
-                res['shots'].append(sh)
-        tag = SHOT_AT.get(w.state)
+            person_xy = xy('person')
+            person_yaw = yaw('person')
+            # Pose-info messages can briefly omit an entity while Gazebo is
+            # updating. Keep observing and retry on the next spin instead of
+            # crashing the E2E process before it can write its result JSON.
+            if person_xy is not None and person_yaw is not None:
+                px, py = person_xy
+                face = wrap_deg(math.degrees(
+                    math.atan2(L.SERVE_POSE[1] - py, L.SERVE_POSE[0] - px)
+                    - person_yaw))
+                arrive = {'to_spot_mm': math.hypot(
+                              px - L.PERSON_SPOT[0],
+                              py - L.PERSON_SPOT[1]) * 1000.0,
+                          'face_deg': abs(face),
+                          'pos': [round(px, 3), round(py, 3)]}
+                print('    [人到场] pos=(%.3f, %.3f) 目标=(%.3f, %.3f) 差 %.1fmm'
+                      % (px, py, L.PERSON_SPOT[0], L.PERSON_SPOT[1],
+                         arrive['to_spot_mm']))
+                sh = w.shot('arrive')
+                if sh:
+                    res['shots'].append(sh)
         if tag and tag not in shots_done:
             shots_done.add(tag)
             sh = w.shot(tag)
