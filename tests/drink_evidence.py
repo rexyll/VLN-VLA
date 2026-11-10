@@ -38,7 +38,8 @@ def summarize_round_evidence(result, root):
         labels if labels_well_formed else []))
     labels_ok = (
         labels_well_formed
-        and set(labels) >= REQUIRED_SHOT_LABELS
+        and len(labels) == len(REQUIRED_SHOT_LABELS)
+        and set(labels) == REQUIRED_SHOT_LABELS
         and not missing
     )
 
