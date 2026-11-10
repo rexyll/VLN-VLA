@@ -125,6 +125,9 @@ archive_published = False
 try:
     with open(source_json, encoding="utf-8") as stream:
         result = json.load(stream)
+    # Persist the process outcome with the archived result so per-round
+    # status and aggregate passed_rounds cannot disagree.
+    result["observer_exit_code"] = RC
     archive_observer_screenshots(result, root, shot_dir)
     archive_published = True
 
@@ -216,6 +219,8 @@ for path in paths:
         "file": os.path.basename(path),
         "ok": evidence["ok"],
         "task_ok": evidence["task_ok"],
+        "process_ok": evidence["process_ok"],
+        "observer_exit_code": evidence["observer_exit_code"],
         "archive_ok": evidence["archive_ok"],
         "screenshots_archived": evidence["screenshots_archived"],
         "shots": evidence["shots"],
