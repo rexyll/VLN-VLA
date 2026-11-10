@@ -121,30 +121,52 @@ class TestP104(unittest.TestCase):
 
     def test_round_summary_requires_complete_archived_screenshots(self):
         with tempfile.TemporaryDirectory() as root:
-            shot = os.path.join(root, 'round_shots', 'placed.png')
-            os.makedirs(os.path.dirname(shot))
-            with open(shot, 'wb') as stream:
-                stream.write(b'png-placeholder')
-            rel = os.path.relpath(shot, root)
+            shot_dir = os.path.join(root, 'round_shots')
+            os.makedirs(shot_dir)
+            shots = []
+            for index, label in enumerate(sorted(REQUIRED_SHOT_LABELS)):
+                path = os.path.join(shot_dir, '%02d_%s.png' % (index, label))
+                with open(path, 'wb') as stream:
+                    stream.write(b'png-placeholder')
+                shots.append(os.path.relpath(path, root))
+            labels = sorted(REQUIRED_SHOT_LABELS)
             result = {
                 'ok': True,
-                'shots': [rel],
-                'evidence': {'screenshots_archived': 1},
+                'shots': shots,
+                'shot_labels': labels,
+                'evidence': {'screenshots_archived': len(shots)},
             }
             summary = summarize_round_evidence(result, root)
             self.assertTrue(summary['ok'])
             self.assertTrue(summary['archive_ok'])
-            self.assertEqual(summary['screenshots_archived'], 1)
+            self.assertEqual(summary['screenshots_archived'], 7)
 
-            missing = dict(result, shots=['round_shots/missing.png'])
-            self.assertFalse(summarize_round_evidence(missing, root)['archive_ok'])
+            missing_file = dict(result, shots=shots[:-1] + ['round_shots/missing.png'])
+            self.assertFalse(summarize_round_evidence(
+                missing_file, root)['archive_ok'])
 
-            wrong_count = dict(result, evidence={'screenshots_archived': 2})
+            wrong_count = dict(result, evidence={'screenshots_archived': 6})
             self.assertFalse(summarize_round_evidence(
                 wrong_count, root)['archive_ok'])
 
+            missing_label = dict(result, shot_labels=labels[:-1])
+            self.assertFalse(summarize_round_evidence(
+                missing_label, root)['archive_ok'])
+
+            duplicate_path = dict(result, shots=shots[:-1] + [shots[0]])
+            self.assertFalse(summarize_round_evidence(
+                duplicate_path, root)['archive_ok'])
+
+            outside = os.path.abspath(os.path.join(root, '..', 'outside.png'))
+            with open(outside, 'wb') as stream:
+                stream.write(b'outside')
+            outside_path = dict(result, shots=shots[:-1] + [outside])
+            self.assertFalse(summarize_round_evidence(
+                outside_path, root)['archive_ok'])
+
             task_failed = dict(result, ok=False)
-            self.assertFalse(summarize_round_evidence(task_failed, root)['ok'])
+            self.assertFalse(summarize_round_evidence(
+                task_failed, root)['ok'])
 
     def test_done_state_waits_for_final_placed_screenshot(self):
         self.assertFalse(should_stop_terminal_observer(
