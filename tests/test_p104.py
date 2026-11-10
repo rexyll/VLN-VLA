@@ -324,6 +324,7 @@ class TestP104(unittest.TestCase):
                 'shots': shots,
                 'shot_labels': labels,
                 'evidence': {'screenshots_archived': len(shots)},
+                'observer_exit_code': 0,
             }
             summary = summarize_round_evidence(result, root)
             self.assertTrue(summary['ok'])
@@ -338,6 +339,14 @@ class TestP104(unittest.TestCase):
             self.assertFalse(crashed_summary['process_ok'])
             self.assertFalse(crashed_summary['ok'])
             self.assertEqual(crashed_summary['observer_exit_code'], 7)
+
+            # Missing, boolean, and string process statuses are not proof of
+            # a clean observer exit, even when task JSON and screenshots pass.
+            for invalid_exit_code in (None, True, '0'):
+                invalid_process = dict(result, observer_exit_code=invalid_exit_code)
+                invalid_summary = summarize_round_evidence(invalid_process, root)
+                self.assertFalse(invalid_summary['process_ok'])
+                self.assertFalse(invalid_summary['ok'])
 
             missing_file = dict(result, shots=shots[:-1] + ['round_shots/missing.png'])
             self.assertFalse(summarize_round_evidence(
