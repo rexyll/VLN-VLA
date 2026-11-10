@@ -3708,3 +3708,13 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 代码提交：a63cf7f1783196a65bf3964fe5d5bebf792b2214；回归测试提交：6b56d20caa27dd3bc8dc8820f04376a0757df1f0。代码提交 Python run 42826295583、ROS 2 executor run 42826295498；测试提交 Python run 42826329412、ROS 2 executor run 42826329726，记录时均 in_progress，必须刷新各自终态后再判定。
 - 本次仅完成代码结构改造与 CI 触发；未启动 Gazebo，未执行完整 tests/test_drink.py 或 tests/drink_repeat.sh。真实 Gazebo DrinkTask E2E 新增通过轮数仍为 0；至少三轮完整 E2E 与长时间稳定性验证未完成。
 - **状态：observer ROS 2 生命周期统一清理及静态回归断言已提交 main，等待 CI；完整 Gazebo DrinkTask E2E、至少三轮真实 E2E 与长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
+
+
+### 8.210 修正 observer 生命周期回归测试的源码换行定位（2026-11-10，测试定位修正已提交，CI 待验收）
+
+- §8.209 的 observer 代码提交 a63cf7f17831 Python syntax run 42826295583 completed/success；其 ROS 2 executor run 42826295498 在本次刷新时仍 in_progress。
+- 回归测试提交 6b56d20caa27 的 Python run 42826329412 失败：42 项纯测试中 41 项通过，新增生命周期测试因把源码边界写成字面反斜杠序列，导致定位 main() 结束标记时 ValueError。Compile changed Python modules job completed/success。该失败属于测试断言定位错误，保留历史记录，不视为 observer 代码失败或通过。
+- 修正提交 0a7f0b4cae74f6adb96328d272c588294a3d2029：将测试中的边界匹配改为 Python 运行时可解释的换行转义，分别正确定位 main() 与 report() 的源码范围；未改动 observer 运行逻辑。
+- 修正提交 Python run 42826479760 与 ROS 2 executor run 42826479752 在记录时均 queued；此前 TaskPlan 提交 4e2908ed378a 的 Python run 42826398621 也因同一测试问题失败，ROS 2 executor run 42826398997 仍 in_progress。所有工作流必须按各自 SHA 刷新终态。
+- 本次未启动 Gazebo，未执行完整 tests/test_drink.py 或 tests/drink_repeat.sh；真实 Gazebo DrinkTask E2E 新增通过轮数仍为 0，至少三轮真实 E2E 和长时间稳定性验证未完成。
+- **状态：observer 生命周期代码已提交；新增静态回归测试的换行定位错误已修正并提交，等待修正后 CI。P104-07 保持“正在进行中”。**
