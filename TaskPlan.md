@@ -3471,3 +3471,14 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 回归测试提交 `fc857901cb4ac844df6e3ae001b1987b06295223`：增加静态控制流回归，确认聚合脚本接收 failed 参数，且 all_passed 判断包含 runner 失败状态。
 - §8.182 CI 刷新结果：helper `492a4e1c8789` 的 Python run `42798957280` completed/success，ROS 2 executor run `42798956650` 写入时仍 in_progress；测试 `c33a8f75cc7e` 的 Python run `42798979726` 与 ROS 2 executor run `42798979995` 写入时仍 in_progress；TaskPlan 上一提交 `4fc3444b7e80` 的 Python run `42799015049` 与 ROS 2 executor run `42799014633` 写入时 queued。上述未完成项不标记通过。
 - **状态：runner 与回归测试已提交 main，等待本节 CI 终态验收；真实 DrinkTask Gazebo E2E 新增通过轮数仍为 0，三轮真实任务验收与长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
+
+
+### 8.184 将 observer 进程退出码纳入每轮 DrinkTask 验收（2026-11-10，helper、runner 与回归测试已提交，CI 待验收）
+
+- 刷新 §8.183 的全部遗留工作流：runner 提交 `6784b46a8ff8` 的 Python run `42799073313` 与 ROS 2 executor run `42799073029`、测试提交 `fc857901cb4a` 的 runs `42799089867` 与 `42799089364`、TaskPlan 提交 `12dbb99b221e` 的 runs `42799123506` 与 `42799123505` 均 completed/success；§8.182 helper、测试及 TaskPlan 对应 runs `42798957280`/`42798956650`、`42798979726`/`42798979995`、`42799015049`/`42799014633` 也均 completed/success。
+- 对 §8.183 的汇总语义继续审查，发现批次级 `FAILED` 已阻止 `all_passed=true`，但每轮 `rows[].ok` 和 `passed_rounds` 仍只看 JSON 任务标志与截图归档。如果 observer 写出完整且看似通过的 JSON/截图后以非零退出，当前轮仍可能被单独统计为 passed，造成轮次级状态与进程结果不一致。
+- helper 提交 `a177b519ab89896771adc367e8a2b3169d91bdc4`：`summarize_round_evidence()` 独立检查 `observer_exit_code`，严格要求非布尔整数 0；旧格式缺少该字段时按 0 兼容。每轮 `ok` 现在同时要求任务标志、observer 进程退出状态和截图归档通过。
+- runner 提交 `0c6188b5843e99cefeab9a1e95237a48539c862e`：在归档快照前写入实际 observer 退出码，并在聚合 SUMMARY 中保留 `process_ok` 与 `observer_exit_code`，使 `passed_rounds` 与单轮状态不再把非零退出误计为通过。
+- 回归测试提交 `bc4946ec0b80f3dbd6ed89ca23c9e1578be23a41`：检查 runner 持久化退出码并输出进程状态字段。追加行为测试提交 `9a9dc2cba1bc14cb04d9db230b5cc42dc1e98611`：使用完整七类截图和有效任务 JSON，验证 observer 退出码为 7 时单轮仍必须失败。
+- 以上 CI 仅在提交后触发，当前不得提前标记成功；Python/ROS 2 executor 离线工作流也不等同于真实 Gazebo DrinkTask E2E。
+- **状态：helper、runner 与回归测试已提交 main，等待最新 Python 与 ROS 2 executor CI 终态验收；真实 DrinkTask Gazebo E2E 新增通过轮数仍为 0，三轮真实任务验收与长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
