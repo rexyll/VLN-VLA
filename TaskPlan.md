@@ -3318,3 +3318,10 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - §8.166 fresh ACK 测试超时预算修正：Python run `42782343078`、ROS 2 executor run `42782343019` 均 completed/success；随后 TaskPlan 提交 `78a72fe0eb23ac033593885526add5e8fb0a8823` 的 Python run `42782408640`（jobs `129715355241`、`129715355615`）与 ROS 2 executor run `42782408324`（job `129715354077`）也均 completed/success。
 - 既往 fresh ACK 失败记录保留：`42781389198`、`42781982245` 曾暴露测试自身超时预算不足；后续扩大等待预算后多次回归通过。该调整只改变集成测试等待时间，不改 CarryBus 生产代码或 ACK 协议语义。
 - **状态：本节列出的相关 Python 与 ROS 2 executor CI 均已复核为 completed/success。CI 只覆盖 Python 编译/纯测试和 CarryBus executor 集成；完整 Gazebo DrinkTask E2E 新增通过轮数仍为 0，三轮真实任务验收及长时间稳定性验证尚未完成。P104-07 继续保持“正在进行中”。**
+
+
+### 8.168 在截图归档前拒绝损坏的单轮结果结构（2026-11-10，代码已提交，CI 待验收）
+
+- 继续审查重复 runner 的失败路径时发现：汇总入口已能拒绝非 object JSON，但更早的截图归档内嵌脚本仍直接对顶层结果调用 `get("shots")`，并假设 `shots` 是数组、每个路径都是字符串、`evidence` 是对象。若 observer 结果被截断、损坏或字段类型异常，runner 会在归档阶段抛出未分类异常，无法按既有失败路径输出明确诊断。
+- 修正提交：`1c167666e2d28b75033260c0cd66f9f2665fbf0c`。归档前显式验证顶层 JSON 为 object、`shots` 为 array、每个截图路径为非空字符串、`evidence` 为 object；不符合时输出具体错误并以归档失败状态退出，避免进入文件复制或后续轮次。此项不放宽截图完整性要求，也不改变任务判据。
+- **状态：代码已提交 main，等待 Python 与 ROS 2 executor CI；完整 DrinkTask Gazebo E2E 新增通过轮数仍为 0，P104-07 保持“正在进行中”。**
