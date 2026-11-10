@@ -3656,7 +3656,8 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 
 - 刷新 §8.203 后续 CI：测试修正提交 `86b8c23d9262` 的 Python run `42820538413` 与 ROS 2 executor run `42820538297` 均 completed/success；TaskPlan 提交 `09c026baee3a` 的 Python run `42820577629` 与 ROS 2 executor run `42820577700` 均 completed/success。此前几次失败的测试提交均已由后续修正覆盖，不把旧失败记录改写为成功。
 - 继续检查批次结束路径发现：原始 observer JSON、每轮快照门控和批次逐轮汇总都已使用 `load_json_strict()`，但 runner 最后读取刚发布的批次 SUMMARY、决定退出码时仍调用普通 `json.load()`。SUMMARY 正常情况下由 `allow_nan=False` 原子写入，因此当前写入路径不会主动产生 NaN/Infinity；但最终状态复核仍应遵守同一严格 JSON 契约，避免文件在发布后被替换或损坏时接受非标准数值。
-- runner 提交 `PENDING`：最终 SUMMARY 退出状态检查改为导入并调用 `load_json_strict()`；不改变批次统计、原子发布和任务执行逻辑。
-- 回归测试提交 `PENDING`：新增静态断言，限定检查 runner 最终 SUMMARY 复核 here-doc，要求使用严格解析 helper 且不调用普通 `json.load()`。
+- runner 提交 `fc0d4923f254f44f3e8f262f612c86d4436919b4`：最终 SUMMARY 退出状态检查改为导入并调用 `load_json_strict()`；不改变批次统计、原子发布和任务执行逻辑。Python run `42822322097` 与 ROS 2 executor run `42822322179` 已触发，记录时均 in_progress。
+- 回归测试提交 `32185164aedd7af2d2f52f958b9257fcca3fd611`：新增静态断言，限定检查 runner 最终 SUMMARY 复核 here-doc，要求使用严格解析 helper 且不调用普通 `json.load()`。Python run `42822330259` queued，ROS 2 executor run `42822330424` in_progress。
+- 本节 TaskPlan 初次记录提交 `e5e4aba1f4b6fc2bfc22e9fef5dd9fc52f6c50bd`：Python run `42822344464` 与 ROS 2 executor run `42822344574` 均 queued；后续需刷新终态。
 - 本节只记录证据解析一致性加固；未启动 Gazebo，未执行 `tests/test_drink.py` 或 `tests/drink_repeat.sh`，真实 Gazebo DrinkTask E2E 新增通过轮数仍为 0。
 - **状态：最终 SUMMARY 严格解析修正已提交 main，Python 与 ROS 2 executor CI 待终态验收；完整 Gazebo DrinkTask E2E、至少三轮真实 E2E 和长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
