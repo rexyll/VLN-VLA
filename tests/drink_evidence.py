@@ -21,3 +21,31 @@ def should_stop_terminal_observer(state, saved_labels, terminal_elapsed,
     if 'placed' in set(saved_labels or ()):
         return True
     return terminal_elapsed >= grace_seconds
+
+def summarize_round_evidence(result, root):
+    """Validate that every screenshot referenced by a round was archived."""
+    import os
+
+    shots = result.get('shots', [])
+    evidence = result.get('evidence') or {}
+    declared = evidence.get('screenshots_archived')
+    paths_ok = (
+        isinstance(shots, list)
+        and all(isinstance(path, str) and path
+                and os.path.isfile(os.path.join(root, path))
+                for path in shots)
+    )
+    archive_ok = (
+        isinstance(declared, int)
+        and not isinstance(declared, bool)
+        and declared == len(shots)
+        and paths_ok
+    )
+    task_ok = bool(result.get('ok'))
+    return {
+        'task_ok': task_ok,
+        'archive_ok': archive_ok,
+        'ok': task_ok and archive_ok,
+        'screenshots_archived': declared if archive_ok else 0,
+        'shots': list(shots) if isinstance(shots, list) else [],
+    }
