@@ -3307,3 +3307,14 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 修正提交 `289ede10a150d72637fc9665bd1001079b7ad5be`：仅将该测试的 fresh waiter 超时从 2 秒提高到 5 秒、join 等待从 3 秒提高到 6 秒；不修改 CarryBus 生产代码、ACK 匹配逻辑、请求超时语义或其他验收阈值。
 - §8.165 runner 顶层 JSON guard 对应 Python run `42782163001` 已 completed/success；对应 ROS 2 executor run `42782162664` 在本轮记录时仍 in_progress。§8.164 Python runs `42781982479`、`42782016342` 和 ROS 2 run `42782078838` 均 completed/success；另一次 ROS 2 run `42781982245` 在上述测试中失败。§8.163 TaskPlan run `42782204431`（Python）与 `42782204915`（ROS 2 executor）均 completed/success。
 - **状态：fresh ACK 集成测试超时预算修正已提交 main，等待最新 Python 与 ROS 2 executor CI；真实 DrinkTask Gazebo E2E 新增通过轮数仍为 0，三轮完整验收与长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
+
+
+### 8.167 复核并关闭 §8.163–§8.166 的 CI 待验收项（2026-11-10，CI 已复核通过）
+
+- 本轮重新查询 GitHub Actions 的最终状态，确认此前记录为 in_progress 的历史 run 已全部取得终态；更新时只依据实际 run 状态，不把 CarryBus executor CI 等同于完整 DrinkTask E2E。
+- §8.163 异常 JSON / 截图证据防御相关 ROS 2 executor runs：`42781733575`（提交 `591753659b`）与 `42781762887`（提交 `36f1f073`）均 completed/success；对应 Python runs `42781868409`、`42781762853` 均 completed/success。
+- §8.164 严格 JSON 布尔 success 判据相关 runs：Python `42781982479`、`42782016342` 与 ROS 2 executor `42781982245`、`42782016930` 均已取得终态；其中 `42781982245` 曾因 fresh ACK waiter 的 2 秒测试预算失败，不能作为该提交最终通过证据。超时预算修正后，提交 `289ede10` 的 Python run `42782343078` 和 ROS 2 executor run `42782343019` 均 completed/success。
+- §8.165 runner 顶层 JSON object guard：Python run `42782163001` 与 ROS 2 executor run `42782162664` 均 completed/success。
+- §8.166 fresh ACK 测试超时预算修正：Python run `42782343078`、ROS 2 executor run `42782343019` 均 completed/success；随后 TaskPlan 提交 `78a72fe0eb23ac033593885526add5e8fb0a8823` 的 Python run `42782408640`（jobs `129715355241`、`129715355615`）与 ROS 2 executor run `42782408324`（job `129715354077`）也均 completed/success。
+- 既往 fresh ACK 失败记录保留：`42781389198`、`42781982245` 曾暴露测试自身超时预算不足；后续扩大等待预算后多次回归通过。该调整只改变集成测试等待时间，不改 CarryBus 生产代码或 ACK 协议语义。
+- **状态：本节列出的相关 Python 与 ROS 2 executor CI 均已复核为 completed/success。CI 只覆盖 Python 编译/纯测试和 CarryBus executor 集成；完整 Gazebo DrinkTask E2E 新增通过轮数仍为 0，三轮真实任务验收及长时间稳定性验证尚未完成。P104-07 继续保持“正在进行中”。**
