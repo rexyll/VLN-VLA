@@ -178,6 +178,18 @@ class TestP104(unittest.TestCase):
                          if name.startswith('.drink-shots-')]
             self.assertEqual(leftovers, [])
 
+            outside = os.path.join(os.path.dirname(root), 'private-evidence.png')
+            with open(outside, 'wb') as stream:
+                stream.write(b'outside')
+            with self.assertRaises(ValueError):
+                archive_observer_screenshots(
+                    {'shots': [outside]}, root,
+                    os.path.join(root, 'archive', 'outside_shots'))
+            with self.assertRaises(ValueError):
+                archive_observer_screenshots(
+                    {'shots': []}, root,
+                    os.path.join(os.path.dirname(root), 'outside_archive'))
+
     def test_round_summary_requires_complete_archived_screenshots(self):
         with tempfile.TemporaryDirectory() as root:
             shot_dir = os.path.join(root, 'round_shots')
