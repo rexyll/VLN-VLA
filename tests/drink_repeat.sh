@@ -113,37 +113,35 @@ for ((i=1; i<=N; i++)); do
         if ! python3 - "$RESULT" "$SNAPSHOT" "$ROOT" "$OUTDIR/drink_${TAG}_${i}_shots" <<'PY'
 import json
 import os
-import shutil
 import sys
+import tempfile
 
 source_json, snapshot_json, root, shot_dir = sys.argv[1:]
-with open(source_json, encoding="utf-8") as stream:
-    result = json.load(stream)
-
-# Share the exact observer/runner contract with the offline unit tests.
 sys.path.insert(0, os.path.join(root, "tests"))
-from drink_evidence import validate_observer_result
+from drink_evidence import archive_observer_screenshots
+
 try:
-    shots = validate_observer_result(result)
-except ValueError as exc:
-    print("Invalid DrinkTask result: %s" % exc, file=sys.stderr)
+    with open(source_json, encoding="utf-8") as stream:
+        result = json.load(stream)
+    archive_observer_screenshots(result, root, shot_dir)
+
+    # Publish the JSON only after the complete screenshot archive exists.
+    snapshot_dir = os.path.dirname(snapshot_json)
+    fd, temporary_json = tempfile.mkstemp(
+        prefix=".drink-result-", suffix=".json", dir=snapshot_dir)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as stream:
+            json.dump(result, stream, ensure_ascii=False, indent=2)
+        os.replace(temporary_json, snapshot_json)
+    except Exception:
+        try:
+            os.unlink(temporary_json)
+        except FileNotFoundError:
+            pass
+        raise
+except (OSError, ValueError) as exc:
+    print("DrinkTask evidence archival failed: %s" % exc, file=sys.stderr)
     sys.exit(3)
-
-archived = []
-for index, source in enumerate(shots, 1):
-    if not os.path.isfile(source):
-        print("Missing screenshot evidence: %s" % source, file=sys.stderr)
-        sys.exit(3)
-    os.makedirs(shot_dir, exist_ok=True)
-    name = "%02d_%s" % (index, os.path.basename(source))
-    destination = os.path.join(shot_dir, name)
-    shutil.copy2(source, destination)
-    archived.append(os.path.relpath(destination, root))
-
-result["shots"] = archived
-result.setdefault("evidence", {})["screenshots_archived"] = len(archived)
-with open(snapshot_json, "w", encoding="utf-8") as stream:
-    json.dump(result, stream, ensure_ascii=False, indent=2)
 PY
         then
             echo "Round $i evidence archival failed (test exit=$RC)." >&2
