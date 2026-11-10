@@ -200,7 +200,7 @@ class TestP104(unittest.TestCase):
         create = runner.index('mkdir -p "$OUTDIR"', guard)
         resolve = runner.index('OUTDIR_REAL="$(realpath -e "$OUTDIR")"', create)
         containment = runner.index('"$TESTS_REAL"/*)', resolve)
-        lock = runner.index('exec 9>"$OUTDIR/.drink_repeat.lock"')
+        lock = runner.index('LOCKFILE="$OUTDIR/.drink_repeat.lock"')
         self.assertLess(guard, create)
         self.assertLess(create, resolve)
         self.assertLess(resolve, containment)
