@@ -3815,3 +3815,13 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 证据边界：该测试仅验证本地 marker 持久化与发送异常传播，不证明 ROS 2/Gazebo 是否收到命令，也不证明完整 runner 在真实进程中断时的端到端行为；没有启动 Gazebo，未执行完整 `tests/test_drink.py` 或 `tests/drink_repeat.sh`。
 - 最新测试提交及本 TaskPlan 后续提交的 Python 编译、纯测试和 CarryBus executor CI 必须刷新到终态后才能验收。完整 Gazebo DrinkTask E2E 新增通过轮数仍为 0；至少三轮真实 E2E 与长时间稳定性验证未完成。
 - **状态：发送异常发生在 marker 持久化之后的动态回归覆盖已提交 main，等待 CI；P104-07 保持“正在进行中”。完整 Gazebo DrinkTask E2E、至少三轮真实 E2E 与长时间稳定性验证未完成。**
+
+
+### 8.221 验证已有命令尝试 marker 时拒绝覆盖并阻断 GO_DRINK（2026-11-10，动态回归测试已提交，CI 待验收）
+
+- 刷新 §8.220 的 CI：测试提交 `59aacf3432ee` 的 Python syntax run `42841333107` 与 CarryBus ROS 2 executor run `42841333214` 均 completed/success；TaskPlan 提交 `e3d27ffd3c32` 的 Python syntax run `42841395482` 与 CarryBus ROS 2 executor run `42841395468` 均 completed/success。两项 ROS 2 job 均实际执行 `Run CarryBus executor integration test` 并通过。
+- 继续审查 marker 独占性：observer 使用 `O_CREAT|O_EXCL` 创建命令尝试标记，runner 也在批次预检时拒绝已有 marker；此前动态测试覆盖 fdopen 失败和发送失败，但没有直接验证 marker 已存在时操作系统的 `FileExistsError` 会阻断 GO_DRINK。
+- `tests/test_p104.py` 提交 `895b8bdd863dcf9db3eb553d6f333ef6e1b002c1`：新增隔离 AST 执行的动态测试，注入 `os.open` 因 marker 已存在而抛出 `FileExistsError`；断言原异常传播、`os.open` 使用 `O_WRONLY|O_CREAT|O_EXCL` 与权限模式 `0600`、`fdopen` 不执行且 mock Watch 未收到 GO_DRINK。
+- 本测试验证 observer 层不覆盖旧 marker，并在独占创建失败时阻断命令发送；不证明文件系统/硬件故障边界，不执行 runner 多进程竞争测试，也不代表 ROS 2/Gazebo 收到或执行命令。
+- 本轮未启动 Gazebo，未执行完整 `tests/test_drink.py` 或 `tests/drink_repeat.sh`。最新测试提交及后续 TaskPlan 提交的 Python 编译、纯测试与 CarryBus executor CI 待刷新终态；完整 Gazebo DrinkTask E2E 新增通过轮数仍为 0。
+- **状态：已有 marker 的独占创建冲突现在有动态回归覆盖，等待 CI；P104-07 保持“正在进行中”。完整 Gazebo DrinkTask E2E、至少三轮真实 E2E 与长时间稳定性验证未完成。**
