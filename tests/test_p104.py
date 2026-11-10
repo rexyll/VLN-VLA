@@ -18,7 +18,8 @@ from unittest.mock import patch
 import xml.etree.ElementTree as ET
 from drink_evidence import (REQUIRED_SHOT_LABELS, missing_required_shots,
                             should_stop_terminal_observer,
-                            summarize_round_evidence)
+                            summarize_round_evidence,
+                            validate_observer_result)
 
 import numpy as np
 
@@ -118,6 +119,31 @@ class TestP104(unittest.TestCase):
             ['arrive', 'grip', 'handback', 'placed', 'takeback'])
         self.assertEqual(
             missing_required_shots(None), sorted(REQUIRED_SHOT_LABELS))
+
+    def test_observer_result_contract_allows_optional_evidence(self):
+        self.assertEqual(validate_observer_result({'ok': True}), [])
+        self.assertEqual(validate_observer_result({
+            'shots': ['one.png'], 'evidence': {},
+        }), ['one.png'])
+        self.assertEqual(validate_observer_result({
+            'shots': [], 'evidence': {'source': 'observer'},
+        }), [])
+
+        invalid_results = (
+            None,
+            [],
+            {'shots': None},
+            {'shots': 'one.png'},
+            {'shots': [None]},
+            {'shots': ['']},
+            {'evidence': None},
+            {'evidence': []},
+            {'evidence': 'metadata'},
+        )
+        for result in invalid_results:
+            with self.subTest(result=result):
+                with self.assertRaises(ValueError):
+                    validate_observer_result(result)
 
     def test_round_summary_requires_complete_archived_screenshots(self):
         with tempfile.TemporaryDirectory() as root:
