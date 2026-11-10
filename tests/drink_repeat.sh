@@ -113,6 +113,7 @@ for ((i=1; i<=N; i++)); do
         if ! python3 - "$RESULT" "$SNAPSHOT" "$ROOT" "$OUTDIR/drink_${TAG}_${i}_shots" <<'PY'
 import json
 import os
+import shutil
 import sys
 import tempfile
 
@@ -120,10 +121,12 @@ source_json, snapshot_json, root, shot_dir = sys.argv[1:]
 sys.path.insert(0, os.path.join(root, "tests"))
 from drink_evidence import archive_observer_screenshots
 
+archive_published = False
 try:
     with open(source_json, encoding="utf-8") as stream:
         result = json.load(stream)
     archive_observer_screenshots(result, root, shot_dir)
+    archive_published = True
 
     # Publish the JSON only after the complete screenshot archive exists.
     snapshot_dir = os.path.dirname(snapshot_json)
@@ -140,6 +143,8 @@ try:
             pass
         raise
 except (OSError, ValueError) as exc:
+    if archive_published:
+        shutil.rmtree(shot_dir, ignore_errors=True)
     print("DrinkTask evidence archival failed: %s" % exc, file=sys.stderr)
     sys.exit(3)
 PY
