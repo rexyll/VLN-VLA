@@ -20,7 +20,8 @@ from drink_evidence import (REQUIRED_SHOT_LABELS, missing_required_shots,
                             should_stop_terminal_observer,
                             summarize_round_evidence,
                             validate_observer_result,
-                            archive_observer_screenshots)
+                            archive_observer_screenshots,
+                            write_json_atomic)
 
 import numpy as np
 
@@ -145,6 +146,26 @@ class TestP104(unittest.TestCase):
             with self.subTest(result=result):
                 with self.assertRaises(ValueError):
                     validate_observer_result(result)
+
+    def test_json_publication_is_atomic_and_cleans_failed_temporary_file(self):
+        with tempfile.TemporaryDirectory() as root:
+            target = os.path.join(root, 'summary.json')
+            with open(target, 'w', encoding='utf-8') as stream:
+                stream.write('previous-summary')
+
+            with patch('os.replace', side_effect=OSError('simulated publish failure')):
+                with self.assertRaises(OSError):
+                    write_json_atomic({'all_passed': True}, target)
+
+            with open(target, encoding='utf-8') as stream:
+                self.assertEqual(stream.read(), 'previous-summary')
+            leftovers = [name for name in os.listdir(root)
+                         if name.startswith('.drink-json-')]
+            self.assertEqual(leftovers, [])
+
+            write_json_atomic({'all_passed': True}, target)
+            with open(target, encoding='utf-8') as stream:
+                self.assertEqual(stream.read(), '{\\n  "all_passed": true\\n}')
 
     def test_screenshot_archive_is_atomic_and_adds_optional_evidence(self):
         with tempfile.TemporaryDirectory() as root:
