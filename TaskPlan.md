@@ -3788,3 +3788,12 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - `tests/test_p104.py` 提交 `cc60b47f0bfa8341086ff97ec163e8e65970de31`：将原先仅静态的顺序验证升级为隔离 AST 执行调用层；注入 `os.fdopen()` 异常后验证原异常身份、fd 关闭且 mock Watch 的发送记录为空。helper 独立失败/成功路径测试继续保留。
 - 当前两项新提交触发的 Python 编译、P104 纯测试和 CarryBus executor CI 尚未刷新终态。本轮没有启动 Gazebo，也未执行完整 `tests/test_drink.py` / `tests/drink_repeat.sh`。
 - **状态：GO_DRINK 发布调用层已建立 marker 故障门禁并补动态回归覆盖，等待 CI。完整 Gazebo DrinkTask E2E 新增通过轮数仍为 0；三轮 E2E 与长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
+
+
+### 8.218 同步 observer 静态契约断言到 marker-gated 发布封装（2026-11-10，修正已提交，CI 待验收）
+
+- §8.217 的 observer 重构提交 `802a350852a1`：Python 编译成功，但其纯测试 run `42836718227` failure；完整日志显示旧的静态断言仍搜索 `w.send('GO_DRINK')`，而发布动作已被抽取到 `_publish_drink_command()`。该旧断言与新封装不兼容。
+- 后续测试提交 `cc60b47f0bfa` 的纯测试 run `42836763555` 仍因 cleanup 契约测试中同一条旧断言失败；marker helper 与调用层动态故障注入测试本身已执行通过。TaskPlan 提交 `e2d8db906158` 的 Python run `42836815490` 也因该过期断言失败，编译 job 成功；其 ROS 2 executor run `42836815474` 记录时仍 in_progress。
+- `tests/test_p104.py` 修正提交 `728a0b74f9f78aaee4b2ed9110d0515f3ce58bad`：静态契约改为定位 `_publish_drink_command(w, marker_path)` 调用，并在 helper 函数体内断言 marker helper 先于 `watch.send('GO_DRINK')`。不再依赖 observer 直接调用 Watch.send 的旧实现。
+- 新提交 Python 编译、P104 纯测试和 CarryBus ROS 2 executor CI 尚待刷新；历史失败记录保留。真实 Gazebo DrinkTask E2E 未执行，新增通过轮数仍为 0。
+- **状态：发布封装与动态故障注入测试已提交，过期静态断言已修正；等待 CI。P104-07 保持“正在进行中”。**
