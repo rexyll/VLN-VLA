@@ -3166,3 +3166,10 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 修正提交：`6e8ffa9e3eaef289baff855b4af5b668d17d0691`。图像回调现在记录单调时钟接收时间；截图时若没有图像，或最后一帧距当前超过 2 秒，则返回未就绪，保留既有重试行为，不写入截图结果。相机恢复发布新帧后，后续 observer spin 可继续尝试保存。
 - 该保护只过滤超过 2 秒未更新的缓存帧，不降低至少 4 张截图的验收要求，不改变状态机、任务阈值或截图归档规则。尚未有真实 Gazebo 场景实测证据，2 秒窗口仍需在完整场景运行时验证是否适合实际相机发布频率。
 - **状态：相机帧新鲜度保护已提交 main，Python 与 ROS 2 executor CI 待验收；真实 DrinkTask E2E 新增通过轮数仍为 0。P104-07 保持“正在进行中”。**
+
+### 8.151 验收相机帧新鲜度保护的自动化 CI（2026-11-10）
+
+- §8.150 代码提交 `6e8ffa9e3eaef289baff855b4af5b668d17d0691` 的 Python run `42751853966` 与 ROS 2 executor run `42751853817` 均 completed/success。
+- §8.150 对应 TaskPlan 提交 `d00f507ceda3621c22ec800c074541c663328e78` 的 Python run `42751871466` 与 ROS 2 executor run `42751871597` 均 completed/success。
+- Python run 覆盖 P104 纯 Python/运动学测试、`drink_repeat.sh` shell 语法检查和指定模块编译；ROS 2 executor workflow 覆盖 CarryBus executor 集成。上述工作流均未执行完整 Gazebo DrinkTask 场景，也未验证相机真实发布频率或 2 秒新鲜度窗口的场景适配性。
+- **状态：相机帧新鲜度保护及其自动化 CI 已通过；真实 DrinkTask E2E 新增通过轮数仍为 0。完整三轮 E2E 和长时间稳定性验证未完成，P104-07 继续“正在进行中”。**
