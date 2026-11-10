@@ -3570,3 +3570,11 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - TaskPlan 提交 2cb6707bd529 的 Python run 42807281480 在本次记录时，编译 job 与 P104 pure tests 均 completed/success；其 ROS 2 executor run 42807281239 仍 in_progress，ROS 2 apt repository 配置进行中。测试修正提交 105fc406d1d1 的 ROS 2 executor run 42807241481 仍在安装 ROS 2 Jazzy 依赖，尚未进入 CarryBus executor test。
 - 早期提交 683b8344f09b、26dcb1c09c76、debc54d1e8aa 的 Python CI 失败均来自旧静态断言没有同步新增 tag 参数；对应 runner/helper ROS 2 executor jobs 当时仍在运行，不能把它们当作当前提交的终态结果。
 - **状态：runner 缺失轮次清单及静态回归修正已进入 main；Python 编译与纯测试已通过。ROS 2 executor CI 待终态验收。真实 Gazebo DrinkTask E2E 新增通过轮数仍为 0；三轮 E2E 和长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
+
+### 8.195 限制并发 ROS 2 executor 测试中的重复 ACK 流量（2026-11-10，测试修正已提交，CI 待验收）
+
+- CarryBus executor run 42807241481（提交 105fc406d1d1）已完成 ROS 2 Jazzy 依赖安装并运行 11 项真实 executor 测试，其中 10 项通过、1 项失败：test_executor_delivers_concurrent_ids_and_rejects_late_ack 的 waiter 在 join 时仍存活。日志在断言失败后才出现 left/right ACK 回调，说明本次 ACK 回调投递晚于测试等待窗口；未发现 Python 纯测试失败（同提交 Python run 42807241390 success）。
+- 检查测试后发现并发 waiter 场景在 3.5 秒内每 50ms 对两个 request ID 持续发布重复 ACK，可能形成不必要的 reliable DDS 队列压力；测试随后只给每个 request ID 有界重发 3 次，并通过 both_finished Event 等待两条事务完成，同时把事务超时放宽到 6 秒，避免在大量重复发布期间观察自身调度延迟。
+- 测试修正提交 775f0da577c4fbcbb043b347f2041a5dcecd76b8：只调整真实 ROS 2 executor 集成测试的并发 ACK 注入节奏与等待同步；没有修改 CarryBus 产品代码。此改动需要 ROS 2 Jazzy CI 实测验证，当前不能预先认定根因或宣称修复成功。
+- §8.193 TaskPlan 提交 2cb6707bd529 的 Python run 42807281480 success；其 ROS 2 executor run 42807281239 记录时仍 in_progress。TaskPlan 提交 7d0f90c1d1bf 的 Python run 42807421193 success；其 ROS 2 executor run 42807421107 记录时仍 in_progress。测试提交 775f0da577c4 的 Python/ROS 2 executor runs 已触发，待终态验收。
+- **状态：DrinkTask missing_rounds 纯测试已通过；CarryBus ROS 2 executor 的并发 waiter 测试出现一次真实 CI 超时，已对测试重复 ACK 注入改为有界重试，等待 ROS 2 CI 复验。真实 Gazebo DrinkTask E2E 新增通过轮数仍为 0。P104-07 保持“正在进行中”。**
