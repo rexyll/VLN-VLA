@@ -1426,6 +1426,12 @@ class TestP104(unittest.TestCase):
             runner = stream.read()
         self.assertIn('Round $i produced no result JSON (exit=$RC).', runner)
         self.assertIn('FAILED=1', runner)
+        self.assertIn('P91_COMMAND_MARKER', runner)
+        self.assertIn('UNKNOWN/INTERRUPTED', runner)
+        self.assertIn('"unknown_rounds": unknown_rounds', runner)
+        self.assertIn('P91_COMMAND_MARKER', source)
+        self.assertIn('os.O_EXCL', source)
+        self.assertLess(source.index('os.open(marker_path'), source.index("w.send('GO_DRINK')"))
 
 
     def test_observer_cleanup_success_releases_node_and_context(self):
