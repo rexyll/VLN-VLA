@@ -137,6 +137,21 @@ class TestP104(unittest.TestCase):
         opposite_sign = summarize_numeric_values([-largest, largest])
         self.assertEqual(opposite_sign['median'], 0.0)
 
+    def test_json_publication_rejects_nonstandard_numeric_constants(self):
+        with tempfile.TemporaryDirectory() as root:
+            target = os.path.join(root, 'summary.json')
+            with open(target, 'w', encoding='utf-8') as stream:
+                stream.write('previous-summary')
+
+            with self.assertRaises(ValueError):
+                write_json_atomic({'nested': {'metric': float('nan')}}, target)
+
+            with open(target, encoding='utf-8') as stream:
+                self.assertEqual(stream.read(), 'previous-summary')
+            leftovers = [name for name in os.listdir(root)
+                         if name.startswith('.drink-json-')]
+            self.assertEqual(leftovers, [])
+
     def test_repeat_runner_rechecks_round_acceptance_before_next_round(self):
         runner_path = os.path.join(ROOT, 'tests', 'drink_repeat.sh')
         with open(runner_path, encoding='utf-8') as stream:
