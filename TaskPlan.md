@@ -3696,3 +3696,15 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 本次未修改 `test_drink.py` 或 runner：将全流程包装进安全清理结构需要同步处理节点构造失败、报告写入失败、提前返回、KeyboardInterrupt 与 SIGTERM，并保证清理异常不覆盖原始退出状态；简单增加信号 trap 或重复 shutdown 不足以证明安全。后续应先设计可测试的 observer 生命周期封装与“任务状态未知”批次终态，再实现并加入模拟异常/中断测试。
 - 本次为静态代码审查；没有向仿真发送中断信号，没有启动 Gazebo，也没有执行完整 DrinkTask E2E。真实 Gazebo DrinkTask E2E 新增通过轮数仍为 0。
 - **状态：已定位 observer 异常退出时 ROS 2 清理可能被绕过的具体路径；尚未实施修复，P104-07 保持“正在进行中”。完整 Gazebo DrinkTask E2E、至少三轮真实 E2E 与长时间稳定性验证未完成。**
+
+
+### 8.209 统一 DrinkTask observer 生命周期与 ROS 2 异常清理（2026-11-10，代码与回归断言已提交，CI 待验收）
+
+- 刷新上一轮 §8.208 TaskPlan 提交 32abadfe33a9 的 CI：Python syntax run 42825204477 与 ROS 2 executor integration run 42825204451 均 completed/success。
+- 将 tests/test_drink.py 的 observer 主流程拆分为 _run_observer(node)，由 main() 独占 ROS 2 初始化与资源释放。节点创建成功后，无论 observer 正常完成、提前返回、报告写入抛出异常或收到 Python KeyboardInterrupt，均进入 finally：尽力销毁节点，并在 rclpy.ok() 时关闭 ROS 2。节点构造失败时仍会关闭已初始化的 ROS 2 context；节点销毁异常被单独记录，不阻止 shutdown，也不覆盖原始任务异常。
+- report() 只负责输出结果和返回状态，不再承担节点销毁或 ROS 2 shutdown，避免正常路径和异常路径重复清理。
+- 新增 tests/test_p104.py 静态回归断言，验证统一生命周期所有者、finally 清理位置、report 不再重复释放资源，以及 runner 在 observer 未生成结果 JSON 时停止批次。
+- 安全边界：此改动不向常驻 DrinkTask 状态机发送取消命令。若 GO_DRINK 已发出后 observer 异常退出，任务状态仍可能未知；无结果 JSON 时现有 runner 会停止本批次，不会启动下一轮。SIGTERM 仍未安装自定义 handler；本次不宣称覆盖 SIGKILL 或强制终止。
+- 代码提交：a63cf7f1783196a65bf3964fe5d5bebf792b2214；回归测试提交：6b56d20caa27dd3bc8dc8820f04376a0757df1f0。代码提交 Python run 42826295583、ROS 2 executor run 42826295498；测试提交 Python run 42826329412、ROS 2 executor run 42826329726，记录时均 in_progress，必须刷新各自终态后再判定。
+- 本次仅完成代码结构改造与 CI 触发；未启动 Gazebo，未执行完整 tests/test_drink.py 或 tests/drink_repeat.sh。真实 Gazebo DrinkTask E2E 新增通过轮数仍为 0；至少三轮完整 E2E 与长时间稳定性验证未完成。
+- **状态：observer ROS 2 生命周期统一清理及静态回归断言已提交 main，等待 CI；完整 Gazebo DrinkTask E2E、至少三轮真实 E2E 与长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
