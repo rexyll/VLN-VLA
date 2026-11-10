@@ -72,9 +72,12 @@ class Watch(object):
         self.state = 'BOOT'
         self.stages = []
         self.cmds = []
+        self.cmd_received_at = []
         self.hands = {}
         self.img = None
         self.img_received_at = None
+        self.state_changed_at = None
+        self.cmd_received_at = []
         self.t0 = time.time()
         # 仿真时钟(见 _clock_cb): "全流程用时"要用逻辑时长, 不能跟机器快慢走
         self.sim = None
@@ -99,6 +102,7 @@ class Watch(object):
         if h:
             self.hands = h
         if s and s != self.state:
+            self.state_changed_at = time.monotonic()
             self.state = s
             self.stages.append(s)
             print('    [阶段] %-12s t=%.1fs' % (s, time.time() - self.t0))
@@ -110,6 +114,7 @@ class Watch(object):
             return
         if c.get('action') == 'DRINK':
             self.cmds.append(c)
+            self.cmd_received_at.append(time.monotonic())
             print('    [收到 DRINK] t=%.2fs 共 %d 条'
                   % (time.time() - self.t0, len(self.cmds)))
 
@@ -132,11 +137,14 @@ class Watch(object):
         self.spin(0.6)
         self.pub.publish(String(data=json.dumps({'action': action})))
 
-    def shot(self, tag):
-        # Do not let a cached frame from before a camera stall masquerade as
-        # evidence for the current stage. Retry on later observer spins.
+    def shot(self, tag, not_before=None):
+        # Require a frame received after the event being documented, not just
+        # any recently refreshed frame from the preceding stage. Also reject
+        # cached frames after a camera stall; retry on later observer spins.
         if (self.img is None or self.img_received_at is None
-                or time.monotonic() - self.img_received_at > 2.0):
+                or time.monotonic() - self.img_received_at > 2.0
+                or (not_before is not None
+                    and self.img_received_at < not_before)):
             return None
         path = os.path.join(LOG_DIR, 'p91_%s.png' % tag)
         save_png(path, self.img.data, self.img.width, self.img.height,
@@ -246,11 +254,11 @@ def main():
                 print('    [人到场] pos=(%.3f, %.3f) 目标=(%.3f, %.3f) 差 %.1fmm'
                       % (px, py, L.PERSON_SPOT[0], L.PERSON_SPOT[1],
                          arrive['to_spot_mm']))
-                sh = w.shot('arrive')
+                sh = w.shot('arrive', not_before=w.cmd_received_at[-1])
                 if sh:
                     res['shots'].append(sh)
         if tag and tag not in shots_done:
-            sh = w.shot(tag)
+            sh = w.shot(tag, not_before=w.state_changed_at)
             if sh:
                 res['shots'].append(sh)
                 shots_done.add(tag)
