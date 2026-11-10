@@ -3400,3 +3400,13 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - §8.174/§8.175 后续复核：TaskPlan 提交 `7c2f47d797a0154283dc446e95948d2faf856115` 的 Python run `42790085526` 与 ROS 2 executor run `42790085655` 均 completed/success；测试修正提交 `8c6e59d4140bd83a6fe838e7906336dbea16a210` 的 Python run `42790029888` 与 ROS 2 executor run `42790029744` 均 completed/success。
 - 本节新提交 CI：helper `e783e71e9591` 的 Python run `42791110363`、ROS 2 executor run `42791110810`；测试 `91419322d010` 的 Python run `42791128145`、ROS 2 executor run `42791128322`。写入 TaskPlan 时均仍在运行，不标记通过。
 - **状态：文件描述符失败清理修复与回归测试已进入 main，CI 待最终验收；完整 DrinkTask Gazebo E2E 新增通过轮数仍为 0，三轮真实任务验收与长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
+
+
+### 8.177 覆盖原子 SUMMARY 序列化失败时的清理与旧报告保护（2026-11-10，测试已提交，CI 待验收）
+
+- 继续审查多轮 runner 的汇总发布失败边界时，针对共享 helper `write_json_atomic()` 补齐序列化阶段异常覆盖。此前已有测试验证原子替换失败、`fdopen()` 失败时的临时文件清理及旧目标保留，但尚未直接验证 JSON 序列化本身失败（例如 payload 含不可序列化对象）时的相同保证。
+- 测试提交 `cb9f1478a2a62ec7f2157a9f608dc14097223427`：新增不可序列化 payload 回归，要求 `json.dump()` 抛出 TypeError 后，旧 SUMMARY 内容不变且同目录 `.drink-json-*.tmp` 临时文件全部清理。
+- 该用例验证 helper 的序列化异常路径，不代表真实 runner 或 Gazebo DrinkTask E2E 已运行；每轮归档证据在 SUMMARY 生成失败时仍保留，避免销毁已完成轮次的审计材料。
+- 本节 CI：Python run `42791921695`、ROS 2 executor run `42791921580`，写入时均为 queued，未标记通过。
+- §8.176 最终验收：helper `e783e71e9591` 的 Python/ROS 2 runs `42791110363`、`42791110810`；测试 `91419322d010` 的 runs `42791128145`、`42791128322`；TaskPlan `e60d648db758` 的 runs `42791182525)、`42791182610)，均 completed/success。
+- **状态：序列化异常回归测试已提交 main，CI 待验收；完整 DrinkTask Gazebo E2E 新增通过轮数仍为 0，三轮真实任务验收与长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
