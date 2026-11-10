@@ -3751,3 +3751,13 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 测试修正提交 `8e6879402268f4d187fbc7ec4507dbe180a3bbaf`：将两项静态断言更新为 UNKNOWN/INTERRUPTED 文案及新的 outdir 参数契约；不改变 runner/observer 运行逻辑。
 - observer 标记、runner 分类、静态断言三部分均已提交 main；最新测试修正与本 TaskPlan 的 CI 必须刷新到终态后才能验收。此前失败 run 保留为失败，不回写为成功。
 - **状态：测试断言与新契约已对齐，等待 CI；完整 Gazebo DrinkTask E2E 新增通过轮数仍为 0。P104-07 保持“正在进行中”。**
+
+
+### 8.214 修复 GO_DRINK 命令标记创建时的文件描述符泄漏边界（2026-11-10，代码与静态契约已提交，CI 待验收）
+
+- 刷新 §8.213 对应 CI：Python syntax run `42832431119`、CarryBus ROS 2 executor run `42832431062` 均 completed/success；断言修正提交 `8e6879402268` 的 Python run `42832392045` 与 ROS 2 run `42832391461` 也均 completed/success。
+- 复核 §8.212 的 marker 创建代码时发现一个低概率资源清理缺口：`os.open(..., O_CREAT|O_EXCL)` 成功后，若 `os.fdopen()` 自身抛出异常，原始文件描述符可能未关闭。该情况发生在 GO_DRINK 发送之前，命令不会继续发布，但会泄漏当前 observer 进程的 fd。
+- `tests/test_drink.py` 提交 `18fd7adbb3d418e6be570a134e9af0a00898c057`：抽取 `_create_command_attempt_marker()`；若 `fdopen` 初始化失败，捕获原异常并关闭原始 fd 后重新抛出；成功时通过上下文管理器写入标记、flush 并 fsync。GO_DRINK 仍只在标记函数完整成功后发送。
+- `tests/test_p104.py` 提交 `be85b053c7fb737b6516967121fc4f54849c607f`：静态回归契约检查 marker helper 在 GO_DRINK 之前调用，并包含 fdopen 失败时关闭 fd 与成功写入后 fsync 的保护。
+- 该改动仅处理 observer 本地文件描述符生命周期，不改变 Gazebo 任务状态机、不取消任务、不自动重试。当前静态测试契约尚未由最新 CI 验收；完整 DrinkTask E2E 未执行。
+- **状态：marker 创建时 fdopen 失败的资源清理缺口已修复，等待 CI。P104-07 继续“正在进行中”；完整 Gazebo DrinkTask E2E 通过轮数仍为 0。**
