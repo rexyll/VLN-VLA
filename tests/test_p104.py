@@ -23,7 +23,8 @@ from drink_evidence import (REQUIRED_SHOT_LABELS, missing_required_shots,
                             validate_observer_result,
                             archive_observer_screenshots,
                             write_json_atomic, summarize_numeric_values,
-                            finite_numeric_value, summarize_batch_status)
+                            finite_numeric_value, summarize_batch_status,
+                            load_json_strict)
 
 import numpy as np
 
@@ -166,6 +167,20 @@ class TestP104(unittest.TestCase):
         self.assertEqual(same_sign['max'], largest)
         opposite_sign = summarize_numeric_values([-largest, largest])
         self.assertEqual(opposite_sign['median'], 0.0)
+
+    def test_json_loading_rejects_nonstandard_numeric_constants(self):
+        with tempfile.TemporaryDirectory() as root:
+            target = os.path.join(root, 'round.json')
+            for payload in ('{"metric": NaN}', '{"metric": Infinity}',
+                            '{"nested": [-Infinity]}'):
+                with open(target, 'w', encoding='utf-8') as stream:
+                    stream.write(payload)
+                with self.assertRaisesRegex(ValueError, 'non-standard JSON'):
+                    load_json_strict(target)
+
+            with open(target, 'w', encoding='utf-8') as stream:
+                stream.write('{"metric": 1.25}')
+            self.assertEqual(load_json_strict(target), {'metric': 1.25})
 
     def test_json_publication_rejects_nonstandard_numeric_constants(self):
         with tempfile.TemporaryDirectory() as root:
