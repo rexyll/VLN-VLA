@@ -117,7 +117,13 @@ def archive_observer_screenshots(result, root, shot_dir):
     import tempfile
 
     shots = validate_observer_result(result)
+    root_real = os.path.realpath(root)
     shot_dir = os.path.abspath(shot_dir)
+    try:
+        if os.path.commonpath((root_real, shot_dir)) != root_real:
+            raise ValueError('screenshot archive must be inside repository root')
+    except ValueError:
+        raise ValueError('screenshot archive must be inside repository root')
     parent = os.path.dirname(shot_dir)
     os.makedirs(parent, exist_ok=True)
     if os.path.lexists(shot_dir):
@@ -127,13 +133,22 @@ def archive_observer_screenshots(result, root, shot_dir):
     try:
         archived = []
         for index, source in enumerate(shots, 1):
-            if not os.path.isfile(source):
+            source_real = os.path.realpath(source)
+            try:
+                inside_root = (
+                    os.path.commonpath((root_real, source_real)) == root_real)
+            except ValueError:
+                inside_root = False
+            if not inside_root:
+                raise ValueError('screenshot source must be inside repository root: %s'
+                                 % source)
+            if not os.path.isfile(source_real):
                 raise FileNotFoundError('missing screenshot evidence: %s' % source)
-            name = '%02d_%s' % (index, os.path.basename(source))
+            name = '%02d_%s' % (index, os.path.basename(source_real))
             destination = os.path.join(staging, name)
-            shutil.copy2(source, destination)
+            shutil.copy2(source_real, destination)
             archived.append(os.path.relpath(
-                os.path.join(shot_dir, name), root))
+                os.path.join(shot_dir, name), root_real))
 
         # Same-filesystem directory rename publishes the complete archive at once.
         os.rename(staging, shot_dir)
