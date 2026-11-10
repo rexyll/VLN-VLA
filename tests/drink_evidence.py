@@ -108,3 +108,39 @@ def validate_observer_result(result):
     if 'evidence' in result and not isinstance(result['evidence'], dict):
         raise ValueError('evidence must be a JSON object when present')
     return shots
+
+
+def archive_observer_screenshots(result, root, shot_dir):
+    """Atomically archive observer screenshots and attach archive metadata."""
+    import os
+    import shutil
+    import tempfile
+
+    shots = validate_observer_result(result)
+    shot_dir = os.path.abspath(shot_dir)
+    parent = os.path.dirname(shot_dir)
+    os.makedirs(parent, exist_ok=True)
+    if os.path.lexists(shot_dir):
+        raise FileExistsError('screenshot archive already exists: %s' % shot_dir)
+
+    staging = tempfile.mkdtemp(prefix='.drink-shots-', dir=parent)
+    try:
+        archived = []
+        for index, source in enumerate(shots, 1):
+            if not os.path.isfile(source):
+                raise FileNotFoundError('missing screenshot evidence: %s' % source)
+            name = '%02d_%s' % (index, os.path.basename(source))
+            destination = os.path.join(staging, name)
+            shutil.copy2(source, destination)
+            archived.append(os.path.relpath(
+                os.path.join(shot_dir, name), root))
+
+        # Same-filesystem directory rename publishes the complete archive at once.
+        os.rename(staging, shot_dir)
+        staging = None
+        result['shots'] = archived
+        result.setdefault('evidence', {})['screenshots_archived'] = len(archived)
+        return result
+    finally:
+        if staging is not None:
+            shutil.rmtree(staging, ignore_errors=True)
