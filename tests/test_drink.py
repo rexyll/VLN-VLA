@@ -45,7 +45,8 @@ from vla_follow import scene_layout as L      # noqa: E402
 from vla_follow.drink_task import DrinkTask   # noqa: E402
 from vla_follow.pngsnap import save_png       # noqa: E402
 from drink_evidence import (REQUIRED_SHOT_LABELS,
-                            missing_required_shots)  # noqa: E402
+                            missing_required_shots,
+                            should_stop_terminal_observer)  # noqa: E402
 
 LOG_DIR = os.path.join(ROOT, 'vla_ws', 'logs')
 TOTAL_TIMEOUT = 420.0
@@ -232,6 +233,7 @@ def main():
     shots_done = set()
     arrive = None
     arrive_shot_done = False
+    terminal_since = None
     deadline = time.time() + TOTAL_TIMEOUT
     while time.time() < deadline:
         w.spin(0.15)
@@ -274,7 +276,11 @@ def main():
                 res['shot_labels'].append(tag)
                 shots_done.add(tag)
         if w.state in ('DONE', 'ERROR', 'FAIL_PREPARE', 'FAIL_HANDOVER'):
-            break
+            if terminal_since is None:
+                terminal_since = time.monotonic()
+            if should_stop_terminal_observer(
+                    w.state, shots_done, time.monotonic() - terminal_since):
+                break
 
     res['elapsed_s'] = round(time.time() - w.t0, 1)
     # 逻辑时长: 从 GO_DRINK 到 DONE, 用 /clock 计 —— 与机器快慢无关
