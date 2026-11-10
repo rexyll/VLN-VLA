@@ -190,6 +190,15 @@ def main():
         w.spin(0.3)
 
     p0 = xy('person')
+    # Warmup is intentionally long and the world-state stream is asynchronous.
+    # Re-check every required pose at the command boundary; never index a
+    # transient None and exit without the diagnostic result JSON.
+    missing_start = [name for name in ('person', 'cup', 'robot')
+                     if pos(name) is None]
+    if p0 is None or missing_start:
+        step('[1b] 随机活动后起始真值仍可用',
+             False, '缺失对象=%s' % (missing_start or ['person']))
+        return report(node, res)
     cup_home = P.cup_on_table()
     res['person_start'] = [round(v, 3) for v in p0]
     res['start_dist_m'] = round(math.hypot(p0[0] - L.PERSON_SPOT[0],
