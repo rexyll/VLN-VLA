@@ -78,7 +78,13 @@ if ! command -v flock >/dev/null 2>&1; then
     echo "flock is required to serialize DrinkTask repeat runs." >&2
     exit 2
 fi
-exec 9>"$OUTDIR/.drink_repeat.lock"
+LOCKFILE="$OUTDIR/.drink_repeat.lock"
+if [[ -L "$LOCKFILE" ]]; then
+    echo "DrinkTask lock file must not be a symlink: $LOCKFILE" >&2
+    exit 2
+fi
+# Append mode avoids truncating an existing lock inode (including hardlinks).
+exec 9>>"$LOCKFILE"
 if ! flock -n 9; then
     echo "Another DrinkTask repeat run is active; refusing concurrent execution." >&2
     exit 2
