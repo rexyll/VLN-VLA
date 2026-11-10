@@ -3332,3 +3332,13 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 复核 §8.168 后发现其对输入 `evidence` 字段的要求过严：当前 `tests/test_drink.py` 初始化并写出的单轮结果 JSON 不包含 `evidence`；该元数据由 `drink_repeat.sh` 在归档阶段通过 `setdefault("evidence", {})` 创建。因此，§8.168 将缺省字段也拒绝，会导致正常 observer 结果无法归档。此前 §8.168 的 Python/ROS 2 CI 只验证编译/纯测试与 executor 集成，没有覆盖 runner 和真实 observer 之间的这一字段契约。
 - 修正提交：`1d4f83279f74109e4f7c6f8dabca0c1371630209`。现在允许 `evidence` 字段缺省；若结果中显式包含该字段，则仍要求其为 object。归档器随后继续创建/更新 evidence 并写入 `screenshots_archived`。顶层 JSON、shots 数组和非空字符串截图路径的校验保持不变。
 - **状态：字段契约修复已提交 main，等待 Python 与 ROS 2 executor CI；仍需针对完整 runner/observer 结果契约进行直接回归验证。真实 DrinkTask Gazebo E2E 新增通过轮数仍为 0，P104-07 保持“正在进行中”。**
+
+
+### 8.170 为 DrinkTask runner 与 observer 建立可直接回归的 JSON 字段契约（2026-11-10，代码已提交，CI 待验收）
+
+- §8.169 修复了 evidence 字段缺省时的兼容性，但 runner 的内嵌归档脚本仍自行维护一套输入校验逻辑，离线测试无法直接执行同一段判据，存在 observer 与 runner 契约再次漂移的风险。
+- helper 提交 `d1b01b8406a81f5470d38a2d3a07d4209f3f10c8`：在 `tests/drink_evidence.py` 增加 `validate_observer_result()`，统一验证顶层 JSON object、shots 数组、非空字符串截图路径；evidence 允许缺省，若显式存在则必须为 object。
+- 回归测试提交 `28baff46e130b7e52e727914eacf2bc512f7af`：覆盖 evidence 缺省、合法空对象/非空对象、shots 缺省/空数组/合法路径，以及顶层非对象、shots 类型错误、非字符串/空路径、evidence 为 null/list/string 等拒绝场景。
+- runner 提交 `444bcdd3f7ba1e6ffe7f1ee46b351e4a4adbda92`：归档阶段改为导入并调用共享 helper，不再复制维护字段校验代码；验证失败仍输出明确诊断并以归档失败状态退出。截图复制、归档路径及 summary 语义不变。
+- 该项建立的是 runner 输入契约的离线回归覆盖，不代表已运行完整 runner 或真实 Gazebo observer，也不代表完整 DrinkTask E2E 通过。
+- **状态：三个代码提交已进入 main；本节 TaskPlan 更新后等待 Python 编译/纯测试与 ROS 2 executor CI。真实 DrinkTask Gazebo E2E 新增通过轮数仍为 0；三轮完整 E2E 与长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
