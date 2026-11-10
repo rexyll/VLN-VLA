@@ -3555,3 +3555,11 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 回归测试提交 26dcb1c09c76e0d8b426c09766cf07e7b6ee93b0：验证两轮缺失时 missing_rounds 的具体轮次编号和文件名、失败数及 all_passed=false；静态回归检查 runner 的缺失轮次生成和传递路径。
 - 此修复只增强批次证据报告；没有运行 Gazebo DrinkTask 实例，也没有增加真实 E2E 通过轮数。§8.192 的 Python 与 ROS 2 executor CI 尚待终态刷新。
 - **状态：三个代码提交已进入 main，CI 待验收；真实 Gazebo DrinkTask E2E 新增通过轮数仍为 0，三轮完整 E2E 与长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
+
+### 8.193 同步 runner 增加 tag 参数后的静态回归契约（2026-11-10，测试修正已提交，CI 待验收）
+
+- §8.192 的首次 CI：helper 提交 5587f65189d7 的 Python run 42807064609 completed/success；runner 提交 683b8344f09b 的 Python run 42807090283 failure；测试提交 26dcb1c09c76 的 Python run 42807118302 failure。两次失败均定位到 test_repeat_summary_requires_runner_exit_success 仍断言旧参数解包 root, failed, *paths；runner 为生成 drink_<tag>_<round>.json 的缺失清单，已改为接收 summary_path, requested, root, failed, tag, *paths。shell -n、Python 编译和缺失轮次行为测试均通过，失败是旧静态断言未同步。
+- 测试修正提交 105fc406d1d184e924e7df4b954c202ca7c37c29：将静态断言更新为检查包含 tag 的真实参数解包契约；不改变 helper 或 runner 运行逻辑。
+- runner 提交 683b8344f09b 的 ROS 2 executor run 42807090225、helper 提交 5587f65189d7 的 ROS 2 executor run 42807064759、测试提交 26dcb1c09c76 的 ROS 2 executor run 42807118379 在记录时尚未全部终态；需分别刷新，不能用 Python job 结果替代。
+- 测试修正提交 105fc406d1d1 与后续 TaskPlan 提交的 Python/ROS 2 executor CI 待验收。真实 Gazebo DrinkTask E2E 新增通过轮数仍为 0。
+- **状态：missing_rounds helper 与 runner 逻辑已提交 main；最新静态断言修正已提交 main，CI 待验收。三轮完整 Gazebo DrinkTask E2E 与长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
