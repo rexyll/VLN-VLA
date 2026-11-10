@@ -3452,3 +3452,13 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - runner 提交 f73a776f8b9a27a2fd8b5da674bc04e9b36350ba：写入每轮 SUMMARY 明细前，先对七项数值字段逐一调用 finite_numeric_value()；无效值统一记为 JSON null，防止 NaN/Infinity 绕过聚合指标过滤后污染最终报告。
 - 本节只加固多轮汇总数据规范化与数值边界；不改变 DrinkTask 动作、任务成功判据、截图证据要求或失败停止策略。上一轮 §8.180 helper、runner 修复、测试和 TaskPlan 对应的 Python 与 ROS 2 executor CI 均已刷新为 completed/success；本节三个新提交的 CI 尚待运行及复核。
 - **状态：helper、测试与 runner 已提交 main，等待本节 Python 与 ROS 2 executor CI 终态验收；完整 DrinkTask Gazebo E2E 新增通过轮数仍为 0，三轮真实任务验收与长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
+
+
+### 8.182 在所有 JSON 证据发布入口拒绝 NaN/Infinity（2026-11-10，helper 与回归测试已提交，CI 待验收）
+
+- 刷新 §8.181 的 CI：helper `3ad82a101e88` 的 Python run `42798256352` 与 ROS 2 executor run `42798256323` 均 completed/success；测试 `cbabc733bc7e` 的 runs `42798282620`、`42798282462` 均 completed/success；runner `f73a776f8b9a` 的 runs `42798309313`、`42798309800` 均 completed/success；本 TaskPlan 前一提交 `ff4dad04ec59` 的 runs `42798384062`、`42798384140` 均 completed/success。
+- 进一步检查发现，§8.181 的七项数值字段过滤并未覆盖 rounds 明细中的 stages、fails、shot_labels 等嵌套数据。Python json.load() 可接受 NaN/Infinity 扩展值；即使这些数值字段已规范化，嵌套数据仍可能通过 JSON 序列化进入快照或 SUMMARY，形成非标准 JSON。
+- helper 提交 `492a4e1c8789f18132c6100257c8de4627d86d57`：共享 write_json_atomic() 的 json.dump() 增加 allow_nan=False，使所有证据快照和聚合 SUMMARY 统一拒绝 NaN/正负 Infinity；沿用原子替换和异常清理逻辑，序列化失败时不会替换已有目标文件。
+- 回归测试提交 `c33a8f75cc7e607c1b1f2033468295b5a0b1bae1`：新增嵌套 NaN 拒绝测试，确认发布失败、旧 SUMMARY 内容保留且临时文件清理。
+- 该修复是全局 JSON 发布边界防护；遇到非标准数值将使当前证据发布失败并由 runner 非零退出，而不是悄悄把污染数据写入报告。不会改变任务成功判据或 Gazebo 行为。
+- **状态：helper 与回归测试已提交 main，等待对应 Python 与 ROS 2 executor CI 终态验收；真实 DrinkTask Gazebo E2E 新增通过轮数仍为 0，三轮真实任务验收与长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
