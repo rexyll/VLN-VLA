@@ -264,6 +264,19 @@ class TestP104(unittest.TestCase):
         self.assertLess(gate, stop)
         self.assertLess(stop, cooldown)
 
+    def test_repeat_runner_sources_ros_with_nounset_temporarily_disabled(self):
+        runner_path = os.path.join(ROOT, 'tests', 'drink_repeat.sh')
+        with open(runner_path, encoding='utf-8') as stream:
+            runner = stream.read()
+        disable = runner.index('set +u')
+        ros_setup = runner.index('source /opt/ros/jazzy/setup.bash', disable)
+        overlay_setup = runner.index('source "$ROOT/vla_ws/install/setup.bash"', ros_setup)
+        restore = runner.index('set -u', overlay_setup)
+        self.assertLess(disable, ros_setup)
+        self.assertLess(ros_setup, overlay_setup)
+        self.assertLess(overlay_setup, restore)
+        self.assertIn('AMENT_TRACE_SETUP_FILES', runner)
+
     def test_repeat_output_directory_rejects_symlink_escape(self):
         runner_path = os.path.join(ROOT, 'tests', 'drink_repeat.sh')
         with open(runner_path, encoding='utf-8') as stream:
