@@ -9,12 +9,14 @@
 
 ## 当前执行位置（2026-11-11）
 
-- **当前主节点：P104-07（正在进行中）**。CarryBus 专项入口为 `tests/test_carry_gz_bridge.py`；完整 DrinkTask 端到端入口为 `tests/test_drink.py`，多轮顺序验收入口为 `tests/drink_repeat.sh`。当前代码已覆盖桥接事务、ACK 丢失/重放、bridge/server/plugin reload、双向 Gazebo Transport TCP 分区、队列背压、observer 退出码、证据归档和 UNKNOWN/INTERRUPTED 分类；这些专项测试不能替代完整 DrinkTask E2E。
-- **最近一次 main 基础 CI 状态**：最新 head `aaeaa3750c3c` 的 Python syntax run `42973133731` completed/success（P104 纯测试与 Python 编译通过）；CarryBus ROS 2 executor run `42973133692` 仍 in_progress。前一运行 head `e18a518e5d30` 的 Python syntax `42973081851` 已 success，CarryBus `42973081978` 仍 in_progress。基础 CI 不代表完整 DrinkTask E2E 通过。
-- **Gazebo CI 能力边界**：`.github/workflows/p104-grasp-carry-cpp.yml` 已具备 Ubuntu 24.04 + Gazebo Harmonic + ROS 2 Jazzy + `ros_gz_bridge` 的 headless 仿真环境，覆盖 GraspCarry 插件 ACK、命令队列背压和 CarryBus 桥接故障注入；但该 workflow 没有构建并启动完整 `work_area.sdf` DrinkTask 场景，也没有运行 `tests/test_drink.py` / `tests/drink_repeat.sh`。因此它只证明插件/桥接集成，不证明人走位、语音触发、九阶段喝水、撤离和恢复跟随的完整任务成功。
-- **最终验收仍未达成**：完整真实 Gazebo DrinkTask E2E 新增通过轮数仍为 **0**。最新完整运行 `42970026682` 已按顺序到达 `PREPARE → PRESENT → HANDOVER → PERSON_DRINK → TAKE_BACK → PUT_BACK → RETREAT → HANDBACK → DONE`，杯子回原位偏差 2.9mm、倾角 0.02°，但独立 observer 仍因恢复跟随和人手—杯轴几何两项失败而判整轮失败；详细证据见 §8.246。下一步修复这两个验收失败并重复真实 Gazebo E2E，随后再做至少三轮与长时间稳定性测试；当前交接几何诊断 E2E `42972941597`（head `1b46a4876576`）正在运行，包含 FOLLOW 先对正修复的 E2E `42973081780`（head `e18a518e5d30`）仍 pending；不允许把阶段走完、纯测试或 CarryBus 专项 CI 计入完整 E2E 通过轮数。
+- **当前主节点：P104-07（正在进行中）**。CarryBus 专项入口为 `tests/test_carry_gz_bridge.py`；完整 DrinkTask 端到端入口为 `tests/test_drink.py`，多轮顺序验收入口为 `tests/drink_repeat.sh`。CarryBus 的协议/故障注入专项测试不能替代完整 DrinkTask E2E。
+- **当前 main head：** `5b5c923d7b78bf01c83a2f156816a5a8c3b1ff6f`（四维人体 IK 种子扩展为七轴关节向量的修复）。
+- **最新基础 CI：** Python syntax run `42976833430`（#851）completed/success：P104 纯测试 **65/65 通过**，改动 Python 模块编译通过；CarryBus ROS 2 executor run `42976833361`（#591）completed/success。两者均针对当前 head `5b5c923d7b78`。
+- **最新完整 Gazebo E2E：** run `42976833348`（#22，当前 head `5b5c923d7b78`）已触发，当前 in_progress，job `130377764327` 仍在安装 Gazebo/ROS 2/Nav2 依赖；GraspCarry 插件构建、workspace 构建和完整 DrinkTask E2E 尚未开始。不能将纯测试或 CarryBus success 记作 DrinkTask 通过。
+- **最近完整 E2E 失败：** run `42973081780`（#21，head `e18a518e5d30`）在 PUT_BACK 阶段触发四维/七维 IK seed 形状错误，具体根因与修复见 §8.248。较早 run `42972941597`（#20，head `1b46a4876576`）在 PRESENT 左手补位 4.7mm 超过当时阈值时 fail-closed，未交杯/未松手；该历史失败不能算通过。
+- **已有的末端诊断/修复边界：** §8.247 已增加 HANDOVER 双手中点/杯轴三维真值日志和 FOLLOW 交权后先 ALIGN 再移动保护。#21 日志的 cup 相对双手中点偏差约 `[14.2, 28.4, 0.0]mm`、沿手间连线偏移 `-5.8mm`；本次运行对应的 person arm joint 诊断值为 `None`，关节真值仍需查明。#21 在 PUT_BACK 崩溃，未跑到最终 HANDBACK/FOLLOW，故不能据此确认最终恢复跟随修复有效。
+- **验收计数：** 完整真实 Gazebo DrinkTask E2E 新增通过轮数仍为 **0**。只有完整任务 observer 以成功退出、关键事件截图和结果证据均通过，才可计入通过轮数。最终仍需先让 #22 通过，再核查交接几何、双手取回、放杯、撤离及交权后视觉跟随闭环，随后至少进行三轮与长时间稳定性测试。
 - **分支纪律：** 所有后续改动仅提交到 `main`；不创建新分支或 PR，不擅自合并其他分支。
-
 ---
 
 ## 0. 目标（验收口径）
@@ -4099,3 +4101,14 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - `tests/test_p104.py` 提交 `aaeaa3750c3c6a0dd3222d6138a141999e62be07`：新增源码回归契约，检查 FOLLOW 初始化先对正、重置方向/计时状态，并确认 HANDOVER_GEOM 真值诊断字段存在。head `aaeaa3750c3c` 的 Python syntax run `42973133731` completed/success；CarryBus run `42973133692` 仍 in_progress。FOLLOW 修复 head `e18a518e5d30` 的 Python syntax run `42973081851` completed/success，CarryBus `42973081978` 仍 in_progress。
 - 完整 Gazebo E2E `42973081780`（head `e18a518e5d30`，包含 FOLLOW 先对正修复）受 `42972941597` 的 concurrency 限制，当前 pending。等待时不得将纯测试成功视为跟随修复已通过；新一轮需检查 HANDOVER_GEOM 的 cup_minus_mid_mm、lateral_mm、手臂关节值，以及 FOLLOW 初始转向/视觉丢失/末段距离和跟随带比例。
 - **状态：新增交接三维真值诊断与 FOLLOW 先对正保护，Python 纯测试/编译通过；CarryBus CI 与两条完整 Gazebo E2E 仍有运行/排队项。完整 Gazebo DrinkTask E2E 通过轮数仍为 0，P104-07 保持“正在进行中”。**
+
+
+### 8.248 修复桌边 HUMAN_SEEDS 四维种子传入七轴 IK 的崩溃（2026-11-11，代码与纯测试已通过，完整 E2E 复验中）
+
+- **失败证据：** 完整 DrinkTask E2E run `42973081780`（#21，head `e18a518e5d30`）完成依赖安装、GraspCarry 插件构建和 ROS 2 workspace 构建，并运行到人员接杯、喝水、递回和 TAKE_BACK。进入 PUT_BACK 后，`drink_task.py:927` 调用 `put_down_two`，经 `drink_motion.py:1063 → reach:435` 进入桌边碰撞候选重规划；`reach` 将 `K.HUMAN_SEEDS` 中四维 `(pan,lift,up_roll,elbow)` 直接传入 `K.ik_world`，最终在 `arm_kin.py:506` 的 `np.clip` 与七维 `LIM_LO/LIM_HI` 运算时抛出 `ValueError: operands could not be broadcast together with shapes (4,) (7,) (7,)`。这是碰撞候选 fallback 分支的输入维度契约缺陷，不是 Gazebo 安装、插件构建或 ROS workspace 构建失败；此前纯测试没有覆盖该真实分支。
+- **修复提交：** `5b5c923d7b78bf01c83a2f156816a5a8c3b1ff6f`（`fix: expand human IK posture seeds to seven joints`），仅修改 `arm_kin.py`、`drink_motion.py`、`tests/test_p104.py`。在 `arm_kin.py` 增加统一的 `human_seed_joints(seed, base=None)`：验证紧凑种子必须是四个有限数、底向量必须是 `NJ` 个有限关节值，并将四个搜索维度写入七轴中立种子前四维，腕部三维使用基准姿态值；`ik_human` 也复用该 helper，避免两处分叉。桌边碰撞搜索现在先将 `_seed` 扩展为 `_seed_q` 再调用通用 IK。
+- **回归保护：** 新增测试验证转换结果为七维、前四维完整保留、后三维来自 `Q_REST`、数值有限且在关节限位内；另验证三维、五维及 NaN 输入被拒绝。强化 reach 源码契约，保证候选搜索一定调用 `human_seed_joints`，不会再次直接传入四维种子。
+- **当前 head CI 结果：** Python syntax run `42976833430`（#851）completed/success，`Ran 65 tests` / `OK`，Python 模块编译步骤成功；CarryBus ROS 2 executor run `42976833361`（#591）completed/success。两条都针对本修复提交。
+- **真实 E2E 复验：** run `42976833348`（#22，head `5b5c923d7b78`）已启动；本次 TaskPlan 更新时仍在安装依赖，尚未到达完整任务步骤，不能先验宣称修复有效。#21 日志还显示 `vosk` 缺失的 voice 异步线程告警，但文字命令仍成功解析并驱动任务，不是本次崩溃根因。
+- **此前末端失败的区分：** #20（`42972941597`）曾因左手放杯掌心残差 4.1mm、杯体残差 4.7mm 超过当时接受阈值而安全保持抓持；#21 已越过该段并走到 TAKE_BACK/PUT_BACK。#21 的 HANDOVER_GEOM 日志测得杯轴相对双手中点约 `[14.2,28.4,0.0]mm`、横向偏移 `-5.8mm`，但 person arm joint 真值仍为 `None`；且因 PUT_BACK 崩溃，交权后的最终 FOLLOW 恢复未被实测。
+- **下一步：** 等待并检查 #22 的完整 headless Gazebo E2E 日志和 observer artifact。若通过 PUT_BACK，继续依据最新手/杯真值日志审查交接及 take-back；必须检查 HANDOVER 后最终 FOLLOW 首帧是否先对齐、视觉丢失后的重新捕获、末段人与机器人距离和跟随带比例。任何失败都从对应阶段真值/日志修复，不放宽 observer 阈值、碰撞门控或安全约束。完整 Gazebo DrinkTask E2E 通过轮数在取得 observer 全项通过证据之前仍为 **0**；P104-07 保持“正在进行中”。
