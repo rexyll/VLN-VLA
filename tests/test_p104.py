@@ -2009,6 +2009,7 @@ class TestP104(unittest.TestCase):
     def test_table_collision_reports_world_geometry_for_capsule_hit(self):
         class Node:
             js = {}
+            base = (0.0, 0.0, 0.0)
 
         box_lo = np.array([0.0, 0.0, 0.0])
         box_hi = np.array([1.0, 1.0, 1.0])
