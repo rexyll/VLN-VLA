@@ -373,6 +373,25 @@ class TestP104(unittest.TestCase):
             with self.assertRaises(FileExistsError):
                 archive_observer_screenshots(result, root, target)
 
+            # Distinct archive filenames must not disguise repeated source
+            # evidence. Realpath also catches symlink aliases to one image.
+            duplicate_target = os.path.join(root, 'archive', 'duplicate_shots')
+            with self.assertRaisesRegex(ValueError, 'duplicate screenshot source'):
+                archive_observer_screenshots(
+                    {'shots': [sources[0], sources[0]]}, root, duplicate_target)
+            self.assertFalse(os.path.lexists(duplicate_target))
+
+            alias = os.path.join(source_dir, 'alias.png')
+            os.symlink(sources[0], alias)
+            alias_target = os.path.join(root, 'archive', 'alias_shots')
+            with self.assertRaisesRegex(ValueError, 'duplicate screenshot source'):
+                archive_observer_screenshots(
+                    {'shots': [sources[0], alias]}, root, alias_target)
+            self.assertFalse(os.path.lexists(alias_target))
+            leftovers = [name for name in os.listdir(os.path.dirname(alias_target))
+                         if name.startswith('.drink-shots-')]
+            self.assertEqual(leftovers, [])
+
             failed_target = os.path.join(root, 'archive', 'failed_shots')
             failed_result = {'shots': [sources[0],
                                        os.path.join(source_dir, 'missing.png')]}
