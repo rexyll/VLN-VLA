@@ -95,11 +95,16 @@ jobs:
       - name: Build ROS 2 workspace and verify installed Nav2 map assets
         shell: bash
         run: |
-          set -euo pipefail
+          set -eo pipefail
+          # ROS setup hooks may read unset trace variables under nounset.
+          set +u
           source /opt/ros/jazzy/setup.bash
+          set -u
           cd vla_ws
           colcon build --symlink-install --packages-select vla_follow
+          set +u
           source install/setup.bash
+          set -u
           PKG_SHARE="$(ros2 pkg prefix vla_follow)/share/vla_follow"
           test -s "$PKG_SHARE/maps/arena.yaml"
           test -s "$PKG_SHARE/maps/arena.pgm"
