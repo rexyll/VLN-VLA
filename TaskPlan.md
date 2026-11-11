@@ -10,9 +10,9 @@
 ## 当前执行位置（2026-11-11）
 
 - **当前主节点：P104-07（正在进行中）**。CarryBus 专项入口为 `tests/test_carry_gz_bridge.py`；完整 DrinkTask 端到端入口为 `tests/test_drink.py`，多轮顺序验收入口为 `tests/drink_repeat.sh`。当前代码已覆盖桥接事务、ACK 丢失/重放、bridge/server/plugin reload、双向 Gazebo Transport TCP 分区、队列背压、observer 退出码、证据归档和 UNKNOWN/INTERRUPTED 分类；这些专项测试不能替代完整 DrinkTask E2E。
-- **最近一次 main CI 已验收**：TaskPlan 提交 `41d3667d1108e8541b3dd989a1776faed89e6473` 的 Python run `42943487997` completed/success（Python 编译、P104 纯测试、runner shell 语法）；CarryBus ROS 2 executor run `42943488033` completed/success（executor integration 步骤 success）。此前 invalid-round helper、runner、动态测试及代码整合提交 `0aac06c5a9b2`、`6465a410f1ce`、`748602954d8f`、`c3bf2a24400b` 的 Python 与 ROS 2 executor CI 也均 success。
+- **最近一次 main 基础 CI 已验收**：head `411ea27a38d2` 的 Python syntax run `42970608195` completed/success（包含 62 项 P104 纯数学/运动学测试及编译）；CarryBus ROS 2 executor run `42970608316` completed/success。注意这两条基础 CI 不代表完整 DrinkTask E2E 通过。
 - **Gazebo CI 能力边界**：`.github/workflows/p104-grasp-carry-cpp.yml` 已具备 Ubuntu 24.04 + Gazebo Harmonic + ROS 2 Jazzy + `ros_gz_bridge` 的 headless 仿真环境，覆盖 GraspCarry 插件 ACK、命令队列背压和 CarryBus 桥接故障注入；但该 workflow 没有构建并启动完整 `work_area.sdf` DrinkTask 场景，也没有运行 `tests/test_drink.py` / `tests/drink_repeat.sh`。因此它只证明插件/桥接集成，不证明人走位、语音触发、九阶段喝水、撤离和恢复跟随的完整任务成功。
-- **最终验收仍未达成**：完整真实 Gazebo DrinkTask E2E 新增通过轮数为 **0**；至少三轮完整 E2E、长时间稳定性、P104-05/P104-06 的完整场景动态碰撞与轨迹验证尚未完成。下一步应为完整场景建立可重复的 headless 启动与验收流程，再运行单轮基线、修复实际失败，最后执行至少三轮和长时间稳定性测试；不允许把纯测试或 CarryBus 专项 CI 计入 E2E 轮数。
+- **最终验收仍未达成**：完整真实 Gazebo DrinkTask E2E 新增通过轮数仍为 **0**。最新完整运行 `42970026682` 已按顺序到达 `PREPARE → PRESENT → HANDOVER → PERSON_DRINK → TAKE_BACK → PUT_BACK → RETREAT → HANDBACK → DONE`，杯子回原位偏差 2.9mm、倾角 0.02°，但独立 observer 仍因恢复跟随和人手—杯轴几何两项失败而判整轮失败；详细证据见 §8.246。下一步修复这两个验收失败并重复真实 Gazebo E2E，随后再做至少三轮与长时间稳定性测试；不允许把阶段走完、纯测试或 CarryBus 专项 CI 计入完整 E2E 通过轮数。
 - **分支纪律：** 所有后续改动仅提交到 `main`；不创建新分支或 PR，不擅自合并其他分支。
 
 ---
@@ -4077,3 +4077,15 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 完整 Gazebo E2E run `42969495781`（head `46572970c9c5`，含局部 IK 精修但未含后续扫描性能优化）仍在运行，其当前 step 为完整 headless DrinkTask E2E，日志归档端点暂时返回 BlobNotFound，尚无最终结果。含完整扫描性能边界修正的 E2E run `42970026682`（head `760ab67fc124`）仍 pending，等待 workflow concurrency 释放。
 - 新增/修正的运行时路径现状：桌边 HUMAN_SEEDS 扫描使用 `refine=False`，只在候选分支选定后精修，避免 324 组人体种子 × 局部精修造成计算放大；IK 批量扫描也统一先粗筛、最后精修一次。
 - **状态：纯函数/运动学测试和 CarryBus CI 已通过；完整 Gazebo DrinkTask E2E 尚未取得新 artifact，完整通过轮数仍为 0。当前不把单元测试通过视作真实抓取、放杯或全流程验收。P104-07 继续“正在进行中”。**
+
+
+### 8.246 完整 Gazebo E2E 越过九阶段，定位交接手杯几何与恢复跟随两项末端失败（2026-11-11，真实仿真已归档，任务仍未验收）
+
+- 刷新 Actions 后确认 head `411ea27a38d2` 的 Python syntax run `42970608195` 与 CarryBus executor run `42970608316` 均 completed/success。此前 IK 精修/种子扫描性能优化 head `760ab67fc124` 的完整 Gazebo E2E run `42970026682` 已 completed/failure，artifact `13833144878`；失败发生在完整任务 observer 验收，不是依赖安装、Gazebo 插件构建或 ROS 2 workspace 构建。
+- 与较早 run `42969495781`（head `46572970c9c5`）相比，新的 IK 精修和候选扫描性能优化解决了先前 PREPARE 阶段的阻断：旧运行的水壶掌心残差为 4.3mm、物体真值偏差 8.1mm，put_down 因物体未达标而保持抓持并中止；新运行已完成九个任务阶段，证明任务能继续经过 PRESENT、HANDOVER、PERSON_DRINK、TAKE_BACK、PUT_BACK、RETREAT、HANDBACK 和 DONE。旧运行未 release，安全保持抓持的行为正确。
+- 新 run `42970026682` 的 test_drink.json：阶段完整到 DONE（之后进入 IDLE），关键截图 8/8；杯子最终原位偏差 2.9mm、杯轴倾角 0.02°，放回指标通过。repeat summary 为 1 requested / 1 completed / 0 passed / 1 failed，不能记为 E2E 通过。
+- **末端失败 A——恢复跟随：** observer 第 [7] 项记录机器人总行程 1.44m，但末段人与机器人距离 4.72m、跟随带内比例 0%。follower.log 显示 HANDBACK 后首次视觉目标在右侧，估计距离 2.34m、方位 −121°；机器人开始转向，但约 1.2s 后丢失目标，随后 Nav2 按最后视觉位置搜索多次返回 status=6，后续重新捕获仍不稳定。任务日志记录撤离成功、交权成功，故故障定位在交权后的视觉重新捕获/跟随闭环，而不是 RETREAT/HANDBACK 状态缺失。应检查撤离终点朝向、初始大方位角时 ALIGN 的运动策略、视觉丢失窗口和 Nav2 搜索目标质量；不得开启 Gazebo 真值跟踪作为验收捷径，也不得放宽避障/防碰撞约束。
+- **末端失败 B——人手—杯轴几何：** observer 第 [8] 项记录手心张开间距 345.3mm、合拢间距 184.1mm，说明开合动作幅度达到目标；但交接前/后两手到杯轴水平距离均为左 50.3mm、右 135.0mm，而目标相切值为 92±25mm；交还时两侧距离为 145.0/203.2mm。左右距离相差 84.7mm，等效于杯轴相对两手中点横向偏置约 42mm（仅为几何推断，尚需真值复核）。carry.hand_to 当前按交接瞬间物体位姿冻结相对 person_arms 的偏移，不会自动将杯子吸附/瞬移到手心中点；因此应进一步核对 PRESENT 目标点、person_arms/person_arm_l/person_arm_r 的模型—link 坐标变换、两侧关节实测值，以及交接瞬间杯轴相对双手中点的三维误差。不能通过改 observer 阈值掩盖真实错位。
+- 运行中还观察到 Nav2 在启动初期有 base_link/odom TF 尚未出现的短暂超时，但后续 Nav2 节点激活成功；本次跟随失败的直接日志是目标丢失、搜索失败和距离持续扩大。需区分启动期 TF 告警与末端跟随失败，不能把告警直接定为唯一根因。
+- 下一步先增加/完善交接瞬间的真值诊断（左右手位置、手心中点、杯轴、手臂关节值、模型/link 坐标系），并检查 follower 在大初始方位角及短时丢失下的恢复路径；每个代码文件修改前先取 main 最新 SHA，逐文件提交并运行对应 CI 与完整 Gazebo E2E。
+- **状态：IK/PREPARE 阻断已在新完整运行中被越过，九阶段和杯子安全放回均完成；末端跟随与手杯几何 observer 检查仍失败。完整 Gazebo DrinkTask E2E 通过轮数仍为 0，P104-07 保持“正在进行中”。**
