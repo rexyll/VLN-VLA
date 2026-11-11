@@ -142,6 +142,21 @@ def summarize_batch_status(requested_rounds, rows, invalid_rounds,
         ),
     }
 
+
+def invalid_round_candidates(requested_rounds, tag, invalid_rounds):
+    """Map invalid result filenames back to requested rounds for UNKNOWN checks."""
+    requested = int(requested_rounds)
+    invalid_files = {
+        item.get('file') for item in invalid_rounds
+        if isinstance(item, dict) and isinstance(item.get('file'), str)
+    }
+    return [
+        {'round': index, 'file': 'drink_%s_%d.json' % (tag, index)}
+        for index in range(1, requested + 1)
+        if 'drink_%s_%d.json' % (tag, index) in invalid_files
+    ]
+
+
 def identify_unknown_rounds(outdir, tag, missing_rounds):
     """Classify missing round results with a durable command-attempt marker as unknown."""
     import os
