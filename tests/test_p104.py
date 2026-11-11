@@ -1972,5 +1972,23 @@ class TestP104(unittest.TestCase):
         self.assertIn('reach_tol_deg=0.08', present_call)
 
 
+    def test_reach_tries_only_collision_clear_human_valid_elbow_fallback(self):
+        motion_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
+            'drink_motion.py')
+        with open(motion_path, encoding='utf-8') as stream:
+            source = stream.read()
+        start = source.index('def reach(')
+        end = source.index('def sim_now(', start)
+        body = source[start:end]
+        self.assertIn("if not _clear and _mode == 'human':", body)
+        self.assertIn("elbow='out'", body)
+        self.assertIn('alt_bad = K.violation_list(side, q_alt)', body)
+        self.assertIn('alt_clear, alt_hit = _path_clear(q_alt)', body)
+        self.assertIn('if alt_clear:', body)
+        self.assertIn("return False, res, 'table-collision'", body)
+        self.assertIn('不拆掉碰撞门控', body)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)
