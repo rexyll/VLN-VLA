@@ -3955,3 +3955,16 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 本轮批次为 1 requested / 1 completed / 0 passed / 1 failed，observer exit code 2，仅存档 arrive/following 两张截图；完整 DrinkTask E2E 通过轮数仍为 **0**。§8.231 的双手放杯右前臂桌面碰撞问题尚未重新触达，继续保持开放。
 - 下一步刷新本节代码/测试提交触发的 Python syntax、CarryBus 和完整 headless E2E 至终态；新一轮重点读取首轮 IK 标签和逐轮残差变化，再决定是否修正目标位姿/IK 分支/局部收敛。禁止放宽杯体阈值、关闭碰撞门控、提前 release 或把 PREPARE 子流程成功当成完整任务通过。
 - **状态：已基于真实数据把左手失败精确到 7.1mm 掌心残差未满足 5mm 阈值，补充分轮诊断并提交 main；等待 CI 与下一轮仿真。P104-07 保持“正在进行中”。**
+
+
+### 8.234 修正 PRESENT 递杯位形的伺服精度不动点（2026-11-11，参数通路与回归测试已提交，CI 待验收）
+
+- 刷新 Actions：42956842752（Python 编译与 P104 纯测试）和 42956842849（CarryBus 真实 ROS 2 executor）均 completed/success；完整 headless Gazebo DrinkTask run 42956794719 completed/failure，artifact 13828580264 已下载检查。
+- 本轮 E2E 完成 Gazebo Harmonic 插件构建、ROS 2 workspace/Nav2 检查、完整场景启动、observer 发出喝水指令、PREPARE 及 PRESENT 前置动作。失败阶段为 PREPARE → PRESENT → FAIL_PRESENT；observer exit code 2，1 requested / 1 completed / 0 passed / 1 failed，关键事件截图仅 2/7。未进入 HANDOVER、PERSON_DRINK、TAKE_BACK、PUT_BACK、RETREAT、HANDBACK、DONE。
+- 首个阻塞是左手递杯 place_held() 的掌心补位：reach() 5/5 轮残差依次 17.4、5.8、7.8、5.6、4.0mm，每轮 servo_ok=True、最大关节误差 0.0°（日志按两位小数），最终关节目标与实测一致；最终掌心位置误差 4.0mm、姿态误差 0.41°，杯体真值误差 10.5mm/0.89°。递杯调用的物体位置容差为 6mm，单轮 reach 位置容差为 1.5mm；TOL_SCHED 最严伺服阈值仍为 0.25°，与源码注释记录的前伸位 5~8mm 伺服不动点一致。故本轮实测指向伺服精度下限，而非关节目标未执行或 IK 分支跳变；首轮选 human-hold，后续为局部 kdl-lma。
+- 失败保护正常：未进入 HANDOVER，不向人交杯、不松开杯子；此前物体残差 213.3mm 只是补位前值，不是最终误差。cup_home_mm=614.7mm 是失败后验收采样，不能当作失败瞬间递杯残差。
+- drink_motion.py 提交 471d01bc325613337802d2b96af040a17133aae0：为 place_held() 增加可选 reach_tol_deg，并将其传给 reach()；默认行为不变。
+- drink_task.py 提交 c6d9fecc7bb0a84cb084944d447e1c584a19387e：仅对 PRESENT 递杯的左手 held-cup 闭环启用更严格的每轴伺服阈值 0.08°，保留 1.5mm reach 残差阈值、6mm 物体容差、连续两轮物体真值确认、人体姿态约束和抓持安全策略。该改动是针对已记录的不动点进行更严格控制，不是放宽验收。
+- tests/test_p104.py 提交 e199b5941b16ea7f4db8477e30cfc7615ee00511：增加源码契约回归，确保 precision tolerance 从 PRESENT 调用经 place_held() 传到 reach()，且仅该调用指定 0.08°。
+- 下一步刷新上述代码/测试提交触发的 Python syntax、P104 pure tests、CarryBus 和完整 headless Gazebo E2E 至终态。重点核对 0.08° 是否将掌心误差压入 1.5mm，检查运行时间/超时与物体真值连续两轮确认；如果更严伺服阈值导致超时，依据关节实测数据调整控制预算而非降低验收阈值。之后仍需解决 §8.231 的 PUT_BACK 右前臂桌面碰撞路径。
+- **状态：已依据 E2E #9 的真实分轮数据定位 PRESENT 左手 4.0mm 不动点与 0.25° 伺服阈值之间的关系，精度参数通路和针对性修正已提交 main，等待 CI 与新一轮真实仿真。完整 Gazebo DrinkTask E2E 新增通过轮数仍为 0；至少三轮完整 E2E、长时间稳定性和全流程动态碰撞/轨迹验收未完成。P104-07 保持“正在进行中”。**
