@@ -2323,6 +2323,25 @@ if __name__ == '__main__':
         self.assertIn("'drink_cmd_vel': _drink_vel", motion)
         self.assertIn("'robot_cmd_vel': _robot_vel", motion)
 
+    def test_joint_and_truth_pose_snapshots_are_timestamped(self):
+        task_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
+            'drink_task.py')
+        motion_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
+            'drink_motion.py')
+        with open(task_path, encoding='utf-8') as stream:
+            task = stream.read()
+        with open(motion_path, encoding='utf-8') as stream:
+            motion = stream.read()
+        self.assertIn('self.js_sample_t = 0.0', task)
+        self.assertIn('self.js_sample_t = time.monotonic()', task)
+        self.assertIn('self.truth_base_pose_snapshot = None', task)
+        self.assertIn('self.truth_base_pose_snapshot = (pose, sample_t)', task)
+        self.assertIn("'joint_state_age_s':", motion)
+        self.assertIn("'truth_base_pose_age_s':", motion)
+        self.assertIn("'truth_base_pose_xyz_yaw':", motion)
+
     def test_command_snapshots_start_unknown_not_as_zero(self):
         task_path = os.path.join(
             ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
