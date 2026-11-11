@@ -33,8 +33,13 @@ if [[ ! -f "$ROOT/vla_ws/install/setup.bash" ]]; then
     echo "Workspace overlay missing; build vla_ws before running DrinkTask E2E." >&2
     exit 2
 fi
+# This script is strict (set -u), but ROS setup hooks may reference
+# AMENT_TRACE_SETUP_FILES before it is initialized. Match the headless
+# launcher: source both environments with nounset temporarily disabled.
+set +u
 source /opt/ros/jazzy/setup.bash
 source "$ROOT/vla_ws/install/setup.bash"
+set -u
 mkdir -p "$ROOT/vla_ws/logs"
 
 N="${1:-3}"
