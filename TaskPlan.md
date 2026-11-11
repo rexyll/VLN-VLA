@@ -3835,3 +3835,14 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - `tests/test_p104.py` 提交 `0e49bf3e849821cf814e4bb4f9d2d6806c41c959`：增加重复源路径和符号链接别名两种故障输入，断言均抛出明确的重复源证据错误、不会创建最终归档目录，且不会遗留 staging 目录。
 - 上述两项新提交及本 TaskPlan 更新提交触发的 Python 编译、纯测试与 CarryBus ROS 2 executor CI 必须刷新到终态后才能验收。此次只新增本地证据归档校验，没有启动 Gazebo，也没有执行完整 `tests/test_drink.py` 或 `tests/drink_repeat.sh`。
 - **状态：归档入口现拒绝同一真实截图被重复计数；等待最新 CI。完整 Gazebo DrinkTask E2E 新增通过轮数仍为 0；至少三轮真实 E2E 与长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
+
+
+### 8.223 在 GO_DRINK 前同步命令尝试 marker 的父目录（2026-11-11，代码与动态测试已提交，CI 待验收）
+
+- 刷新 §8.222 三个提交的 GitHub Actions：截图归档修复提交 `75a9af81a4c3` 的 Python syntax run `42936618601` 与 CarryBus ROS 2 executor run `42936618450` 均 completed/success；截图回归提交 `0e49bf3e8498` 的 Python run `42936643699` 与 ROS 2 executor run `42936643853` 均 completed/success；TaskPlan 提交 `3cee87545546` 的 Python run `42936692980` 与 ROS 2 executor run `42936692757` 均 completed/success。三组 ROS 2 job 均实际执行 CarryBus executor integration test 并通过。
+- 审查命令尝试 marker 的持久性语义：此前只对 marker 文件内容执行 `fsync`。文件内容同步并不保证新建文件的目录项在系统崩溃/掉电后仍然存在；若命令已发送而 marker 目录项丢失，runner 可能错误地把无结果轮次解释为未尝试。
+- `tests/test_drink.py` 提交 `d8c2199f9d4f003995f3e95809b627cde810b806`：marker 文件写入、flush、文件 fsync 与关闭后，打开 marker 父目录并执行目录 fsync，最后关闭目录 fd；目录同步失败会向上传播，从而阻断后续 `GO_DRINK` 发布。marker 的文件级 `O_EXCL` 创建语义不变。
+- `tests/test_p104.py` 提交 `d0d382e8399a32658137b1833ee73be16cf410b0`：成功路径动态断言顺序扩展为 marker 文件 open/write/flush/fsync/close → 父目录 open/fsync/close → send；更新发送异常路径事件序列；新增父目录 fsync 故障注入，断言目录 fd 被关闭、原异常传播且 Watch 未收到命令；静态契约同步检查父目录同步调用。
+- 该变更加强的是本地文件系统 marker 的崩溃持久性，不证明 ROS 2/Gazebo 收到或执行了命令。目录 fsync 失败时采取 fail-closed：不发送 `GO_DRINK`。
+- 本轮没有启动 Gazebo，也没有运行完整 `tests/test_drink.py` 或 `tests/drink_repeat.sh`。上述两个代码提交和本 TaskPlan 提交触发的 Python 编译、纯测试及 CarryBus ROS 2 executor CI 必须刷新到终态后验收。
+- **状态：命令尝试 marker 现同时同步文件内容和父目录项，等待 CI；完整 Gazebo DrinkTask E2E 新增通过轮数仍为 0；至少三轮真实 E2E 与长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
