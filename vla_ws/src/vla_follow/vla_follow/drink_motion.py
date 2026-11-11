@@ -748,7 +748,7 @@ def held_palm_target(node, model, T_obj_goal):
 
 def place_held(node, side, model, T_obj_goal, tol_mm=PLACE_TOL_MM,
                tol_deg=2.0, iters=8, settle=0.30, reach_tol_mm=None,
-               elbow='human', budget=60.0):
+               elbow='human', budget=60.0, reach_tol_deg=None):
     """把手里抓住的物体闭环送到世界位姿 T_obj_goal(**位置 + 姿态**)。
 
     返回 (是否到位, 位置残差 mm)。
@@ -827,7 +827,8 @@ def place_held(node, side, model, T_obj_goal, tol_mm=PLACE_TOL_MM,
         ok_reach, reach_res, how = reach(
             node, side, palm_target,
             tol_mm=(max(tol_mm, 2.0) if reach_tol_mm is None
-                    else reach_tol_mm), elbow=elbow)
+                    else reach_tol_mm), elbow=elbow,
+            tol_deg=reach_tol_deg)
         if not ok_reach:
             # reach() 失败时，前一轮的物体残差可能仍是大位移旧值；伺服
             # 已经移动到目标附近后，不能把这个过期值作为最终失败残差上报。
