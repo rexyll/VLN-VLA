@@ -377,6 +377,9 @@ def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
         elbow = None if _ov == 'none' else _ov
     res = 9e9
     how = '-'
+    first_how = None
+    pass_trace = []
+    q_target_last = None
     for it in range(passes):
         q_now = q_meas(node, side)
         if q_now is None:
@@ -387,6 +390,9 @@ def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
         # 补位是精度问题, 两件事分开: 第一轮定分支, 后面只用种子做局部修正。
         _mode = elbow if it == 0 else None
         q, _e, how = K.ik_world(side, T_world, node.base, q_now, elbow=_mode)
+        if first_how is None:
+            first_how = how
+        q_target_last = q.copy()
         if check_table:
             _n = max(1, int(math.ceil(float(np.max(np.abs(q - q_now))) / 0.02)))
             _path = [q_now + (q - q_now) * (i / float(_n))
@@ -416,7 +422,15 @@ def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
             q, timeout=timeout,
             tol_deg=(tol_deg if tol_deg is not None
                      else TOL_SCHED[min(it, len(TOL_SCHED) - 1)]))
-        res = pos_err_mm(wrist(node, side), T_world)
+        T_after_move = wrist(node, side)
+        res = pos_err_mm(T_after_move, T_world)
+        joint_err_deg = (
+            float(np.max(np.abs(np.degrees(joint_err))))
+            if np.all(np.isfinite(joint_err)) else 9e9)
+        pass_trace.append({
+            'pass': it + 1, 'ik': how, 'res_mm': round(res, 1),
+            'servo_ok': bool(ok_move),
+            'joint_err_deg': round(joint_err_deg, 2)})
         if not ok_move:
             node.get_logger().warn(
                 'REACH %s 伺服未确认到位，停止补位: 残差 %.1fmm 最大关节误差 %.2f°'
@@ -434,6 +448,25 @@ def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
                    np.round(q, 2)))
         if res < tol_mm:
             break
+    if res >= tol_mm:
+        T_final = wrist(node, side)
+        q_final = q_meas(node, side)
+        node.get_logger().warn(
+            'REACH %s 收敛不足: passes=%d/%d tol=%.1fmm '
+            'first_ik=%s last_ik=%s trace=%s '
+            'target_xyz=%s actual_xyz=%s pose_err=%.2fdeg '
+            'q_final=%s q_target=%s'
+            % (side, len(pass_trace), passes, tol_mm,
+               first_how, how, pass_trace,
+               np.round(np.asarray(T_world)[:3, 3], 4).tolist(),
+               (np.round(T_final[:3, 3], 4).tolist()
+                if T_final is not None else None),
+               (axis_angle_deg(T_final, T_world)
+                if T_final is not None else 9e9),
+               (np.round(q_final, 3).tolist()
+                if q_final is not None else None),
+               (np.round(q_target_last, 3).tolist()
+                if q_target_last is not None else None)))
     return res < tol_mm, res, how
 
 
