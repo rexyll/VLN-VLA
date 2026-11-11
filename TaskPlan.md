@@ -7,14 +7,13 @@
 > 基线：当前工程已完成"语音驱动的机器人跟随人"（距离 0.5~1.5m / 方位 ±10° /
 > 0 接触 / 0 丢失），本轮在其之上叠加**双臂操作**与**人主动去喝水**两条新链路。
 
-## 当前执行位置（2026-11-09）
+## 当前执行位置（2026-11-11）
 
-- **当前主节点：P104-07（基础桥接事务、bridge 进程重启/停止恢复、ACK 回程 TCP socket 定向阻断与恢复、真实 ROS 2→ros_gz_bridge→Gazebo 路径队列背压、whole Gazebo server restart + bridge 重建、plugin-only model reload 均已通过 CI；当前修复双向 Gazebo Transport TCP 断连测试的防火墙命中验证，随后长时间稳定性及 DrinkTask 完整编排）** —— 以 `tests/test_carry_gz_bridge.py` 为当前真实集成验收入口。该测试在 ROS 2 `MultiThreadedExecutor` + Gazebo + `ros_gz_bridge` 环境中覆盖：首个 terminal ACK 丢失后的同 ID 重试/插件缓存重放；两个并发 joint 事务的 ACK/request ID 隔离；实际停止并重启 `parameter_bridge` 时活动 waiter 的恢复；bridge 停止期间事务超时、pending/ACK/Event 清理，以及 bridge 恢复后新事务使用更大的 request ID 成功完成。对应提交 `97394a3` 的 Gazebo run `42565700320`、Python run `42565700274`、ROS 2 executor run `42565700237` 均 success；TaskPlan 后续提交 `7ec12fc` 的 Python run `42566028793` 与 ROS 2 executor run `42566028713` 也均 success。此前 Gazebo 插件进程重启实验因新 server/plugin ACK endpoint 未能可靠恢复而隔离，不能计作通过。下一步先建立 bridge 进程存活但 Gazebo Transport 实际不可达的可控故障注入，再验证队列背压与插件重启语义；P104-07 不关闭。
-- **当前主节点：P104-07（基础 bridge 事务、bridge/server 重启恢复、plugin-only reload、真实 ROS 2→ros_gz_bridge→Gazebo 队列背压，以及双向 Gazebo Transport TCP 分区与同 request ID 恢复专项均已有 CI 通过证据；当前转入 DrinkTask 完整编排的重复 E2E 与长时间稳定性验收）**。CarryBus 专项入口为 `tests/test_carry_gz_bridge.py`，完整喝水任务入口为 `tests/test_drink.py`：覆盖人随机活动、GO_DRINK/语音触发、人到服务位、倒水递杯、人手接回、杯子放回、撤离及 follower handback。新增 `tests/drink_repeat.sh`，用于在已启动的 Gazebo/ROS 2 demo 上顺序执行 N 轮完整 E2E、逐轮保存 JSON、汇总阶段/耗时/杯子回位/跟随指标；失败即停止，避免在未完成状态上启动下一轮。该 runner 目前仅完成代码提交，尚未在真实仿真环境执行，因此不能计作重复 E2E 通过。双向 Transport 专项代码 `e461041e` 的 Gazebo run `42636185159`、ROS 2 run `42636185152`、Python run `42636185140` 均 success；TaskPlan 更新 `a4c11de0` 的 Python run `42638409172` 与 ROS 2 run `42638409062` 也均 success。新增 runner 的 CI guard 工作流提交 `fccd1b65` 对应 Python run `42639797275`（py_compile 与 pure tests jobs success）和 ROS 2 executor run `42639797272`（job `129237537228`）均 success。下一步在完整场景启动后运行 `bash tests/drink_repeat.sh 3 p104`，以三轮真实结果和长时间运行证据决定 P104-07 是否可关闭。
-- **未关闭的仿真节点：P104-05/P104-06** —— 桌面/手部代理几何和自然收臂逻辑已通过静态/纯测试，但仍需完整 work_area.sdf 场景中的动态碰撞与轨迹验证。
-- **最终验收：P104-09** —— 完整双臂倒水递水 E2E 至少三轮、ROS 2/Gazebo 集成和 P102/P103/P97/P94 回归尚未完成。
-- **分支纪律：** 所有后续改动仅提交到 main；不创建新分支或 PR，不擅自合并其他分支。
-
+- **当前主节点：P104-07（正在进行中）**。CarryBus 专项入口为 `tests/test_carry_gz_bridge.py`；完整 DrinkTask 端到端入口为 `tests/test_drink.py`，多轮顺序验收入口为 `tests/drink_repeat.sh`。当前代码已覆盖桥接事务、ACK 丢失/重放、bridge/server/plugin reload、双向 Gazebo Transport TCP 分区、队列背压、observer 退出码、证据归档和 UNKNOWN/INTERRUPTED 分类；这些专项测试不能替代完整 DrinkTask E2E。
+- **最近一次 main CI 已验收**：TaskPlan 提交 `41d3667d1108e8541b3dd989a1776faed89e6473` 的 Python run `42943487997` completed/success（Python 编译、P104 纯测试、runner shell 语法）；CarryBus ROS 2 executor run `42943488033` completed/success（executor integration 步骤 success）。此前 invalid-round helper、runner、动态测试及代码整合提交 `0aac06c5a9b2`、`6465a410f1ce`、`748602954d8f`、`c3bf2a24400b` 的 Python 与 ROS 2 executor CI 也均 success。
+- **Gazebo CI 能力边界**：`.github/workflows/p104-grasp-carry-cpp.yml` 已具备 Ubuntu 24.04 + Gazebo Harmonic + ROS 2 Jazzy + `ros_gz_bridge` 的 headless 仿真环境，覆盖 GraspCarry 插件 ACK、命令队列背压和 CarryBus 桥接故障注入；但该 workflow 没有构建并启动完整 `work_area.sdf` DrinkTask 场景，也没有运行 `tests/test_drink.py` / `tests/drink_repeat.sh`。因此它只证明插件/桥接集成，不证明人走位、语音触发、九阶段喝水、撤离和恢复跟随的完整任务成功。
+- **最终验收仍未达成**：完整真实 Gazebo DrinkTask E2E 新增通过轮数为 **0**；至少三轮完整 E2E、长时间稳定性、P104-05/P104-06 的完整场景动态碰撞与轨迹验证尚未完成。下一步应为完整场景建立可重复的 headless 启动与验收流程，再运行单轮基线、修复实际失败，最后执行至少三轮和长时间稳定性测试；不允许把纯测试或 CarryBus 专项 CI 计入 E2E 轮数。
+- **分支纪律：** 所有后续改动仅提交到 `main`；不创建新分支或 PR，不擅自合并其他分支。
 
 ---
 
