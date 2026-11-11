@@ -1948,5 +1948,29 @@ class TestP104(unittest.TestCase):
         self.assertIn('q_final=%s q_target=%s', body)
 
 
+    def test_present_uses_strict_servo_tolerance_for_held_cup(self):
+        motion_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
+            'drink_motion.py')
+        with open(motion_path, encoding='utf-8') as stream:
+            motion = stream.read()
+        start = motion.index('def place_held(')
+        end = motion.index('def put_down(', start)
+        place_body = motion[start:end]
+        self.assertIn('reach_tol_deg=None', place_body)
+        self.assertIn('tol_deg=reach_tol_deg', place_body)
+
+        task_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
+            'drink_task.py')
+        with open(task_path, encoding='utf-8') as stream:
+            task = stream.read()
+        start = task.index("ok_present, present_mm = M.place_held(")
+        end = task.index("\\n            ok_follow", start)
+        present_call = task[start:end]
+        self.assertIn('reach_tol_mm=1.5', present_call)
+        self.assertIn('reach_tol_deg=0.08', present_call)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)
