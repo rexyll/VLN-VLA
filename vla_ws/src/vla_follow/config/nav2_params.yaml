@@ -7,7 +7,7 @@
 map_server:
   ros__parameters:
     use_sim_time: true
-    yaml_filename: "/home/earl/workspace/VLA/vla_demo/maps/arena.yaml"
+    # yaml_filename is resolved from the installed package share by nav2_follow.launch.py.
     topic_name: "map"
     frame_id: "map"
 
