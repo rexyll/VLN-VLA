@@ -394,11 +394,39 @@ def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
             first_how = how
         q_target_last = q.copy()
         if check_table:
-            _n = max(1, int(math.ceil(float(np.max(np.abs(q - q_now))) / 0.02)))
-            _path = [q_now + (q - q_now) * (i / float(_n))
-                     for i in range(1, _n + 1)]
-            _clear, _hit = arm_path_table_clear(
-                node, side, _path, ignore_initial=True)
+            def _path_clear(q_candidate):
+                _n = max(1, int(math.ceil(
+                    float(np.max(np.abs(q_candidate - q_now))) / 0.02)))
+                _path = [q_now + (q_candidate - q_now) * (i / float(_n))
+                         for i in range(1, _n + 1)]
+                return arm_path_table_clear(
+                    node, side, _path, ignore_initial=True)
+
+            _clear, _hit = _path_clear(q)
+            _fallback = None
+            # 目标掌心不变时，7 轴臂仍有冗余姿态可选。human 分支的关节
+            # 插值若撞桌，不立即放弃：尝试肘外分支，但必须同时满足人体
+            # 关节规则和同一套完整路径碰撞检查。只接受可验证的整段候选；
+            # 不拆掉碰撞门控、不缩小几何半径，也不执行部分碰撞路径。
+            if not _clear and _mode == 'human':
+                q_alt, e_alt, how_alt = K.ik_world(
+                    side, T_world, node.base, q_now, elbow='out')
+                alt_bad = K.violation_list(side, q_alt)
+                if not alt_bad:
+                    alt_clear, alt_hit = _path_clear(q_alt)
+                    if alt_clear:
+                        q = q_alt
+                        how = how_alt
+                        q_target_last = q.copy()
+                        _clear, _hit = True, None
+                        _fallback = 'out'
+                    else:
+                        _fallback = 'out-collision:%s' % alt_hit
+                else:
+                    _fallback = 'out-human-rule:%s' % alt_bad
+                node.get_logger().info(
+                    'REACH %s 碰撞候选重规划: fallback=%s ik_error=%.5f'
+                    % (side, _fallback, float(e_alt)))
             if not _clear:
                 # 碰撞门控在执行前拒绝整段关节路径。这里的 res 仍是初始化
                 # 哨兵 9e9，不能作为实际末端误差；读取当前掌心并计算到本步
@@ -410,10 +438,10 @@ def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
                 else:
                     current_xyz = None
                 node.get_logger().warn(
-                    'REACH %s 桌面碰撞门控拒绝路径: hit=%s '
+                    'REACH %s 桌面碰撞门控拒绝路径: hit=%s fallback=%s '
                     'current_xyz=%s target_xyz=%s residual=%.1fmm '
                     'q_now=%s q_target=%s'
-                    % (side, _hit, current_xyz,
+                    % (side, _hit, _fallback, current_xyz,
                        np.round(np.asarray(T_world)[:3, 3], 4).tolist(),
                        res, np.round(q_now, 3).tolist(),
                        np.round(q, 3).tolist()))
