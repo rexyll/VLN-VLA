@@ -310,7 +310,7 @@ class DrinkTask(Node):
         updated.update(zip(msg.name, msg.position))
         self.js = updated
         velocity = dict(getattr(self, 'js_velocity', {}))
-        velocity.update(zip(msg.name, msg.velocity))
+        velocity.update(zip(msg.name, getattr(msg, 'velocity', ())))
         self.js_velocity = velocity
 
     def _odom_cb(self, msg):
