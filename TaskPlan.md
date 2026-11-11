@@ -3918,3 +3918,15 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 随后复核测试源码，确认切片结束标记多写了字面反斜杠，未匹配实际的 def put_down() 声明。tests/test_p104.py 提交 cc5523edc73461e805adf7ed8492d47813f7a36d：修正源码边界标记为 def put_down(，不改变生产逻辑或诊断断言。
 - cc5523edc734 的 Python syntax run 42951259855 与 CarryBus ROS 2 executor run 42951259839 当前均 in_progress；TaskPlan 本次提交后触发的后续 CI 也需刷新到终态。不得把此前失败的 42951178990 或 42951225463 回写为成功。
 - **状态：生产代码已通过 Python syntax；新增测试的首版边界错误已修复并提交，等待最新纯测试/CarryBus CI 与完整 headless Gazebo E2E 终态。完整 Gazebo DrinkTask E2E 新增通过轮数仍为 0；P104-07 保持“正在进行中”。**
+
+
+### 8.231 定位双手放杯右臂路径被桌面碰撞门控拒绝，并修正 9e9 哨兵误报（2026-11-11，诊断修复与回归测试已提交，CI 待验收）
+
+- 刷新 Actions：a3effff81849 的 Python syntax run 42951329826 与 CarryBus ROS 2 executor run 42951329943 均 completed/success；cc5523edc734 的 Python syntax run 42951259855、CarryBus run 42951259839 均 completed/success。a1ae887282b1 的完整 headless DrinkTask E2E run 42951164551 completed/failure，CarryBus run 42951164613 completed/success；此前 2d743c9bccf4 与 e3d81171e6fc 的纯测试失败分别是测试源码边界标记错误/同一问题在后续提交上的遗留 run，不代表生产代码编译失败。
+- 下载并检查 run 42951164551 的 artifact 13825382436（包含 gzsim.log、drink.log、test_drink.json、drink_repeat summary 和截图）。真实任务顺序为 PREPARE → PRESENT → HANDOVER → PERSON_DRINK → TAKE_BACK → PUT_BACK → FAIL_PUT_BACK；前六阶段均已执行，observer 收到文本指令，杯子成功接回，未发生 release。失败后正确停止，未继续撤离。
+- drink.log 的决定性证据：`REACH R 被桌面碰撞门控拦截: {'sample': 4, 'segment': 'forearm', 'box': 'table_top', 'radius_m': 0.03}`，紧接 `PUT_DOWN_TWO 第4/4步右手未到位 9000000000.0mm`。因此 9e9 并非实际末端误差、IK 数值残差或关节状态丢失；`reach()` 在 table collision 分支直接返回初始化哨兵 `res=9e9`。真正阻塞是右前臂在放杯最后一步的关节插值路径与桌面 OBB/AABB 碰撞门控冲突。该安全门控正确阻止了危险动作，不能移除或绕过。
+- 本轮验收其他证据：阶段检查 6/9，缺 RETREAT/HANDBACK/DONE；跟随恢复失败是放杯失败后的下游结果（底盘未撤离/未交权），不是独立首因；截图 5/7，缺 handback/placed；observer exit code 2，批次 1 requested / 1 completed / 0 passed / 1 failed。杯位报告 3.0mm 不能改变流程失败结论，因为任务在双手放杯第4步被碰撞门控提前终止，未完成正式落稳/释放/撤离验收。
+- `vla_ws/src/vla_follow/vla_follow/drink_motion.py` 提交 `2809fc560fe2ec95298de18c36b0524c34afa265`：table collision gate 拒绝路径时，重新测量当前掌心并计算到本步目标的真实位置残差；日志同时输出碰撞部位/桌面区域、当前与目标掌心坐标、当前/目标关节角和实际残差。仍然在移动前拒绝碰撞路径，不放宽碰撞边界。
+- `tests/test_p104.py` 提交 `5714071dd0107c9e96cb32d4601d792ba9463c01`：增加回归契约，保证碰撞门控拒绝时报告实测残差和路径几何证据，而不是 9e9 哨兵值。
+- 下一步依据新日志中右前臂 `current_xyz/target_xyz/q_now/q_target` 和首次碰撞采样点，规划不穿越桌面的右臂安全路径（例如分段抬高/外绕/再落位），每段继续运行桌面碰撞门控；同时确认两手相对杯体的冻结偏移不会使外绕时拖拽杯子。不要简单关闭 `check_table`、放宽桌面碰撞边界、单独提前松右手或释放杯子。完成纯测试和 CarryBus CI 后重跑完整 headless E2E。
+- **状态：已将失败从模糊的“右手 9e9mm 未到位”定位为右前臂路径与桌面碰撞；诊断修复及回归测试已提交 main，等待 CI。完整 Gazebo DrinkTask E2E 新增通过轮数仍为 0；至少三轮真实 E2E、长时间稳定性与完整场景动态碰撞/轨迹验收未完成。P104-07 保持“正在进行中”。**
