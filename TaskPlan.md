@@ -10,12 +10,12 @@
 ## 当前执行位置（2026-11-11）
 
 - **当前主节点：P104-07（正在进行中）**。完整 DrinkTask E2E 入口为 `tests/test_drink.py`，单轮 headless 入口为 `tests/run_drink_headless.sh`，多轮顺序验收入口为 `tests/drink_repeat.sh`。CarryBus 专项和纯测试均不能替代完整 Gazebo E2E。
-- **当前功能代码提交：** `23bc42ad47f858c6c3d1aa9cf4f77a9e787ea607`。除保留 Gazebo 真值底盘速度/左右轮关节速度诊断、PREPARE cup_carry 和 PRESENT 实际动作的桌面/桌腿路径门控外，新增 `reach(preflight_only=True)` 无动作预检；PRESENT 先在同一当前底盘快照下确认左右臂完整插值路径均安全，再允许任一机器人手臂运动。实际动作仍逐臂重新检查；任一预检失败则保持抓持并中止。
-- **最新 Python CI：** run `42998226347`（#874，head `23bc42ad`）completed/success；68 项 P104 纯数学/运动学测试全部通过，改动 Python 模块编译通过。
-- **CarryBus CI：** run `42998226365`（#614，head `23bc42ad`）completed/success；真实 ROS 2 executor 集成测试 11 项全部通过（含 ACK、队列满拒绝和竞争条件用例）。
+- **当前功能代码提交：** `e94f94c58b877ece4f0ead4b4fe8a1e49dea502b`（本轮将提交轮组 effort 限制修正）。PRESENT 已有双臂无动作预检与逐臂真实动作前碰撞复检；失败保持抓持。#32 证明预检通过后左手 `place_held` 仍可能因底盘真值漂移无法收敛，当前新增轮组有限扭矩作为针对性物理假设验证。
+- **最新 Python CI：** run `43003764081`（#877，head `e94f94c`）completed/success；P104 纯数学/运动学测试与 Python 模块编译通过。
+- **CarryBus CI：** run `43003763713`（#617，head `e94f94c`）completed/success；真实 ROS 2 executor 集成测试 11 项全部通过（含 ACK、队列满拒绝和竞争条件用例）。
 - **完整 Gazebo E2E 队列：** #30（run `42997129946`，head `31eff585`）in_progress；Gazebo/ROS 2/Nav2/GraspCarry/workspace 安装与构建步骤已通过，正在执行完整 DrinkTask。#31（run `42998226370`，head `23bc42ad`）pending，等待 #30 释放同一 E2E runner；#31 才会验证本次双臂无动作先验预检。
-- **最新已完成的完整 E2E：** #29（run `42990306196`，head `5cfd070be49c`）completed/failure，阶段顺序为 PREPARE → PRESENT → FAIL_PRESENT；左手递杯 8/8 轮未达到 1.5mm 掌心阈值，末轮掌心世界系残差 7.5mm、杯体残差 9.3mm。IK/FK 数学残差与关节伺服误差接近 0，但期间底盘真值姿态变化；系统正确保持抓持，没有交杯或释放。#28（run `42989038633`）也在 PREPARE 左手 cup_carry 阶段失败，掌心残差 5.8mm（目标 5.0mm）、杯体残差 15.4mm。
-- **当前诊断方向：** #28/#29 的 Gazebo 真值差分角速度与 odom、左右轮关节速度不一致，尚不能区分机械臂接触/反作用、轮地滑移或 Gazebo 模型位姿语义。#30 验证逐臂碰撞门控；#31 验证双臂先验预检。若 #31 中底盘真值仍漂移，将继续增加独立 Gazebo 接触/轮组探针，而不是放宽精度或碰撞门槛。
+- **#32 失败根因定位：** PRESENT 左手 `place_held` 的 8 次 reach 掌心残差为 `23.0, 8.2, 15.6, 4.6, 4.7, 1.6, 1.8, 5.5mm`，末端杯体残差 5.6mm；IK/FK 与伺服关节误差均接近 0，右手 follow_hand 为 3.8mm 且通过。reach 期间 Gazebo robot 真值底盘由 `(1.750,0.350,1.228rad)` 移到约 `(1.762,0.384,1.219rad)`，而 odom twist 和左右轮关节速度近零；这次直接阻断左手 1.5mm 掌心收敛，系统保持抓持并进入 FAIL_PRESENT。
+- **当前诊断方向：** #32 已确认 arm reach 期间底盘真值发生约 36mm 平移和约 0.5° 的末段航向变化，wheel/odom 仍近零；但现有数据还不能区分 wheel torque authority 不足、轮地接触滑移或机械臂反作用。下一轮对两驱动轮增加 5.0Nm SDF effort limit（Gazebo Sim 将 joint effort limit 用作轮扭矩上限），通过 Python 静态契约检查配置，再由 #33 E2E 验证真值底盘漂移是否下降；不放宽 1.5mm reach、5mm物体放置或碰撞/抓持门控。
 - **验收计数：** 完整真实 Gazebo DrinkTask E2E 通过轮数仍为 **0**。不得放宽 5mm 验收或绕过碰撞/抓持安全门控。
 - **分支纪律：** 所有后续改动只提交 `main`；不创建新分支或 PR，不擅自合并其他分支。
 ---
@@ -4183,3 +4183,12 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 在 FAIL_PUT_BACK 分支新增诊断：记录 carry holding 列表、杯体当前真值相对目标残差、完整 `put_down_two` info 字典（其中包含 failed_step、release_block_reason、rest_mm、drop_mm 等可用字段）。只增加失败诊断，不改变动作顺序、碰撞门控、放置容差、松手条件或释放行为。
 - tests/test_p104.py 新增静态回归契约，保证上述失败状态字段会进入错误日志。待下一轮 Gazebo E2E 用该日志锁定真实失败分支后，再针对性修复；不根据 2.8mm 最终偏差猜测已安全释放。
 - #30（run `42997129946`）在旧提交 `31eff585` 上失败于 PREPARE：底盘真值航向变化、odom/轮速近零与真值速度不一致，杯体/掌心闭环未收敛。#31 是当前双臂预检代码的首轮真实 E2E，完整通过轮数仍为 **0**。
+
+
+### 8.258 定位 #32 PRESENT 失败并给驱动轮补充有限扭矩（2026-11-11）
+
+- #32（run `43003763896`，head `e94f94c`）真实阶段为 PREPARE → PRESENT → FAIL_PRESENT；并未进入 HANDOVER 或 PUT_BACK，因此 #31 的 PUT_BACK 诊断在本轮没有触发。完整 artifact `p104-drinktask-e2e-43003763896` 中的 `drink.log` 保留了真实失败日志。
+- 左手递杯 `place_held` 的 8 次 reach 掌心残差为 `23.0, 8.2, 15.6, 4.6, 4.7, 1.6, 1.8, 5.5mm`；末端掌心残差 5.5mm、杯体残差 5.6mm、姿态误差 0.45°。IK/FK 数学残差 0.0mm、伺服关节误差 0.0°，右手 `follow_hand` 为 3.8mm 并通过。左手未达到 1.5mm reach 门槛，任务按设计保持抓持，不向人交杯。
+- 同一 reach trace 显示 Gazebo robot 真值 base 从约 `(1.750, 0.350, 1.228rad)` 移动到 `(1.762, 0.384, 1.219rad)`；过程里 `odom_twist` 与左右轮关节速度近零，但真值差分速度非零。末轮 IK 目标计算后 base 仍有约 4mm/0.4° 变化，足以解释末端毫米级残差回升。现有证据指向“驱动轮在零速指令下的保持扭矩/轮地接触不足”这一待验证假设，尚不能排除机械臂反作用。
+- 为两驱动轮关节显式设置 SDF `effort=5.0Nm`，给 Gazebo Sim DiffDrive 的速度控制器提供有限轮扭矩上限；该值采用常见差速驱动基线，不更改轮半径、轮距、加速度、摩擦系数、机械臂轨迹或控制精度。新增 P104 回归测试，检查左右轮都声明 5.0Nm effort limit。
+- 该物理参数变更必须由下一轮完整 Gazebo E2E #33 验证；若底盘真值漂移仍存在，继续检查轮地接触与机械臂反作用，不能将参数静态测试视为修复完成。P104-07 继续“正在进行中”，完整真实 Gazebo E2E 通过数仍为 **0**。

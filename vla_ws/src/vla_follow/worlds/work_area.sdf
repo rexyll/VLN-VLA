@@ -637,12 +637,16 @@
           <material><ambient>0.3 0.3 0.3 1</ambient><diffuse>0.3 0.3 0.3 1</diffuse></material>
         </visual>
       </link>
+      <!-- P104-07: give the diff-drive velocity controller bounded wheel torque.
+           Gazebo Sim maps wheel torque to each joint's SDF effort limit; 5 Nm
+           matches the conventional diff-drive baseline and gives zero-speed
+           commands finite authority against arm-reaction chassis drift. -->
       <joint name="left_wheel_joint" type="revolute">
         <parent>chassis</parent>
         <child>left_wheel</child>
         <axis>
           <xyz>0 0 -1</xyz>
-          <limit><lower>-1e16</lower><upper>1e16</upper></limit>
+          <limit><lower>-1e16</lower><upper>1e16</upper><effort>5.0</effort></limit>
         </axis>
       </joint>
       <joint name="right_wheel_joint" type="revolute">
@@ -650,7 +654,7 @@
         <child>right_wheel</child>
         <axis>
           <xyz>0 0 -1</xyz>
-          <limit><lower>-1e16</lower><upper>1e16</upper></limit>
+          <limit><lower>-1e16</lower><upper>1e16</upper><effort>5.0</effort></limit>
         </axis>
       </joint>
       <!-- P72: 后支撑脚(原来 caster 是游离 link, 车体 31° 后仰拖地) -->

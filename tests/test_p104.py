@@ -2257,6 +2257,21 @@ class TestP104(unittest.TestCase):
         self.assertIn('M.person_hand_poses(self)', task)
 
 
+
+    def test_robot_diff_drive_wheels_have_bounded_effort_limits(self):
+        world_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'worlds', 'work_area.sdf')
+        root = ET.parse(world_path).getroot()
+        robot = root.find(".//world/model[@name='robot']")
+        self.assertIsNotNone(robot)
+        for name in ('left_wheel_joint', 'right_wheel_joint'):
+            joint = robot.find("./joint[@name='%s']" % name)
+            self.assertIsNotNone(joint)
+            effort = joint.findtext('./axis/limit/effort')
+            self.assertIsNotNone(effort, '%s must define wheel torque authority' % name)
+            self.assertAlmostEqual(float(effort), 5.0, places=6)
+
+
     def test_put_back_failure_logs_release_and_cup_state_diagnostics(self):
         task_path = os.path.join(
             ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow', 'drink_task.py')
