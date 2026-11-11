@@ -3857,3 +3857,12 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - `tests/test_p104.py` 提交 `a32ce09347f6d9ec2cc949db729fba955799f99c`：新增行为测试，覆盖普通 marker、悬空 marker 符号链接、无 marker 的缺失轮次，以及无效轮次输入；不启动 ROS 2/Gazebo。
 - 本轮变更只验证本地证据分类，不证明 ROS 2/Gazebo 是否接收或执行 GO_DRINK，也不等同于真实进程中断 E2E。上述三个提交的 Python 编译、纯测试和 CarryBus ROS 2 executor CI 需刷新至终态后验收；本轮未启动 Gazebo，完整 Gazebo DrinkTask E2E 新增通过轮数仍为 0。
 - **状态：UNKNOWN 轮次分类已有独立可执行测试，等待 CI；P104-07 保持“正在进行中”。至少三轮完整真实 Gazebo E2E 与长时间稳定性验证仍未完成。**
+
+
+### 8.225 将无效结果文件中的命令尝试轮次也归类为 UNKNOWN（2026-11-11，代码与测试已提交，CI 待验收）
+
+- 批次汇总审查发现：runner 将有效结果文件与无效 JSON 文件都加入 `represented`，因此无效文件不会进入 `missing_rounds`。虽然无效 JSON 已使 `all_passed=false` 并阻断批次，但若该轮同时存在 GO_DRINK 尝试 marker，原 `unknown_rounds` 字段仍会漏报该轮的任务结果不确定性。
+- `tests/drink_repeat.sh` 提交 `e26097b65e3d55958aa6d6676adbacfa7a618c70`：在保留 `invalid_rounds` 原始格式的前提下，根据预期结果文件名映射出无效结果对应轮次，并与缺失结果轮次一起交给 `identify_unknown_rounds()`。只有对应 marker 路径存在（包括悬空符号链接）时才列为 UNKNOWN。
+- `tests/test_p104.py` 提交 `655af8440d85612ec82e11a1d825a9b8a1aefff9`：新增无效 JSON 结果文件 + 持久化命令尝试 marker 的分类断言，确保该轮既保留 invalid 记录，也同时列入 unknown。
+- 该改动仅改善批次证据分类透明度；invalid 结果仍然使批次失败，不改变任务执行、重试或安全停止策略。需刷新 Python 与 ROS 2 executor CI 至终态；不构成 Gazebo 任务执行证据。
+- **状态：待 CI 验收；P104-07 保持“正在进行中”。完整真实 Gazebo DrinkTask E2E 新增通过轮数仍为 0。**
