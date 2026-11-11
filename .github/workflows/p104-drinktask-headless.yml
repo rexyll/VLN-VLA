@@ -1,0 +1,126 @@
+name: P104 DrinkTask headless Gazebo E2E
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/p104-drinktask-headless.yml"
+      - "tests/run_drink_headless.sh"
+      - "tests/drink_repeat.sh"
+      - "tests/drink_evidence.py"
+      - "tests/test_drink.py"
+      - "vla_ws/src/vla_follow/**"
+      - "tools/start_scene.sh"
+      - "tools/start_drink_demo.sh"
+      - "tools/killall_demo.sh"
+      - "tools/gz_plugin.sh"
+      - "tools/gen_drink_scene.py"
+      - "vla_demo/maps/**"
+      - "vla_demo/vision_config.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: p104-drinktask-headless-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  drinktask-e2e:
+    name: Full work_area DrinkTask E2E (one-round baseline)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      VLA_HOME: ${{ github.workspace }}
+      P91_WARMUP: "25"
+      P91_FOLLOW_WATCH: "75"
+      PW_SEED: "7"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Configure Gazebo Harmonic apt repository
+        run: |
+          # Some hosted runner images contain a Microsoft apt source that can
+          # return 403. Disable only that unrelated source before apt update.
+          while IFS= read -r source_file; do
+            [ -n "$source_file" ] || continue
+            sudo mv "$source_file" "${source_file}.vla-disabled"
+          done < <(grep -rlE 'packages\.microsoft\.com' \
+            /etc/apt/sources.list /etc/apt/sources.list.d 2>/dev/null || true)
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends curl lsb-release gnupg
+          sudo curl -fsSL https://packages.osrfoundation.org/gazebo.gpg \
+            --output /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] https://packages.osrfoundation.org/gazebo/ubuntu-stable $(lsb_release -cs) main" \
+            | sudo tee /etc/apt/sources.list.d/gazebo-stable.list > /dev/null
+
+      - name: Configure ROS 2 Jazzy apt repository
+        run: |
+          sudo apt-get install -y --no-install-recommends curl ca-certificates
+          sudo install -d -m 0755 /usr/share/keyrings
+          sudo curl --fail --location --connect-timeout 20 --max-time 120 \
+            --retry 8 --retry-all-errors --retry-delay 3 --retry-max-time 240 \
+            --retry-connrefused \
+            https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
+            -o /usr/share/keyrings/ros-archive-keyring.gpg
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo ${UBUNTU_CODENAME}) main" \
+            | sudo tee /etc/apt/sources.list.d/ros2.list > /dev/null
+          sudo apt-get update
+
+      - name: Install Gazebo, ROS 2, Nav2 and software-rendering dependencies
+        run: |
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake pkg-config cppzmq-dev iptables iproute2 \
+            libgz-cmake3-dev libgz-plugin2-dev libgz-sim8-dev \
+            libgz-transport13-dev libgz-msgs10-dev libgz-common5-dev \
+            libgz-common5-profiler-dev libgz-math7-dev gz-harmonic \
+            ros-jazzy-ros-base ros-jazzy-ros-gz-bridge ros-jazzy-ros-gz-sim \
+            ros-jazzy-navigation2 ros-jazzy-nav2-bringup \
+            python3-colcon-common-extensions python3-numpy python3-opencv \
+            python3-gz-transport13 python3-gz-msgs10 \
+            xvfb x11-utils libgl1-mesa-dri libglx-mesa0
+
+      - name: Build GraspCarry Gazebo system plugin
+        run: |
+          cmake -S vla_ws/src/vla_follow/gz_plugins \
+            -B vla_ws/src/vla_follow/gz_plugins/build \
+            -DCMAKE_BUILD_TYPE=Release
+          cmake --build vla_ws/src/vla_follow/gz_plugins/build --parallel 2
+          test -s vla_ws/src/vla_follow/gz_plugins/build/libGraspCarry.so
+          ldd -r vla_ws/src/vla_follow/gz_plugins/build/libGraspCarry.so
+
+      - name: Build ROS 2 workspace and verify installed Nav2 map assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          source /opt/ros/jazzy/setup.bash
+          cd vla_ws
+          colcon build --symlink-install --packages-select vla_follow
+          source install/setup.bash
+          PKG_SHARE="$(ros2 pkg prefix vla_follow)/share/vla_follow"
+          test -s "$PKG_SHARE/maps/arena.yaml"
+          test -s "$PKG_SHARE/maps/arena.pgm"
+          grep -Fq "image: arena.pgm" "$PKG_SHARE/maps/arena.yaml"
+
+      - name: Run complete headless DrinkTask E2E baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 50m bash tests/run_drink_headless.sh 1 "ci_${GITHUB_RUN_ID}" 0
+
+      - name: Upload Gazebo logs, round JSON and screenshot evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: p104-drinktask-e2e-${{ github.run_id }}
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            vla_ws/logs/*.log
+            vla_ws/logs/test_drink.json
+            tests/out/drink_repeat_ci_*.json
+            tests/out/drink_ci_*_1.json
+            tests/out/drink_ci_*_1_shots/**
