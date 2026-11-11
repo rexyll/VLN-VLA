@@ -3897,3 +3897,15 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - voice.log 同时出现 `ModuleNotFoundError: No module named 'vosk'`，来自后台声学模型加载线程。当前 E2E 采用 `text:我要喝水` 文本直通入口，不依赖 Vosk 声学模型；该异常不解释本轮在 source ROS 时的退出，但完整声学 ASR 仍未由此 CI 覆盖。
 - 本轮修复与测试提交触发的 Python syntax、CarryBus ROS 2 executor 和完整 headless Gazebo E2E 均须刷新到终态。此前 E2E run `42947857980` 仍为 failure；完整真实 DrinkTask E2E 新增通过轮数保持 **0**。尚未执行完整 observer 任务验收，至少三轮 E2E、长时间稳定性及完整场景动态碰撞/轨迹验证仍未完成。
 - **状态：repeat runner 的 ROS 环境加载故障已修复并增加回归检查，等待 CI；P104-07 保持“正在进行中”。P85 FK/真值 11.5 mm 偏差作为独立待调查项，不因 runner 修复而视为通过。**
+
+
+### 8.229 定位首次真实 DrinkTask 执行中的水壶放回失败并修正过期残差诊断（2026-11-11，诊断修复与回归测试已提交，CI 待验收）
+
+- 刷新 §8.228 的 Actions：run 42949231307（head 7bfc40d91f5d）完整 headless Gazebo E2E completed/failure；42949231289 Python syntax 与 42949231280 CarryBus ROS 2 executor 均 completed/success；42949268661 Python syntax、42949268567 CarryBus ROS 2 executor、42949305363 Python syntax、42949305464 CarryBus ROS 2 executor 均 completed/success。
+- 本次完整 E2E 已越过此前 drink_repeat.sh 的 ROS setup/nounset 阻塞：Gazebo Harmonic 插件、ROS 2 workspace、Nav2 map assets、完整 world、bridge、Nav2 action server 与 DrinkTask 节点均启动；observer 实际收到文本指令“我要喝水”，进入 PREPARE 并执行抓杯、举杯、抓壶、倒水及水柱关节指令。
+- 本轮在水壶放回阶段失败：日志为 PLACE kettle: 本轮补位伺服/IK 未确认（掌心 4.0mm），随后 PUT_DOWN kettle 落位闭环失败 301.6mm，任务进入 FAIL_PREPARE。observer 只采到 arrive/following 两张截图，缺失后续六类关键事件截图；九阶段只记录 PREPARE → FAIL_PREPARE。批次 summary 为 1 requested / 1 completed / 0 passed / 1 failed，observer exit code 2。
+- 日志中的 301.6mm 是 place_held() 在进入当前补位前保存的物体位置残差；最后一次 reach() 已报告掌心残差 4.0mm，但旧实现遇到 reach 失败时仍返回先前的 res，因此该数字不能证明失败瞬间水壶仍偏离 301.6mm。现有日志尚不足以判断物体真值最终误差、姿态误差，以及伺服未确认的具体原因；不能把它直接归因为抓取偏移或 IK 不可达。
+- vla_ws/src/vla_follow/vla_follow/drink_motion.py 提交 a1ae887282b1e70f08f7c8d4c8b8991885b640ee：place_held() 在 reach() 未确认时重新读取 Gazebo 物体真值，计算并返回当前物体位置残差与姿态误差；日志同时记录掌心残差、当前物体残差/姿态误差及旧残差，避免用过期数值误导下一轮定位。该提交不放宽容差、不改变失败时保持抓持的安全策略。
+- tests/test_p104.py 提交 2d743c9bccf4b9c61b6bd6827df2affa9afa4da1：增加回归契约，确保 reach 失败分支重新采集物体真值、计算位置/姿态误差、记录掌心与物体两类误差，并返回最新残差。
+- 下一步需先刷新上述两个提交触发的 Python syntax 与 CarryBus ROS 2 executor CI；随后重跑完整 headless Gazebo E2E，依据新的 PLACE kettle 诊断日志继续定位。若真实物体误差仍大，继续检查附着偏移、壶嘴/壶体姿态和 FK 真值；若物体误差已达标而伺服未确认，则检查关节误差、超时与 IK 分支。不得通过简单放宽落位容差或提前 release 来掩盖问题。
+- **状态：已完成从“环境启动失败”到“真实任务执行并暴露水壶放回故障”的推进；诊断改进已提交 main，等待 CI 与下一轮完整仿真。完整 Gazebo DrinkTask E2E 新增通过轮数仍为 0；至少三轮真实 E2E、长时间稳定性及完整场景动态碰撞/轨迹验收未完成。P104-07 保持“正在进行中”。**
