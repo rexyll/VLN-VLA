@@ -16,6 +16,8 @@ setup(
          glob('launch/*.launch.py')),
         (os.path.join('share', package_name, 'config'),
          glob('config/*.yml') + glob('config/*.yaml')),
+        (os.path.join('share', package_name, 'maps'),
+         glob(os.path.join('..', '..', '..', 'vla_demo', 'maps', '*'))),
         (os.path.join('share', package_name, 'worlds'),
          glob('worlds/*.sdf')),
         (os.path.join('share', package_name, 'audio'),
