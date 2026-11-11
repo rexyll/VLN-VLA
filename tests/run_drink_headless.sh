@@ -48,6 +48,14 @@ done
 source /opt/ros/jazzy/setup.bash
 source "$ROOT/vla_ws/install/setup.bash"
 
+PKG_SHARE="$(ros2 pkg prefix vla_follow)/share/vla_follow"
+for map_asset in "$PKG_SHARE/maps/arena.yaml" "$PKG_SHARE/maps/arena.pgm"; do
+    if [[ ! -s "$map_asset" ]]; then
+        echo "Installed Nav2 map asset missing: $map_asset" >&2
+        exit 2
+    fi
+done
+
 XVFB_PID=""
 cleanup() {
     status=$?
