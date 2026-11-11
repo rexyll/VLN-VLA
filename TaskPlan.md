@@ -3866,3 +3866,12 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - `tests/test_p104.py` 提交 `655af8440d85612ec82e11a1d825a9b8a1aefff9`：新增无效 JSON 结果文件 + 持久化命令尝试 marker 的分类断言，确保该轮既保留 invalid 记录，也同时列入 unknown。
 - 该改动仅改善批次证据分类透明度；invalid 结果仍然使批次失败，不改变任务执行、重试或安全停止策略。需刷新 Python 与 ROS 2 executor CI 至终态；不构成 Gazebo 任务执行证据。
 - **状态：待 CI 验收；P104-07 保持“正在进行中”。完整真实 Gazebo DrinkTask E2E 新增通过轮数仍为 0。**
+### 8.226 将无效结果文件到 UNKNOWN 轮次的映射逻辑纳入动态测试（2026-11-11，代码与测试已提交，CI 待验收）
+
+- 刷新 §8.225 的 Actions：e26097b65e3d、655af8440d85、5727e3c04af8 对应的 Python 编译/纯测试与 CarryBus ROS 2 executor integration 均 completed/success。该 CI 不包含完整 Gazebo DrinkTask E2E。
+- 继续审查 §8.225 的覆盖边界：测试已直接验证 identify_unknown_rounds() 对无效结果候选项的分类，但 runner 中“从 invalid_rounds 文件名生成候选轮次”的映射仍是内嵌列表推导式，未被行为测试直接执行。
+- tests/drink_evidence.py 提交 0aac06c5a9b2fb5c71287190b784f4a81e8b77a6：新增 invalid_round_candidates()，将请求轮次范围与无效结果文件名映射为候选轮次；忽略非字典记录、非字符串文件名、无关文件名及范围外路径。
+- tests/drink_repeat.sh 提交 6465a410f1ce823726c3be5e0ac4b23a71fe6337：批次 SUMMARY 改为调用该 helper，再将候选项与真正缺失的结果轮次一起交给 identify_unknown_rounds()；原 invalid 记录和批次失败语义保持不变。
+- tests/test_p104.py 提交 748602954d8f2dadf0daf1079fda467cf73c47d6：新增动态回归，验证 invalid 文件名映射、恶意/无关文件名过滤，以及仅在对应命令尝试 marker 存在时归类 UNKNOWN。
+- 新增代码、runner 与测试提交的 Python/ROS 2 CI 尚待刷新终态。本轮未启动 Gazebo，未运行完整 tests/test_drink.py 或 tests/drink_repeat.sh；完整真实 Gazebo DrinkTask E2E 新增通过轮数仍为 0。
+- **状态：invalid 文件名映射现由 runner 调用可独立动态测试的 helper；等待 CI。P104-07 保持“正在进行中”，真实 Gazebo DrinkTask E2E、至少三轮完整 E2E 和长时间稳定性验证未完成。**
