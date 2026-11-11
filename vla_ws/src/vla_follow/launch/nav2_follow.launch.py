@@ -45,6 +45,10 @@ LIFECYCLE_NODES = [
 def generate_launch_description():
     pkg_share = get_package_share_directory('vla_follow')
     nav2_params = os.path.join(pkg_share, 'config', 'nav2_params.yaml')
+    map_yaml = os.path.join(pkg_share, 'maps', 'arena.yaml')
+    if not os.path.isfile(map_yaml):
+        raise FileNotFoundError(
+            'Installed Nav2 map is missing: %s' % map_yaml)
 
     declare_params = DeclareLaunchArgument(
         'params_file', default_value=nav2_params,
@@ -62,7 +66,8 @@ def generate_launch_description():
     nodes = [
         # 静态地图(gt_tf 提供真值定位, 不用 AMCL)
         Node(package='nav2_map_server', executable='map_server',
-             name='map_server', **common),
+             name='map_server', output='both',
+             parameters=[params_file, sim, {'yaml_filename': map_yaml}]),
         # 全局规划 + 局部控制
         Node(package='nav2_planner', executable='planner_server',
              name='planner_server', **common),
