@@ -517,7 +517,7 @@ def ik_kdl(side, T_tgt, seed=None, kind='lma'):
     return q, float(np.linalg.norm(pose_err(fk(side, q), T_tgt)))
 
 
-def ik_best(side, T_tgt, seed=None):
+def ik_best(side, T_tgt, seed=None, refine=True):
     """生产用逆解入口: KDL 优先, 越限夹紧 → NR_JL(带限位) 复算 → DLS 兜底。
 
     返回 (q, err, 来源标签)。err 为 [位置(m) + 旋转(rad)] 的范数。
@@ -551,7 +551,7 @@ def ik_best(side, T_tgt, seed=None):
     # 只对未达到亚毫米/亚毫弧度精度的最佳候选做局部精修。精修从当前
     # 最佳解出发，带关节限位和单调线搜索，避免 KDL 的局部停滞点被直接
     # 当成最终指令；精修若无改善则原样保留 KDL/DLS 结果。
-    if e > 5e-4:
+    if refine and e > 5e-4:
         q_refined, e_refined = ik_refine(side, T_tgt, q)
         if e_refined < e:
             q, e, tag = q_refined, e_refined, tag + '/polish'
@@ -597,7 +597,7 @@ def ik_natural(side, T_tgt, seed=None, tol=2e-3,
     for v in up_rolls:
         s = q0.copy()
         s[2] = v
-        q, err, how = ik_best(side, T_tgt, s)
+        q, err, how = ik_best(side, T_tgt, s, refine=False)
         if err > tol:
             continue
         st = joint_stress(q)
@@ -707,6 +707,9 @@ def ik_best_out(side, T_tgt, seed=None, tol=2e-3):
             best = (score, q, err, how)
     if best is None:
         return ik_best(side, T_tgt, seed)
+    q_refined, e_refined = ik_refine(side, T_tgt, best[1])
+    if e_refined < best[2]:
+        return q_refined, e_refined, best[3] + '/polish/out'
     return best[1], best[2], best[3] + '/out'
 
 
@@ -881,7 +884,7 @@ def ik_human(side, T_tgt, seed=None, tol=2e-3, seeds=None):
         for v in (seeds or HUMAN_SEEDS):
             s = base_q.copy()
             s[0], s[1], s[2], s[3] = v[0], v[1], v[2], v[3]
-            q, err, how = ik_best(side, T_tgt, s)
+            q, err, how = ik_best(side, T_tgt, s, refine=False)
             if err > gate:
                 continue
             q = np.clip(q, LIM_LO, LIM_HI)
@@ -901,6 +904,9 @@ def ik_human(side, T_tgt, seed=None, tol=2e-3, seeds=None):
         return (human_penalty(side, q) + 2.0 * float(e)
                 + 0.12 * float(np.max(np.abs(q - q0))))
     q, err, how = min(cands, key=cost)
+    q_refined, e_refined = ik_refine(side, T_tgt, q)
+    if e_refined < err:
+        q, err, how = q_refined, e_refined, how + '/polish'
     return q, err, how + '/human'
 
 
@@ -921,7 +927,7 @@ def base_pose(x, y, yaw, z=0.0):
     return frame(rot_z(yaw), (x, y, z))
 
 
-def ik_world(side, T_world, base, seed=None, elbow=None):
+def ik_world(side, T_world, base, seed=None, elbow=None, refine=True):
     """世界系目标 → 转成本体坐标系再解。base 可为 (x,y,yaw) 或 4x4。
 
     elbow='out' 时在合格解里挑"肘朝外"的那个(见 ik_best_out) —— 双手捧杯/
@@ -936,7 +942,7 @@ def ik_world(side, T_world, base, seed=None, elbow=None):
         return ik_human(side, T_loc, seed)
     if elbow == 'out':
         return ik_best_out(side, T_loc, seed)
-    return ik_best(side, T_loc, seed)
+    return ik_best(side, T_loc, seed, refine=refine)
 
 
 def fk_world(side, q, base):
