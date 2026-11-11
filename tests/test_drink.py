@@ -171,6 +171,16 @@ def _create_command_attempt_marker(marker_path):
         stream.flush()
         os.fsync(stream.fileno())
 
+    # Persist the directory entry as well as the file contents. Without this,
+    # a power loss can lose the newly-created marker even after file fsync.
+    directory = os.path.dirname(os.path.abspath(marker_path)) or '.'
+    directory_flags = os.O_RDONLY | getattr(os, 'O_DIRECTORY', 0)
+    directory_fd = os.open(directory, directory_flags)
+    try:
+        os.fsync(directory_fd)
+    finally:
+        os.close(directory_fd)
+
 
 def _publish_drink_command(watch, marker_path):
     """Persist the attempt marker before publishing the one-shot command."""
