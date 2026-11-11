@@ -37,6 +37,7 @@ jobs:
             vla_ws/src/vla_follow/vla_follow/follower.py \
             vla_ws/src/vla_follow/vla_follow/person_vision.py \
             vla_ws/src/vla_follow/vla_follow/scene_layout.py
+            vla_ws/src/vla_follow/launch/nav2_follow.launch.py
 
   pure-unit-tests:
     name: Run P104 pure math and kinematics tests
