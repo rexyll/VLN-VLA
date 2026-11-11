@@ -4007,3 +4007,12 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - tests/test_p104.py 提交 9dadc20846a5077c3ae0a476da3d7c4c81225b4d 与 6055ce6a38fdb6b7d79bb0842ab363b68193fe94：增加 reach_passes 参数通路与 PRESENT 仅使用 8 轮精修的源码契约检查。该检查不是 Gazebo 机械臂动态验收。
 - 下一步刷新本节代码/测试/TaskPlan 提交触发的 Python syntax、P104 纯测试和 CarryBus CI 至终态，再执行完整 headless Gazebo DrinkTask E2E。重点看新增第 6~8 轮是否持续降低掌心残差、是否在总预算内完成，以及杯体真值能否连续两轮满足位置/姿态门槛；若残差继续振荡，停止盲目加轮，转向检查 KDL-LMA 收敛、目标姿态耦合与伺服反馈时序。不要降低 1.5mm/6mm 门槛、关闭桌面碰撞门控或提前 release。
 - **状态：已从真实日志确认 5 轮 IK 精修出现 2.5→4.3mm 回升，增加 PRESENT 专用有界 8 轮精修并提交回归契约；等待 CI 与完整 E2E。完整 Gazebo DrinkTask E2E 通过轮数仍为 0；至少三轮完整 E2E、长时间稳定性及全流程动态碰撞/轨迹验收未完成。P104-07 保持“正在进行中”。**
+
+
+### 8.239 CI 收敛状态与 E2E 版本边界（2026-11-11，纯测试通过，完整 E2E 尚在执行队列）
+
+- 本轮刷新 Actions 后确认，最新 TaskPlan 提交 `075d4f10e49c` 对应的 Python syntax run `42964676690` completed/success，CarryBus ROS 2 executor run `42964676603` completed/success；P104 纯数学/运动学测试、变更 Python 模块编译和 CarryBus executor 检查均通过。
+- 必须区分两条 E2E：`42964435017` 的 head 是 `5556fcfa6965`，只包含 `place_held(reach_passes=...)` 的通用参数通路，**不包含**随后提交的 PRESENT 专用 `reach_passes=8` 配置；因此它不能验证 8 轮方案。该 run 目前仍在执行真实 DrinkTask E2E 步骤，依赖安装、GraspCarry 插件构建和 ROS 2/Nav2 workspace 检查已通过，尚无 artifact，不能判定成功或失败。
+- 真正包含 PRESENT `reach_passes=8` 的 E2E run 是 `42964460378`，head `fa0fab1abf43`；由于 workflow concurrency group `p104-drinktask-headless-refs/heads/main` 且前一 run 未结束，它仍为 pending，尚未开始。它才是验证本次 8 轮精修配置的有效 E2E。
+- 最新 `075d4f10e49c` 的 Python 与 CarryBus CI 已通过，但完整 E2E 没有终态 artifact。后续先等待/跟踪 `42964435017` 终态，再确认 `42964460378` 是否进入运行；只有检查到真实 `drink.log`、`test_drink.json` 和 repeat summary 才更新 E2E 结果。
+- **状态：8 轮精修配置已提交，源码/纯测试/CarryBus CI 通过；8 轮完整 Gazebo E2E 尚未开始，完整 Gazebo DrinkTask E2E 通过轮数仍为 0。**
