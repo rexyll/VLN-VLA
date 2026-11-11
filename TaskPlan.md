@@ -4025,3 +4025,15 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 真正包含 PRESENT 专用 8 轮精修配置的完整 E2E run `42964460378`（head `fa0fab1abf43`）仍为 pending，尚未取得 job 或 artifact；它受同一 workflow concurrency group 限制，需等待前一轮退出后才可能启动。
 - 本轮尝试读取仍在执行中的 job 日志，GitHub 日志归档端点返回 404 BlobNotFound；这不是测试失败证据，也不能据此推断任务已结束。两个 E2E run 均未提供 artifact，因此当前没有新的 `drink.log`、`test_drink.json` 或 repeat summary 可供验收。
 - **状态：最新 Python syntax 与 CarryBus ROS 2 executor CI 均通过；完整 Gazebo DrinkTask E2E 通过轮数仍为 0。5 轮基线运行仍在执行，PRESENT 8 轮配置运行仍排队。P104-07 保持“正在进行中”；不得把 CI 通过或子流程通过折算为完整任务成功。**
+
+
+### 8.241 验收 8 轮 PRESENT 精修并扩展桌边碰撞约束 IK 搜索（2026-11-11，真实 E2E 证据已归档，碰撞安全候选搜索已提交）
+
+- 刷新 Actions 并等待两条完整 Gazebo E2E 结束：基线 run `42964435017`（head `5556fcfa6965`）completed/failure，artifact `13831655786`；包含 PRESENT 专用 8 轮精修的 run `42964460378`（head `fa0fab1abf43`）completed/failure，artifact `13831588158`。两次运行的依赖安装、Gazebo Harmonic 插件构建、ROS 2 workspace/Nav2 检查及证据上传均成功，失败均发生在真实 DrinkTask 步骤。
+- 基线 artifact `13831655786`：阶段 `PREPARE → PRESENT → FAIL_PRESENT`。左手五轮精修残差轨迹为 `12.7、7.3、5.4、5.9、10.4mm`，每轮伺服均确认且最大关节误差记录为 `0.00°`；末轮从 5.9mm 回升到 10.4mm，未达到 PRESENT 的 1.5mm 掌心阈值。observer 为 2/9 阶段、1 requested / 1 completed / 0 passed / 1 failed，未进入交接；后验 `cup_home_mm=664.5` 不是失败瞬间的杯体残差。
+- 8 轮 artifact `13831588158`：真实阶段推进到 `PREPARE → PRESENT → HANDOVER → PERSON_DRINK → TAKE_BACK → PUT_BACK → FAIL_PUT_BACK`。observer 通过前五个任务阶段，PRESENT 已越过原先的残差阻塞；但完整验收仅 6/9 阶段，缺 `RETREAT/HANDBACK/DONE`，1 requested / 1 completed / 0 passed / 1 failed。repeat summary 的 `cup_home_mm=5.8` 是任务中断时杯体相对目标的后验距离；日志明确杯子仍由 CarryBus 附着、尚未 release，因此不能据此认定已安全放桌。
+- 8 轮运行的放杯首个阻塞有精确几何证据：`PUT_BACK` 目标杯位 `[2.300,0.440,0.773]m)，当前杯位 `[2.367,0.381,1.000]m)，底盘 `[1.784,0.454,0.025]`。双手同步下降第 4/4 步时，右臂 `human` 分支路径在插值样本 2 因 `forearm/table_top` 碰撞被拒绝；既有 `out` 分支也在样本 9 因相同前臂/桌面碰撞被拒绝。当前右掌 `[2.2258,0.3357,0.8297]m)，本步目标 `[2.2127,0.3524,0.7730]m)，残差 60.6mm。系统停止下降并保持双手抓持，没有张手、release 或底盘撤离。
+- 基于该真实证据，`vla_ws/src/vla_follow/vla_follow/drink_motion.py` 提交 `465a83df1ee55d9df7efcd10c0369e328cbd7d05`：当桌面检查开启、human 与 out 预设分支都无法通过完整路径碰撞检查时，进一步遍历 `K.HUMAN_SEEDS`，逐候选要求 IK 残差不超过 4e-3、关节人体规则 `K.violation_list` 全部通过，并以同一 `_path_clear` 检查从当前关节状态到候选关节目标的完整插值路径；按人体代价、IK 残差和关节连续性排序，只执行首个完整无碰撞候选。无候选通过仍 fail-closed，原桌面碰撞门控不变，不缩小碰撞体、不放宽人体规则。
+- `tests/test_p104.py` 提交 `e887edf79ee7bc7a83289115f3f051ecaaae1c00`：增加源码回归契约，检查种子候选必须经过 IK 残差闸、人体规则闸、人体代价排序和整段路径碰撞检查，且没有安全候选时保留拒绝路径。该源码契约测试不替代 Gazebo 真实轨迹验证。
+- 下一步跟踪 `465a83d` 与 `e887edf` 触发的 Python syntax、P104 纯测试、CarryBus 和完整 headless Gazebo E2E。真实 E2E 要确认是否找到 `human-seed-N` 合法路径、右前臂全路径无碰撞、左右手全程承托、杯体落稳复核、同时张手及 release ACK、撤手/撤离/交权/跟随全部完成。若所有种子仍被拒绝，保留证据并转向显式笛卡尔分段接近/杯体姿态规划；禁止关闭碰撞检查、提前松手或把杯体接近目标但仍附着当作放杯成功。
+- **状态：PRESENT 专用 8 轮精修已在真实仿真中把任务推进到 PUT_BACK；本轮新确认的右前臂桌面碰撞已增加人体规则 + IK 残差 + 全路径碰撞三重约束的种子候选搜索，等待 CI 与新一轮 Gazebo 验证。完整 Gazebo DrinkTask E2E 通过轮数仍为 0；P104-07 保持“正在进行中”。**
