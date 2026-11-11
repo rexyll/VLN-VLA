@@ -2052,5 +2052,30 @@ class TestP104(unittest.TestCase):
                       source)
 
 
+    def test_follow_handback_starts_with_alignment_and_handover_logs_true_geometry(self):
+        follower_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow', 'follower.py')
+        with open(follower_path, encoding='utf-8') as stream:
+            follower = stream.read()
+        start = follower.index('def _cmd_cb(')
+        end = follower.index('# ---------- Nav2 搜索段接口', start)
+        follow_cb = follower[start:end]
+        self.assertIn("self.state = 'FOLLOW'", follow_cb)
+        self.assertIn('self._aligning = True', follow_cb)
+        self.assertIn('self._align_edge_t = 0.0', follow_cb)
+        self.assertIn('self._align_dir = 0.0', follow_cb)
+        self.assertLess(follow_cb.index("self.state = 'FOLLOW'"),
+                        follow_cb.index('self._aligning = True'))
+
+        task_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow', 'drink_task.py')
+        with open(task_path, encoding='utf-8') as stream:
+            task = stream.read()
+        self.assertIn('HANDOVER_GEOM world_m', task)
+        self.assertIn('cup_minus_mid_mm', task)
+        self.assertIn('person_arm_l_joint', task)
+        self.assertIn('M.person_hand_poses(self)', task)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)
