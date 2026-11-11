@@ -2001,7 +2001,7 @@ class TestP104(unittest.TestCase):
         self.assertIn('self.odom_twist = (float(twist.linear.x)', task_source)
         self.assertIn('self.odom_twist_t = time.monotonic()', task_source)
         self.assertIn('self.js_velocity = {}', task_source)
-        self.assertIn('velocity.update(zip(msg.name, msg.velocity))', task_source)
+        self.assertIn("velocity.update(zip(msg.name, getattr(msg, 'velocity', ())))", task_source)
         self.assertIn("if p.name == 'robot':", task_source)
         self.assertIn('self.truth_base_twist = (', task_source)
         self.assertIn("'truth_base_twist': (", body)
