@@ -720,6 +720,12 @@ class Follower(Node):
                     _d = max(_lo, min(_hi, _d))
                 self.target_d = _d
             self.state = 'FOLLOW'
+            # HAND BACK 后目标可能位于机器人侧后方。FOLLOW 切换时强制先进入
+            # ALIGN，避免首帧视觉刚恢复但方位角很大时沿旧航向前冲；对正完成
+            # 后再由既有距离环决定前进/后退，保持原有避障和近距硬闸。
+            self._aligning = True
+            self._align_edge_t = 0.0
+            self._align_dir = 0.0
             self._int_d = 0.0
             self._prev_err_d = 0.0
             self.get_logger().info(
