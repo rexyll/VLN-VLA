@@ -38,7 +38,7 @@ if [[ ! -f "$ROOT/vla_ws/install/setup.bash" ]]; then
     echo "Workspace overlay missing; build vla_ws before running this test." >&2
     exit 2
 fi
-for command in Xvfb xdpyinfo gz ros2 colcon; do
+for command in Xvfb xdpyinfo gz ros2; do
     if ! command -v "$command" >/dev/null 2>&1; then
         echo "Required command not found: $command" >&2
         exit 2
@@ -76,7 +76,7 @@ if xdpyinfo -display "$DISPLAY" >/dev/null 2>&1; then
     echo "Refusing to reuse an already-active display: $DISPLAY" >&2
     exit 2
 fi
-Xvfb "$DISPLAY" -screen 0 1280x1024x24 -nolisten tcp -ac \
+Xvfb "$DISPLAY" -screen 0 1280x1024x24 -nolisten tcp -ac +extension GLX +render -noreset \
     > "$LOG_DIR/xvfb.log" 2>&1 &
 XVFB_PID=$!
 display_ready=0
