@@ -309,7 +309,7 @@ class DrinkTask(Node):
         updated = dict(self.js)
         updated.update(zip(msg.name, msg.position))
         self.js = updated
-        velocity = dict(self.js_velocity)
+        velocity = dict(getattr(self, 'js_velocity', {}))
         velocity.update(zip(msg.name, msg.velocity))
         self.js_velocity = velocity
 
