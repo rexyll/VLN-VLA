@@ -3846,3 +3846,14 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 该变更加强的是本地文件系统 marker 的崩溃持久性，不证明 ROS 2/Gazebo 收到或执行了命令。目录 fsync 失败时采取 fail-closed：不发送 `GO_DRINK`。
 - 本轮没有启动 Gazebo，也没有运行完整 `tests/test_drink.py` 或 `tests/drink_repeat.sh`。上述两个代码提交和本 TaskPlan 提交触发的 Python 编译、纯测试及 CarryBus ROS 2 executor CI 必须刷新到终态后验收。
 - **状态：命令尝试 marker 现同时同步文件内容和父目录项，等待 CI；完整 Gazebo DrinkTask E2E 新增通过轮数仍为 0；至少三轮真实 E2E 与长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
+
+
+### 8.224 将缺失结果的 UNKNOWN 轮次识别提取为可执行回归契约（2026-11-11，代码与测试已提交，CI 待验收）
+
+- 刷新 §8.223 后续 CI：marker 父目录同步代码提交 `d8c2199f9d4f` 的 Python run `42937292869` 曾因三个旧测试 mock 未模拟目录 fd 关闭而失败；后续测试修正提交 `d0d382e8399a` 的 Python run `42937374058` completed/success、CarryBus ROS 2 executor run `42937374023` completed/success；TaskPlan 提交 `6e4ad4e092e8` 的 Python run `42937430525` 与 ROS 2 executor run `42937430433` 均 completed/success。历史失败保留，不回写为成功。
+- 审查 `tests/drink_repeat.sh` 后确认：observer 没有写出结果 JSON 且命令尝试 marker 存在时，runner 会报告 `UNKNOWN/INTERRUPTED`、停止后续轮次，并在批次 SUMMARY 中列出 unknown round；没有 marker 时才报告命令尝试前无结果。原有回归主要检查 runner 源码字符串，缺少对 marker 存在/不存在分类行为的直接测试。
+- `tests/drink_evidence.py` 提交 `1894914316e7f2e29b5342a9506d025f14e31fdc`：新增 `identify_unknown_rounds()`，把“缺失结果 + marker 路径存在”作为 UNKNOWN 判据；采用 `os.path.lexists()`，对悬空符号链接也保守归为 UNKNOWN，避免把异常文件系统状态误判成未尝试。
+- `tests/drink_repeat.sh` 提交 `d3480fe8ef9219e9c862d836679b6405787527d6`：批次 SUMMARY 改为调用上述纯函数，保持原有未知轮次字段与 fail-closed 行为。
+- `tests/test_p104.py` 提交 `a32ce09347f6d9ec2cc949db729fba955799f99c`：新增行为测试，覆盖普通 marker、悬空 marker 符号链接、无 marker 的缺失轮次，以及无效轮次输入；不启动 ROS 2/Gazebo。
+- 本轮变更只验证本地证据分类，不证明 ROS 2/Gazebo 是否接收或执行 GO_DRINK，也不等同于真实进程中断 E2E。上述三个提交的 Python 编译、纯测试和 CarryBus ROS 2 executor CI 需刷新至终态后验收；本轮未启动 Gazebo，完整 Gazebo DrinkTask E2E 新增通过轮数仍为 0。
+- **状态：UNKNOWN 轮次分类已有独立可执行测试，等待 CI；P104-07 保持“正在进行中”。至少三轮完整真实 Gazebo E2E 与长时间稳定性验证仍未完成。**
