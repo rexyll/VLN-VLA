@@ -1993,5 +1993,27 @@ class TestP104(unittest.TestCase):
         self.assertIn('不拆掉碰撞门控', body)
 
 
+    def test_reach_searches_human_valid_collision_free_seed_candidates(self):
+        motion_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
+            'drink_motion.py')
+        with open(motion_path, encoding='utf-8') as stream:
+            source = stream.read()
+        start = source.index('def reach(')
+        end = source.index('def sim_now(', start)
+        body = source[start:end]
+        self.assertIn('for _seed_index, _seed in enumerate(K.HUMAN_SEEDS):',
+                      body)
+        self.assertIn('K.ik_world(', body)
+        self.assertIn('float(_e_seed) > 4e-3', body)
+        self.assertIn('K.violation_list(side, _q_seed)', body)
+        self.assertIn('K.human_penalty(side, _q_seed)', body)
+        self.assertIn('_seed_clear, _seed_hit = _path_clear(_q_seed)', body)
+        self.assertIn('if _seed_clear:', body)
+        self.assertIn('human-seed-search-no-clear-path', body)
+        self.assertIn('if not _clear:', body)
+        self.assertIn("return False, res, 'table-collision'", body)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)
