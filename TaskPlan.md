@@ -10,12 +10,12 @@
 ## 当前执行位置（2026-11-11）
 
 - **当前主节点：P104-07（正在进行中）**。完整 DrinkTask E2E 入口为 `tests/test_drink.py`，单轮 headless 入口为 `tests/run_drink_headless.sh`，多轮顺序验收入口为 `tests/drink_repeat.sh`。CarryBus 专项和纯测试均不能替代完整 Gazebo E2E。
-- **当前功能诊断代码提交：** `2bb508f13d2c2ce352147b2c19110ea04546289d`，在 odom twist 之外新增 Gazebo robot model 真值位姿差分速度、左右轮关节速度诊断，用于交叉验证底盘漂移；同时保留 `208c074` 的首碰撞几何字段。纯测试兼容修复已包含在当前 head。仅增加观测，不改变运动控制、碰撞模型或安全阈值。
-- **最新 Python CI：** run `42988718129`（#866，head `2bb508f13d2c`）completed/success；68 项 P104 纯测试全部通过，Python 模块编译通过。#863/#864/#865 的失败均已定位为新增诊断测试断言作用域/fixture 兼容问题并修复；最新 #866 通过。
-- **CarryBus CI：** run `42988718089`（#606，head `2bb508f13d2c`）仍在执行；#603 的失败来自旧测试夹具未初始化 `js_velocity`，已通过 `getattr` 兼容修复，等待 #606 确认。
-- **最新完整 Gazebo E2E：** run `42988338194`（#26，head `bb976b7b85c7`）已完成环境/插件/workspace 构建，完整 DrinkTask 正在执行；它包含真值差分速度与轮关节速度诊断，但不包含后续 test-only 修复。另一个最新 head 的 #27（run `42988718107`，head `2bb508f13d2c`）当前 pending，待 #26 释放执行资源后验证最新 head。#25（`42983744694`，head `151627cc0b17`）已 completed/failure，失败于 PREPARE 左手 `cup_carry`：五轮掌心残差 `24.9→8.7→11.7→8.1→13.4mm`，物体残差 8.9mm；Gazebo robot 真值 yaw 最终约 `-0.1316rad`，同一时段 odom twist 接近零且采样新鲜（age 0.095s）。该结果不是 PUT_BACK 碰撞失败。
+- **当前功能诊断代码提交：** `8e8022cfd0d3df13626df6c795ed83c24e8669a0`，在 odom twist 之外新增 Gazebo robot model 真值位姿差分速度、左右轮关节速度诊断，用于交叉验证底盘漂移；同时保留 `208c074` 的首碰撞几何字段。`7054e0a` 仅修正纯测试源码断言。诊断代码不改变运动控制、碰撞模型或安全阈值。
+- **最新 Python CI：** run `42989169711`（#869，head `7054e0a85c52`）completed/success；68 项 P104 纯测试全部通过，Python 模块编译通过。#863~#868 的失败均为新增诊断测试断言作用域/fixture 兼容问题，已修复；最新 #869 通过。
+- **CarryBus CI：** run `42989169722`（#609，head `7054e0a85c52`）completed/success；11 项真实 ROS 2 executor 集成测试通过。#606/#607 失败源于测试夹具缺少 `js_velocity` 或 JointState.velocity，已增加兼容处理；#608/#609 成功。
+- **最新完整 Gazebo E2E：** #26（run `42988338194`，head `bb976b7b85c7`）completed/failure，构建全通过，失败仍在 PREPARE 左手 `cup_carry`：掌心残差 10.9mm、杯体残差 20.0mm。新诊断显示 Gazebo 真值底盘角速度各轮约 `-0.12~-0.46rad/s`，而 `odom_twist` 与左右轮关节速度接近零；底盘 yaw 从约 0 漂至 `-0.1316rad`。因此模型确实转动，但不是由轮关节旋转/odom 报告的常规差速运动；仍需排除 arm reaction / wheel-ground slip / pose 更新语义，不能先验认定插件 teleport。#28（run `42989038633`，head `8e8022cfd0d3`）当前 in_progress，正验证最新 runtime 诊断；#27 因 E2E concurrency 被取消。#25（`42983744694`）同样失败于 PREPARE，旧 head 无真值差分速度诊断。
 - **最新已完成的完整 E2E：** #22（`42976833348`，功能 head `5b5c923d7b78`）completed/failure。它已越过四维/七维 IK seed 崩溃，但在 PREPARE 左手 cup_carry 位形停止：掌心残差 8.5mm（目标 5mm），杯体偏差 19.2mm，伺服最大关节误差 0.07°；程序正确保持抓持，没有松手。
-- **当前诊断方向：** 最新 #26/#27 将对照 Gazebo 真值差分速度、左右轮关节速度与 odom twist；只有拿到同一轮的时序数据后，才决定是否调整底盘物理参数或状态同步。暂不改变底盘运动、IK 目标、servo 容差、碰撞检查或释放安全门控。
+- **当前诊断方向：** #26 已确认 Gazebo 真值差分速度非零（角速度最大约 0.46rad/s），左右轮关节速度与 odom twist 却近零。重点检查机械臂反作用力导致的底盘滑移、轮地接触与 Gazebo model/link pose 语义；#28 用最新 head 复验。暂不改变底盘运动、IK 目标、servo 容差、碰撞检查或释放安全门控。
 - **验收计数：** 完整真实 Gazebo DrinkTask E2E 通过轮数仍为 **0**。不得放宽 5mm 验收或绕过碰撞/抓持安全门控。
 - **分支纪律：** 所有后续改动只提交 `main`；不创建新分支或 PR，不擅自合并其他分支。
 ---
@@ -4152,4 +4152,4 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 更正 #25 的失败归因：完整 E2E run `42983744694` 的实际终态是 `PREPARE → FAIL_PREPARE`，左手 `cup_carry` 掌心残差 13.4mm、杯体残差 8.9mm，严格 5mm 目标未达成；并非 PUT_BACK 碰撞门控失败。#25 运行 head 为 `151627cc0b17`，不包含后续 `208c074` 的碰撞几何字段。
 - #25 五轮 reach 中模型真值 base yaw 由约 (+0.0001) rad 漂移到 (-0.1066) rad，最终约 (-0.1316) rad；XY 也由服务位约 (1.75, 0.35) 漂到 (1.7727, 0.3484)。与此同时 `odom_twist` 约为零且采样 age 0.095s。说明单靠轮式 odom twist 不能解释 Gazebo 模型真值变化；现有证据还不足以判断是轮组动力学、机械臂反作用、模型 teleport，还是里程计插件与模型状态语义差异。
 - 新增只读诊断：从 Gazebo `dynamic_pose/info` 的 `robot` 模型连续样本按单调时钟差分计算真值平面速度/角速度；从 JointState 额外记录 `left_wheel_joint` / `right_wheel_joint` 速度。reach 每轮 trace 和末端 FK/真值诊断并列输出 `truth_base_twist`、`wheel_joint_velocity`、`odom_twist` 与各自采样新鲜度。无任何速度命令、teleport、IK 目标或安全门控变更。
-- 新增纯测试源码契约覆盖三类信号的采集与输出。下一轮 E2E 必须运行最新 `bb976b7`，再按以下证据分流：模型真值速度非零且轮关节速度非零→检查轮组/差速动力学；模型真值速度非零而轮关节速度近零→检查底盘受机械臂反作用/模型状态更新；真值速度近零而 base 快照变化→检查 pose stream 时序/状态同步。完整 E2E 通过数仍为 0，P104-07 保持“正在进行中”。
+- 新增纯测试源码契约覆盖三类信号的采集与输出。完整 E2E #26（head `bb976b7`）已验证：真值角速度约 `-0.12~-0.46rad/s`，轮关节速度与 odom twist 近零，底盘 yaw 漂移约 `-0.1316rad`。这更符合模型底盘在机械臂动作期间发生外力/接触滑移，或 Gazebo pose 语义差异；尚无证据证明 GraspCarry 对 robot 持续 teleport。下一轮 #28（head `8e8022c`）复验后，必要时增加轮地接触/底盘运动的独立仿真探针；在证据明确前不加底盘补偿、不改物理参数。完整 E2E 通过数仍为 0，P104-07 保持“正在进行中”。
