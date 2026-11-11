@@ -24,7 +24,8 @@ from drink_evidence import (REQUIRED_SHOT_LABELS, missing_required_shots,
                             archive_observer_screenshots,
                             write_json_atomic, summarize_numeric_values,
                             finite_numeric_value, summarize_batch_status,
-                            load_json_strict, cleanup_observer_resources)
+                            load_json_strict, cleanup_observer_resources,
+                            identify_unknown_rounds)
 
 import numpy as np
 
@@ -109,6 +110,32 @@ from vla_follow import carry as C  # noqa: E402
 
 
 class TestP104(unittest.TestCase):
+
+    def test_missing_round_with_command_marker_is_classified_unknown(self):
+        with tempfile.TemporaryDirectory() as outdir:
+            missing = [
+                {'round': 1, 'file': 'drink_case_1.json'},
+                {'round': 2, 'file': 'drink_case_2.json'},
+                {'round': 3, 'file': 'drink_case_3.json'},
+            ]
+            with open(os.path.join(outdir, 'drink_case_1.started'), 'w') as stream:
+                stream.write('attempted')
+            # A dangling marker path is still conservative evidence that the
+            # round cannot be treated as definitely not attempted.
+            os.symlink(os.path.join(outdir, 'not-created'),
+                       os.path.join(outdir, 'drink_case_2.started'))
+
+            unknown = identify_unknown_rounds(outdir, 'case', missing)
+            self.assertEqual(unknown, missing[:2])
+            self.assertEqual(
+                identify_unknown_rounds(outdir, 'case', [
+                    {'round': True, 'file': 'invalid'},
+                    {'round': 0, 'file': 'invalid'},
+                    None,
+                ]),
+                [])
+
+
 
     def test_batch_status_counts_invalid_and_missing_rounds_as_failures(self):
         passed = {'ok': True}
