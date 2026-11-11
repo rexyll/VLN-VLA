@@ -10,10 +10,10 @@
 ## 当前执行位置（2026-11-11）
 
 - **当前主节点：P104-07（正在进行中）**。完整 DrinkTask E2E 入口为 `tests/test_drink.py`，单轮 headless 入口为 `tests/run_drink_headless.sh`，多轮顺序验收入口为 `tests/drink_repeat.sh`。CarryBus 专项和纯测试均不能替代完整 Gazebo E2E。
-- **当前 main head：** `0f3728cc1b310635ce5a9a17efe7b26ec63a84e2`。本轮功能诊断代码提交为 `6a1de4e4374f8773f5defc361db500a976ff9b55`；随后 `c771b736349910ca0e2f0a24bb875741a807cb24` 与 `0f3728cc1b310635ce5a9a17efe7b26ec63a84e2` 只修正纯测试 fixture，不改变 runtime 控制逻辑。
-- **最新 Python CI：** run `42978811016`（#856，head `0f3728cc1b31`）completed/success；67 项 P104 纯测试全部通过，Python 模块编译通过。先前 #854/#855 的唯一失败由测试 fixture 错误导入 ROS 节点造成，已改为标准库 pose fixture 并显式导入 `math`，不是生产代码失败。
-- **CarryBus CI：** run `42978811022`（#596，head `0f3728cc1b31`）仍 in_progress；不能在未结束前记为通过。
-- **最新完整 Gazebo E2E：** run `42978624796`（#23，诊断功能 head `6a1de4e4374f`）仍 in_progress。checkout 与 Gazebo/ROS apt 源配置已通过，当前在安装 Gazebo、ROS 2、Nav2 依赖；插件构建、workspace 检查和完整 DrinkTask 任务步骤尚未开始。
+- **当前功能诊断代码提交：** `6a1de4e4374f8773f5defc361db500a976ff9b55`。随后 `c771b736349910ca0e2f0a24bb875741a807cb24`、`0f3728cc1b310635ce5a9a17efe7b26ec63a84e2` 修正纯测试 fixture；当前 main head `a18a250648b23ebe16e32e672370b5de093896ec` 是 TaskPlan 状态同步提交，未改变 runtime 控制逻辑。
+- **最新 Python CI：** run `42978946911`（#857，TaskPlan head `a18a250648b2`）completed/success；67 项 P104 纯测试全部通过，Python 模块编译通过。先前 #854/#855 的唯一失败来自新增测试 fixture 的 ROS/SciPy/`math` 依赖问题，已改为标准库 pose fixture 并显式导入 `math`，不是生产代码失败。
+- **CarryBus CI：** run `42978946865`（#597，TaskPlan head `a18a250648b2`）completed/success；#596（`42978811022`）也已 completed/success。
+- **最新完整 Gazebo E2E：** run `42978624796`（#23，诊断功能 head `6a1de4e4374f`）仍 in_progress。依赖安装、GraspCarry 插件构建和 ROS 2 workspace/Nav2 地图检查均已通过，当前正在执行完整 headless DrinkTask E2E。任务日志在 job 运行中暂无法读取（logs API 返回 BlobNotFound），尚无 observer 终态或 artifact。
 - **最新已完成的完整 E2E：** #22（`42976833348`，功能 head `5b5c923d7b78`）completed/failure。它已越过四维/七维 IK seed 崩溃，但在 PREPARE 左手 cup_carry 位形停止：掌心残差 8.5mm（目标 5mm），杯体偏差 19.2mm，伺服最大关节误差 0.07°；程序正确保持抓持，没有松手。
 - **当前诊断方向：** runtime 已增加每轮 IK 的 FK 预测位置/姿态残差、求解时 base 快照，以及 FK 对 Gazebo palm link 的 raw/model-composed 双坐标误差；该增强仅观测，不改变 IK 选择、运动目标、servo 容差、碰撞检查或释放安全门控。用 #23 的日志确认失败是 IK 自身残差、base 真值同步差，还是 palm link 坐标解释差。
 - **验收计数：** 完整真实 Gazebo DrinkTask E2E 通过轮数仍为 **0**。不得放宽 5mm 验收或绕过碰撞/抓持安全门控。
@@ -4129,5 +4129,5 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 诊断功能代码提交 `6a1de4e4374f8773f5defc361db500a976ff9b55` 的 compile job 通过；纯测试 run `42978623068` 中 67 项有 66 项通过，唯一新增测试 `test_fk_truth_diagnostics_distinguish_world_and_model_relative_links` 在 fixture 内导入 `vla_follow.drink_task.gz_pose_to_T`，继而触发纯测试环境未安装的 ROS `sensor_msgs` 模块。该失败来自测试 fixture 不必要地导入完整 ROS 节点，不是诊断 helper 或运动代码故障。
 - fixture 改为在测试内部使用标准旋转矩阵→四元数转换构造轻量 pose 对象，不导入 `drink_task.py`、ROS 或 SciPy；保留两种合成场景：link pose 直接为世界坐标、link pose 为 robot model 相对坐标，分别确认诊断器能识别 raw 与 model-composed 两种解释。
 - 该 fixture 使用标准库 `math.sqrt`，本次提交同时显式导入 `math`，避免纯测试环境依赖 ROS/科学计算库之外的未声明模块。
-- 新 head `0f3728cc1b31` 的 Python syntax run `42978811016`（#856）completed/success：`Ran 67 tests` / `OK`，编译 job success；CarryBus run `42978811022`（#596）仍 in_progress。完整 Gazebo #23 `42978624796` 仍在安装依赖，尚无真实任务结果。
-- 这次只修改纯测试 fixture 和 TaskPlan 记录，不改变 runtime source/control logic。等待新的 Python CI 结果；完整 Gazebo #23 正在运行，尚未到达任务步骤。P104-07 保持“正在进行中”，完整 Gazebo 通过数仍为 0。
+- 最新 head `a18a250648b2` 的 Python syntax run `42978946911`（#857）completed/success：`Ran 67 tests` / `OK`，编译 job success；CarryBus run `42978946865`（#597）completed/success。完整 Gazebo #23 `42978624796` 已完成依赖、插件、workspace 检查，正在执行完整任务，尚无终态 observer 结果。
+- 这次只修改纯测试 fixture 和 TaskPlan 记录，不改变 runtime source/control logic。新 Python CI #857 与 CarryBus #597 均成功；完整 Gazebo #23 已进入 DrinkTask 执行步骤，但运行期间日志暂不可读，尚未产生终态 observer 结果。P104-07 保持“正在进行中”，完整 Gazebo 通过数仍为 0。
