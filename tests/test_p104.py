@@ -2015,5 +2015,41 @@ class TestP104(unittest.TestCase):
         self.assertIn("return False, res, 'table-collision'", body)
 
 
+    def test_ik_refine_reduces_fk_pose_error_without_exceeding_joint_limits(self):
+        q_goal = np.asarray(K.Q_REST, float).copy()
+        q_goal += np.array([0.12, -0.08, 0.10, -0.10, 0.08, -0.08, 0.10])
+        q_seed = q_goal + np.array(
+            [0.04, -0.03, 0.035, -0.04, 0.03, -0.025, 0.03])
+        target = K.fk('L', q_goal)
+        before = float(np.linalg.norm(
+            K.pose_err(K.fk('L', q_seed), target)))
+        q_refined, after = K.ik_refine('L', target, q_seed)
+        self.assertLess(after, before)
+        self.assertLessEqual(after, before * 0.25)
+        self.assertTrue(np.all(q_refined >= K.LIM_LO - 1e-9))
+        self.assertTrue(np.all(q_refined <= K.LIM_HI + 1e-9))
+        self.assertAlmostEqual(
+            after,
+            float(np.linalg.norm(K.pose_err(K.fk('L', q_refined), target))),
+            places=9)
+
+    def test_ik_best_polishes_kdl_or_dls_candidate_when_residual_is_large(self):
+        kin_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow', 'arm_kin.py')
+        with open(kin_path, encoding='utf-8') as stream:
+            source = stream.read()
+        start = source.index('def ik_refine(')
+        end = source.index('def reach_ok(', start)
+        refine_body = source[start:end]
+        self.assertIn('for alpha in (1.0, 0.5, 0.25, 0.125, 0.0625):',
+                      refine_body)
+        self.assertIn('q_try = np.clip(q + alpha * dq, LIM_LO, LIM_HI)',
+                      refine_body)
+        self.assertIn('if err_try < err -', refine_body)
+        self.assertIn('if e > 5e-4:', source)
+        self.assertIn('q_refined, e_refined = ik_refine(side, T_tgt, q)',
+                      source)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)
