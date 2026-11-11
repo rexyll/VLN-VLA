@@ -4287,3 +4287,13 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - **对IK时刻遥测的结论：** 本次失败发生在 `check_table=True` 的预检分支，预检拒绝后直接返回，不会生成伺服 `pass_trace`。因此 #38 artifact中没有 `base_truth_xy_mm_at_ik` 等新增reach trace字段；不能声称已用该运行证实或排除底盘位姿同步误差。下一次需在无动作预检拒绝日志中记录IK时刻base/truth快照及碰撞候选摘要，或先通过只读离线分析复现目标IK几何。
 - **下一步技术方向：** 先分析PUT_BACK时机器人相对桌沿的接近方向、左右掌心支撑偏移和右前臂碰撞几何；重点评估在保持杯子双手支撑和抓持安全的前提下，是否需要在PUT_BACK前重新定位底盘，或改变双臂支撑姿态/放置路径。任何方案必须先做左右臂全路径预检、人体关节规则和桌面碰撞检查；无安全路径时仍保持抓持并fail-closed。不得缩小碰撞半径、忽略table_top、降低放置精度或提前松手。
 - **当前任务：** P104-07继续“正在进行中”；本轮无控制逻辑改动，仅更新证据记录。下一轮实现经过几何论证的安全路径方案并重新运行真实Gazebo E2E。
+
+
+### 8.268 修复 reach 桌面预检的状态快照不一致，并补齐失败分支时序证据（2026-11-11）
+
+- **根因发现：** reach() 的主 IK/FK 使用每轮冻结的 base_at_ik，但此前桌面路径碰撞检查默认读取实时 node.base；arm_path_table_clear() 又重新读取一次实时 JointState 作为插值起点。human 分支失败后的 out 和 HUMAN_SEEDS 候选 IK 也重新读取 node.base。当 ROS 回调在预检期间更新底盘/关节状态时，IK目标、候选解、路径起点与碰撞几何可能来自不同时间点。这会造成预检判断不一致，且失败日志没有保存当轮 IK 与 Gazebo truth 的对齐证据。
+- **修复：** arm_path_table_clear() 增加可选 base 与 q_start 快照入口；reach() 将同一轮 base_at_ik 和 q_now 传给完整路径碰撞检查。out 与 HUMAN_SEEDS fallback IK 统一使用 base_at_ik。未提供快照的旧调用仍保持原行为。
+- **诊断增强：** 桌面碰撞 fail-closed 日志现在附带 base_at_ik、同一 IK 时刻的 Gazebo truth pose、两者 XY/yaw 差、JointState age 与 truth pose age。未知值保持 None，不把缺失样本伪装成零。没有改变碰撞几何/半径、IK容差、5mm/1.5mm门槛、动作命令或抓持/释放策略。
+- **回归覆盖：** 新增测试锁定碰撞预检与 IK 使用同一冻结底盘/关节快照，并确认 fallback IK 不再读取动态 node.base；同步更新既有 HUMAN_SEEDS 测试断言。
+- **验证边界：** 本次修复针对状态快照一致性，不意味着 #38 的前臂-桌面几何碰撞已消失。若冻结快照后仍发生碰撞，必须继续从几何上设计安全姿态/底盘相对位置；无安全路径时继续保持抓持并 fail-closed。等待本次 Python/CarryBus CI 与下一轮真实 Gazebo E2E 结果。
+- **当前任务：** P104-07 仍“正在进行中”；完整真实 Gazebo DrinkTask E2E 通过次数仍为 0。

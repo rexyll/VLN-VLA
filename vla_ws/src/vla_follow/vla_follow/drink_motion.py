@@ -402,13 +402,21 @@ def _arm_geometry_world(side, q, base):
 
 
 def arm_path_table_clear(node, side, path_q, base=None,
-                         ignore_initial=True, max_joint_step=0.02):
-    """收臂路径逐点/插值检查桌面和桌腿；返回 (clear, first_collision)。"""
+                         ignore_initial=True, max_joint_step=0.02,
+                         q_start=None):
+    """收臂路径逐点/插值检查桌面和桌腿；返回 (clear, first_collision)。
+
+    base/q_start 可由 reach 在 IK 时刻冻结后传入，确保 IK、路径插值起点
+    与世界系碰撞几何使用同一组状态快照；外部旧调用仍沿用实时状态。
+    """
     if base is None:
         base = node.base
-    q0 = q_meas(node, side)
+    q0 = (q_meas(node, side) if q_start is None
+          else np.asarray(q_start, float).copy())
     if q0 is None:
         return False, {'reason': 'joint_state_missing'}
+    if q0.shape != (K.NJ,) or not np.all(np.isfinite(q0)):
+        return False, {'reason': 'joint_state_invalid'}
     samples = []
     prev = np.asarray(q0, float)
     for target in path_q:
@@ -536,7 +544,8 @@ def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
                 _path = [q_now + (q_candidate - q_now) * (i / float(_n))
                          for i in range(1, _n + 1)]
                 return arm_path_table_clear(
-                    node, side, _path, ignore_initial=True)
+                    node, side, _path, base=base_at_ik,
+                    ignore_initial=True, q_start=q_now)
 
             _clear, _hit = _path_clear(q)
             _fallback = None
@@ -546,7 +555,7 @@ def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
             # 不拆掉碰撞门控、不缩小几何半径，也不执行部分碰撞路径。
             if not _clear and _mode == 'human':
                 q_alt, e_alt, how_alt = K.ik_world(
-                    side, T_world, node.base, q_now, elbow='out')
+                    side, T_world, base_at_ik, q_now, elbow='out')
                 alt_bad = K.violation_list(side, q_alt)
                 if not alt_bad:
                     alt_clear, alt_hit = _path_clear(q_alt)
@@ -570,7 +579,7 @@ def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
                     for _seed_index, _seed in enumerate(K.HUMAN_SEEDS):
                         _seed_q = K.human_seed_joints(_seed)
                         _q_seed, _e_seed, _how_seed = K.ik_world(
-                            side, T_world, node.base, _seed_q, elbow=None,
+                            side, T_world, base_at_ik, _seed_q, elbow=None,
                             refine=False)
                         if (not np.all(np.isfinite(_q_seed))
                                 or not math.isfinite(float(_e_seed))
@@ -618,14 +627,33 @@ def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
                     current_xyz = np.round(T_current[:3, 3], 4).tolist()
                 else:
                     current_xyz = None
+                _js_age_at_ik = (
+                    max(0.0, ik_sample_t - js_sample_t_at_ik)
+                    if js_sample_t_at_ik > 0.0 else None)
+                _truth_age_at_ik = (
+                    max(0.0, ik_sample_t - truth_pose_t_at_ik)
+                    if truth_pose_t_at_ik > 0.0 else None)
                 node.get_logger().warn(
                     'REACH %s 桌面碰撞门控拒绝路径: hit=%s fallback=%s '
                     'current_xyz=%s target_xyz=%s residual=%.1fmm '
-                    'q_now=%s q_target=%s'
+                    'q_now=%s q_target=%s base_at_ik=%s truth_base_at_ik=%s '
+                    'base_truth_xy_mm_at_ik=%s base_truth_yaw_deg_at_ik=%s '
+                    'joint_age_at_ik_s=%s truth_age_at_ik_s=%s'
                     % (side, _hit, _fallback, current_xyz,
                        np.round(np.asarray(T_world)[:3, 3], 4).tolist(),
                        res, np.round(q_now, 3).tolist(),
-                       np.round(q, 3).tolist()))
+                       np.round(q, 3).tolist(),
+                       np.round(base_at_ik, 6).tolist(),
+                       (np.round(truth_pose_at_ik, 6).tolist()
+                        if truth_pose_at_ik is not None else None),
+                       (round(base_truth_xy_mm_at_ik, 3)
+                        if base_truth_xy_mm_at_ik is not None else None),
+                       (round(base_truth_yaw_deg_at_ik, 4)
+                        if base_truth_yaw_deg_at_ik is not None else None),
+                       (round(_js_age_at_ik, 4)
+                        if _js_age_at_ik is not None else None),
+                       (round(_truth_age_at_ik, 4)
+                        if _truth_age_at_ik is not None else None)))
                 return False, res, 'table-collision'
         if preflight_only:
             preflight_res = pos_err_mm(

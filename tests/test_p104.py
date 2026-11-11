@@ -2162,7 +2162,7 @@ class TestP104(unittest.TestCase):
         self.assertIn('for _seed_index, _seed in enumerate(K.HUMAN_SEEDS):',
                       body)
         self.assertIn('_seed_q = K.human_seed_joints(_seed)', body)
-        self.assertIn('node.base, _seed_q, elbow=None', body)
+        self.assertIn('base_at_ik, _seed_q, elbow=None', body)
         self.assertIn('refine=False', body)
         self.assertIn('K.ik_world(', body)
         self.assertIn('float(_e_seed) > 4e-3', body)
@@ -2174,6 +2174,27 @@ class TestP104(unittest.TestCase):
         self.assertIn('if not _clear:', body)
         self.assertIn("return False, res, 'table-collision'", body)
 
+
+    def test_reach_collision_preflight_uses_one_frozen_ik_snapshot(self):
+        motion_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
+            'drink_motion.py')
+        with open(motion_path, encoding='utf-8') as stream:
+            source = stream.read()
+        path_start = source.index('def arm_path_table_clear(')
+        path_end = source.index('def reach(', path_start)
+        path_body = source[path_start:path_end]
+        self.assertIn('q_start=None', path_body)
+        self.assertIn('q0 = (q_meas(node, side) if q_start is None', path_body)
+        reach_start = source.index('def reach(')
+        reach_end = source.index('def sim_now(', reach_start)
+        reach_body = source[reach_start:reach_end]
+        self.assertIn('base=base_at_ik', reach_body)
+        self.assertIn('q_start=q_now', reach_body)
+        self.assertIn("side, T_world, base_at_ik, q_now, elbow='out'", reach_body)
+        self.assertIn('side, T_world, base_at_ik, _seed_q, elbow=None,', reach_body)
+        self.assertIn('base_at_ik=%s truth_base_at_ik=%s', reach_body)
+        self.assertIn('joint_age_at_ik_s=%s truth_age_at_ik_s=%s', reach_body)
 
     def test_human_posture_seed_expands_to_full_seven_axis_ik_seed(self):
         compact = np.asarray(K.HUMAN_SEEDS[17], float)
