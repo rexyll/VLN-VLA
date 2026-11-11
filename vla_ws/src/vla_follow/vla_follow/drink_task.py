@@ -208,12 +208,14 @@ class DrinkTask(Node):
         # ---- 输入: 关节实测 / 底盘位姿 / gz 真值
         self.js = {}
         self.js_velocity = {}
+        self.js_sample_t = 0.0
         self.links = {}
         self.base = (0.0, 0.0, 0.0)
         # Model-truth finite-difference velocity is independent of wheel odom.
         self.truth_base_twist = None
         self.truth_base_twist_t = 0.0
         self._truth_base_sample = None
+        self.truth_base_pose_snapshot = None
         self._have_odom = False
         self._truth_base = False
         # Wheel odometry pose is not authoritative after Gazebo teleport, but
@@ -317,6 +319,7 @@ class DrinkTask(Node):
         updated = dict(self.js)
         updated.update(zip(msg.name, msg.position))
         self.js = updated
+        self.js_sample_t = time.monotonic()
         velocity = dict(getattr(self, 'js_velocity', {}))
         velocity.update(zip(msg.name, getattr(msg, 'velocity', ())))
         self.js_velocity = velocity
@@ -365,6 +368,7 @@ class DrinkTask(Node):
                         self.truth_base_twist_t = sample_t
                 self._truth_base_sample = (
                     sample_t, pose[0], pose[1], pose[2])
+                self.truth_base_pose_snapshot = (pose, sample_t)
         self.links = updated
         # P98 排查: 道具键会间歇性从 links 里"消失"(抓取时在、place_held
         # 时变 None → FAIL_PREPARE)。节流打印真值流的关键键存在性, 定位
