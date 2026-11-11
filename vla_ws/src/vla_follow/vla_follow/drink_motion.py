@@ -790,27 +790,44 @@ def place_held(node, side, model, T_obj_goal, tol_mm=PLACE_TOL_MM,
                     np.asarray(T_obj_goal)[:3, 3], 3),
                    pos_err_mm(Tk, T_obj_goal), axis_angle_deg(Tk, T_obj_goal),
                    np.round((dT @ Tp)[:3, 3], 3)))
-        ok_reach, reach_res, _how = reach(
-            node, side, dT @ Tp,
+        palm_target = dT @ Tp
+        ok_reach, reach_res, how = reach(
+            node, side, palm_target,
             tol_mm=(max(tol_mm, 2.0) if reach_tol_mm is None
                     else reach_tol_mm), elbow=elbow)
         if not ok_reach:
             # reach() 失败时，前一轮的物体残差可能仍是大位移旧值；伺服
             # 已经移动到目标附近后，不能把这个过期值作为最终失败残差上报。
-            # 重新读取 Gazebo 物体真值，并同时记录掌心残差与姿态误差，便于
-            # 区分“机械臂未确认到位”和“物体实际仍未落位”。
+            # 重新读取物体/掌心真值，并记录目标、IK 分支和关节状态，便于
+            # 区分位置不动点、姿态不收敛、IK 分支与伺服误差。
             Tk_after = object_pose(node, model)
+            Tp_after = wrist(node, side)
             if Tk_after is not None:
                 res_after = pos_err_mm(Tk_after, T_obj_goal)
                 ang_after = axis_angle_deg(Tk_after, T_obj_goal)
                 if ang_after > 180.0:
                     ang_after = 360.0 - ang_after
+                object_xyz = np.round(Tk_after[:3, 3], 4).tolist()
             else:
-                res_after, ang_after = res, 9e9
+                res_after, ang_after, object_xyz = res, 9e9, None
+            if Tp_after is not None:
+                palm_res_after = pos_err_mm(Tp_after, palm_target)
+                palm_xyz = np.round(Tp_after[:3, 3], 4).tolist()
+            else:
+                palm_res_after, palm_xyz = 9e9, None
+            q_after = q_meas(node, side)
+            q_text = (np.round(q_after, 3).tolist()
+                      if q_after is not None else None)
             node.get_logger().warn(
-                'PLACE %s: 补位未确认（掌心 %.1fmm, 物体真值 %.1fmm/%.2f°; '
-                '此前物体残差 %.1fmm），保持当前抓持并停止闭环'
-                % (model, reach_res, res_after, ang_after, res))
+                'PLACE %s: 补位未确认 reach=%s(掌心 %.1fmm); '
+                '掌心目标=%s 实测=%s 残差=%.1fmm; '
+                '物体目标=%s 实测=%s 残差=%.1fmm/%.2f°; q=%s; '
+                '此前物体残差 %.1fmm；保持当前抓持'
+                % (model, how, reach_res,
+                   np.round(palm_target[:3, 3], 4).tolist(), palm_xyz,
+                   palm_res_after,
+                   np.round(np.asarray(T_obj_goal)[:3, 3], 4).tolist(),
+                   object_xyz, res_after, ang_after, q_text, res))
             return False, res_after
     return (res < tol_mm and ang < tol_deg), res
 
