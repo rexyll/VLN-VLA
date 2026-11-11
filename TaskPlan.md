@@ -4016,3 +4016,12 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 真正包含 PRESENT `reach_passes=8` 的 E2E run 是 `42964460378`，head `fa0fab1abf43`；由于 workflow concurrency group `p104-drinktask-headless-refs/heads/main` 且前一 run 未结束，它仍为 pending，尚未开始。它才是验证本次 8 轮精修配置的有效 E2E。
 - 最新 `075d4f10e49c` 的 Python 与 CarryBus CI 已通过，但完整 E2E 没有终态 artifact。后续先等待/跟踪 `42964435017` 终态，再确认 `42964460378` 是否进入运行；只有检查到真实 `drink.log`、`test_drink.json` 和 repeat summary 才更新 E2E 结果。
 - **状态：8 轮精修配置已提交，源码/纯测试/CarryBus CI 通过；8 轮完整 Gazebo E2E 尚未开始，完整 Gazebo DrinkTask E2E 通过轮数仍为 0。**
+
+
+### 8.240 最新主线 CI 复核与完整 E2E 排队状态（2026-11-11，CI 已通过，真实仿真未出结果）
+
+- 本轮首先刷新 GitHub Actions。最新 TaskPlan 提交 `8da95f5acde9f4440ae6e701af43ab04aed93f4d` 对应的 Python syntax run `42965189637` 与 CarryBus ROS 2 executor run `42965189721` 均已 completed/success。此前 `075d4f10e49c` 对应的 Python syntax `42964676690`、CarryBus `42964676603` 也均 completed/success。
+- 完整 Gazebo DrinkTask E2E 基线 run `42964435017`（head `5556fcfa6965`）仍为 in_progress；job `130338254066` 已完成依赖安装、Gazebo Harmonic 插件构建、ROS 2 workspace/Nav2 map 检查，当前完整 DrinkTask E2E 步骤仍未结束。该 head 只包含 `place_held(reach_passes=...)` 参数通路，不包含 PRESENT 专用 `reach_passes=8`，因此无论其结果如何，都不能作为 8 轮配置的验收。
+- 真正包含 PRESENT 专用 8 轮精修配置的完整 E2E run `42964460378`（head `fa0fab1abf43`）仍为 pending，尚未取得 job 或 artifact；它受同一 workflow concurrency group 限制，需等待前一轮退出后才可能启动。
+- 本轮尝试读取仍在执行中的 job 日志，GitHub 日志归档端点返回 404 BlobNotFound；这不是测试失败证据，也不能据此推断任务已结束。两个 E2E run 均未提供 artifact，因此当前没有新的 `drink.log`、`test_drink.json` 或 repeat summary 可供验收。
+- **状态：最新 Python syntax 与 CarryBus ROS 2 executor CI 均通过；完整 Gazebo DrinkTask E2E 通过轮数仍为 0。5 轮基线运行仍在执行，PRESENT 8 轮配置运行仍排队。P104-07 保持“正在进行中”；不得把 CI 通过或子流程通过折算为完整任务成功。**
