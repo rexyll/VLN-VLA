@@ -366,6 +366,59 @@ def ik(side, T_tgt, seed=None, iters=120, tol=2e-3, lam=0.05,
     return best_q, best_e
 
 
+
+def ik_refine(side, T_tgt, seed, iters=240, lam=0.03,
+              min_lam=0.004, max_step=0.12):
+    """对已有 IK 候选做有界、单调下降的局部精修。
+
+    KDL-LMA 在冗余臂接近奇异位形时可能返回一个稳定但仍有厘米级残差的
+    局部停滞点。这里从该候选而非原始关节状态重新开始 DLS，并用回溯线搜索
+    保证每次接受的关节更新都严格降低同一 6D 位姿误差；不添加零空间姿态漂移。
+    """
+    q = np.clip(np.asarray(seed, float), LIM_LO, LIM_HI).copy()
+    best_q = q.copy()
+    best_e = float(np.linalg.norm(pose_err(fk(side, q), T_tgt)))
+    damping = float(lam)
+    for _ in range(int(iters)):
+        T_cur = fk(side, q)
+        e = pose_err(T_cur, T_tgt)
+        err = float(np.linalg.norm(e))
+        if err < 1e-7:
+            break
+        J = np.zeros((6, NJ))
+        p_cur = T_cur[:3, 3]
+        for i, (p_joint, axis) in enumerate(fk_joint_frames(side, q)):
+            J[:3, i] = np.cross(axis, p_cur - p_joint)
+            J[3:, i] = axis
+        accepted = False
+        for _retry in range(6):
+            A = J @ J.T + (damping ** 2) * np.eye(6)
+            try:
+                dq = J.T @ np.linalg.solve(A, e)
+            except np.linalg.LinAlgError:
+                damping = min(0.5, damping * 4.0)
+                continue
+            peak = float(np.max(np.abs(dq)))
+            if peak > max_step:
+                dq *= max_step / peak
+            for alpha in (1.0, 0.5, 0.25, 0.125, 0.0625):
+                q_try = np.clip(q + alpha * dq, LIM_LO, LIM_HI)
+                err_try = float(np.linalg.norm(
+                    pose_err(fk(side, q_try), T_tgt)))
+                if err_try < err - max(1e-12, err * 1e-10):
+                    q = q_try
+                    if err_try < best_e:
+                        best_e, best_q = err_try, q_try.copy()
+                    damping = max(min_lam, damping * 0.7)
+                    accepted = True
+                    break
+            if accepted:
+                break
+            damping = min(0.5, damping * 2.0)
+        if not accepted or damping >= 0.5:
+            break
+    return best_q, best_e
+
 def reach_ok(side, T_tgt, seed=None):
     q, e = ik(side, T_tgt, seed)
     return e < 0.02, e, q
@@ -495,6 +548,13 @@ def ik_best(side, T_tgt, seed=None):
         fixed.append((_q, float(np.linalg.norm(pose_err(fk(side, _q), T_tgt))),
                       _tag))
     q, e, tag = min(fixed, key=lambda c: c[1])
+    # 只对未达到亚毫米/亚毫弧度精度的最佳候选做局部精修。精修从当前
+    # 最佳解出发，带关节限位和单调线搜索，避免 KDL 的局部停滞点被直接
+    # 当成最终指令；精修若无改善则原样保留 KDL/DLS 结果。
+    if e > 5e-4:
+        q_refined, e_refined = ik_refine(side, T_tgt, q)
+        if e_refined < e:
+            q, e, tag = q_refined, e_refined, tag + '/polish'
     return q, e, tag
 
 
