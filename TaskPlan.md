@@ -3930,3 +3930,16 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - `tests/test_p104.py` 提交 `5714071dd0107c9e96cb32d4601d792ba9463c01`：增加回归契约，保证碰撞门控拒绝时报告实测残差和路径几何证据，而不是 9e9 哨兵值。
 - 下一步依据新日志中右前臂 `current_xyz/target_xyz/q_now/q_target` 和首次碰撞采样点，规划不穿越桌面的右臂安全路径（例如分段抬高/外绕/再落位），每段继续运行桌面碰撞门控；同时确认两手相对杯体的冻结偏移不会使外绕时拖拽杯子。不要简单关闭 `check_table`、放宽桌面碰撞边界、单独提前松右手或释放杯子。完成纯测试和 CarryBus CI 后重跑完整 headless E2E。
 - **状态：已将失败从模糊的“右手 9e9mm 未到位”定位为右前臂路径与桌面碰撞；诊断修复及回归测试已提交 main，等待 CI。完整 Gazebo DrinkTask E2E 新增通过轮数仍为 0；至少三轮真实 E2E、长时间稳定性与完整场景动态碰撞/轨迹验收未完成。P104-07 保持“正在进行中”。**
+
+
+
+### 8.232 分离真实 DrinkTask 的 PREPARE 捧杯定位失败并补充闭环诊断（2026-11-11，诊断代码与回归测试已提交，CI 待验收）
+
+- 刷新 §8.231 后的 GitHub Actions：提交 `804ff0e6bcc4` 的 Python syntax run `42953082021` 与 CarryBus ROS 2 executor run `42953082050` 均 completed/success；`5714071dd010` 的 Python run `42953047065` 与 CarryBus run `42953047015` 均 completed/success；`2809fc560fe2` 的 Python run `42953034647` 与 CarryBus run `42953034497` 均 completed/success。完整 headless Gazebo E2E run `42953034469` completed/failure。
+- 下载并检查 run `42953034469` 的 artifact `13826073074`。Gazebo Harmonic 插件构建、ROS 2 workspace 构建、Nav2 地图资源检查、完整场景启动、bridge/Nav2/DrinkTask 节点启动均通过；observer 实际发送文本喝水指令，完整 PREPARE 流程执行了抓杯、举杯、抓壶、倒水、收水、放壶及右臂归位/底盘复位，随后在左手将杯子移至 carry 位形时失败。阶段只记录 `PREPARE → FAIL_PREPARE`，没有进入 PRESENT/HANDOVER/PERSON_DRINK/TAKE_BACK/PUT_BACK/RETREAT/HANDBACK/DONE。
+- 决定性日志：`PLACE cup: 补位未确认（掌心 11.1mm, 物体真值 22.9mm/2.52°; 此前物体残差 147.5mm）`，随后 `PREPARE 左手双手捧杯位形未到位（22.9mm）`。因此本轮不是 §8.231 的右前臂桌面碰撞，也不是杯子放回失败；当前首个阻塞是左手捧杯 carry 位形的闭环未确认。147.5mm 是补位前残差，不能当作失败瞬间的真实误差；失败时掌心目标残差为 11.1mm、杯体真值位置残差为 22.9mm、姿态误差为 2.52°。现有日志没有输出 IK 分支、掌心目标/实测坐标及最终关节角，尚不能判断是 IK 分支、伺服到位阈值、姿态不动点或几何可达性问题。
+- artifact 的 round JSON：`ok=false`，`stages=[PREPARE, FAIL_PREPARE]`，observer exit code 2，1 requested / 1 completed / 0 passed / 1 failed；只存档 arrive/following 两张截图，缺失其余六类事件截图。杯体位置偏差 254.5mm 是 PREPARE 中断后观察时的状态，不等于失败瞬间的闭环残差；跟随撤离/交权未执行，是流程提前失败的下游结果。
+- `vla_ws/src/vla_follow/vla_follow/drink_motion.py` 提交 `920c09c20ea541e9eaa42fa5801dc6b699ba2226`：保留 place_held 的容差、超时与失败保持抓持策略；在 reach 未确认时额外读取实测掌心位姿、掌心目标、掌心残差、物体目标/真值位置、物体姿态误差、IK 求解分支标签及当前关节角，避免把 147.5mm 的旧残差误认为最终状态。
+- `tests/test_p104.py` 提交 `a168bc1edafd716ff99fcba4b454cd515c4a5ebc`：扩展 place_held 失败诊断回归契约，确保目标/实测掌心与物体误差、IK 标签及关节状态都被记录。该测试是源码契约检查，不模拟完整机械臂运动。
+- 下一步刷新上述两个提交的 Python syntax、纯测试与 CarryBus CI 至终态；随后重跑完整 headless Gazebo E2E，使用新日志确认左手 carry 目标的 IK 分支、坐标和关节残差。根据实测证据再决定是否调整 carry 目标或采用分段可验证轨迹。不要放宽 5mm/2° 的验收阈值、忽略姿态误差或在失败时释放杯子。§8.231 的双手放杯右臂桌面碰撞问题仍保留为后续阶段待解决项，不能因本轮更早失败而视为关闭。
+- **状态：已将本轮真实 E2E 首个阻塞明确定位为左手 carry 位形闭环失败，并提交增强诊断与测试；等待 CI 和下一轮完整仿真。完整 Gazebo DrinkTask E2E 新增通过轮数仍为 0；至少三轮完整真实 E2E、长时间稳定性和全流程动态碰撞/轨迹验收未完成。P104-07 保持“正在进行中”。**
