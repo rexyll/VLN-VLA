@@ -1992,7 +1992,7 @@ class TestP104(unittest.TestCase):
         start = source.index('def reach(')
         end = source.index('def sim_now(', start)
         body = source[start:end]
-        self.assertIn('base_at_ik = tuple(float(v) for v in node.base)', body)
+        self.assertIn('base_at_ik = _base_pose(node)', body)
         self.assertIn("'odom_twist': ([round(float(v), 5) for v in node.odom_twist]", body)
         task_path = os.path.join(
             ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow', 'drink_task.py')
