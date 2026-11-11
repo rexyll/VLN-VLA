@@ -244,6 +244,7 @@ def archive_observer_screenshots(result, root, shot_dir):
     staging = tempfile.mkdtemp(prefix='.drink-shots-', dir=parent)
     try:
         archived = []
+        seen_sources = set()
         for index, source in enumerate(shots, 1):
             source_real = os.path.realpath(source)
             try:
@@ -254,6 +255,9 @@ def archive_observer_screenshots(result, root, shot_dir):
             if not inside_root:
                 raise ValueError('screenshot source must be inside repository root: %s'
                                  % source)
+            if source_real in seen_sources:
+                raise ValueError('duplicate screenshot source: %s' % source)
+            seen_sources.add(source_real)
             if not os.path.isfile(source_real):
                 raise FileNotFoundError('missing screenshot evidence: %s' % source)
             name = '%02d_%s' % (index, os.path.basename(source_real))
