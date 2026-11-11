@@ -3977,3 +3977,13 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - tests/test_p104.py 提交 c17e25ede86675c43bd29fc53f321b725841648d：将脆弱的换行切片终点改为稳定的 ok_follow, follow_mm 调用标识；不改变生产代码和验收行为。
 - 下一步刷新 c17e25e 及 TaskPlan 更新触发的 Python 编译/纯测试和 CarryBus CI 至终态，同时检查 c6d9fecc7bb0 对应的 E2E run 42959013372。若 0.08° 伺服阈值导致时间预算问题，必须用新的关节轨迹与仿真时钟证据判断，不降低 1.5mm/6mm 位置验收阈值。
 - **状态：PRESENT 严格伺服阈值修复已提交；回归测试首版边界定位错误已修复，等待修复版测试和 E2E 结果。完整 Gazebo DrinkTask E2E 新增通过轮数仍为 0。P104-07 保持“正在进行中”。**
+
+### 8.236 复验 PRESENT 精度改进并量化 PUT_BACK 右前臂桌面碰撞（2026-11-11，仿真证据已归档，路径修复待实施）
+
+- 刷新 Actions：最新 `30658be38fef` 的 Python syntax/纯测试 run `42959274654` 与 CarryBus ROS 2 executor run `42959274694` 均 completed/success。严格 PRESENT 伺服阈值调用提交 `c6d9fecc7bb0` 对应的完整 headless Gazebo E2E run `42959013372` 已启动真实场景执行，当前仍 in_progress，尚无终态 artifact；不得提前判定 0.08° 修复通过。
+- 对照运行 run `42958985624`（head `471d01bc3256`，该 head 包含 place_held 精度参数通路，但不包含后续 PRESENT 调用设置的 0.08°）已 completed/failure。artifact `13828822361` 已下载并检查：Gazebo Harmonic 插件构建、ROS 2 workspace/Nav2 检查、完整 world/bridge/DrinkTask 启动及 observer 指令均成功；任务阶段到达 `PREPARE → PRESENT → HANDOVER → PERSON_DRINK → TAKE_BACK → PUT_BACK → FAIL_PUT_BACK`，前五阶段完成。
+- 本次首个阻塞为 PUT_BACK 双手放杯的右臂路径碰撞门控：drink.log 明确记录 `sample=2, segment=forearm, box=table_top, radius_m=0.03`；右掌当前坐标 `[2.2303, 0.3483, 0.8297]m`，本步目标 `[2.2131, 0.3545, 0.7730]m`，当前到目标掌心残差 `59.6mm`；当前关节角 `[-0.506,-0.770,1.184,-1.718,0.509,0.932,-1.098]`，目标关节角 `[-0.555,-0.622,1.254,-1.690,0.692,0.836,-1.187]`。系统在第 4/4 步停止下降并保持抓持，未关闭碰撞门控、未松手、未 release。
+- observer JSON 为 `ok=false`，阶段检查 6/9，缺 `RETREAT/HANDBACK/DONE`；批次 1 requested / 1 completed / 0 passed / 1 failed，observer exit code 2，截图 5/7（缺 handback/placed）。跟随撤离失败是放杯失败的下游结果；不得将 cup_home_mm=2.4mm 单项指标视为完整任务成功。
+- 该证据进一步把 §8.231 的碰撞问题定位到右前臂在最终下降路径的第 2 个插值采样点与桌面相交，而非伺服误差哨兵或右手未执行命令。下一步需先结合桌面 AABB、右臂 FK 关节链和冻结的杯体—掌心偏移，设计不穿桌面的分段安全接近路径；每段仍调用 `arm_path_table_clear`，左/右手仍保持同步承托，杯子落稳和双手张开确认前禁止 release。不能简单改成 `check_table=False`、缩小碰撞半径或提前松开副手。
+- 当前严格 0.08° PRESENT E2E run `42959013372` 仍在执行；应先取得其最终日志，确认该改动是否改善 PRESENT、是否影响时限及是否再次触达 PUT_BACK，再决定生产代码修改。§8.231 碰撞修复尚未实施，不能因当前对照运行在 PUT_BACK 失败而把问题标记关闭。
+- **状态：已取得可复现的完整任务阶段证据并量化右前臂—桌面碰撞几何，诊断记录已提交 main；PRESENT 0.08° 改动仍待 E2E 终态，PUT_BACK 安全路径改进待实施。完整 Gazebo DrinkTask E2E 通过轮数仍为 0；至少三轮完整 E2E、长时间稳定性与全流程动态碰撞/轨迹验收未完成。P104-07 保持“正在进行中”。**
