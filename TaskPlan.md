@@ -4049,3 +4049,13 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 同期确认 `42967805799` 使用的是 5-pass 基线，不包含 DrinkTask PRESENT 专用 8-pass 配置；此前 8-pass E2E `42964460378` 已越过 PRESENT/HANDOVER/PERSON_DRINK/TAKE_BACK，但在 PUT_BACK 右前臂-桌面碰撞处 fail-closed。先前新增的人体规则多种子无碰撞路径搜索包含在 `465a83df1ee5`，但该 5-pass run 在 PREPARE 先失败，不能验证 PUT_BACK 搜索。新的 IK 精修会同时用于两类路径，需由 8-pass 完整 Gazebo 运行验证。
 - CI 当前状态：Python syntax run `42969569103` completed/success；CarryBus run `42969569146` 当时 in_progress。完整 Gazebo E2E run `42969495781`（head `46572970c9c5`，包含 IK 精修但未包含后续测试文件提交）当时 in_progress；需等待 artifact 并检查阶段、IK pass trace、碰撞候选与 release ACK。另一个更新 head `015b7626f3f3` 的 Python syntax `42969569103` completed/success，CarryBus `42969569146` 当时 in_progress。
 - **状态：已修复有证据支持的 IK 局部停滞问题并增加功能/源码回归测试，等待完整 Gazebo 验证；旧失败不计为通过，完整 Gazebo DrinkTask E2E 通过轮数仍为 0。P104-07 继续“正在进行中”。**
+
+
+### 8.243 将 IK 精修限制在最终候选，避免多分支扫描被精修放大（2026-11-11，性能边界修正已提交）
+
+- 对 §8.242 的实现做二次代码审查，发现若 `ik_best` 对每个候选种子都运行最多 240 轮精修，会把原本 324 组人体种子、8 组肘外种子和桌边碰撞候选扫描的计算量不必要地放大。该风险属于新修复引入的性能回归，必须在完整仿真前消除。
+- `arm_kin.py` 提交 `5ae23ce959a57ea11dcacdd92de12296f0447384`：`ik_best` 增加可选 `refine` 开关；人体/肘外/自然姿态多种子扫描阶段使用 `refine=False`，仅对最终选中的候选运行一次局部精修。保留默认入口的精修行为。
+- `arm_kin.py` 提交 `6daa799309ccfe13f458fb6ae3b3ea72d672782c`：补齐 `ik_best_out` 与 `ik_natural` 的扫描阶段关闭精修、最终候选再精修，防止漏掉的分支扫描仍重复运行精修。
+- `drink_motion.py` 提交 `760ab67fc1242f331054468112a816fa2e66b909`：桌边 `HUMAN_SEEDS` 碰撞候选遍历明确传入 `refine=False`，在找到完整无碰撞且人体规则合格的候选后，再走正常执行入口精修；碰撞检查仍在原始当前状态到候选目标的完整插值路径上。
+- `tests/test_p104.py` 提交 `b6ff544814b3c2e2d7821533517790dc385599c4`：增加源码契约，保证桌边批量 IK 候选搜索不触发重复精修。§8.242 的合成 FK/IK 单调下降功能测试保留。
+- **验证边界：** `42969495781` 是较早的 `46572970c9c5` 代码提交触发的完整 Gazebo E2E，启动时仍在安装依赖，尚无结果；它不会包含后续性能边界提交。以上性能修正的新代码提交将触发后续 CI 与 Gazebo E2E，需以新 head 的 artifact 为准。完整 DrinkTask E2E 通过轮数仍为 0，P104-07 仍“正在进行中”。**
