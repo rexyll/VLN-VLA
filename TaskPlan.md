@@ -4297,3 +4297,15 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - **回归覆盖：** 新增测试锁定碰撞预检与 IK 使用同一冻结底盘/关节快照，并确认 fallback IK 不再读取动态 node.base；同步更新既有 HUMAN_SEEDS 测试断言。
 - **验证边界：** 本次修复针对状态快照一致性，不意味着 #38 的前臂-桌面几何碰撞已消失。若冻结快照后仍发生碰撞，必须继续从几何上设计安全姿态/底盘相对位置；无安全路径时继续保持抓持并 fail-closed。等待本次 Python/CarryBus CI 与下一轮真实 Gazebo E2E 结果。
 - **当前任务：** P104-07 仍“正在进行中”；完整真实 Gazebo DrinkTask E2E 通过次数仍为 0。
+
+
+### 8.269 E2E #40：确认 reach 世界系计算使用陈旧底盘位姿；改为新鲜 Gazebo 真值优先（2026-11-11）
+
+- **运行证据：** head `e00f1f77b1cdc517e3d999c91c06cd610dd44c1f` 的 Python CI run `43031770780` 成功、CarryBus run `43031770743` 成功；真实 Gazebo E2E run `43031770733` 失败，artifact ID `13862235931`。
+- **任务阶段：** `PREPARE → FAIL_PREPARE`。左手抓杯成功；右手抓壶在5轮伺服后掌心残差仍为7.1mm（严格门槛5.0mm），因此跳过 kettle attach 并停止倒水。完整流程未进入 PRESENT，真实 Gazebo E2E通过数仍为 **0**。
+- **直接证据：** 抓壶5轮中 IK 输入 `base_at_ik` 与同一 IK 时刻保存的 Gazebo `truth_base_pose_at_ik` 并不一致：第4轮 XY差2.98mm、yaw差1.2102°；第5轮XY差0.48mm、yaw差0.3803°。JointState与truth snapshot年龄均约毫秒至几十毫秒，不是陈旧接收样本。与此同时 `/robot/cmd_vel`是新鲜零命令，但右驱动轮在第2轮测得约2.39668rad/s，Gazebo truth twist在前几轮出现约0.10–0.17rad/s偏航速度。`/drink/cmd_vel`为约36秒陈旧样本，应视为unknown。
+- **根因判断：** reach/wrist先前读取`node.base`，而 `_gt_cb`只更新`truth_base_pose_snapshot`，并不持续同步`node.base`。当机械臂伺服期间底盘因物理耦合产生微动时，IK/FK可能使用旧底座；这与 #40 的同迭代底盘/真值差直接吻合。驱动轮速度及真值偏航变化是并行的物理运动证据，但仅凭现有数据尚不能确定是反作用力、轮地接触或DiffDrive控制器的具体贡献。
+- **修复：** `drink_motion._base_pose()`优先使用0.5秒内的新鲜Gazebo robot真值快照更新`node.base`，快照缺失/陈旧/非法时保留原底盘值；`wrist()`和`reach()`的每轮IK入口统一使用该函数。此改动不伪造零值，不更改目标位姿、伺服命令、5mm/1.5mm精度门槛、碰撞检查或抓持/释放门控。
+- **回归覆盖：** 新增测试确认新鲜真值覆盖旧底盘缓存、陈旧真值不会覆盖当前值，并确认`wrist/reach`使用该刷新路径。
+- **下一步：** 在main上运行Python/CarryBus与完整Gazebo E2E。若底盘继续运动，下一轮trace将以更新后的真值底盘计算掌心误差；若仍超差，再独立分析轮子动力学/制动与机械臂反作用。不得降低抓取阈值或在未到位时attach水壶。
+- **当前任务：** P104-07继续“正在进行中”；完整真实Gazebo DrinkTask E2E通过次数仍为 **0**。

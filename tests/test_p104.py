@@ -2175,6 +2175,37 @@ class TestP104(unittest.TestCase):
         self.assertIn("return False, res, 'table-collision'", body)
 
 
+    def test_world_fk_uses_fresh_gazebo_base_snapshot_and_rejects_stale(self):
+        import types
+        node = types.SimpleNamespace(
+            base=(1.0, 2.0, 0.1),
+            truth_base_pose_snapshot=((1.2, 2.3, 0.4), 100.0),
+            _truth_base=False, _have_odom=False)
+        with patch.object(M.time, 'monotonic', return_value=100.1):
+            base = M._base_pose(node)
+        self.assertEqual(base, (1.2, 2.3, 0.4))
+        self.assertTrue(node._truth_base)
+        self.assertTrue(node._have_odom)
+
+        node.truth_base_pose_snapshot = ((9.0, 9.0, 1.0), 90.0)
+        with patch.object(M.time, 'monotonic', return_value=100.1):
+            stale_base = M._base_pose(node)
+        self.assertEqual(stale_base, (1.2, 2.3, 0.4))
+
+    def test_reach_and_wrist_refresh_world_base_from_truth_snapshot(self):
+        motion_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
+            'drink_motion.py')
+        with open(motion_path, encoding='utf-8') as stream:
+            source = stream.read()
+        wrist_start = source.index('def wrist(')
+        wrist_end = source.index('def object_pose(', wrist_start)
+        self.assertIn('_base_pose(node)', source[wrist_start:wrist_end])
+        reach_start = source.index('def reach(')
+        reach_end = source.index('def sim_now(', reach_start)
+        self.assertIn('base_at_ik = _base_pose(node)',
+                      source[reach_start:reach_end])
+
     def test_reach_collision_preflight_uses_one_frozen_ik_snapshot(self):
         motion_path = os.path.join(
             ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',

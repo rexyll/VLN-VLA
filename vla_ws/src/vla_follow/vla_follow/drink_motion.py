@@ -57,12 +57,36 @@ def q_meas(node, side):
     return np.array([js[n] for n in names], float)
 
 
+def _base_pose(node, max_truth_age_s=0.5):
+    """优先用新鲜 Gazebo robot 模型真值刷新底盘位姿，陈旧时保留原值。
+
+    odom 是轮速积分，不能覆盖 Gazebo 模型真值；但此前 truth 回调只保存
+    snapshot，reach/wrist 仍可能继续使用旧 node.base。机械臂移动期间底盘
+    受反作用力发生微动时，这会让世界系 FK/IK 使用过期底座。
+    """
+    snapshot = getattr(node, 'truth_base_pose_snapshot', None)
+    if snapshot is not None:
+        try:
+            pose, sample_t = snapshot
+            age = time.monotonic() - float(sample_t)
+            candidate = tuple(float(v) for v in pose)
+            if (0.0 <= age <= float(max_truth_age_s)
+                    and len(candidate) == 3
+                    and all(math.isfinite(v) for v in candidate)):
+                node.base = candidate
+                node._truth_base = True
+                node._have_odom = True
+        except (TypeError, ValueError, OverflowError):
+            pass
+    return tuple(float(v) for v in node.base)
+
+
 def wrist(node, side):
-    """掌心世界位姿：实测关节角 → fk → 底盘位姿。"""
+    """掌心世界位姿：实测关节角 → fk → 最新可信底盘位姿。"""
     q = q_meas(node, side)
     if q is None:
         return None
-    return K.fk_world(side, q, node.base)
+    return K.fk_world(side, q, _base_pose(node))
 
 
 def object_pose(node, model):
@@ -466,6 +490,9 @@ def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
           preflight_only=False):
     """闭环把 side 侧手臂的**掌心**移到世界位形 T_world。
 
+    每轮 IK 和伺服后掌心测量均优先刷新同一接收端时钟下的新鲜 Gazebo
+    robot 模型真值，避免底盘受机械臂反作用微动时继续使用旧 node.base。
+
     `elbow` 选逆解分支(7 轴对这 6 维位姿冗余 1 维, 同一目标有一整族等价解):
       'human'(默认) 按 `arm_kin.ik_human` 挑"最像人"的解 —— 肘不内收/不过
                     中线、前臂不反拧、肩不顶内旋限位、肘不过度折叠。抓杯、
@@ -510,7 +537,7 @@ def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
         # The later post-servo ages alone cannot prove that the base pose used
         # by FK/IK was aligned with the latest Gazebo truth snapshot.
         ik_sample_t = time.monotonic()
-        base_at_ik = tuple(float(v) for v in node.base)
+        base_at_ik = _base_pose(node)
         js_sample_t_at_ik = float(getattr(node, 'js_sample_t', 0.0) or 0.0)
         truth_snapshot_at_ik = getattr(
             node, 'truth_base_pose_snapshot', None)
