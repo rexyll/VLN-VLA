@@ -1643,14 +1643,15 @@ def hand_onto(node, side, model, palm_fn, tol_mm=5.0, elbow='human'):
     return np.linalg.inv(T_obj) @ Tp
 
 
-def follow_hand(node, side, model, off, tol_mm=5.0, elbow='human'):
+def follow_hand(node, side, model, off, tol_mm=5.0, elbow='human',
+                check_table=False):
     """第二只手按冻结偏移跟上物体当前位置。"""
     T_obj = object_pose(node, model)
     if T_obj is None or off is None:
         return False, 9e9
     Tp_goal = np.asarray(T_obj, float) @ off
     ok, res, _how = reach(node, side, Tp_goal, tol_mm=tol_mm,
-                          elbow=elbow)
+                          elbow=elbow, check_table=check_table)
     return ok, res
 
 

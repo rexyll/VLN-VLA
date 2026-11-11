@@ -2098,6 +2098,15 @@ class TestP104(unittest.TestCase):
         self.assertIn('reach_tol_mm=1.5', present_call)
         self.assertIn('reach_tol_deg=0.08', present_call)
         self.assertIn('reach_passes=8', present_call)
+        self.assertIn('check_table=True', present_call)
+        follow_start = task.index("ok_follow, follow_mm = M.follow_hand(")
+        follow_end = task.index("res['present']", follow_start)
+        self.assertIn('check_table=True', task[follow_start:follow_end])
+
+        follow_fn = motion.index('def follow_hand(')
+        follow_end_fn = motion.index('def hand_gap(', follow_fn)
+        self.assertIn('check_table=False', motion[follow_fn:follow_end_fn])
+        self.assertIn('check_table=check_table', motion[follow_fn:follow_end_fn])
 
 
     def test_reach_tries_only_collision_clear_human_valid_elbow_fallback(self):

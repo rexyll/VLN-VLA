@@ -734,9 +734,11 @@ class DrinkTask(Node):
             ok_present, present_mm = M.place_held(
                 self, 'L', 'cup', Tp, tol_mm=6.0, iters=14,
                 reach_tol_mm=1.5, reach_tol_deg=0.08,
-                reach_passes=8)
+                reach_passes=8, check_table=True)
+            # Both arms approach the handover pose across the table edge.
+            # Gate each complete interpolated path before moving either arm.
             ok_follow, follow_mm = M.follow_hand(
-                self, 'R', 'cup', pr['off_r'])
+                self, 'R', 'cup', pr['off_r'], check_table=True)
             res['present'] = {'ok': ok_present, 'position_mm': present_mm,
                               'right_hand_ok': ok_follow,
                               'right_hand_mm': follow_mm}
