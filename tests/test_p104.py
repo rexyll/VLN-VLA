@@ -1940,6 +1940,12 @@ class TestP104(unittest.TestCase):
         self.assertIn("return False, res, 'table-collision'", body)
         self.assertIn('current_xyz=%s target_xyz=%s residual=%.1fmm', body)
         self.assertIn('q_now=%s q_target=%s', body)
+        self.assertIn('first_how = None', body)
+        self.assertIn('first_how = how', body)
+        self.assertIn("'servo_ok': bool(ok_move)", body)
+        self.assertIn("'joint_err_deg': round(joint_err_deg, 2)", body)
+        self.assertIn('first_ik=%s last_ik=%s trace=%s', body)
+        self.assertIn('q_final=%s q_target=%s', body)
 
 
 if __name__ == '__main__':
