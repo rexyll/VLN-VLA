@@ -10,10 +10,11 @@
 ## 当前执行位置（2026-11-11）
 
 - **当前主节点：P104-07（正在进行中）**。完整 DrinkTask E2E 入口为 `tests/test_drink.py`，单轮 headless 入口为 `tests/run_drink_headless.sh`，多轮顺序验收入口为 `tests/drink_repeat.sh`。CarryBus 专项和纯测试均不能替代完整 Gazebo E2E。
-- **当前功能代码提交：** `108a8618ef788c30d4b12825e49568e881b09e07`（TaskPlan 进度同步；功能代码基线 `0f553b9`）。5.0Nm 轮组 effort 未能消除 TAKE_BACK 期间的底盘转动，当前增加底盘速度指令旁路遥测，区分指令驱动与机械臂反作用/轮地滚动；不再盲目提高扭矩。
-- **最新 Python CI：** run `43007041439`（#879，head `108a861`）completed/success；70 项 P104 纯数学/运动学测试通过，Python 模块编译通过。
-- **CarryBus CI：** run `43007041349`（#619，head `108a861`）completed/success；11 项真实 ROS 2 executor 集成测试全部通过。
-- **最新完整 Gazebo E2E：** #33（run `43006932018`，head `0f553b9`）completed/failure；阶段 PREPARE → PRESENT → HANDOVER → PERSON_DRINK → TAKE_BACK → FAIL_TAKE_BACK。#34 将验证新增底盘指令遥测，定位 TAKE_BACK 期间的右臂残差与底盘转动关系。
+- **当前功能代码提交：** `a96ebad5ad2c8f6777d833e2da587aee8cf24c16`（新增 `/drink/cmd_vel` 与 mux 后 `/robot/cmd_vel` 只读遥测；未改控制行为）。
+- **最新 Python CI：** run `43009985034`（#880，head `a96ebad`）completed/success；71 项 P104 测试通过，Python 模块编译通过。
+- **CarryBus CI：** run `43009984929`（#620，head `a96ebad`）completed/success；真实 ROS 2 executor 集成测试通过。
+- **最新完整 Gazebo E2E：** #34（run `43009984917`，head `a96ebad`）completed/failure；阶段 PREPARE → PRESENT → HANDOVER → PERSON_DRINK → TAKE_BACK → PUT_BACK → FAIL_PUT_BACK。TAKE_BACK 左右掌心均 1.5mm，成功越过 #33 的接回失败；PUT_BACK 第 4/4 步右臂前臂路径与 `table_top` 碰撞，240 个候选姿态均未找到无碰撞路径，右掌残差 62.2mm，系统保持抓持并阻止 release。由于碰撞预检在执行/trace 记录前拒绝，本轮没有有效的新增底盘命令遥测样本。
+- **下一步：** 定位 PUT_BACK 右臂支持姿态与桌面几何的冲突，设计并验证不改变碰撞门控的安全路径/姿态；不得通过降低 5mm 放置精度、缩小碰撞半径或提前松手绕过失败。完整真实 Gazebo DrinkTask E2E 通过轮数仍为 **0**。
 - **#32 失败根因定位：** PRESENT 左手 `place_held` 的 8 次 reach 掌心残差为 `23.0, 8.2, 15.6, 4.6, 4.7, 1.6, 1.8, 5.5mm`，末端杯体残差 5.6mm；IK/FK 与伺服关节误差均接近 0，右手 follow_hand 为 3.8mm 且通过。reach 期间 Gazebo robot 真值底盘由 `(1.750,0.350,1.228rad)` 移到约 `(1.762,0.384,1.219rad)`，而 odom twist 和左右轮关节速度近零；这次直接阻断左手 1.5mm 掌心收敛，系统保持抓持并进入 FAIL_PRESENT。
 - **当前诊断方向：** #33 中 TAKE_BACK 右臂 reach 的 5 轮掌心残差为 48.5、16.1、5.6、8.9、8.3mm；IK/FK 与伺服关节误差近零，但 base yaw 从约 1.2055rad 漂到 1.0783rad，左轮首轮速度 -1.59882rad/s，右轮为 0。5.0Nm effort 未消除该运动。现有日志没有同时记录 `/drink/cmd_vel` 与 mux 后 `/robot/cmd_vel`，无法确认是任务速度残留还是轮组受机械臂反作用/地面接触驱动；本次增加两路指令及采样 age 到 reach trace，下一轮再决定物理或控制修正。
 - **验收计数：** 完整真实 Gazebo DrinkTask E2E 通过轮数仍为 **0**。不得放宽 5mm 验收或绕过碰撞/抓持安全门控。
@@ -4202,3 +4203,13 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 喝水锁期间 `cmd_mux.py` 只转发 `/drink/cmd_vel`，其他 Nav2/follower 输入被置零；但 #33 reach trace 没有记录任务输入和 mux 输出的实际采样值。因此目前不能确认 wheel spin 是残留速度命令，还是 arm reaction / 轮地接触产生的被动运动。
 - 新增 `/drink/cmd_vel` 与 `/robot/cmd_vel` 订阅快照，并将线速度、角速度及采样 age 写入每轮 reach trace；仅增加只读诊断，不改变底盘控制、轮组参数、手臂目标、精度阈值或抓持门控。tests 增加契约覆盖两路订阅和 trace 字段。
 - 下一轮 #34 根据指令遥测与轮速/真值速度的时序关系区分主动指令和被动漂移，再决定是否修复 cmd_mux/停车逻辑或 Gazebo 轮组物理。完整真实 Gazebo E2E 通过数仍为 **0**，P104-07 继续“正在进行中”。
+
+
+### 8.260 #34 越过 TAKE_BACK，定位 PUT_BACK 右臂桌面碰撞（2026-11-11）
+
+- #34（run `43009984917`，head `a96ebad`）已完成但 failure。真实阶段为 PREPARE → PRESENT → HANDOVER → PERSON_DRINK → TAKE_BACK → PUT_BACK → FAIL_PUT_BACK。与 #33 相比，接回阶段已成功：`TAKE_BACK reach: R 1.5mm / L 1.5mm`，随后左手重新抓杯，人的双手交还动作也完成。
+- PUT_BACK 目标杯位 `[2.300, 0.440, 0.773]`，开始杯位 `[2.342, 0.366, 1.000]`，底盘 `[1.769, 0.440, 0.025]`。下降第 4/4 步右臂 `reach` 被桌面碰撞门控拒绝：右前臂线段与 `table_top` 扩张盒相交（首次命中 sample 1/2；前臂端点约 `[1.995,0.128,0.703]` 到 `[2.189,0.326,0.819]`，桌面盒 z 范围 `[0.67,0.72]`，检查扩张后 z `[0.63,0.76]`）。human/out 两分支及人体规则种子搜索共 240 个候选均未找到完整无碰撞路径。
+- 右掌当前 `[2.2243,0.3187,0.8297]`，目标 `[2.2148,0.3424,0.7730]`，残差 62.2mm。`PUT_DOWN_TWO` 在右臂未到位时停止下降；`release_blocked=true`、`release_block_reason=right_arm_path_failed`、`failed_step=4`、`holding=['cup']`。杯体相对原位 6.9mm，但不能把这当作已安全放置；系统没有松钉、没有撤离。这是正确的 fail-closed 行为。
+- 新增底盘指令遥测未在这次碰撞失败分支产生有效 reach trace：路径在候选预检阶段被拒绝，尚未到实际伺服移动与 trace append。故本轮不能据此判断底盘漂移的命令来源；该诊断问题暂缓，先处理当前阻断全流程的 PUT_BACK 碰撞路径。
+- 下一步必须基于双臂支撑杯子的几何与桌面碰撞模型，分析右掌支持姿态/杯体下降路径；可考虑对支持臂使用经过完整碰撞预检的独立安全中间姿态或重新定义支持接触偏移，但任何方案都必须保持杯子持续由左手可靠抓持、右手支持接触可验证、所有运动路径逐段无碰撞，并且落稳确认前不得松手。不能关闭 `check_table`、缩小碰撞盒/半径、降低 5mm 放置目标或直接跳过右臂。
+- Python CI #880 与 CarryBus CI #620 均通过；完整 Gazebo E2E #34 失败，完整真实 DrinkTask E2E 通过数仍为 **0**，P104-07 继续“正在进行中”。
