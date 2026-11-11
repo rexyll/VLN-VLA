@@ -4254,3 +4254,15 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - **回归测试：** `tests/test_p104.py` 新增时间戳快照与遥测字段断言。待本轮 CI 运行结束后更新结果。
 - **风险与边界：** 这些是接收端单调时钟，不代表 Gazebo/ROS 消息源时间戳已同步；不能据此宣称传感器物理采样完全同时。下一轮应使用字段年龄识别明显陈旧样本，并结合仿真时钟/消息 header stamp（若有效）做交叉核验。
 - **当前任务：** P104-07 仍为正在进行中。完整真实 Gazebo DrinkTask E2E 通过轮数仍为 **0**；本轮时间戳遥测不构成 E2E 通过。
+
+
+### 8.265 E2E #37：抓壶 5mm 收敛失败；新增 IK 同迭代底盘真值对齐遥测（2026-11-11）
+
+- **真实 E2E 证据：** run `43023332543`，head `6f38b5fd86e6ccfc0d9b289a754de1be160e2108`，artifact `p104-drinktask-e2e-43023332543`。任务真实阶段为 `PREPARE → FAIL_PREPARE`，未进入 PRESENT；完整 DrinkTask E2E 仍失败，完整通过数保持 **0**。
+- **失败动作：** 左手抓杯、举杯成功；右手抓壶的 5 轮掌心残差为 `10.6, 9.0, 10.0, 7.5, 7.6mm`，抓取门槛为 5.0mm。末轮 `ik_fk_mm=0.0`、`joint_err_deg=0.0°`，但世界系掌心仍偏 7.6mm，因此未 attach kettle 并停止倒水。杯子仍由左手保持，安全门控正常。
+- **采样时效证据：** 末轮 JointState 接收年龄约 21ms、Gazebo robot 真值位姿快照年龄约 8ms；不是明显陈旧样本。每轮 `/robot/cmd_vel` 均为新鲜零速度，左右轮速度接近零；`/drink/cmd_vel` 年龄约 24.6–25.1s，按 unknown 处理。Gazebo 真值差分角速度曾达到约 0.193rad/s，而 odom twist 接近零。该证据仍不能区分物理反作用、轮地接触或仿真更新时序。
+- **发现的诊断缺口：** 现有 age 和 `fk_truth_diagnostics` 只在伺服结束后读取；`base_at_ik` 虽记录 IK 使用的底盘位姿，却没有保存同一 IK 时刻的真值底盘快照。因此无法直接计算“本轮 IK/FK 使用的 base”与“当时最新 Gazebo truth base”的差异。#37 末轮日志还显示当前 `node.base` 与 truth snapshot yaw 相差约 0.005rad，但它不是 IK 采样时刻的严格配对，不能据此归因。
+- **本轮新增只读遥测：** 在每轮 IK 计算前冻结 `base_at_ik`、JointState 接收时间和 truth pose snapshot；reach trace 新增 `joint_state_age_at_ik_s`、`truth_base_pose_age_at_ik_s`、`truth_base_pose_at_ik`、`base_truth_xy_mm_at_ik`、`base_truth_yaw_deg_at_ik`。这些字段直接对齐 IK 输入时刻，帮助判断 base 缓存与 Gazebo 真值是否错位。只增加诊断，不改变控制、IK目标、伺服、5mm抓取门槛、碰撞或抓持门控。
+- **代码与测试提交：** `d84a7ab044456174915978607c667d2df0bdf1d7` 增加同迭代遥测；`2c3b30f1e6b01473832151c95bff3c46bde8f42d` 增加回归契约。#37 的 Python syntax 与 CarryBus ROS 2 executor CI 均通过；Gazebo E2E #37 failure。
+- **下一步：** 运行新遥测对应的 Python、CarryBus 和完整 Gazebo E2E #38。重点比较每轮 `base_at_ik` 与同轮 `truth_base_pose_at_ik` 的平移/航向差，以及两类快照年龄；若二者一致但掌心仍超差，再转向检查 FK 标定、关节状态源与机械臂物理回弹。不能降低 5mm/1.5mm精度门槛，也不能在抓壶未到位时 attach 或继续倒水。
+- **当前任务：** P104-07 继续“正在进行中”；完整真实 Gazebo DrinkTask E2E 通过次数仍为 **0**。
