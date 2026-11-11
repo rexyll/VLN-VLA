@@ -2047,7 +2047,7 @@ class TestP104(unittest.TestCase):
         self.assertIn('q_try = np.clip(q + alpha * dq, LIM_LO, LIM_HI)',
                       refine_body)
         self.assertIn('if err_try < err -', refine_body)
-        self.assertIn('if e > 5e-4:', source)
+        self.assertIn('if refine and e > 5e-4:', source)
         self.assertIn('q_refined, e_refined = ik_refine(side, T_tgt, q)',
                       source)
 
