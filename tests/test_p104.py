@@ -124,9 +124,17 @@ class TestP104(unittest.TestCase):
             # round cannot be treated as definitely not attempted.
             os.symlink(os.path.join(outdir, 'not-created'),
                        os.path.join(outdir, 'drink_case_2.started'))
+            # A malformed result file is not "missing", but its command
+            # outcome is still unknown when the durable attempt marker exists.
+            with open(os.path.join(outdir, 'drink_case_3.started'), 'w') as stream:
+                stream.write('attempted')
 
-            unknown = identify_unknown_rounds(outdir, 'case', missing)
-            self.assertEqual(unknown, missing[:2])
+            invalid_result_candidate = [
+                {'round': 3, 'file': 'drink_case_3.json', 'error': 'invalid JSON'}
+            ]
+            unknown = identify_unknown_rounds(
+                outdir, 'case', missing[:2] + invalid_result_candidate)
+            self.assertEqual(unknown, missing[:2] + invalid_result_candidate)
             self.assertEqual(
                 identify_unknown_rounds(outdir, 'case', [
                     {'round': True, 'file': 'invalid'},
