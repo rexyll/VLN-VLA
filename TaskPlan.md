@@ -4125,4 +4125,5 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 
 - 诊断功能代码提交 `6a1de4e4374f8773f5defc361db500a976ff9b55` 的 compile job 通过；纯测试 run `42978623068` 中 67 项有 66 项通过，唯一新增测试 `test_fk_truth_diagnostics_distinguish_world_and_model_relative_links` 在 fixture 内导入 `vla_follow.drink_task.gz_pose_to_T`，继而触发纯测试环境未安装的 ROS `sensor_msgs` 模块。该失败来自测试 fixture 不必要地导入完整 ROS 节点，不是诊断 helper 或运动代码故障。
 - fixture 改为在测试内部使用标准旋转矩阵→四元数转换构造轻量 pose 对象，不导入 `drink_task.py`、ROS 或 SciPy；保留两种合成场景：link pose 直接为世界坐标、link pose 为 robot model 相对坐标，分别确认诊断器能识别 raw 与 model-composed 两种解释。
+- 该 fixture 使用标准库 `math.sqrt`，本次提交同时显式导入 `math`，避免纯测试环境依赖 ROS/科学计算库之外的未声明模块。
 - 这次只修改纯测试 fixture 和 TaskPlan 记录，不改变 runtime source/control logic。等待新的 Python CI 结果；完整 Gazebo #23 正在运行，尚未到达任务步骤。P104-07 保持“正在进行中”，完整 Gazebo 通过数仍为 0。

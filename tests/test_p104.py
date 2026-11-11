@@ -10,6 +10,7 @@
 此脚本只验证纯函数与运动路径分段逻辑，不替代 Gazebo 遮挡/机械臂碰撞仿真。
 """
 import json
+import math
 import os
 import sys
 import threading
