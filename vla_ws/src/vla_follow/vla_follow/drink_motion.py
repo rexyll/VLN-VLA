@@ -780,10 +780,23 @@ def place_held(node, side, model, T_obj_goal, tol_mm=PLACE_TOL_MM,
             tol_mm=(max(tol_mm, 2.0) if reach_tol_mm is None
                     else reach_tol_mm), elbow=elbow)
         if not ok_reach:
+            # reach() 失败时，前一轮的物体残差可能仍是大位移旧值；伺服
+            # 已经移动到目标附近后，不能把这个过期值作为最终失败残差上报。
+            # 重新读取 Gazebo 物体真值，并同时记录掌心残差与姿态误差，便于
+            # 区分“机械臂未确认到位”和“物体实际仍未落位”。
+            Tk_after = object_pose(node, model)
+            if Tk_after is not None:
+                res_after = pos_err_mm(Tk_after, T_obj_goal)
+                ang_after = axis_angle_deg(Tk_after, T_obj_goal)
+                if ang_after > 180.0:
+                    ang_after = 360.0 - ang_after
+            else:
+                res_after, ang_after = res, 9e9
             node.get_logger().warn(
-                'PLACE %s: 本轮补位伺服/IK 未确认（掌心 %.1fmm），保持当前抓持并停止闭环'
-                % (model, reach_res))
-            return False, res
+                'PLACE %s: 补位未确认（掌心 %.1fmm, 物体真值 %.1fmm/%.2f°; '
+                '此前物体残差 %.1fmm），保持当前抓持并停止闭环'
+                % (model, reach_res, res_after, ang_after, res))
+            return False, res_after
     return (res < tol_mm and ang < tol_deg), res
 
 
