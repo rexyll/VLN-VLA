@@ -284,7 +284,14 @@ missing_rounds = [
     for index in range(1, int(requested) + 1)
     if "drink_%s_%d.json" % (tag, index) not in represented
 ]
-unknown_rounds = identify_unknown_rounds(outdir, tag, missing_rounds)
+invalid_files = {item["file"] for item in invalid_rounds}
+invalid_round_candidates = [
+    {"round": index, "file": "drink_%s_%d.json" % (tag, index)}
+    for index in range(1, int(requested) + 1)
+    if "drink_%s_%d.json" % (tag, index) in invalid_files
+]
+unknown_rounds = identify_unknown_rounds(
+    outdir, tag, missing_rounds + invalid_round_candidates)
 batch_status = summarize_batch_status(
     int(requested), rows, invalid_rounds, missing_rounds)
 report = {
