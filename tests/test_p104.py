@@ -2257,5 +2257,20 @@ class TestP104(unittest.TestCase):
         self.assertIn('M.person_hand_poses(self)', task)
 
 
+    def test_put_back_failure_logs_release_and_cup_state_diagnostics(self):
+        task_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow', 'drink_task.py')
+        with open(task_path, encoding='utf-8') as stream:
+            task = stream.read()
+        start = task.index("ok_d, res_d = M.put_down_two(")
+        end = task.index("# 物体已安全释放", start)
+        failure_path = task[start:end]
+        self.assertIn("_cup_fail_pose = M.object_pose(self, 'cup')", failure_path)
+        self.assertIn("_holding_fail = list(self.carry.holding())", failure_path)
+        self.assertIn("putback_info=%s", failure_path)
+        self.assertIn("cup_home_mm=%.1f", failure_path)
+        self.assertIn("_pb", failure_path)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

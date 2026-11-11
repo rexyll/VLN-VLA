@@ -1004,10 +1004,15 @@ class DrinkTask(Node):
                 if ('cup' in self.carry.holding() or _drop is None
                         or abs(float(_drop)) > 5.0):
                     self._set_state('FAIL_PUT_BACK')
+                    _cup_fail_pose = M.object_pose(self, 'cup')
+                    _cup_fail_mm = (M.pos_err_mm(_cup_fail_pose, Tcup_home)
+                                    if _cup_fail_pose is not None else 9e9)
+                    _holding_fail = list(self.carry.holding())
                     self.get_logger().error(
                         'DRINK 水杯未确认落稳/松钉后发生下落（放回残差 %.1fmm，'
-                        'drop=%s），停止撤离'
-                        % (res_d, _drop))
+                        'drop=%s，holding=%s，cup_home_mm=%.1f，'
+                        'putback_info=%s），停止撤离'
+                        % (res_d, _drop, _holding_fail, _cup_fail_mm, _pb))
                     return False
                 # 物体已安全释放，但初始 hands_off 被桌面净空门控拦下；
                 # 这不是“放杯失败”，由下面的分阶段收臂路径接手完成安全撤手。
