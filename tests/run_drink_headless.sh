@@ -38,18 +38,20 @@ if [[ ! -f "$ROOT/vla_ws/install/setup.bash" ]]; then
     echo "Workspace overlay missing; build vla_ws before running this test." >&2
     exit 2
 fi
-for command in Xvfb xdpyinfo gz ros2; do
-    if ! command -v "$command" >/dev/null 2>&1; then
-        echo "Required command not found: $command" >&2
-        exit 2
-    fi
-done
-
+# Each workflow step runs in a fresh shell, so the runner must source
+# ROS and the colcon overlay itself before checking for the ros2 executable.
 # ROS setup hooks may read unset trace variables; source under nounset-off.
 set +u
 source /opt/ros/jazzy/setup.bash
 source "$ROOT/vla_ws/install/setup.bash"
 set -u
+
+for command in Xvfb xdpyinfo gz ros2; do
+    if ! command -v "$command" >/dev/null 2>&1; then
+        echo "Required command not found after ROS environment setup: $command" >&2
+        exit 2
+    fi
+done
 
 PKG_SHARE="$(ros2 pkg prefix vla_follow)/share/vla_follow"
 for map_asset in "$PKG_SHARE/maps/arena.yaml" "$PKG_SHARE/maps/arena.pgm"; do
