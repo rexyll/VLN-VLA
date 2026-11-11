@@ -227,7 +227,7 @@ import sys
 summary_path, requested, root, failed, tag, outdir, *paths = sys.argv[1:]
 sys.path.insert(0, os.path.join(root, "tests"))
 from drink_evidence import (summarize_round_evidence, summarize_numeric_values,
-                            summarize_batch_status,
+                            summarize_batch_status, identify_unknown_rounds,
                             finite_numeric_value, write_json_atomic,
                             load_json_strict)
 
@@ -284,11 +284,7 @@ missing_rounds = [
     for index in range(1, int(requested) + 1)
     if "drink_%s_%d.json" % (tag, index) not in represented
 ]
-unknown_rounds = [
-    item for item in missing_rounds
-    if os.path.isfile(os.path.join(
-        outdir, "drink_%s_%d.started" % (tag, item["round"])))
-]
+unknown_rounds = identify_unknown_rounds(outdir, tag, missing_rounds)
 batch_status = summarize_batch_status(
     int(requested), rows, invalid_rounds, missing_rounds)
 report = {
