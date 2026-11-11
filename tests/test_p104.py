@@ -1912,7 +1912,7 @@ class TestP104(unittest.TestCase):
         with open(motion_path, encoding='utf-8') as stream:
             source = stream.read()
         start = source.index('def place_held(')
-        end = source.index('\\ndef put_down(', start)
+        end = source.index('def put_down(', start)
         body = source[start:end]
         self.assertIn('Tk_after = object_pose(node, model)', body)
         self.assertIn('res_after = pos_err_mm(Tk_after, T_obj_goal)', body)
