@@ -4037,3 +4037,15 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - `tests/test_p104.py` 提交 `e887edf79ee7bc7a83289115f3f051ecaaae1c00`：增加源码回归契约，检查种子候选必须经过 IK 残差闸、人体规则闸、人体代价排序和整段路径碰撞检查，且没有安全候选时保留拒绝路径。该源码契约测试不替代 Gazebo 真实轨迹验证。
 - 下一步跟踪 `465a83d` 与 `e887edf` 触发的 Python syntax、P104 纯测试、CarryBus 和完整 headless Gazebo E2E。真实 E2E 要确认是否找到 `human-seed-N` 合法路径、右前臂全路径无碰撞、左右手全程承托、杯体落稳复核、同时张手及 release ACK、撤手/撤离/交权/跟随全部完成。若所有种子仍被拒绝，保留证据并转向显式笛卡尔分段接近/杯体姿态规划；禁止关闭碰撞检查、提前松手或把杯体接近目标但仍附着当作放杯成功。
 - **状态：PRESENT 专用 8 轮精修已在真实仿真中把任务推进到 PUT_BACK；本轮新确认的右前臂桌面碰撞已增加人体规则 + IK 残差 + 全路径碰撞三重约束的种子候选搜索，等待 CI 与新一轮 Gazebo 验证。完整 Gazebo DrinkTask E2E 通过轮数仍为 0；P104-07 保持“正在进行中”。**
+
+
+### 8.242 连续失败根因复盘与 IK 局部停滞精修修复（2026-11-11，修复已提交，Gazebo 复验运行中）
+
+- 本轮重新检查最新失败 run `42967805799` 的 artifact `13832785460`，而不是只看 workflow failure 状态。依赖安装、Gazebo Harmonic 插件构建、ROS 2 workspace/Nav2 检查均成功；失败发生在真实仿真 `PREPARE`，不是 CI 环境故障。
+- 精确失败轨迹：左手双手捧杯目标掌心 `[2.1731,0.4018,1.0000]m`，末端实测 `[2.1787,0.3909,1.0000]m`；五轮位置残差 `20.7 → 14.4 → 11.3 → 7.9 → 12.3mm`，各轮伺服均回报成功。姿态误差仍有 `1.45°`，末端杯体目标残差 `9.0mm/1.06°`，未满足捧杯位 5mm 掌心阈值与物体真值判据，因此正确地保持抓持并终止。observer 只记录 `PREPARE → FAIL_PREPARE`，0/9 阶段完成，1 requested / 1 completed / 0 passed。
+- 根因定位：不是伺服未执行（servo_ok 全为 true），而是 IK 候选求解局部停滞。末轮 `q_final` 与 `q_target` 在日志精度下完全一致，但掌心仍有 12.3mm/1.45°误差，说明 `ik_best` 选择了 KDL-LMA 局部残差候选后，后续仅以实测 q 重新启动 KDL/DLS；现有 DLS 采用固定阻尼、固定步长、带 Q_REST 零空间偏置，缺少从最佳 KDL 候选出发的单调精修，因而可能在近奇异/冗余姿态停在非零残差点。增加 pass 数或放宽伺服阈值不能修复此根因。
+- `vla_ws/src/vla_follow/vla_follow/arm_kin.py` 提交 `46572970c9c5b584fccc24a2351b161ce7ced27c`：新增 `ik_refine`，从 `ik_best` 当前最佳且已限位裁剪的候选开始，以当前 FK 位姿误差和几何雅可比做阻尼最小二乘局部精修；使用步长上限、关节限位裁剪、回溯线搜索及自适应阻尼，**只接受严格降低同一 6D 位姿误差的更新**，不施加零空间参考姿态漂移。原 KDL/DLS 候选保留为基线，精修无改善则原样返回；只有残差大于 `5e-4` 才进入精修。
+- `tests/test_p104.py` 提交 `015b7626f3f36a7a10d48190679faaee599ec5de`：新增合成可达目标的 FK/IK 功能测试，检查精修显著降低位姿误差、输出始终位于关节限位内，并新增源码契约测试确认 `ik_best` 调用单调回溯精修。测试成功不等于 Gazebo E2E 成功。
+- 同期确认 `42967805799` 使用的是 5-pass 基线，不包含 DrinkTask PRESENT 专用 8-pass 配置；此前 8-pass E2E `42964460378` 已越过 PRESENT/HANDOVER/PERSON_DRINK/TAKE_BACK，但在 PUT_BACK 右前臂-桌面碰撞处 fail-closed。先前新增的人体规则多种子无碰撞路径搜索包含在 `465a83df1ee5`，但该 5-pass run 在 PREPARE 先失败，不能验证 PUT_BACK 搜索。新的 IK 精修会同时用于两类路径，需由 8-pass 完整 Gazebo 运行验证。
+- CI 当前状态：Python syntax run `42969569103` completed/success；CarryBus run `42969569146` 当时 in_progress。完整 Gazebo E2E run `42969495781`（head `46572970c9c5`，包含 IK 精修但未包含后续测试文件提交）当时 in_progress；需等待 artifact 并检查阶段、IK pass trace、碰撞候选与 release ACK。另一个更新 head `015b7626f3f3` 的 Python syntax `42969569103` completed/success，CarryBus `42969569146` 当时 in_progress。
+- **状态：已修复有证据支持的 IK 局部停滞问题并增加功能/源码回归测试，等待完整 Gazebo 验证；旧失败不计为通过，完整 Gazebo DrinkTask E2E 通过轮数仍为 0。P104-07 继续“正在进行中”。**
