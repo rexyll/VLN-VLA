@@ -10,7 +10,7 @@
 ## 当前执行位置（2026-11-11）
 
 - **当前主节点：P104-07（正在进行中）**。完整 DrinkTask E2E 入口为 `tests/test_drink.py`，单轮 headless 入口为 `tests/run_drink_headless.sh`，多轮顺序验收入口为 `tests/drink_repeat.sh`。CarryBus 专项和纯测试均不能替代完整 Gazebo E2E。
-- **当前功能代码提交：** `a96ebad5ad2c8f6777d833e2da587aee8cf24c16`（新增 `/drink/cmd_vel` 与 mux 后 `/robot/cmd_vel` 只读遥测；未改控制行为）。
+- **当前功能代码提交：** `f6b149e5aa8bbe15ca1834c3e7200c3759bb86fa`（陈旧底盘命令遥测标记为 unknown；不改控制行为）。（新增 `/drink/cmd_vel` 与 mux 后 `/robot/cmd_vel` 只读遥测；未改控制行为）。
 - **最新 Python CI：** run `43009985034`（#880，head `a96ebad`）completed/success；71 项 P104 测试通过，Python 模块编译通过。
 - **CarryBus CI：** run `43009984929`（#620，head `a96ebad`）completed/success；真实 ROS 2 executor 集成测试通过。
 - **最新完整 Gazebo E2E：** #34（run `43009984917`，head `a96ebad`）completed/failure；阶段 PREPARE → PRESENT → HANDOVER → PERSON_DRINK → TAKE_BACK → PUT_BACK → FAIL_PUT_BACK。TAKE_BACK 左右掌心均 1.5mm，成功越过 #33 的接回失败；PUT_BACK 第 4/4 步右臂前臂路径与 `table_top` 碰撞，240 个候选姿态均未找到无碰撞路径，右掌残差 62.2mm，系统保持抓持并阻止 release。由于碰撞预检在执行/trace 记录前拒绝，本轮没有有效的新增底盘命令遥测样本。
@@ -4232,3 +4232,16 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 本轮 E2E 还确认初始底盘到服务位偏差约 `88.2mm`、朝向偏差 `8.6°`；驱入桌边后位置残差约 `24mm`。这些值是任务场景定位质量的旁证，不能单独解释右掌末端的 7.7mm 误差。
 - Python syntax #883（run `43012967622`）与 CarryBus #623（run `43012967703`）在当前 main HEAD `9d4ec6a` 均 completed/success；Gazebo E2E #35 failure。artifact `p104-drinktask-e2e-43012932507` 已检查，真实完整 E2E 通过次数仍为 **0**，P104-07 保持“正在进行中”。
 - 下一步先修正诊断采样：为 `/drink/cmd_vel` 增加明确的“未收到/陈旧”标记，避免把缓存的零值误读为当前零命令；同时在每轮 reach 前后记录左右轮速度、真值底盘差分速度和时间戳，并记录抓壶目标掌心相对肩/肘的几何及 IK 目标关节变化。再通过受控静止保持/单臂动作对照实验确认底盘残余运动来源。不得降低抓壶 5mm 门槛、放宽伺服确认、跳过 attach 前到位判据或提前继续倒水。完成这组证据后再针对性改控制或物理参数。
+
+
+### 8.263 E2E #36：PRESENT 左手闭环失败；命令遥测确认非主动底盘指令（2026-11-11）
+
+- **代码基线：** `f6b149e5aa8bbe15ca1834c3e7200c3759bb86fa`；run `43015023335`（E2E #36），artifact `p104-drinktask-e2e-43015023335`。
+- **实际阶段：** `PREPARE → PRESENT → FAIL_PRESENT`。完整流程未进入 HANDOVER；本轮真实 Gazebo E2E 失败，不能计为通过。
+- **失败动作：** PRESENT 左手 `place_held` 8/8 次未达到 1.5mm 掌心收敛阈值。掌心残差序列为 `22.8, 10.8, 22.1, 22.2, 22.2, 12.4, 13.1, 10.0mm`；末轮掌心目标与实测相差 10.0mm，杯体相对目标残差 26.5mm。右手 `follow_hand` 通过（4.7mm）。系统明确记录“不交给人、不松开杯子”，安全门控正确。
+- **IK/伺服不是当前证据指向的直接误差源：** 8 轮 `ik_fk_mm=0.0`、`joint_err_deg=0.0`，末轮 IK 姿态误差 0.96°；但掌心世界坐标闭环仍差 10.0mm，物体误差更大。不可用 IK/FK 数值为零推断世界系动作已到位。
+- **底盘指令遥测结论：** 8 轮 `/robot/cmd_vel` 均为新鲜样本且线速度/角速度为零（age 0.022~0.155s）；左右驱动轮关节速度均为零。相反，Gazebo robot 真值有限差分在前几轮出现瞬态角速度，最大约 0.400rad/s；真值底盘从首轮约 `(1.750,0.350,1.2071rad)` 漂至末轮约 `(1.763,0.395,1.3953rad)`，累计约 46mm、10.8°。这表明本轮记录到的主动底盘速度命令不能解释该漂移；当前证据尚不足以判定是模型真值采样/物理约束/接触或仿真时序哪一项造成，不能先行归因或调参。
+- `/drink/cmd_vel` 年龄约 18.9~20.1s，`drink_cmd_fresh=false`，因此速度值按 unknown 处理；不得把陈旧缓存的零值解释为当前零命令。新增新鲜度语义在本轮日志中按预期生效。
+- **CI：** Python syntax #885（run `43015023360`）success，包含纯数学/运动学测试和runner shell语法；CarryBus #625（run `43015023418`）success，真实 ROS 2 executor 集成通过。两者均不替代 Gazebo E2E。
+- **下一步诊断：** 给底盘真值、odom、左右轮关节速度增加统一的单调时钟接收时间/样本年龄与动作窗口前后快照；同时记录 `place_held` 每轮关节目标增量、掌心目标世界坐标和 FK base 输入，核对“同一时刻、同一 base pose”条件。先验证真值/运动学采样是否时间对齐，再决定是否改物理模型或运动控制。保持 5mm/1.5mm精度、碰撞和抓持安全门控不变。
+- **验收计数：** 完整真实 Gazebo DrinkTask E2E 通过轮数仍为 **0**；P104-07 继续进行中。
