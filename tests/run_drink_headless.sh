@@ -45,8 +45,11 @@ for command in Xvfb xdpyinfo gz ros2; do
     fi
 done
 
+# ROS setup hooks may read unset trace variables; source under nounset-off.
+set +u
 source /opt/ros/jazzy/setup.bash
 source "$ROOT/vla_ws/install/setup.bash"
+set -u
 
 PKG_SHARE="$(ros2 pkg prefix vla_follow)/share/vla_follow"
 for map_asset in "$PKG_SHARE/maps/arena.yaml" "$PKG_SHARE/maps/arena.pgm"; do
