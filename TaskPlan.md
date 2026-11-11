@@ -3873,5 +3873,6 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - tests/drink_evidence.py 提交 0aac06c5a9b2fb5c71287190b784f4a81e8b77a6：新增 invalid_round_candidates()，将请求轮次范围与无效结果文件名映射为候选轮次；忽略非字典记录、非字符串文件名、无关文件名及范围外路径。
 - tests/drink_repeat.sh 提交 6465a410f1ce823726c3be5e0ac4b23a71fe6337：批次 SUMMARY 改为调用该 helper，再将候选项与真正缺失的结果轮次一起交给 identify_unknown_rounds()；原 invalid 记录和批次失败语义保持不变。
 - tests/test_p104.py 提交 748602954d8f2dadf0daf1079fda467cf73c47d6：新增动态回归，验证 invalid 文件名映射、恶意/无关文件名过滤，以及仅在对应命令尝试 marker 存在时归类 UNKNOWN。
-- 新增代码、runner 与测试提交的 Python/ROS 2 CI 尚待刷新终态。本轮未启动 Gazebo，未运行完整 tests/test_drink.py 或 tests/drink_repeat.sh；完整真实 Gazebo DrinkTask E2E 新增通过轮数仍为 0。
-- **状态：invalid 文件名映射现由 runner 调用可独立动态测试的 helper；等待 CI。P104-07 保持“正在进行中”，真实 Gazebo DrinkTask E2E、至少三轮完整 E2E 和长时间稳定性验证未完成。**
+- 刷新新增提交的 GitHub Actions：helper 提交 `0aac06c5a9b2` 的 Python run `42942598821` 与 CarryBus ROS 2 executor run `42942598806` 均 completed/success；runner 提交 `6465a410f1ce` 的 Python run `42942638930` 与 ROS 2 executor run `42942638903` 均 completed/success；动态测试提交 `748602954d8f` 的 Python run `42942645959` 与 ROS 2 executor run `42942645900` 均 completed/success；本 TaskPlan 之前的代码整合提交 `c3bf2a24400b` 的 Python run `42942711852` 与 ROS 2 executor run `42942711895` 均 completed/success。各 ROS 2 job 的 `Run CarryBus executor integration test` 步骤明确为 success。
+- 以上 CI 覆盖 Python 编译/纯回归、runner shell 语法与 CarryBus ROS 2 executor 集成；不包含完整 Gazebo DrinkTask E2E。本轮未启动 Gazebo，未运行完整 tests/test_drink.py 或 tests/drink_repeat.sh；完整真实 Gazebo DrinkTask E2E 新增通过轮数仍为 0。
+- **状态：invalid 文件名映射及 UNKNOWN 分类动态回归已通过 CI；P104-07 保持“正在进行中”，真实 Gazebo DrinkTask E2E、至少三轮完整 E2E 和长时间稳定性验证未完成。**
