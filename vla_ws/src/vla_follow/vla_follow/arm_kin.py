@@ -841,6 +841,24 @@ def violation_list(side, q):
     return bad
 
 
+def human_seed_joints(seed, base=None):
+    """Expand a compact (pan, lift, up_roll, elbow) seed to a full 7-axis seed.
+
+    HUMAN_SEEDS intentionally samples four posture dimensions; KDL and the
+    general IK entry points always require all NJ joint values. Keep this
+    conversion here so every caller uses the same neutral values for the
+    three wrist joints and validates the seed shape before entering IK.
+    """
+    values = np.asarray(seed, float)
+    if values.shape != (4,) or not np.all(np.isfinite(values)):
+        raise ValueError("human IK seed must contain four finite values")
+    q = np.asarray(Q_REST if base is None else base, float).copy()
+    if q.shape != (NJ,) or not np.all(np.isfinite(q)):
+        raise ValueError("human IK seed base must contain NJ finite joint values")
+    q[:4] = values
+    return q
+
+
 def ik_human(side, T_tgt, seed=None, tol=2e-3, seeds=None):
     """在残差合格的解里挑**最像人**的那个(整个人形动作链的默认策略)。
 
@@ -885,8 +903,7 @@ def ik_human(side, T_tgt, seed=None, tol=2e-3, seeds=None):
     # `q=[−1.53,−1.30,+1.90,−2.42,…]`(up_roll 顶 R4、肘折 2.42 越 R7)。
     for gate in (tol, max(tol, 4e-3)):
         for v in (seeds or HUMAN_SEEDS):
-            s = base_q.copy()
-            s[0], s[1], s[2], s[3] = v[0], v[1], v[2], v[3]
+            s = human_seed_joints(v, base=base_q)
             q, err, how = ik_best(side, T_tgt, s, refine=False)
             if err > gate:
                 continue

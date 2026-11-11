@@ -432,8 +432,9 @@ def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
                     _seed_candidates = []
                     _seen_q = set()
                     for _seed_index, _seed in enumerate(K.HUMAN_SEEDS):
+                        _seed_q = K.human_seed_joints(_seed)
                         _q_seed, _e_seed, _how_seed = K.ik_world(
-                            side, T_world, node.base, _seed, elbow=None,
+                            side, T_world, node.base, _seed_q, elbow=None,
                             refine=False)
                         if (not np.all(np.isfinite(_q_seed))
                                 or not math.isfinite(float(_e_seed))

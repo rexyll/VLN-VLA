@@ -2004,6 +2004,8 @@ class TestP104(unittest.TestCase):
         body = source[start:end]
         self.assertIn('for _seed_index, _seed in enumerate(K.HUMAN_SEEDS):',
                       body)
+        self.assertIn('_seed_q = K.human_seed_joints(_seed)', body)
+        self.assertIn('node.base, _seed_q, elbow=None', body)
         self.assertIn('refine=False', body)
         self.assertIn('K.ik_world(', body)
         self.assertIn('float(_e_seed) > 4e-3', body)
@@ -2015,6 +2017,27 @@ class TestP104(unittest.TestCase):
         self.assertIn('if not _clear:', body)
         self.assertIn("return False, res, 'table-collision'", body)
 
+
+    def test_human_posture_seed_expands_to_full_seven_axis_ik_seed(self):
+        compact = np.asarray(K.HUMAN_SEEDS[17], float)
+        expanded = K.human_seed_joints(compact)
+        self.assertEqual(expanded.shape, (K.NJ,))
+        np.testing.assert_allclose(expanded[:4], compact)
+        np.testing.assert_allclose(expanded[4:], K.Q_REST[4:])
+        self.assertTrue(np.all(np.isfinite(expanded)))
+        self.assertTrue(np.all(expanded >= K.LIM_LO))
+        self.assertTrue(np.all(expanded <= K.LIM_HI))
+
+    def test_human_posture_seed_expansion_rejects_invalid_input(self):
+        invalid = (
+            (0.0, 0.0, 0.0),
+            (0.0, 0.0, 0.0, 0.0, 0.0),
+            (0.0, 0.0, float('nan'), 0.0),
+        )
+        for seed in invalid:
+            with self.subTest(seed=seed):
+                with self.assertRaises(ValueError):
+                    K.human_seed_joints(seed)
 
     def test_ik_refine_reduces_fk_pose_error_without_exceeding_joint_limits(self):
         q_goal = np.asarray(K.Q_REST, float).copy()
