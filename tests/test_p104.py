@@ -1966,7 +1966,7 @@ class TestP104(unittest.TestCase):
         with open(task_path, encoding='utf-8') as stream:
             task = stream.read()
         start = task.index("ok_present, present_mm = M.place_held(")
-        end = task.index("\\n            ok_follow", start)
+        end = task.index("ok_follow, follow_mm", start)
         present_call = task[start:end]
         self.assertIn('reach_tol_mm=1.5', present_call)
         self.assertIn('reach_tol_deg=0.08', present_call)
