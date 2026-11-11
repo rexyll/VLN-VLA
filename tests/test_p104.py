@@ -2016,9 +2016,9 @@ class TestP104(unittest.TestCase):
         p1 = np.array([0.2, 0.5, 0.5])
         palm = (np.array([3.0, 3.0, 3.0]), np.eye(3),
                 np.array([0.01, 0.01, 0.01]))
-        with patch.object(M, 'q_meas', return_value=np.zeros(K.NJ)), \\
+        with patch.object(M, 'q_meas', return_value=np.zeros(K.NJ)), \
                 patch.object(M, '_table_collision_boxes',
-                             return_value=[('table_top', box_lo, box_hi)]), \\
+                             return_value=[('table_top', box_lo, box_hi)]), \
                 patch.object(M, '_arm_geometry_world',
                              return_value=([('forearm', p0, p1, 0.03)], palm)):
             clear, hit = M.arm_path_table_clear(
