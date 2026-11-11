@@ -3968,3 +3968,12 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - tests/test_p104.py 提交 e199b5941b16ea7f4db8477e30cfc7615ee00511：增加源码契约回归，确保 precision tolerance 从 PRESENT 调用经 place_held() 传到 reach()，且仅该调用指定 0.08°。
 - 下一步刷新上述代码/测试提交触发的 Python syntax、P104 pure tests、CarryBus 和完整 headless Gazebo E2E 至终态。重点核对 0.08° 是否将掌心误差压入 1.5mm，检查运行时间/超时与物体真值连续两轮确认；如果更严伺服阈值导致超时，依据关节实测数据调整控制预算而非降低验收阈值。之后仍需解决 §8.231 的 PUT_BACK 右前臂桌面碰撞路径。
 - **状态：已依据 E2E #9 的真实分轮数据定位 PRESENT 左手 4.0mm 不动点与 0.25° 伺服阈值之间的关系，精度参数通路和针对性修正已提交 main，等待 CI 与新一轮真实仿真。完整 Gazebo DrinkTask E2E 新增通过轮数仍为 0；至少三轮完整 E2E、长时间稳定性和全流程动态碰撞/轨迹验收未完成。P104-07 保持“正在进行中”。**
+
+
+### 8.235 修正 PRESENT 精度回归测试的源码边界定位（2026-11-11，测试修复已提交，CI 待验收）
+
+- 精度修复生产代码提交 471d01bc3256 与 c6d9fecc7bb0 的 Python 编译检查分别 completed/success（run 42958985637、42959013429），CarryBus 检查分别 completed/success（run 42958985589、42959013523）。c6d9fecc7bb0 的完整 headless Gazebo E2E run 42959013372 已触发，等待结果。
+- 新增测试提交 e199b5941b16 的 Python syntax run 42959045571：编译步骤成功，58 项纯测试中 57 项通过；唯一失败是新测试截取 drink_task.py 源码时使用了不存在的换行边界字符串，ValueError: substring not found。不是生产代码编译错误，也未发现其他纯测试回归。
+- tests/test_p104.py 提交 c17e25ede86675c43bd29fc53f321b725841648d：将脆弱的换行切片终点改为稳定的 ok_follow, follow_mm 调用标识；不改变生产代码和验收行为。
+- 下一步刷新 c17e25e 及 TaskPlan 更新触发的 Python 编译/纯测试和 CarryBus CI 至终态，同时检查 c6d9fecc7bb0 对应的 E2E run 42959013372。若 0.08° 伺服阈值导致时间预算问题，必须用新的关节轨迹与仿真时钟证据判断，不降低 1.5mm/6mm 位置验收阈值。
+- **状态：PRESENT 严格伺服阈值修复已提交；回归测试首版边界定位错误已修复，等待修复版测试和 E2E 结果。完整 Gazebo DrinkTask E2E 新增通过轮数仍为 0。P104-07 保持“正在进行中”。**
