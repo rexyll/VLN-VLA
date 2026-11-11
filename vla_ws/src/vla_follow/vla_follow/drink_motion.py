@@ -104,6 +104,14 @@ def fk_truth_diagnostics(node, side, q=None):
         'base': [round(v, 4) for v in base],
         'fk_xyz': np.round(T_fk[:3, 3], 4).tolist(),
     }
+    # Odometry pose can be stale after teleport; instantaneous wheel twist is
+    # still valuable evidence for distinguishing chassis drift from FK error.
+    odom_twist = getattr(node, 'odom_twist', None)
+    if odom_twist is not None:
+        result['odom_twist'] = [round(float(v), 5) for v in odom_twist]
+        twist_t = float(getattr(node, 'odom_twist_t', 0.0) or 0.0)
+        result['odom_twist_age_s'] = round(
+            max(0.0, time.monotonic() - twist_t), 3) if twist_t else None
     T_robot = object_pose(node, 'robot')
     if T_robot is not None:
         model_yaw = math.atan2(T_robot[1, 0], T_robot[0, 0])
@@ -562,6 +570,9 @@ def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
             'ik_fk_mm': round(ik_fk_mm, 2),
             'ik_fk_deg': round(ik_fk_deg, 3),
             'base_at_ik': [round(v, 4) for v in base_at_ik],
+            'odom_twist': ([round(float(v), 5) for v in node.odom_twist]
+                           if getattr(node, 'odom_twist', None) is not None
+                           else None),
             'servo_ok': bool(ok_move),
             'joint_err_deg': round(joint_err_deg, 2)})
         if not ok_move:

@@ -4131,3 +4131,11 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 该 fixture 使用标准库 `math.sqrt`，本次提交同时显式导入 `math`，避免纯测试环境依赖 ROS/科学计算库之外的未声明模块。
 - 最新 head `a18a250648b2` 的 Python syntax run `42978946911`（#857）completed/success：`Ran 67 tests` / `OK`，编译 job success；CarryBus run `42978946865`（#597）completed/success。完整 Gazebo #23 `42978624796` 已完成依赖、插件、workspace 检查，正在执行完整任务，尚无终态 observer 结果。
 - 这次只修改纯测试 fixture 和 TaskPlan 记录，不改变 runtime source/control logic。新 Python CI #857 与 CarryBus #597 均成功；完整 Gazebo #23 已进入 DrinkTask 执行步骤，但运行期间日志暂不可读，尚未产生终态 observer 结果。P104-07 保持“正在进行中”，完整 Gazebo 通过数仍为 0。
+
+
+### 8.251 追踪 PREPARE 机械臂动作期间的底盘漂移（2026-11-11，运行时只读诊断增强）
+
+- 完整 Gazebo E2E #23（run `42978624796`，head `6a1de4e4374f8773f5defc361db500a976ff9b55`）日志确认：任务在 `PREPARE → FAIL_PREPARE` 中止，失败于左手 `cup_carry`。五轮 reach 的底盘快照 yaw 从约 `+0.0007rad` 漂移到 `-0.102rad`，最终 Gazebo robot 真值 yaw 约 `-0.1175rad`；同时 XY 仅偏 `0.31mm`。掌心残差在 `18.7→14.7→7.7→10.2→7.5mm` 间变化，IK FK 预测误差近零、伺服关节误差为零。该证据说明底盘转动是必须单独排查的变量，但尚不能区分轮子惯性、机械臂反作用、底盘速度指令竞争或 odom/真值不同步。
+- 新增只读运行诊断：`DrinkTask._odom_cb` 无论是否已锁定 Gazebo 真值底盘位姿，均记录轮式里程计的瞬时线/角速度及采样时间；`fk_truth_diagnostics` 与 reach 每轮 trace 输出 `odom_twist` / `odom_twist_age_s`。不使用 odom pose 覆盖 Gazebo 真值，不发布任何底盘命令，不改变控制和安全门槛。
+- 新增源码回归契约，确保 twist 诊断即使在 `_truth_base` 锁定后仍持续采集，且 reach trace 保留对应数据。下一轮完整 E2E 需对照 yaw 漂移和角速度：若角速度非零，继续追踪 cmd_mux/底盘制动；若角速度接近零但真值 yaw 漂移，则重点检查 teleport 与 Gazebo 轮组动力学/模型状态语义。末端 5mm 门槛和 fail-closed 抓持行为保持不变。
+- 当前完整 Gazebo E2E 通过次数仍为 **0**；P104-07 保持“正在进行中”。

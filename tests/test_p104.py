@@ -1993,6 +1993,13 @@ class TestP104(unittest.TestCase):
         end = source.index('def sim_now(', start)
         body = source[start:end]
         self.assertIn('base_at_ik = tuple(float(v) for v in node.base)', body)
+        self.assertIn("'odom_twist': ([round(float(v), 5) for v in node.odom_twist]", body)
+        task_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow', 'drink_task.py')
+        with open(task_path, encoding='utf-8') as stream:
+            task_source = stream.read()
+        self.assertIn('self.odom_twist = (float(twist.linear.x)', task_source)
+        self.assertIn('self.odom_twist_t = time.monotonic()', task_source)
         self.assertIn('T_ik_fk = K.fk_world(side, q, base_at_ik)', body)
         self.assertIn("'ik_fk_mm': round(ik_fk_mm, 2)", body)
         self.assertIn("'ik_fk_deg': round(ik_fk_deg, 3)", body)

@@ -211,6 +211,10 @@ class DrinkTask(Node):
         self.base = (0.0, 0.0, 0.0)
         self._have_odom = False
         self._truth_base = False
+        # Wheel odometry pose is not authoritative after Gazebo teleport, but
+        # its instantaneous twist remains useful for detecting chassis drift.
+        self.odom_twist = None
+        self.odom_twist_t = 0.0
         self.create_subscription(JointState, '/drink/joint_state',
                                  self._js_cb, 20)
         self.create_subscription(Odometry, '/robot/odom', self._odom_cb, 20)
@@ -310,6 +314,10 @@ class DrinkTask(Node):
         # 中间只要有一拍 odom 消息就把 `sync_base_from_truth()` 抹掉了。
         # 结论: base 以 gz 真值为准(机械臂本来就挂在模型上, 模型世界位姿
         # 才是唯一自洽的底座), odom 只在真值话题缺席时兜底。
+        twist = msg.twist.twist
+        self.odom_twist = (float(twist.linear.x), float(twist.linear.y),
+                           float(twist.angular.z))
+        self.odom_twist_t = time.monotonic()
         if self._truth_base:
             return
         p = msg.pose.pose.position
