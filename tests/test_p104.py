@@ -25,7 +25,7 @@ from drink_evidence import (REQUIRED_SHOT_LABELS, missing_required_shots,
                             write_json_atomic, summarize_numeric_values,
                             finite_numeric_value, summarize_batch_status,
                             load_json_strict, cleanup_observer_resources,
-                            identify_unknown_rounds)
+                            identify_unknown_rounds, invalid_round_candidates)
 
 import numpy as np
 
@@ -144,6 +144,28 @@ class TestP104(unittest.TestCase):
                 [])
 
 
+
+    def test_invalid_result_filenames_map_to_unknown_round_candidates(self):
+        invalid = [
+            {'file': 'drink_case_1.json', 'error': 'invalid JSON'},
+            {'file': 'drink_case_3.json', 'error': 'non-object JSON'},
+            {'file': '../drink_case_2.json', 'error': 'untrusted path'},
+            {'file': 'unrelated.json', 'error': 'unrelated'},
+            None,
+        ]
+        candidates = invalid_round_candidates(3, 'case', invalid)
+        self.assertEqual(candidates, [
+            {'round': 1, 'file': 'drink_case_1.json'},
+            {'round': 3, 'file': 'drink_case_3.json'},
+        ])
+
+        with tempfile.TemporaryDirectory() as outdir:
+            with open(os.path.join(outdir, 'drink_case_1.started'), 'w') as stream:
+                stream.write('attempted')
+            with open(os.path.join(outdir, 'drink_case_2.started'), 'w') as stream:
+                stream.write('attempted')
+            unknown = identify_unknown_rounds(outdir, 'case', candidates)
+            self.assertEqual(unknown, [candidates[0]])
 
     def test_batch_status_counts_invalid_and_missing_rounds_as_failures(self):
         passed = {'ok': True}
