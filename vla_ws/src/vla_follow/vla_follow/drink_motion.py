@@ -442,7 +442,8 @@ def arm_path_table_clear(node, side, path_q, base=None,
 
 # ---------------------------------------------------------------- 到位
 def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
-          timeout=10.0, elbow='human', tol_deg=None, check_table=False):
+          timeout=10.0, elbow='human', tol_deg=None, check_table=False,
+          preflight_only=False):
     """闭环把 side 侧手臂的**掌心**移到世界位形 T_world。
 
     `elbow` 选逆解分支(7 轴对这 6 维位姿冗余 1 维, 同一目标有一整族等价解):
@@ -459,13 +460,18 @@ def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
     0.25° 的末轮判据在 7 轴串下来还剩 5~8mm 的不动点(实测 L 侧 7.0mm),
     单纯加轮数没用 —— 只有把伺服判据再逼紧(0.08° ≈ 1.4mrad)才能压下去。
 
-    返回 (是否到位, 实测位置残差 mm, 最后一轮的求解来源标签)。
+    `preflight_only=True` 是**无动作预检**：只求 IK 并检查整段插值路径，
+    必须同时设置 `check_table=True`；路径安全后直接返回，不向关节伺服下发目标。
+
+    返回 (是否到位/预检安全, 实测或预测位置残差 mm, 最后一轮的求解来源标签)。
     """
     # 调试/对照用: P103_ELBOW=none|out|human 可临时覆盖分支策略
     # (验收与回归都跑默认值, 这个开关只给 A/B 对比留口子)
     _ov = os.environ.get('P103_ELBOW')
     if _ov:
         elbow = None if _ov == 'none' else _ov
+    if preflight_only and not check_table:
+        return False, 9e9, 'preflight-requires-table-check'
     res = 9e9
     how = '-'
     first_how = None
@@ -586,6 +592,12 @@ def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
                        res, np.round(q_now, 3).tolist(),
                        np.round(q, 3).tolist()))
                 return False, res, 'table-collision'
+        if preflight_only:
+            preflight_res = pos_err_mm(
+                K.fk_world(side, q, base_at_ik), T_world)
+            if not math.isfinite(float(preflight_res)):
+                return False, 9e9, 'preflight-ik-invalid'
+            return True, float(preflight_res), how
         ok_move, joint_err = node.arm[side].move(
             q, timeout=timeout,
             tol_deg=(tol_deg if tol_deg is not None

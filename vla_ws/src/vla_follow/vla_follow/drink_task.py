@@ -729,6 +729,40 @@ class DrinkTask(Node):
                     'DRINK 人手未确认张开，不继续把杯子递向未就绪的手')
                 return False
             Tp = self._present_target()
+            # Preflight both complete interpolated arm paths against the same
+            # cup handover target before commanding either robot arm. The left
+            # palm target is derived from the current rigid cup-to-palm offset;
+            # the right palm target uses the frozen cup-to-right-palm offset.
+            # The real motions below re-run the gate immediately before each
+            # servo command because the base/cup pose can change after preflight.
+            T_cup_now = M.object_pose(self, 'cup')
+            T_palm_l_now = M.wrist(self, 'L')
+            off_r = pr.get('off_r')
+            if (Tp is None or T_cup_now is None or T_palm_l_now is None
+                    or off_r is None):
+                ok_preflight_l = ok_preflight_r = False
+                preflight_l_mm = preflight_r_mm = 9e9
+                preflight_l_how = preflight_r_how = 'missing_pose_or_offset'
+            else:
+                T_cup_goal = np.asarray(Tp, float)
+                T_palm_l_goal = (T_cup_goal @ np.linalg.inv(T_cup_now)
+                                 @ T_palm_l_now)
+                T_palm_r_goal = T_cup_goal @ np.asarray(off_r, float)
+                ok_preflight_l, preflight_l_mm, preflight_l_how = M.reach(
+                    self, 'L', T_palm_l_goal, passes=1, elbow='human',
+                    check_table=True, preflight_only=True)
+                ok_preflight_r, preflight_r_mm, preflight_r_how = M.reach(
+                    self, 'R', T_palm_r_goal, passes=1, elbow='human',
+                    check_table=True, preflight_only=True)
+            if not (ok_preflight_l and ok_preflight_r):
+                self._set_state('FAIL_PRESENT_PREFLIGHT')
+                self.get_logger().error(
+                    'DRINK 双臂递杯路径预检失败: '
+                    'L=%s(%.1fmm,%s) R=%s(%.1fmm,%s)；'
+                    '未移动任一机器人手臂，保持当前抓持'
+                    % (ok_preflight_l, preflight_l_mm, preflight_l_how,
+                       ok_preflight_r, preflight_r_mm, preflight_r_how))
+                return False
             # P103: 递杯也走 human 分支 —— 'out' 只优化外扩量, 会把 L 侧
             # up_roll 顶到 −1.84(R4 肩内旋超限), 本身就是个违反人体规则的解。
             ok_present, present_mm = M.place_held(

@@ -2099,6 +2099,29 @@ class TestP104(unittest.TestCase):
         self.assertIn('reach_tol_deg=0.08', present_call)
         self.assertIn('reach_passes=8', present_call)
         self.assertIn('check_table=True', present_call)
+        reach_start = motion.index('def reach(')
+        reach_end = motion.index('def sim_now(', reach_start)
+        reach_body = motion[reach_start:reach_end]
+        self.assertIn('preflight_only=False', reach_body)
+        self.assertIn('if preflight_only and not check_table:', reach_body)
+        preflight_return = reach_body.index('if preflight_only:')
+        servo_move = reach_body.index(
+            'ok_move, joint_err = node.arm[side].move(')
+        self.assertLess(preflight_return, servo_move)
+
+        preflight_l = task.index(
+            "ok_preflight_l, preflight_l_mm, preflight_l_how = M.reach(")
+        preflight_r = task.index(
+            "ok_preflight_r, preflight_r_mm, preflight_r_how = M.reach(")
+        present_move = task.index(
+            "ok_present, present_mm = M.place_held(", preflight_r)
+        self.assertLess(preflight_l, preflight_r)
+        self.assertLess(preflight_r, present_move)
+        preflight_calls = task[preflight_l:present_move]
+        self.assertEqual(preflight_calls.count('preflight_only=True'), 2)
+        self.assertEqual(preflight_calls.count('check_table=True'), 2)
+        self.assertIn("FAIL_PRESENT_PREFLIGHT", preflight_calls)
+
         follow_start = task.index("ok_follow, follow_mm = M.follow_hand(")
         follow_end = task.index("res['present']", follow_start)
         self.assertIn('check_table=True', task[follow_start:follow_end])
