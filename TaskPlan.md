@@ -3875,3 +3875,13 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 刷新新增提交的 GitHub Actions：helper 提交 `0aac06c5a9b2` 的 Python run `42942598821` 与 CarryBus ROS 2 executor run `42942598806` 均 completed/success；runner 提交 `6465a410f1ce` 的 Python run `42942638930` 与 ROS 2 executor run `42942638903` 均 completed/success；动态测试提交 `748602954d8f` 的 Python run `42942645959` 与 ROS 2 executor run `42942645900` 均 completed/success；本 TaskPlan 之前的代码整合提交 `c3bf2a24400b` 的 Python run `42942711852` 与 ROS 2 executor run `42942711895` 均 completed/success。各 ROS 2 job 的 `Run CarryBus executor integration test` 步骤明确为 success。
 - 以上 CI 覆盖 Python 编译/纯回归、runner shell 语法与 CarryBus ROS 2 executor 集成；不包含完整 Gazebo DrinkTask E2E。本轮未启动 Gazebo，未运行完整 tests/test_drink.py 或 tests/drink_repeat.sh；完整真实 Gazebo DrinkTask E2E 新增通过轮数仍为 0。
 - **状态：invalid 文件名映射及 UNKNOWN 分类动态回归已通过 CI；P104-07 保持“正在进行中”，真实 Gazebo DrinkTask E2E、至少三轮完整 E2E 和长时间稳定性验证未完成。**
+
+
+### 8.227 修复 headless runner 在独立 CI shell 中未加载 ROS 环境的问题（2026-11-11，代码已提交，CI 进行中）
+
+- 刷新完整仿真 workflow：run `42946619260`（提交 `8132bbd60d6b`）已完成但 failure。日志证实 Gazebo Harmonic 的 `GraspCarry` 插件编译成功，`vla_follow` 的 colcon build 成功，安装后的 Nav2 `arena.yaml` / `arena.pgm` 检查成功；失败发生在调用 `tests/run_drink_headless.sh` 后，runner 报 `Required command not found: ros2`，退出码 2。
+- 根因：GitHub Actions 每个 `run` 步骤使用独立 shell。workflow 的前置构建步骤 source ROS 2 和 overlay，并不会把环境变量带入下一步；runner 自身虽有 source 逻辑，但把 `command -v ros2` 检查放在 source 之前，因而提前失败。
+- `tests/run_drink_headless.sh` 提交 `e5e1644f7c8dd4161b1add1d737a6dc90c67f396`：将 ROS 2 Jazzy 与 `vla_ws/install/setup.bash` 的加载移动到命令可用性检查之前；加载期间临时关闭 Bash nounset，随后恢复；检查失败提示改为明确指出环境加载后的命令缺失。
+- 修复提交触发的 Python CI run `42947857823` queued，CarryBus ROS 2 executor run `42947857836` in_progress，完整 DrinkTask headless E2E run `42947857980` in_progress。尚未得到终态，不能据此宣称修复通过。
+- 本次尚未进入完整场景启动或 observer 验收。此前两次完整 E2E run `42946601345`、`42946619260` 均失败；完整真实 Gazebo DrinkTask E2E 新增通过轮数仍为 **0**。至少三轮真实 E2E、长时间稳定性和完整场景动态碰撞/轨迹验证仍未完成。
+- **状态：ROS 环境 source 顺序问题已按日志修复并提交 main，等待三条 CI 终态；P104-07 保持“正在进行中”。**
