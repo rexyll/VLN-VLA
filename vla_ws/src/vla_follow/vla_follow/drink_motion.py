@@ -498,7 +498,30 @@ def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
         # 选一边, 掌心在中间不动, 残差 115mm 一直不下去。分支是姿态策略,
         # 补位是精度问题, 两件事分开: 第一轮定分支, 后面只用种子做局部修正。
         _mode = elbow if it == 0 else None
+        # Freeze the exact receive-side evidence used by this IK iteration.
+        # The later post-servo ages alone cannot prove that the base pose used
+        # by FK/IK was aligned with the latest Gazebo truth snapshot.
+        ik_sample_t = time.monotonic()
         base_at_ik = tuple(float(v) for v in node.base)
+        js_sample_t_at_ik = float(getattr(node, 'js_sample_t', 0.0) or 0.0)
+        truth_snapshot_at_ik = getattr(
+            node, 'truth_base_pose_snapshot', None)
+        truth_pose_at_ik = (
+            tuple(float(v) for v in truth_snapshot_at_ik[0])
+            if truth_snapshot_at_ik is not None else None)
+        truth_pose_t_at_ik = (
+            float(truth_snapshot_at_ik[1])
+            if truth_snapshot_at_ik is not None else 0.0)
+        base_truth_xy_mm_at_ik = None
+        base_truth_yaw_deg_at_ik = None
+        if truth_pose_at_ik is not None:
+            base_truth_xy_mm_at_ik = float(np.linalg.norm(
+                np.asarray(base_at_ik[:2]) -
+                np.asarray(truth_pose_at_ik[:2])) * 1e3)
+            _yaw_gap = math.atan2(
+                math.sin(base_at_ik[2] - truth_pose_at_ik[2]),
+                math.cos(base_at_ik[2] - truth_pose_at_ik[2]))
+            base_truth_yaw_deg_at_ik = math.degrees(_yaw_gap)
         q, _e, how = K.ik_world(side, T_world, base_at_ik, q_now, elbow=_mode)
         T_ik_fk = K.fk_world(side, q, base_at_ik)
         ik_fk_mm = pos_err_mm(T_ik_fk, T_world)
@@ -637,7 +660,22 @@ def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
             'pass': it + 1, 'ik': how, 'res_mm': round(res, 1),
             'ik_fk_mm': round(ik_fk_mm, 2),
             'ik_fk_deg': round(ik_fk_deg, 3),
-            'base_at_ik': [round(v, 4) for v in base_at_ik],
+            'base_at_ik': [round(v, 5) for v in base_at_ik],
+            'joint_state_age_at_ik_s': (
+                round(max(0.0, ik_sample_t - js_sample_t_at_ik), 4)
+                if js_sample_t_at_ik else None),
+            'truth_base_pose_age_at_ik_s': (
+                round(max(0.0, ik_sample_t - truth_pose_t_at_ik), 4)
+                if truth_pose_t_at_ik else None),
+            'truth_base_pose_at_ik': (
+                [round(v, 5) for v in truth_pose_at_ik]
+                if truth_pose_at_ik is not None else None),
+            'base_truth_xy_mm_at_ik': (
+                round(base_truth_xy_mm_at_ik, 2)
+                if base_truth_xy_mm_at_ik is not None else None),
+            'base_truth_yaw_deg_at_ik': (
+                round(base_truth_yaw_deg_at_ik, 4)
+                if base_truth_yaw_deg_at_ik is not None else None),
             'joint_state_age_s': (
                 round(max(0.0, time.monotonic() -
                           float(getattr(node, 'js_sample_t', 0.0))), 3)
