@@ -2004,6 +2004,7 @@ class TestP104(unittest.TestCase):
         body = source[start:end]
         self.assertIn('for _seed_index, _seed in enumerate(K.HUMAN_SEEDS):',
                       body)
+        self.assertIn('refine=False', body)
         self.assertIn('K.ik_world(', body)
         self.assertIn('float(_e_seed) > 4e-3', body)
         self.assertIn('K.violation_list(side, _q_seed)', body)
