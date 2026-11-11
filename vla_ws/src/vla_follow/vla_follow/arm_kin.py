@@ -605,6 +605,9 @@ def ik_natural(side, T_tgt, seed=None, tol=2e-3,
             best = (st, q, err, how)
     if best is None:
         return ik_best(side, T_tgt, seed)
+    q_refined, e_refined = ik_refine(side, T_tgt, best[1])
+    if e_refined < best[2]:
+        return q_refined, e_refined, best[3] + '/polish/nat'
     return best[1], best[2], best[3] + '/nat'
 
 
@@ -698,7 +701,7 @@ def ik_best_out(side, T_tgt, seed=None, tol=2e-3):
     for v in ELBOW_OUT_SEEDS:
         s = q0.copy()
         s[2] = v
-        q, err, how = ik_best(side, T_tgt, s)
+        q, err, how = ik_best(side, T_tgt, s, refine=False)
         if err > tol:
             continue
         m = elbow_metrics(side, q)
