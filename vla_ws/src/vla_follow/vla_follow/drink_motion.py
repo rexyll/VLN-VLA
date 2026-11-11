@@ -100,9 +100,21 @@ def fk_truth_diagnostics(node, side, q=None):
     q = np.asarray(q, float)
     base = tuple(float(v) for v in node.base)
     T_fk = K.fk_world(side, q, base)
+    _diag_now = time.monotonic()
+    _js_t = float(getattr(node, 'js_sample_t', 0.0) or 0.0)
+    _truth_pose = getattr(node, 'truth_base_pose_snapshot', None)
+    _truth_pose_t = (float(_truth_pose[1]) if _truth_pose is not None else 0.0)
     result = {
         'base': [round(v, 4) for v in base],
         'fk_xyz': np.round(T_fk[:3, 3], 4).tolist(),
+        'joint_state_age_s': (round(max(0.0, _diag_now - _js_t), 3)
+                              if _js_t else None),
+        'truth_base_pose_age_s': (
+            round(max(0.0, _diag_now - _truth_pose_t), 3)
+            if _truth_pose_t else None),
+        'truth_base_pose_xyz_yaw': (
+            [round(float(v), 5) for v in _truth_pose[0]]
+            if _truth_pose is not None else None),
     }
     # Odometry pose can be stale after teleport; instantaneous wheel twist is
     # still valuable evidence for distinguishing chassis drift from FK error.
@@ -626,6 +638,16 @@ def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
             'ik_fk_mm': round(ik_fk_mm, 2),
             'ik_fk_deg': round(ik_fk_deg, 3),
             'base_at_ik': [round(v, 4) for v in base_at_ik],
+            'joint_state_age_s': (
+                round(max(0.0, time.monotonic() -
+                          float(getattr(node, 'js_sample_t', 0.0))), 3)
+                if getattr(node, 'js_sample_t', 0.0) else None),
+            'truth_base_pose_age_s': (
+                round(max(0.0, time.monotonic() -
+                          float(getattr(node, 'truth_base_pose_snapshot',
+                                        (None, 0.0))[1])), 3)
+                if getattr(node, 'truth_base_pose_snapshot', None)
+                else None),
             'odom_twist': ([round(float(v), 5) for v in node.odom_twist]
                            if getattr(node, 'odom_twist', None) is not None
                            else None),
