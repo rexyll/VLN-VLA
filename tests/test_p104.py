@@ -2306,10 +2306,6 @@ class TestP104(unittest.TestCase):
         self.assertIn("_pb", failure_path)
 
 
-if __name__ == '__main__':
-    unittest.main(verbosity=2)
-
-
     def test_reach_command_telemetry_rejects_stale_cached_zero(self):
         motion_path = os.path.join(
             ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
@@ -2356,3 +2352,6 @@ if __name__ == '__main__':
             task = stream.read()
         self.assertIn('self._drink_cmd_snapshot = None', task)
         self.assertIn('self._robot_cmd_snapshot = None', task)
+
+if __name__ == '__main__':
+    unittest.main(verbosity=2)
