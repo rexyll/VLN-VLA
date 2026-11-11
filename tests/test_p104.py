@@ -1921,5 +1921,21 @@ class TestP104(unittest.TestCase):
         self.assertIn('reach_res, res_after, ang_after, res', body)
 
 
+    def test_reach_table_collision_reports_measured_residual_and_path(self):
+        motion_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
+            'drink_motion.py')
+        with open(motion_path, encoding='utf-8') as stream:
+            source = stream.read()
+        start = source.index('def reach(')
+        end = source.index('def sim_now(', start)
+        body = source[start:end]
+        self.assertIn('T_current = wrist(node, side)', body)
+        self.assertIn('res = pos_err_mm(T_current, T_world)', body)
+        self.assertIn("return False, res, 'table-collision'", body)
+        self.assertIn('current_xyz=%s target_xyz=%s residual=%.1fmm', body)
+        self.assertIn('q_now=%s q_target=%s', body)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)
