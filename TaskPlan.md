@@ -3825,3 +3825,13 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 本测试验证 observer 层不覆盖旧 marker，并在独占创建失败时阻断命令发送；不证明文件系统/硬件故障边界，不执行 runner 多进程竞争测试，也不代表 ROS 2/Gazebo 收到或执行命令。
 - 本轮未启动 Gazebo，未执行完整 `tests/test_drink.py` 或 `tests/drink_repeat.sh`。最新测试提交及后续 TaskPlan 提交的 Python 编译、纯测试与 CarryBus executor CI 待刷新终态；完整 Gazebo DrinkTask E2E 新增通过轮数仍为 0。
 - **状态：已有 marker 的独占创建冲突现在有动态回归覆盖，等待 CI；P104-07 保持“正在进行中”。完整 Gazebo DrinkTask E2E、至少三轮真实 E2E 与长时间稳定性验证未完成。**
+
+
+### 8.222 拒绝重复源截图及符号链接别名伪装成独立事件证据（2026-11-11，代码与回归测试已提交，CI 待验收）
+
+- 刷新此前阻塞的 GitHub Actions：最新前置提交 `8830abd8ce38` 的 Python syntax run `42841758725` 与 CarryBus ROS 2 executor run `42841758710` 均 completed/success；ROS 2 job 已实际执行 `Run CarryBus executor integration test` 并通过。该结果只覆盖 Python 编译/纯测试和 CarryBus executor 集成，不代表完整 Gazebo DrinkTask E2E。
+- 审查 `archive_observer_screenshots()` 时发现：归档文件名带有轮内序号，即使 observer 的 `shots` 列表重复引用同一源文件，归档后也会生成不同目标路径；后续 `summarize_round_evidence()` 只检查归档目标路径唯一，因此重复图像可能伪装成不同关键事件截图。
+- `tests/drink_evidence.py` 提交 `75a9af81a4c389f227a97ace35bd118a96b80e4b`：归档时对每个源截图执行 `realpath`，并在复制前拒绝重复真实路径。该检查同时覆盖同一路径重复引用，以及通过不同符号链接路径指向同一文件的别名情况；失败仍由既有 staging 清理逻辑回收临时目录，不发布最终归档目录。
+- `tests/test_p104.py` 提交 `0e49bf3e849821cf814e4bb4f9d2d6806c41c959`：增加重复源路径和符号链接别名两种故障输入，断言均抛出明确的重复源证据错误、不会创建最终归档目录，且不会遗留 staging 目录。
+- 上述两项新提交及本 TaskPlan 更新提交触发的 Python 编译、纯测试与 CarryBus ROS 2 executor CI 必须刷新到终态后才能验收。此次只新增本地证据归档校验，没有启动 Gazebo，也没有执行完整 `tests/test_drink.py` 或 `tests/drink_repeat.sh`。
+- **状态：归档入口现拒绝同一真实截图被重复计数；等待最新 CI。完整 Gazebo DrinkTask E2E 新增通过轮数仍为 0；至少三轮真实 E2E 与长时间稳定性验证未完成。P104-07 保持“正在进行中”。**
