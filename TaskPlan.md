@@ -10,12 +10,12 @@
 ## 当前执行位置（2026-11-11）
 
 - **当前主节点：P104-07（正在进行中）**。完整 DrinkTask E2E 入口为 `tests/test_drink.py`，单轮 headless 入口为 `tests/run_drink_headless.sh`，多轮顺序验收入口为 `tests/drink_repeat.sh`。CarryBus 专项和纯测试均不能替代完整 Gazebo E2E。
-- **当前功能代码提交：** `5cfd070be49ccb52119b6ee519fa2c28c0c6450c`，保留 Gazebo 真值底盘速度/左右轮关节速度诊断，并为 prepare_present 的左手 cup_carry 增加桌面/桌腿插值碰撞门控。该门控使用现有碰撞几何与阈值，路径不安全时 fail-closed；不放宽安全标准。
-- **最新 Python CI：** run `42990306246`（#871，head `5cfd070be49c`）completed/success；68 项 P104 纯测试全部通过，Python 模块编译通过。
-- **CarryBus CI：** run `42989881563`（#610，head `37ac629aff0d`）completed/success；11 项真实 ROS 2 executor 集成测试通过。最新代码中的 JointState.velocity 可选字段兼容已由 #608/#609 覆盖。
-- **最新完整 Gazebo E2E：** #28（run `42989038633`，head `8e8022cfd0d3`）仍 in_progress，已通过 Gazebo/ROS 2/Nav2/GraspCarry/workspace 构建，正在执行完整 DrinkTask；该轮可验证模型真值差分速度与轮关节速度。最新带 cup_carry 碰撞门控的 #29（run `42990306196`，head `5cfd070be49c`）pending，等待 #28 释放 E2E runner。#26（`42988338194`）completed/failure，失败在 PREPARE 左手 `cup_carry`，掌心残差 10.9mm、杯体残差 20.0mm；Gazebo 真值角速度约 `-0.12~-0.46rad/s`，但 odom 与左右轮关节速度近零，base yaw 漂移约 `-0.1316rad`。
-- **最新已完成的完整 E2E：** #22（`42976833348`，功能 head `5b5c923d7b78`）completed/failure。它已越过四维/七维 IK seed 崩溃，但在 PREPARE 左手 cup_carry 位形停止：掌心残差 8.5mm（目标 5mm），杯体偏差 19.2mm，伺服最大关节误差 0.07°；程序正确保持抓持，没有松手。
-- **当前诊断方向：** #26 的证据指向底盘在机械臂动作时发生物理位姿变化，但具体诱因仍未定。现已给 cup_carry 启用既有 table/leg 碰撞预检，防止手臂接触桌面后把力传给底盘；#29 将验证路径门控是否拒绝/筛选出碰撞候选。若门控仍放行且 base 漂移持续，再用独立 Gazebo 接触/轮组探针区分 arm reaction、轮地滑移和 pose 更新语义。
+- **当前功能代码提交：** `23bc42ad47f858c6c3d1aa9cf4f77a9e787ea607`。除保留 Gazebo 真值底盘速度/左右轮关节速度诊断、PREPARE cup_carry 和 PRESENT 实际动作的桌面/桌腿路径门控外，新增 `reach(preflight_only=True)` 无动作预检；PRESENT 先在同一当前底盘快照下确认左右臂完整插值路径均安全，再允许任一机器人手臂运动。实际动作仍逐臂重新检查；任一预检失败则保持抓持并中止。
+- **最新 Python CI：** run `42998226347`（#874，head `23bc42ad`）completed/success；68 项 P104 纯数学/运动学测试全部通过，改动 Python 模块编译通过。
+- **CarryBus CI：** run `42998226365`（#614，head `23bc42ad`）in_progress；ROS 2 Jazzy 运行依赖安装中，CarryBus executor 集成测试尚未执行/报告结果。
+- **完整 Gazebo E2E 队列：** #30（run `42997129946`，head `31eff585`）in_progress；Gazebo/ROS 2/Nav2/GraspCarry/workspace 安装与构建步骤已通过，正在执行完整 DrinkTask。#31（run `42998226370`，head `23bc42ad`）pending，等待 #30 释放同一 E2E runner；#31 才会验证本次双臂无动作先验预检。
+- **最新已完成的完整 E2E：** #29（run `42990306196`，head `5cfd070be49c`）completed/failure，阶段顺序为 PREPARE → PRESENT → FAIL_PRESENT；左手递杯 8/8 轮未达到 1.5mm 掌心阈值，末轮掌心世界系残差 7.5mm、杯体残差 9.3mm。IK/FK 数学残差与关节伺服误差接近 0，但期间底盘真值姿态变化；系统正确保持抓持，没有交杯或释放。#28（run `42989038633`）也在 PREPARE 左手 cup_carry 阶段失败，掌心残差 5.8mm（目标 5.0mm）、杯体残差 15.4mm。
+- **当前诊断方向：** #28/#29 的 Gazebo 真值差分角速度与 odom、左右轮关节速度不一致，尚不能区分机械臂接触/反作用、轮地滑移或 Gazebo 模型位姿语义。#30 验证逐臂碰撞门控；#31 验证双臂先验预检。若 #31 中底盘真值仍漂移，将继续增加独立 Gazebo 接触/轮组探针，而不是放宽精度或碰撞门槛。
 - **验收计数：** 完整真实 Gazebo DrinkTask E2E 通过轮数仍为 **0**。不得放宽 5mm 验收或绕过碰撞/抓持安全门控。
 - **分支纪律：** 所有后续改动只提交 `main`；不创建新分支或 PR，不擅自合并其他分支。
 ---
