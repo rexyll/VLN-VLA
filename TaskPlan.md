@@ -3996,3 +3996,14 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 最新 CI：代码提交 `438a0325848d` 的 Python syntax run `42962092467` completed/success；其 CarryBus run `42962092292` 与完整 Gazebo E2E run `42962092386` 当时 in_progress。测试提交 `5ef0955f640f` 的 Python syntax run `42962127002` 与 CarryBus run `42962126993` 当时 in_progress。应继续刷新到终态并检查 `42962092386` 的完整场景日志，确认备选分支是否被触发、是否找到合规无碰撞路径，以及 PRESENT 是否再次受 1.5mm 残差门槛阻塞。
 - PRESENT 后续若仍卡在 3.3mm 左右，应先记录每轮 IK 的位姿误差/求解器来源和关节真值，区分 IK 精度/可达性与伺服精度；不得降低 1.5mm reach 阈值或 6mm 物体阈值。若备选肘分支不能解决 PUT_BACK，下一步应基于真实 FK/碰撞样本规划分段物体路径，继续保留两手承托、逐段碰撞检查和落稳后才 release。
 - **状态：已确认 0.08° 伺服阈值单独不足，已提交人体规则与碰撞双重门控的 IK 肘分支备选及回归测试；等待 CI 和完整 Gazebo E2E 验收。完整 Gazebo DrinkTask E2E 通过轮数仍为 0；至少三轮完整 E2E、长时间稳定性与全流程动态碰撞/轨迹验收未完成。P104-07 保持“正在进行中”。**
+
+### 8.238 复验碰撞安全肘分支并增加 PRESENT 有界 IK 精修轮数（2026-11-11，真实 E2E 失败已定位，针对性改动已提交，CI/E2E 待验收）
+
+- 刷新 Actions：提交 0fdab7540280 对应 Python syntax run 42962327013 与 CarryBus ROS 2 executor run 42962327041 均 completed/success；此前完整 headless Gazebo DrinkTask E2E run 42962092386 completed/failure。其 job 130330779380 的依赖安装、Gazebo Harmonic GraspCarry 插件构建、ROS 2 workspace/Nav2 map 检查及 artifact 上传均成功，失败发生在真实 DrinkTask 执行步骤。
+- 下载并检查 artifact 13828939739：任务阶段为 PREPARE → PRESENT → FAIL_PRESENT。drink.log 记录左手 reach 的 5 轮掌心残差为 34.2、8.9、7.4、2.5、4.3mm，每轮 servo_ok=True、最大关节误差日志 0.00°，首轮 IK kdl-lma/human-hold、后续 kdl-lma。第 4 轮曾到 2.5mm，但未达到 1.5mm；第 5 轮又回升至 4.3mm。最终掌心目标 [1.9587,0.9068,1.0000]m、实测 [1.9548,0.9087,1.0000]m、姿态误差 0.49°；杯体真值位置残差 7.2mm/0.57°。说明本次瓶颈是 reach 局部 IK 精修轮数/迭代收敛不稳定，不是伺服命令未执行；不能将 2.5mm 中间值或子流程成功当作达标。
+- 失败保护正常：未进入 HANDOVER，不向人交杯，不松开杯子。observer JSON ok=false，只到 2/9 阶段，缺 HANDOVER/PERSON_DRINK/TAKE_BACK/PUT_BACK/RETREAT/HANDBACK/DONE；批次 1 requested / 1 completed / 0 passed / 1 failed，observer exit code 2。cup_home_mm=615.8mm 是流程中断后的后验采样，不是失败瞬间的杯体误差。碰撞安全肘分支本轮没有触发到可确认的 PUT_BACK 阶段，仍不能判定已修复 §8.236 的右前臂桌面碰撞。
+- vla_ws/src/vla_follow/vla_follow/drink_motion.py 提交 5556fcfa6965e41ef7691b5913fcfa92fd91fc60：为 place_held() 增加可选 reach_passes，并将其显式传递给 reach(passes=...)；默认仍为 len(TOL_SCHED)，不改变其他动作的默认行为。
+- vla_ws/src/vla_follow/vla_follow/drink_task.py 提交 fa0fab1abf43facd47232e911484ea20e5501f57：仅 PRESENT 左手递杯调用增加 reach_passes=8，保持 reach_tol_mm=1.5、reach_tol_deg=0.08、杯体位置/姿态阈值和双轮真值确认不变。此改动仅增加有界局部 IK 精修机会，不放宽任何验收条件。
+- tests/test_p104.py 提交 9dadc20846a5077c3ae0a476da3d7c4c81225b4d 与 6055ce6a38fdb6b7d79bb0842ab363b68193fe94：增加 reach_passes 参数通路与 PRESENT 仅使用 8 轮精修的源码契约检查。该检查不是 Gazebo 机械臂动态验收。
+- 下一步刷新本节代码/测试/TaskPlan 提交触发的 Python syntax、P104 纯测试和 CarryBus CI 至终态，再执行完整 headless Gazebo DrinkTask E2E。重点看新增第 6~8 轮是否持续降低掌心残差、是否在总预算内完成，以及杯体真值能否连续两轮满足位置/姿态门槛；若残差继续振荡，停止盲目加轮，转向检查 KDL-LMA 收敛、目标姿态耦合与伺服反馈时序。不要降低 1.5mm/6mm 门槛、关闭桌面碰撞门控或提前 release。
+- **状态：已从真实日志确认 5 轮 IK 精修出现 2.5→4.3mm 回升，增加 PRESENT 专用有界 8 轮精修并提交回归契约；等待 CI 与完整 E2E。完整 Gazebo DrinkTask E2E 通过轮数仍为 0；至少三轮完整 E2E、长时间稳定性及全流程动态碰撞/轨迹验收未完成。P104-07 保持“正在进行中”。**
