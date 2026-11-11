@@ -12,7 +12,7 @@
 - **当前主节点：P104-07（正在进行中）**。完整 DrinkTask E2E 入口为 `tests/test_drink.py`，单轮 headless 入口为 `tests/run_drink_headless.sh`，多轮顺序验收入口为 `tests/drink_repeat.sh`。CarryBus 专项和纯测试均不能替代完整 Gazebo E2E。
 - **当前功能代码提交：** `23bc42ad47f858c6c3d1aa9cf4f77a9e787ea607`。除保留 Gazebo 真值底盘速度/左右轮关节速度诊断、PREPARE cup_carry 和 PRESENT 实际动作的桌面/桌腿路径门控外，新增 `reach(preflight_only=True)` 无动作预检；PRESENT 先在同一当前底盘快照下确认左右臂完整插值路径均安全，再允许任一机器人手臂运动。实际动作仍逐臂重新检查；任一预检失败则保持抓持并中止。
 - **最新 Python CI：** run `42998226347`（#874，head `23bc42ad`）completed/success；68 项 P104 纯数学/运动学测试全部通过，改动 Python 模块编译通过。
-- **CarryBus CI：** run `42998226365`（#614，head `23bc42ad`）in_progress；ROS 2 Jazzy 运行依赖安装中，CarryBus executor 集成测试尚未执行/报告结果。
+- **CarryBus CI：** run `42998226365`（#614，head `23bc42ad`）completed/success；真实 ROS 2 executor 集成测试 11 项全部通过（含 ACK、队列满拒绝和竞争条件用例）。
 - **完整 Gazebo E2E 队列：** #30（run `42997129946`，head `31eff585`）in_progress；Gazebo/ROS 2/Nav2/GraspCarry/workspace 安装与构建步骤已通过，正在执行完整 DrinkTask。#31（run `42998226370`，head `23bc42ad`）pending，等待 #30 释放同一 E2E runner；#31 才会验证本次双臂无动作先验预检。
 - **最新已完成的完整 E2E：** #29（run `42990306196`，head `5cfd070be49c`）completed/failure，阶段顺序为 PREPARE → PRESENT → FAIL_PRESENT；左手递杯 8/8 轮未达到 1.5mm 掌心阈值，末轮掌心世界系残差 7.5mm、杯体残差 9.3mm。IK/FK 数学残差与关节伺服误差接近 0，但期间底盘真值姿态变化；系统正确保持抓持，没有交杯或释放。#28（run `42989038633`）也在 PREPARE 左手 cup_carry 阶段失败，掌心残差 5.8mm（目标 5.0mm）、杯体残差 15.4mm。
 - **当前诊断方向：** #28/#29 的 Gazebo 真值差分角速度与 odom、左右轮关节速度不一致，尚不能区分机械臂接触/反作用、轮地滑移或 Gazebo 模型位姿语义。#30 验证逐臂碰撞门控；#31 验证双臂先验预检。若 #31 中底盘真值仍漂移，将继续增加独立 Gazebo 接触/轮组探针，而不是放宽精度或碰撞门槛。
