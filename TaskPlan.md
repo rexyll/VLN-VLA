@@ -10,12 +10,12 @@
 ## 当前执行位置（2026-11-11）
 
 - **当前主节点：P104-07（正在进行中）**。完整 DrinkTask E2E 入口为 `tests/test_drink.py`，单轮 headless 入口为 `tests/run_drink_headless.sh`，多轮顺序验收入口为 `tests/drink_repeat.sh`。CarryBus 专项和纯测试均不能替代完整 Gazebo E2E。
-- **当前功能代码提交：** `0f553b9f5af8dee62f0823a8536cf201d3d5a98f`（左右驱动轮 5.0Nm effort 限制）。PRESENT 已有双臂无动作预检与逐臂真实动作前碰撞复检；失败保持抓持。#32 证明预检通过后左手 `place_held` 仍可能因底盘真值漂移无法收敛，当前新增轮组有限扭矩作为针对性物理假设验证。
-- **最新 Python CI：** run `43006932364`（#878，head `0f553b9`）completed/success；70 项 P104 纯数学/运动学测试全部通过（包含左右轮 effort 限制契约），Python 模块编译通过。
-- **CarryBus CI：** run `43006932039`（#618，head `0f553b9`）当前 in_progress；等待真实 ROS 2 executor 集成测试结果。
-- **最新完整 Gazebo E2E：** #32（run `43003763896`，head `e94f94c`）completed/failure，阶段为 PREPARE → PRESENT → FAIL_PRESENT。#33（run `43006932018`，head `0f553b9`）当前 in_progress，正在安装 Gazebo/ROS 2/Nav2 并构建工作区，随后验证轮组 effort 修正。
+- **当前功能代码提交：** `108a8618ef788c30d4b12825e49568e881b09e07`（TaskPlan 进度同步；功能代码基线 `0f553b9`）。5.0Nm 轮组 effort 未能消除 TAKE_BACK 期间的底盘转动，当前增加底盘速度指令旁路遥测，区分指令驱动与机械臂反作用/轮地滚动；不再盲目提高扭矩。
+- **最新 Python CI：** run `43007041439`（#879，head `108a861`）completed/success；70 项 P104 纯数学/运动学测试通过，Python 模块编译通过。
+- **CarryBus CI：** run `43007041349`（#619，head `108a861`）completed/success；11 项真实 ROS 2 executor 集成测试全部通过。
+- **最新完整 Gazebo E2E：** #33（run `43006932018`，head `0f553b9`）completed/failure；阶段 PREPARE → PRESENT → HANDOVER → PERSON_DRINK → TAKE_BACK → FAIL_TAKE_BACK。#34 将验证新增底盘指令遥测，定位 TAKE_BACK 期间的右臂残差与底盘转动关系。
 - **#32 失败根因定位：** PRESENT 左手 `place_held` 的 8 次 reach 掌心残差为 `23.0, 8.2, 15.6, 4.6, 4.7, 1.6, 1.8, 5.5mm`，末端杯体残差 5.6mm；IK/FK 与伺服关节误差均接近 0，右手 follow_hand 为 3.8mm 且通过。reach 期间 Gazebo robot 真值底盘由 `(1.750,0.350,1.228rad)` 移到约 `(1.762,0.384,1.219rad)`，而 odom twist 和左右轮关节速度近零；这次直接阻断左手 1.5mm 掌心收敛，系统保持抓持并进入 FAIL_PRESENT。
-- **当前诊断方向：** #32 已确认 arm reach 期间底盘真值发生约 36mm 平移和约 0.5° 的末段航向变化，wheel/odom 仍近零；但现有数据还不能区分 wheel torque authority 不足、轮地接触滑移或机械臂反作用。下一轮对两驱动轮增加 5.0Nm SDF effort limit（Gazebo Sim 将 joint effort limit 用作轮扭矩上限），通过 Python 静态契约检查配置，再由 #33 E2E 验证真值底盘漂移是否下降；不放宽 1.5mm reach、5mm物体放置或碰撞/抓持门控。
+- **当前诊断方向：** #33 中 TAKE_BACK 右臂 reach 的 5 轮掌心残差为 48.5、16.1、5.6、8.9、8.3mm；IK/FK 与伺服关节误差近零，但 base yaw 从约 1.2055rad 漂到 1.0783rad，左轮首轮速度 -1.59882rad/s，右轮为 0。5.0Nm effort 未消除该运动。现有日志没有同时记录 `/drink/cmd_vel` 与 mux 后 `/robot/cmd_vel`，无法确认是任务速度残留还是轮组受机械臂反作用/地面接触驱动；本次增加两路指令及采样 age 到 reach trace，下一轮再决定物理或控制修正。
 - **验收计数：** 完整真实 Gazebo DrinkTask E2E 通过轮数仍为 **0**。不得放宽 5mm 验收或绕过碰撞/抓持安全门控。
 - **分支纪律：** 所有后续改动只提交 `main`；不创建新分支或 PR，不擅自合并其他分支。
 ---
@@ -4192,3 +4192,13 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 同一 reach trace 显示 Gazebo robot 真值 base 从约 `(1.750, 0.350, 1.228rad)` 移动到 `(1.762, 0.384, 1.219rad)`；过程里 `odom_twist` 与左右轮关节速度近零，但真值差分速度非零。末轮 IK 目标计算后 base 仍有约 4mm/0.4° 变化，足以解释末端毫米级残差回升。现有证据指向“驱动轮在零速指令下的保持扭矩/轮地接触不足”这一待验证假设，尚不能排除机械臂反作用。
 - 为两驱动轮关节显式设置 SDF `effort=5.0Nm`，给 Gazebo Sim DiffDrive 的速度控制器提供有限轮扭矩上限；该值采用常见差速驱动基线，不更改轮半径、轮距、加速度、摩擦系数、机械臂轨迹或控制精度。新增 P104 回归测试，检查左右轮都声明 5.0Nm effort limit。
 - 该物理参数变更必须由下一轮完整 Gazebo E2E #33 验证；若底盘真值漂移仍存在，继续检查轮地接触与机械臂反作用，不能将参数静态测试视为修复完成。P104-07 继续“正在进行中”，完整真实 Gazebo E2E 通过数仍为 **0**。
+
+
+### 8.259 #33 验证轮组 effort 未消除 TAKE_BACK 漂移，补充底盘指令遥测（2026-11-11）
+
+- #33（run `43006932018`，head `0f553b9`）真实阶段为 PREPARE → PRESENT → HANDOVER → PERSON_DRINK → TAKE_BACK → FAIL_TAKE_BACK；前四个阶段全部通过，任务首次推进到接回杯子阶段。完整 E2E 仍失败，未进入 PUT_BACK/RETREAT/HANDBACK。
+- TAKE_BACK 右臂 `reach` 的 5 轮掌心残差为 `48.5, 16.1, 5.6, 8.9, 8.3mm`，要求为 5.0mm；末轮 IK/FK 数学误差为 0.0mm、伺服关节误差为 0.0°。左臂随后达到 2.2mm。失败分支按设计不抓杯、不要求人松手。
+- reach trace 显示 base yaw 从首轮 IK 的约 `1.2055rad` 变化至末轮 IK 的 `1.0783rad`；首轮左轮速度 `-1.59882rad/s`、右轮为 0，odom yaw rate `+0.12395rad/s`。5.0Nm SDF effort limit 没有消除这一运动，不能据此继续猜测扭矩数值。
+- 喝水锁期间 `cmd_mux.py` 只转发 `/drink/cmd_vel`，其他 Nav2/follower 输入被置零；但 #33 reach trace 没有记录任务输入和 mux 输出的实际采样值。因此目前不能确认 wheel spin 是残留速度命令，还是 arm reaction / 轮地接触产生的被动运动。
+- 新增 `/drink/cmd_vel` 与 `/robot/cmd_vel` 订阅快照，并将线速度、角速度及采样 age 写入每轮 reach trace；仅增加只读诊断，不改变底盘控制、轮组参数、手臂目标、精度阈值或抓持门控。tests 增加契约覆盖两路订阅和 trace 字段。
+- 下一轮 #34 根据指令遥测与轮速/真值速度的时序关系区分主动指令和被动漂移，再决定是否修复 cmd_mux/停车逻辑或 Gazebo 轮组物理。完整真实 Gazebo E2E 通过数仍为 **0**，P104-07 继续“正在进行中”。

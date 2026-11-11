@@ -619,6 +619,22 @@ def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
                 [round(float(v), 5) for v in node.truth_base_twist]
                 if getattr(node, 'truth_base_twist', None) is not None
                 else None),
+            'drink_cmd_vel': (
+                [round(float(v), 5) for v in node._drink_cmd_snapshot[0]]
+                if hasattr(node, '_drink_cmd_snapshot') else None),
+            'drink_cmd_age_s': (
+                round(max(0.0, time.monotonic()
+                          - node._drink_cmd_snapshot[1]), 3)
+                if (hasattr(node, '_drink_cmd_snapshot')
+                    and node._drink_cmd_snapshot[1] > 0.0) else None),
+            'robot_cmd_vel': (
+                [round(float(v), 5) for v in node._robot_cmd_snapshot[0]]
+                if hasattr(node, '_robot_cmd_snapshot') else None),
+            'robot_cmd_age_s': (
+                round(max(0.0, time.monotonic()
+                          - node._robot_cmd_snapshot[1]), 3)
+                if (hasattr(node, '_robot_cmd_snapshot')
+                    and node._robot_cmd_snapshot[1] > 0.0) else None),
             'wheel_joint_velocity': {
                 name: round(float(node.js_velocity[name]), 5)
                 for name in ('left_wheel_joint', 'right_wheel_joint')

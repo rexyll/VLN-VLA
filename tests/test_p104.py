@@ -2258,6 +2258,25 @@ class TestP104(unittest.TestCase):
 
 
 
+    def test_reach_trace_captures_drink_and_muxed_base_commands(self):
+        motion_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow', 'drink_motion.py')
+        with open(motion_path, encoding='utf-8') as stream:
+            motion = stream.read()
+        for field in ("'drink_cmd_vel':", "'drink_cmd_age_s':",
+                      "'robot_cmd_vel':", "'robot_cmd_age_s':"):
+            self.assertIn(field, motion)
+
+        task_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow', 'drink_task.py')
+        with open(task_path, encoding='utf-8') as stream:
+            task = stream.read()
+        self.assertIn("self.create_subscription(Twist, '/drink/cmd_vel'", task)
+        self.assertIn("self.create_subscription(Twist, '/robot/cmd_vel'", task)
+        self.assertIn('def _drink_cmd_cb(self, msg):', task)
+        self.assertIn('def _robot_cmd_cb(self, msg):', task)
+
+
     def test_robot_diff_drive_wheels_have_bounded_effort_limits(self):
         world_path = os.path.join(
             ROOT, 'vla_ws', 'src', 'vla_follow', 'worlds', 'work_area.sdf')

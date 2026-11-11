@@ -266,6 +266,14 @@ class DrinkTask(Node):
         # 由 cmd_mux 在喝水锁内放行 —— 原来和 cmd_mux 一起抢 /robot/cmd_vel,
         # 两边都 20Hz, 谁后到谁生效, 撤离能慢 5 倍甚至原地不动。
         self.pub_vel = self.create_publisher(Twist, '/drink/cmd_vel', 10)
+        # P104-07: capture commanded chassis velocity beside wheel/odom/truth
+        # telemetry to distinguish commanded rotation from passive wheel roll.
+        self._drink_cmd_snapshot = ((0.0, 0.0), 0.0)
+        self._robot_cmd_snapshot = ((0.0, 0.0), 0.0)
+        self.create_subscription(Twist, '/drink/cmd_vel',
+                                 self._drink_cmd_cb, 20)
+        self.create_subscription(Twist, '/robot/cmd_vel',
+                                 self._robot_cmd_cb, 20)
         # 兜底直发(没有 cmd_mux 的单点脚本用; 见 drive())
         self.pub_vel_raw = (None if observer_only
                             else self.create_publisher(Twist,
@@ -398,6 +406,14 @@ class DrinkTask(Node):
             if self.get_clock().now().nanoseconds * 1e-9 - s0 >= s \
                     or el > s * cap:
                 return
+
+    def _drink_cmd_cb(self, msg):
+        self._drink_cmd_snapshot = (
+            (float(msg.linear.x), float(msg.angular.z)), time.monotonic())
+
+    def _robot_cmd_cb(self, msg):
+        self._robot_cmd_snapshot = (
+            (float(msg.linear.x), float(msg.angular.z)), time.monotonic())
 
     def drive(self, vx=0.0, wz=0.0):
         """发一帧底盘速度。gz 的 DiffDrive 会锁存最后一条, 但仍按 20Hz 补发。
