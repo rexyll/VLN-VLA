@@ -934,7 +934,7 @@ def held_palm_target(node, model, T_obj_goal):
 def place_held(node, side, model, T_obj_goal, tol_mm=PLACE_TOL_MM,
                tol_deg=2.0, iters=8, settle=0.30, reach_tol_mm=None,
                elbow='human', budget=60.0, reach_tol_deg=None,
-               reach_passes=None):
+               reach_passes=None, check_table=False):
     """把手里抓住的物体闭环送到世界位姿 T_obj_goal(**位置 + 姿态**)。
 
     返回 (是否到位, 位置残差 mm)。
@@ -1016,7 +1016,7 @@ def place_held(node, side, model, T_obj_goal, tol_mm=PLACE_TOL_MM,
                     else reach_tol_mm), elbow=elbow,
             tol_deg=reach_tol_deg,
             passes=(len(TOL_SCHED) if reach_passes is None
-                    else int(reach_passes)))
+                    else int(reach_passes)), check_table=check_table)
         if not ok_reach:
             # reach() 失败时，前一轮的物体残差可能仍是大位移旧值；伺服
             # 已经移动到目标附近后，不能把这个过期值作为最终失败残差上报。
@@ -1903,7 +1903,11 @@ def prepare_present(node, fill=0.65, verbose=True):
     Tcup_carry = P.cup_in_base(bx, by, byaw, L.CUP_CARRY_R, L.CUP_CARRY_Z)
     # P101: 捧杯/贴手都走"肘朝外"解 —— 抱着杯子时肘得像人一样架在体侧,
     # 而不是垂在下面(原来 KDL 用 home 当种子, 两侧肘都朝下)。
-    ok_c, res_c = place_held(node, 'L', 'cup', Tcup_carry, tol_mm=5.0)
+    # Cup-carry reaches over the table edge; use the same interpolated
+    # capsule/OBB gate as put-down withdrawals so physical contact cannot
+    # shove the mobile base while the arm is still converging.
+    ok_c, res_c = place_held(
+        node, 'L', 'cup', Tcup_carry, tol_mm=5.0, check_table=True)
     out['res']['cup_carry'] = res_c
     if not ok_c:
         node.get_logger().error(

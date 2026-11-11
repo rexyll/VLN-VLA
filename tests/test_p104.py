@@ -2080,8 +2080,12 @@ class TestP104(unittest.TestCase):
         place_body = motion[start:end]
         self.assertIn('reach_tol_deg=None', place_body)
         self.assertIn('tol_deg=reach_tol_deg', place_body)
-        self.assertIn('reach_passes=None', place_body)
+        self.assertIn('reach_passes=None, check_table=False', place_body)
+        self.assertIn('check_table=check_table', place_body)
         self.assertIn('passes=(len(TOL_SCHED) if reach_passes is None', place_body)
+        prepare_start = motion.index('def prepare_present(')
+        prepare_end = motion.index('def cup_present_target(', prepare_start)
+        self.assertIn('check_table=True', motion[prepare_start:prepare_end])
 
         task_path = os.path.join(
             ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
