@@ -1935,14 +1935,36 @@ class TestP104(unittest.TestCase):
         T_fk = K.fk_world('L', q, base)
 
         def pose_message(T):
-            from vla_follow.drink_task import gz_pose_to_T
-            # Build a pose-shaped object without depending on Gazebo messages.
-            from scipy.spatial.transform import Rotation
-            quat = Rotation.from_matrix(T[:3, :3]).as_quat()
+            # Build a pose-shaped object without ROS, Gazebo or SciPy imports.
+            R = T[:3, :3]
+            trace = float(np.trace(R))
+            if trace > 0.0:
+                scale = math.sqrt(trace + 1.0) * 2.0
+                qw = 0.25 * scale
+                qx = (R[2, 1] - R[1, 2]) / scale
+                qy = (R[0, 2] - R[2, 0]) / scale
+                qz = (R[1, 0] - R[0, 1]) / scale
+            elif R[0, 0] > R[1, 1] and R[0, 0] > R[2, 2]:
+                scale = math.sqrt(1.0 + R[0, 0] - R[1, 1] - R[2, 2]) * 2.0
+                qw = (R[2, 1] - R[1, 2]) / scale
+                qx = 0.25 * scale
+                qy = (R[0, 1] + R[1, 0]) / scale
+                qz = (R[0, 2] + R[2, 0]) / scale
+            elif R[1, 1] > R[2, 2]:
+                scale = math.sqrt(1.0 + R[1, 1] - R[0, 0] - R[2, 2]) * 2.0
+                qw = (R[0, 2] - R[2, 0]) / scale
+                qx = (R[0, 1] + R[1, 0]) / scale
+                qy = 0.25 * scale
+                qz = (R[1, 2] + R[2, 1]) / scale
+            else:
+                scale = math.sqrt(1.0 + R[2, 2] - R[0, 0] - R[1, 1]) * 2.0
+                qw = (R[1, 0] - R[0, 1]) / scale
+                qx = (R[0, 2] + R[2, 0]) / scale
+                qy = (R[1, 2] + R[2, 1]) / scale
+                qz = 0.25 * scale
             return SimpleNamespace(
                 position=SimpleNamespace(x=T[0, 3], y=T[1, 3], z=T[2, 3]),
-                orientation=SimpleNamespace(
-                    x=quat[0], y=quat[1], z=quat[2], w=quat[3]))
+                orientation=SimpleNamespace(x=qx, y=qy, z=qz, w=qw))
 
         robot_pose = pose_message(T_robot)
         world_link = pose_message(T_fk)

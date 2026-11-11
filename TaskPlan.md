@@ -10,11 +10,10 @@
 ## 当前执行位置（2026-11-11）
 
 - **当前主节点：P104-07（正在进行中）**。完整 DrinkTask E2E 入口为 `tests/test_drink.py`，单轮 headless 入口为 `tests/run_drink_headless.sh`，多轮顺序验收入口为 `tests/drink_repeat.sh`。CarryBus 专项和纯测试均不能替代完整 Gazebo E2E。
-- **当前功能基线：** 人体 IK 四维种子扩展修复提交 `5b5c923d7b78` 已使 #22 不再触发 (4,)→(7,) 广播形状崩溃。其 TaskPlan 记录提交为 `e40de8354208`。
-- **最新基础 CI：** head `e40de8354208` 的 Python syntax #853 与 CarryBus #593 均 completed/success；IK seed 修复本身的 Python 纯测试为 65/65、模块编译通过。
-- **最新完整 Gazebo E2E：** run `42976833348`（#22，功能 head `5b5c923d7b78`）completed/failure。依赖安装、GraspCarry 插件构建和 ROS workspace/Nav2 map 检查均通过；任务实际运行后在 PREPARE 的左手 `cup_carry` 位形失败。末轮 REACH：目标掌心 `[2.1728,0.4044,1.0]`，FK 实测掌心 `[2.1741,0.3960,1.0]`，残差 8.5mm（要求 5mm）；关节最大误差 0.07°，目标杯体位姿残差 19.2mm。程序正确保持抓持并中止，没有强行松手。杯/壶抓取及倒水命令已被真实执行；此前 IK seed shape 崩溃未再出现。
-- **当前调查方向：** 8.5mm 末端误差不能直接归因于伺服未到位：关节反馈与命令已接近，必须区分 IK 本身预测误差、底盘 base 与 Gazebo robot model 真值的漂移，以及 `L_palm` 动态位姿采用世界系还是模型相对系。下一提交增加逐轮 `ik_fk_mm/deg`、求解时 base 快照和 FK↔Gazebo palm link 双坐标解释诊断；不调整 5mm 验收、不放宽人体规则或碰撞门控。
-- **验收计数：** 完整真实 Gazebo DrinkTask E2E 通过轮数仍为 **0**。后续必须跑完整 observer 并检查抓放、交接、恢复跟随和截图证据；纯测试通过不能计入。
+- **当前功能代码提交：** `6a1de4e4374f8773f5defc361db500a976ff9b55`，为 REACH 增加 IK 预测 FK、求解时 base 快照和 Gazebo palm link 双坐标解释诊断；诊断不改变运动控制或验收阈值。
+- **CI 状态：** Python syntax #854 的 Python compile job 已 success；纯测试 job 仅新增的 `test_fk_truth_diagnostics_distinguish_world_and_model_relative_links` 失败，因为测试 fixture 导入 `drink_task.py` 触发缺失的 ROS `sensor_msgs` 依赖。生产代码编译及另一条新诊断源码契约测试通过；现已移除该 fixture 对 ROS/SciPy 的不必要依赖，待新 Python CI 验证。CarryBus #594 正在运行。
+- **最新完整 Gazebo E2E：** run `42978624796`（#23，head `6a1de4e4374f`）已通过 checkout 与 Gazebo repo 配置，正在配置 ROS 2 apt 源；后续依赖/插件/workspace/任务阶段尚未完成。完整 E2E #22（`42976833348`）结论仍是 PREPARE 左手 cup_carry 掌心残差 8.5mm，杯体残差 19.2mm，伺服最大关节误差 0.07°，系统安全保持抓持并中止。
+- **验收计数：** 完整真实 Gazebo DrinkTask E2E 通过轮数仍为 **0**。不得放宽 5mm 验收或绕过碰撞/抓持安全门控。
 - **分支纪律：** 所有后续改动只提交 `main`；不创建新分支或 PR，不擅自合并其他分支。
 ---
 
@@ -4120,3 +4119,10 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 现有日志不足以确认是 IK 目标自身不可达、Gazebo robot model/base 同步差，还是 joint FK 与 Gazebo palm link 真值不一致。不能因为 joint servo 误差很小就假定末端位姿正确，也不能把 5mm 阈值改大。
 - 诊断增强提交增加 `fk_truth_diagnostics()`：记录 base 与 robot model 的 XY/yaw 偏差，同时分别计算 FK 与 Gazebo `<side>_palm` link 按原始世界位姿、按 robot model 组合位姿解释时的误差；`reach` 每轮记录 IK 解经同一 FK 的预测位置/姿态残差、求解时 base 快照和伺服结果。该诊断不改变 IK 选择、运动目标、碰撞路径、servo 容差或抓持释放行为。
 - 新增纯测试用合成世界位姿/模型相对位姿验证两种 link 坐标解释可区分；另加源码契约验证每轮保留 IK FK 误差和真值诊断。下一步以新 head 重新运行 #23，依据 `ik_fk_mm`、`base_truth_xy_mm`、`fk_to_palm_raw_mm`、`fk_to_palm_model_mm` 定位根因，再决定是否需要修正 base/运动学模型。完整 Gazebo E2E 通过轮数仍为 0，P104-07 保持“正在进行中”。
+
+
+### 8.250 修复 FK↔Gazebo link 坐标诊断测试的 ROS 依赖隔离（2026-11-11，测试 fixture 修正已提交）
+
+- 诊断功能代码提交 `6a1de4e4374f8773f5defc361db500a976ff9b55` 的 compile job 通过；纯测试 run `42978623068` 中 67 项有 66 项通过，唯一新增测试 `test_fk_truth_diagnostics_distinguish_world_and_model_relative_links` 在 fixture 内导入 `vla_follow.drink_task.gz_pose_to_T`，继而触发纯测试环境未安装的 ROS `sensor_msgs` 模块。该失败来自测试 fixture 不必要地导入完整 ROS 节点，不是诊断 helper 或运动代码故障。
+- fixture 改为在测试内部使用标准旋转矩阵→四元数转换构造轻量 pose 对象，不导入 `drink_task.py`、ROS 或 SciPy；保留两种合成场景：link pose 直接为世界坐标、link pose 为 robot model 相对坐标，分别确认诊断器能识别 raw 与 model-composed 两种解释。
+- 这次只修改纯测试 fixture 和 TaskPlan 记录，不改变 runtime source/control logic。等待新的 Python CI 结果；完整 Gazebo #23 正在运行，尚未到达任务步骤。P104-07 保持“正在进行中”，完整 Gazebo 通过数仍为 0。
