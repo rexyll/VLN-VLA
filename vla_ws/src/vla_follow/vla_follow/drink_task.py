@@ -268,8 +268,8 @@ class DrinkTask(Node):
         self.pub_vel = self.create_publisher(Twist, '/drink/cmd_vel', 10)
         # P104-07: capture commanded chassis velocity beside wheel/odom/truth
         # telemetry to distinguish commanded rotation from passive wheel roll.
-        self._drink_cmd_snapshot = ((0.0, 0.0), 0.0)
-        self._robot_cmd_snapshot = ((0.0, 0.0), 0.0)
+        self._drink_cmd_snapshot = None
+        self._robot_cmd_snapshot = None
         self.create_subscription(Twist, '/drink/cmd_vel',
                                  self._drink_cmd_cb, 20)
         self.create_subscription(Twist, '/robot/cmd_vel',

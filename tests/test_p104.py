@@ -2308,3 +2308,26 @@ class TestP104(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)
+
+
+    def test_reach_command_telemetry_rejects_stale_cached_zero(self):
+        motion_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
+            'drink_motion.py')
+        with open(motion_path, encoding='utf-8') as stream:
+            motion = stream.read()
+        self.assertIn('def _command_evidence(snapshot):', motion)
+        self.assertIn('_fresh = _age <= 0.5', motion)
+        self.assertIn("'drink_cmd_fresh': _drink_fresh", motion)
+        self.assertIn("'robot_cmd_fresh': _robot_fresh", motion)
+        self.assertIn("'drink_cmd_vel': _drink_vel", motion)
+        self.assertIn("'robot_cmd_vel': _robot_vel", motion)
+
+    def test_command_snapshots_start_unknown_not_as_zero(self):
+        task_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
+            'drink_task.py')
+        with open(task_path, encoding='utf-8') as stream:
+            task = stream.read()
+        self.assertIn('self._drink_cmd_snapshot = None', task)
+        self.assertIn('self._robot_cmd_snapshot = None', task)

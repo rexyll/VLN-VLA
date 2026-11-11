@@ -607,6 +607,20 @@ def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
         joint_err_deg = (
             float(np.max(np.abs(np.degrees(joint_err))))
             if np.all(np.isfinite(joint_err)) else 9e9)
+        # Treat command snapshots as evidence only while fresh. A cached zero
+        # from an earlier drive/stop cycle must never masquerade as a live stop.
+        _trace_now = time.monotonic()
+        def _command_evidence(snapshot):
+            if snapshot is None:
+                return None, None, False
+            _age = max(0.0, _trace_now - float(snapshot[1]))
+            _fresh = _age <= 0.5
+            return (list(snapshot[0]) if _fresh else None,
+                    round(_age, 3), _fresh)
+        _drink_vel, _drink_age, _drink_fresh = _command_evidence(
+            getattr(node, '_drink_cmd_snapshot', None))
+        _robot_vel, _robot_age, _robot_fresh = _command_evidence(
+            getattr(node, '_robot_cmd_snapshot', None))
         pass_trace.append({
             'pass': it + 1, 'ik': how, 'res_mm': round(res, 1),
             'ik_fk_mm': round(ik_fk_mm, 2),
@@ -619,22 +633,12 @@ def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
                 [round(float(v), 5) for v in node.truth_base_twist]
                 if getattr(node, 'truth_base_twist', None) is not None
                 else None),
-            'drink_cmd_vel': (
-                [round(float(v), 5) for v in node._drink_cmd_snapshot[0]]
-                if hasattr(node, '_drink_cmd_snapshot') else None),
-            'drink_cmd_age_s': (
-                round(max(0.0, time.monotonic()
-                          - node._drink_cmd_snapshot[1]), 3)
-                if (hasattr(node, '_drink_cmd_snapshot')
-                    and node._drink_cmd_snapshot[1] > 0.0) else None),
-            'robot_cmd_vel': (
-                [round(float(v), 5) for v in node._robot_cmd_snapshot[0]]
-                if hasattr(node, '_robot_cmd_snapshot') else None),
-            'robot_cmd_age_s': (
-                round(max(0.0, time.monotonic()
-                          - node._robot_cmd_snapshot[1]), 3)
-                if (hasattr(node, '_robot_cmd_snapshot')
-                    and node._robot_cmd_snapshot[1] > 0.0) else None),
+            'drink_cmd_vel': _drink_vel,
+            'drink_cmd_age_s': _drink_age,
+            'drink_cmd_fresh': _drink_fresh,
+            'robot_cmd_vel': _robot_vel,
+            'robot_cmd_age_s': _robot_age,
+            'robot_cmd_fresh': _robot_fresh,
             'wheel_joint_velocity': {
                 name: round(float(node.js_velocity[name]), 5)
                 for name in ('left_wheel_joint', 'right_wheel_joint')
