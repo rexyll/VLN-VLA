@@ -36,7 +36,7 @@ jobs:
             vla_ws/src/vla_follow/vla_follow/drink_task.py \
             vla_ws/src/vla_follow/vla_follow/follower.py \
             vla_ws/src/vla_follow/vla_follow/person_vision.py \
-            vla_ws/src/vla_follow/vla_follow/scene_layout.py
+            vla_ws/src/vla_follow/vla_follow/scene_layout.py \
             vla_ws/src/vla_follow/launch/nav2_follow.launch.py
 
   pure-unit-tests:
