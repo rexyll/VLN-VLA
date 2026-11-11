@@ -10,9 +10,9 @@
 ## 当前执行位置（2026-11-11）
 
 - **当前主节点：P104-07（正在进行中）**。CarryBus 专项入口为 `tests/test_carry_gz_bridge.py`；完整 DrinkTask 端到端入口为 `tests/test_drink.py`，多轮顺序验收入口为 `tests/drink_repeat.sh`。当前代码已覆盖桥接事务、ACK 丢失/重放、bridge/server/plugin reload、双向 Gazebo Transport TCP 分区、队列背压、observer 退出码、证据归档和 UNKNOWN/INTERRUPTED 分类；这些专项测试不能替代完整 DrinkTask E2E。
-- **最近一次 main 基础 CI 已验收**：head `411ea27a38d2` 的 Python syntax run `42970608195` completed/success（包含 62 项 P104 纯数学/运动学测试及编译）；CarryBus ROS 2 executor run `42970608316` completed/success。注意这两条基础 CI 不代表完整 DrinkTask E2E 通过。
+- **最近一次 main 基础 CI 状态**：最新 head `aaeaa3750c3c` 的 Python syntax run `42973133731` completed/success（P104 纯测试与 Python 编译通过）；CarryBus ROS 2 executor run `42973133692` 仍 in_progress。前一运行 head `e18a518e5d30` 的 Python syntax `42973081851` 已 success，CarryBus `42973081978` 仍 in_progress。基础 CI 不代表完整 DrinkTask E2E 通过。
 - **Gazebo CI 能力边界**：`.github/workflows/p104-grasp-carry-cpp.yml` 已具备 Ubuntu 24.04 + Gazebo Harmonic + ROS 2 Jazzy + `ros_gz_bridge` 的 headless 仿真环境，覆盖 GraspCarry 插件 ACK、命令队列背压和 CarryBus 桥接故障注入；但该 workflow 没有构建并启动完整 `work_area.sdf` DrinkTask 场景，也没有运行 `tests/test_drink.py` / `tests/drink_repeat.sh`。因此它只证明插件/桥接集成，不证明人走位、语音触发、九阶段喝水、撤离和恢复跟随的完整任务成功。
-- **最终验收仍未达成**：完整真实 Gazebo DrinkTask E2E 新增通过轮数仍为 **0**。最新完整运行 `42970026682` 已按顺序到达 `PREPARE → PRESENT → HANDOVER → PERSON_DRINK → TAKE_BACK → PUT_BACK → RETREAT → HANDBACK → DONE`，杯子回原位偏差 2.9mm、倾角 0.02°，但独立 observer 仍因恢复跟随和人手—杯轴几何两项失败而判整轮失败；详细证据见 §8.246。下一步修复这两个验收失败并重复真实 Gazebo E2E，随后再做至少三轮与长时间稳定性测试；不允许把阶段走完、纯测试或 CarryBus 专项 CI 计入完整 E2E 通过轮数。
+- **最终验收仍未达成**：完整真实 Gazebo DrinkTask E2E 新增通过轮数仍为 **0**。最新完整运行 `42970026682` 已按顺序到达 `PREPARE → PRESENT → HANDOVER → PERSON_DRINK → TAKE_BACK → PUT_BACK → RETREAT → HANDBACK → DONE`，杯子回原位偏差 2.9mm、倾角 0.02°，但独立 observer 仍因恢复跟随和人手—杯轴几何两项失败而判整轮失败；详细证据见 §8.246。下一步修复这两个验收失败并重复真实 Gazebo E2E，随后再做至少三轮与长时间稳定性测试；当前交接几何诊断 E2E `42972941597`（head `1b46a4876576`）正在运行，包含 FOLLOW 先对正修复的 E2E `42973081780`（head `e18a518e5d30`）仍 pending；不允许把阶段走完、纯测试或 CarryBus 专项 CI 计入完整 E2E 通过轮数。
 - **分支纪律：** 所有后续改动仅提交到 `main`；不创建新分支或 PR，不擅自合并其他分支。
 
 ---
@@ -4089,3 +4089,13 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 运行中还观察到 Nav2 在启动初期有 base_link/odom TF 尚未出现的短暂超时，但后续 Nav2 节点激活成功；本次跟随失败的直接日志是目标丢失、搜索失败和距离持续扩大。需区分启动期 TF 告警与末端跟随失败，不能把告警直接定为唯一根因。
 - 下一步先增加/完善交接瞬间的真值诊断（左右手位置、手心中点、杯轴、手臂关节值、模型/link 坐标系），并检查 follower 在大初始方位角及短时丢失下的恢复路径；每个代码文件修改前先取 main 最新 SHA，逐文件提交并运行对应 CI 与完整 Gazebo E2E。
 - **状态：IK/PREPARE 阻断已在新完整运行中被越过，九阶段和杯子安全放回均完成；末端跟随与手杯几何 observer 检查仍失败。完整 Gazebo DrinkTask E2E 通过轮数仍为 0，P104-07 保持“正在进行中”。**
+
+
+### 8.247 交接几何真值诊断与 FOLLOW 交权先对正修复（2026-11-11，代码已提交，完整仿真复验中）
+
+- 根据 §8.246 的真实证据，先修改 `vla_ws/src/vla_follow/vla_follow/drink_task.py`，提交 `1b46a48765767b3f3eaa6a40fe7508dc969a20c3`：在 HANDOVER 前记录左右手心世界坐标、双手中点、杯体中心、杯轴相对中点的三维偏差及沿手间连线的有符号偏移，同时记录 person 模型位置、person_arms link 原始位置和 person_arm_joint/person_arm_l_joint/person_arm_r_joint 实测关节值。该日志只增加真值观测，不改变交接/附着行为，不把杯子 teleport 到手心中点。
+- 同一提交的 Python syntax run `42972941534` 与 CarryBus run `42972941582` 均 completed/success；该版本的完整 Gazebo E2E `42972941597` 已启动，当前 in_progress，尚无终态 artifact。它将用于确认 42mm 左右偏置究竟来自杯体目标、link 坐标变换还是左右关节状态。
+- 根据 follower 首帧证据（HANDBACK 后视觉目标约 −121°，但控制器首条日志仍发出正向 `v=0.20m/s`，随后才进入 ALIGN），修改 `vla_ws/src/vla_follow/vla_follow/follower.py`，提交 `e18a518e5d30365a42e59382c0d2e4b6a2409884`：每次收到 FOLLOW 时清除旧对正计时/方向锁存并强制先进入 ALIGN，避免刚交权且目标处于侧后方时首帧沿旧航向前冲；进入跟踪距离环仍必须经过现有对正状态、避障与近距安全闸，不使用 Gazebo 真值替代视觉。
+- `tests/test_p104.py` 提交 `aaeaa3750c3c6a0dd3222d6138a141999e62be07`：新增源码回归契约，检查 FOLLOW 初始化先对正、重置方向/计时状态，并确认 HANDOVER_GEOM 真值诊断字段存在。head `aaeaa3750c3c` 的 Python syntax run `42973133731` completed/success；CarryBus run `42973133692` 仍 in_progress。FOLLOW 修复 head `e18a518e5d30` 的 Python syntax run `42973081851` completed/success，CarryBus `42973081978` 仍 in_progress。
+- 完整 Gazebo E2E `42973081780`（head `e18a518e5d30`，包含 FOLLOW 先对正修复）受 `42972941597` 的 concurrency 限制，当前 pending。等待时不得将纯测试成功视为跟随修复已通过；新一轮需检查 HANDOVER_GEOM 的 cup_minus_mid_mm、lateral_mm、手臂关节值，以及 FOLLOW 初始转向/视觉丢失/末段距离和跟随带比例。
+- **状态：新增交接三维真值诊断与 FOLLOW 先对正保护，Python 纯测试/编译通过；CarryBus CI 与两条完整 Gazebo E2E 仍有运行/排队项。完整 Gazebo DrinkTask E2E 通过轮数仍为 0，P104-07 保持“正在进行中”。**
