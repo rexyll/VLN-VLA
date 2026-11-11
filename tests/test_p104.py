@@ -2341,6 +2341,12 @@ if __name__ == '__main__':
         self.assertIn("'joint_state_age_s':", motion)
         self.assertIn("'truth_base_pose_age_s':", motion)
         self.assertIn("'truth_base_pose_xyz_yaw':", motion)
+        self.assertIn('truth_snapshot_at_ik = getattr(', motion)
+        self.assertIn("'joint_state_age_at_ik_s':", motion)
+        self.assertIn("'truth_base_pose_age_at_ik_s':", motion)
+        self.assertIn("'truth_base_pose_at_ik':", motion)
+        self.assertIn("'base_truth_xy_mm_at_ik':", motion)
+        self.assertIn("'base_truth_yaw_deg_at_ik':", motion)
 
     def test_command_snapshots_start_unknown_not_as_zero(self):
         task_path = os.path.join(
