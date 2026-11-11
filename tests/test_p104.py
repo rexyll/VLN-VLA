@@ -1972,6 +1972,7 @@ class TestP104(unittest.TestCase):
         present_call = task[start:end]
         self.assertIn('reach_tol_mm=1.5', present_call)
         self.assertIn('reach_tol_deg=0.08', present_call)
+        self.assertIn('reach_passes=8', present_call)
 
 
     def test_reach_tries_only_collision_clear_human_valid_elbow_fallback(self):
