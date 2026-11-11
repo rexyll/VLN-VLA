@@ -1187,6 +1187,24 @@ def put_down_two(node, model, T_obj_goal, tol_mm=PLACE_TOL_MM, steps=4,
                         tol_mm=tol_mm, info=info)
     off_l = np.linalg.inv(T_obj) @ Tl
     off_r = np.linalg.inv(T_obj) @ Tr
+    # P104: preserve the exact rigid support geometry before descending. If a
+    # later right-arm path is blocked by the table, this distinguishes an
+    # intrinsically obstructed support offset from an IK branch/path issue.
+    support_geometry = {
+        'cup_start_xyz': np.round(T_obj[:3, 3], 5).tolist(),
+        'cup_goal_xyz': np.round(np.asarray(T_obj_goal, float)[:3, 3], 5).tolist(),
+        'base': [round(float(v), 5) for v in node.base],
+        'left_cup_to_palm': np.round(off_l, 5).tolist(),
+        'right_cup_to_palm': np.round(off_r, 5).tolist(),
+        'left_goal_palm_xyz': np.round(
+            (np.asarray(T_obj_goal, float) @ off_l)[:3, 3], 5).tolist(),
+        'right_goal_palm_xyz': np.round(
+            (np.asarray(T_obj_goal, float) @ off_r)[:3, 3], 5).tolist(),
+    }
+    if info is not None:
+        info['support_geometry'] = support_geometry
+    node.get_logger().info(
+        'PUT_DOWN_TWO_SUPPORT_GEOM %s' % support_geometry)
     for i in range(1, steps + 1):
         Ti = _blend_pose(T_obj, T_obj_goal, i / float(steps))
         ok_l, res_l, _ = reach(
