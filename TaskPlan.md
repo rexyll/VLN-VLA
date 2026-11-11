@@ -3885,3 +3885,15 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 修复提交触发的 Python CI run `42947857823` queued，CarryBus ROS 2 executor run `42947857836` in_progress，完整 DrinkTask headless E2E run `42947857980` in_progress。尚未得到终态，不能据此宣称修复通过。
 - 本次尚未进入完整场景启动或 observer 验收。此前两次完整 E2E run `42946601345`、`42946619260` 均失败；完整真实 Gazebo DrinkTask E2E 新增通过轮数仍为 **0**。至少三轮真实 E2E、长时间稳定性和完整场景动态碰撞/轨迹验证仍未完成。
 - **状态：ROS 环境 source 顺序问题已按日志修复并提交 main，等待三条 CI 终态；P104-07 保持“正在进行中”。**
+
+
+### 8.228 修复重复验收脚本在严格模式下加载 ROS 环境失败（2026-11-11，代码与回归测试已提交，CI 待验收）
+
+- 刷新完整仿真 run `42947857980`：Gazebo Harmonic 插件构建、ROS 2 workspace 构建、Nav2 地图安装检查、Gazebo world 启动、ROS-Gazebo bridge、Nav2 action server 与 DrinkTask 节点启动均成功。最终失败发生在第 `[4/5]` 步启动 `tests/drink_repeat.sh` 时，日志明确为 `/opt/ros/jazzy/setup.bash: line 8: AMENT_TRACE_SETUP_FILES: unbound variable`。
+- 根因与前一轮修复相同，但位于另一个独立 Bash 进程：`run_drink_headless.sh` 已在 source ROS 环境时临时关闭 nounset；其调用的 `drink_repeat.sh` 自己启用 `set -Eeuo pipefail`，却未在 source ROS Jazzy 和工作区 overlay 时关闭 nounset，因此再次触发 setup hook 的未定义变量错误。
+- `tests/drink_repeat.sh` 提交 `7bfc40d91f5d6a81895ab58c4c8816599745c5f1`：source ROS Jazzy 与工作区 overlay 前执行 `set +u`，两份环境加载后恢复 `set -u`，与 headless launcher 保持一致。
+- `tests/test_p104.py` 提交 `fd3879ede611ff072994a3d64ae3e0081c974e17`：新增静态回归契约，检查 repeat runner 在两个 source 之前关闭 nounset、两者之后恢复，并确保该加载顺序不会被后续编辑破坏。
+- 纠正 P85 日志解释：`4.0 Hz` 是节点启动至采样时累计帧数/墙上时间的诊断输出，不是本次 runner 退出的直接原因。P85 自检“不通过”来自右掌 FK 与 Gazebo 真值位置误差 `11.5 mm` 超过 `CK_POS_TOL=10 mm`；左掌为 `1.6 mm`。该自检结果需单独调查，但常驻节点仍进入待命，runner 实际在启动 repeat runner 的 ROS setup 阶段就退出，尚未向 observer 发送 GO_DRINK。
+- voice.log 同时出现 `ModuleNotFoundError: No module named 'vosk'`，来自后台声学模型加载线程。当前 E2E 采用 `text:我要喝水` 文本直通入口，不依赖 Vosk 声学模型；该异常不解释本轮在 source ROS 时的退出，但完整声学 ASR 仍未由此 CI 覆盖。
+- 本轮修复与测试提交触发的 Python syntax、CarryBus ROS 2 executor 和完整 headless Gazebo E2E 均须刷新到终态。此前 E2E run `42947857980` 仍为 failure；完整真实 DrinkTask E2E 新增通过轮数保持 **0**。尚未执行完整 observer 任务验收，至少三轮 E2E、长时间稳定性及完整场景动态碰撞/轨迹验证仍未完成。
+- **状态：repeat runner 的 ROS 环境加载故障已修复并增加回归检查，等待 CI；P104-07 保持“正在进行中”。P85 FK/真值 11.5 mm 偏差作为独立待调查项，不因 runner 修复而视为通过。**
