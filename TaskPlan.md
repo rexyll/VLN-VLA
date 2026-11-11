@@ -9,14 +9,13 @@
 
 ## 当前执行位置（2026-11-11）
 
-- **当前主节点：P104-07（正在进行中）**。CarryBus 专项入口为 `tests/test_carry_gz_bridge.py`；完整 DrinkTask 端到端入口为 `tests/test_drink.py`，多轮顺序验收入口为 `tests/drink_repeat.sh`。CarryBus 的协议/故障注入专项测试不能替代完整 DrinkTask E2E。
-- **当前功能代码提交：** `5b5c923d7b78bf01c83a2f156816a5a8c3b1ff6f`（四维人体 IK 种子扩展为七轴关节向量的修复；其后 `main` 仅有 TaskPlan 状态记录提交）。
-- **最新基础 CI：** Python syntax run `42976833430`（#851）completed/success：P104 纯测试 **65/65 通过**，改动 Python 模块编译通过；CarryBus ROS 2 executor run `42976833361`（#591）completed/success。两者均针对当前 head `5b5c923d7b78`。
-- **最新完整 Gazebo E2E：** run `42976833348`（#22，功能代码 head `5b5c923d7b78`）当前 in_progress，job `130377764327` 已通过依赖安装、GraspCarry Gazebo 插件构建及 ROS 2 workspace/Nav2 map 资源检查，正在执行完整 headless DrinkTask E2E。observer 终态和 artifact 尚未产生，不能将阶段启动或基础 CI success 记作 DrinkTask 通过。
-- **最近完整 E2E 失败：** run `42973081780`（#21，head `e18a518e5d30`）在 PUT_BACK 阶段触发四维/七维 IK seed 形状错误，具体根因与修复见 §8.248。较早 run `42972941597`（#20，head `1b46a4876576`）在 PRESENT 左手补位 4.7mm 超过当时阈值时 fail-closed，未交杯/未松手；该历史失败不能算通过。
-- **已有的末端诊断/修复边界：** §8.247 已增加 HANDOVER 双手中点/杯轴三维真值日志和 FOLLOW 交权后先 ALIGN 再移动保护。#21 日志的 cup 相对双手中点偏差约 `[14.2, 28.4, 0.0]mm`、沿手间连线偏移 `-5.8mm`；本次运行对应的 person arm joint 诊断值为 `None`，关节真值仍需查明。#21 在 PUT_BACK 崩溃，未跑到最终 HANDBACK/FOLLOW，故不能据此确认最终恢复跟随修复有效。
-- **验收计数：** 完整真实 Gazebo DrinkTask E2E 新增通过轮数仍为 **0**。只有完整任务 observer 以成功退出、关键事件截图和结果证据均通过，才可计入通过轮数。最终仍需先让 #22 通过，再核查交接几何、双手取回、放杯、撤离及交权后视觉跟随闭环，随后至少进行三轮与长时间稳定性测试。
-- **分支纪律：** 所有后续改动仅提交到 `main`；不创建新分支或 PR，不擅自合并其他分支。
+- **当前主节点：P104-07（正在进行中）**。完整 DrinkTask E2E 入口为 `tests/test_drink.py`，单轮 headless 入口为 `tests/run_drink_headless.sh`，多轮顺序验收入口为 `tests/drink_repeat.sh`。CarryBus 专项和纯测试均不能替代完整 Gazebo E2E。
+- **当前功能基线：** 人体 IK 四维种子扩展修复提交 `5b5c923d7b78` 已使 #22 不再触发 (4,)→(7,) 广播形状崩溃。其 TaskPlan 记录提交为 `e40de8354208`。
+- **最新基础 CI：** head `e40de8354208` 的 Python syntax #853 与 CarryBus #593 均 completed/success；IK seed 修复本身的 Python 纯测试为 65/65、模块编译通过。
+- **最新完整 Gazebo E2E：** run `42976833348`（#22，功能 head `5b5c923d7b78`）completed/failure。依赖安装、GraspCarry 插件构建和 ROS workspace/Nav2 map 检查均通过；任务实际运行后在 PREPARE 的左手 `cup_carry` 位形失败。末轮 REACH：目标掌心 `[2.1728,0.4044,1.0]`，FK 实测掌心 `[2.1741,0.3960,1.0]`，残差 8.5mm（要求 5mm）；关节最大误差 0.07°，目标杯体位姿残差 19.2mm。程序正确保持抓持并中止，没有强行松手。杯/壶抓取及倒水命令已被真实执行；此前 IK seed shape 崩溃未再出现。
+- **当前调查方向：** 8.5mm 末端误差不能直接归因于伺服未到位：关节反馈与命令已接近，必须区分 IK 本身预测误差、底盘 base 与 Gazebo robot model 真值的漂移，以及 `L_palm` 动态位姿采用世界系还是模型相对系。下一提交增加逐轮 `ik_fk_mm/deg`、求解时 base 快照和 FK↔Gazebo palm link 双坐标解释诊断；不调整 5mm 验收、不放宽人体规则或碰撞门控。
+- **验收计数：** 完整真实 Gazebo DrinkTask E2E 通过轮数仍为 **0**。后续必须跑完整 observer 并检查抓放、交接、恢复跟随和截图证据；纯测试通过不能计入。
+- **分支纪律：** 所有后续改动只提交 `main`；不创建新分支或 PR，不擅自合并其他分支。
 ---
 
 ## 0. 目标（验收口径）
@@ -4112,3 +4111,12 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - **真实 E2E 复验：** run `42976833348`（#22，功能代码 head `5b5c923d7b78`）已通过依赖、插件和 workspace 构建，当前处于完整 DrinkTask E2E 执行步骤；尚未取得终态。#21 日志还显示 `vosk` 缺失的 voice 异步线程告警，但文字命令仍成功解析并驱动任务，不是本次崩溃根因。
 - **此前末端失败的区分：** #20（`42972941597`）曾因左手放杯掌心残差 4.1mm、杯体残差 4.7mm 超过当时接受阈值而安全保持抓持；#21 已越过该段并走到 TAKE_BACK/PUT_BACK。#21 的 HANDOVER_GEOM 日志测得杯轴相对双手中点约 `[14.2,28.4,0.0]mm`、横向偏移 `-5.8mm`，但 person arm joint 真值仍为 `None`；且因 PUT_BACK 崩溃，交权后的最终 FOLLOW 恢复未被实测。
 - **下一步：** 等待并检查 #22 的完整 headless Gazebo E2E 日志和 observer artifact。若通过 PUT_BACK，继续依据最新手/杯真值日志审查交接及 take-back；必须检查 HANDOVER 后最终 FOLLOW 首帧是否先对齐、视觉丢失后的重新捕获、末段人与机器人距离和跟随带比例。任何失败都从对应阶段真值/日志修复，不放宽 observer 阈值、碰撞门控或安全约束。完整 Gazebo DrinkTask E2E 通过轮数在取得 observer 全项通过证据之前仍为 **0**；P104-07 保持“正在进行中”。
+
+
+### 8.249 追查 PREPARE 的 cup_carry 末端残差（2026-11-11，诊断增强已提交，完整仿真待复验）
+
+- #22 真实 Gazebo run `42976833348`（artifact `13835683324`）已越过 §8.248 修复的四维/七维 IK seed 崩溃，并通过仿真依赖、GraspCarry C++ 插件构建和 ROS 2 workspace/Nav2 地图资产检查；失败阶段提前回到 PREPARE 的左手 `cup_carry`（不是末尾 PUT_BACK）。日志显示水杯/水壶抓取分别到位 1.5mm/2.5mm，倒水流程已启动、水壶 release ACK 成功；在水壶放回、右臂归位、底盘服务位复位后，左手向 `Tcup_carry` 位形移动。
+- 最终五轮 reach 残差 21.1→13.4→8.6→8.8→8.5mm，IK 来源依次为 `kdl-lma/human-hold` 和 `kdl-lma`；最后伺服最大关节误差 0.07°。掌心目标 `[2.1728,0.4044,1.0]`，FK 掌心实测 `[2.1741,0.3960,1.0]`，姿态差 1.18°；物体真值中心 `[2.2529,0.3310,1.0]` 相对目标 `[2.25,0.35,1.0]` 偏差 19.2mm。任务因此保持抓持并停止转身，安全门控行为正确。
+- 现有日志不足以确认是 IK 目标自身不可达、Gazebo robot model/base 同步差，还是 joint FK 与 Gazebo palm link 真值不一致。不能因为 joint servo 误差很小就假定末端位姿正确，也不能把 5mm 阈值改大。
+- 诊断增强提交增加 `fk_truth_diagnostics()`：记录 base 与 robot model 的 XY/yaw 偏差，同时分别计算 FK 与 Gazebo `<side>_palm` link 按原始世界位姿、按 robot model 组合位姿解释时的误差；`reach` 每轮记录 IK 解经同一 FK 的预测位置/姿态残差、求解时 base 快照和伺服结果。该诊断不改变 IK 选择、运动目标、碰撞路径、servo 容差或抓持释放行为。
+- 新增纯测试用合成世界位姿/模型相对位姿验证两种 link 坐标解释可区分；另加源码契约验证每轮保留 IK FK 误差和真值诊断。下一步以新 head 重新运行 #23，依据 `ik_fk_mm`、`base_truth_xy_mm`、`fk_to_palm_raw_mm`、`fk_to_palm_model_mm` 定位根因，再决定是否需要修正 base/运动学模型。完整 Gazebo E2E 通过轮数仍为 0，P104-07 保持“正在进行中”。

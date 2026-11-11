@@ -1926,6 +1926,56 @@ class TestP104(unittest.TestCase):
         self.assertIn('q_after = q_meas(node, side)', body)
 
 
+    def test_fk_truth_diagnostics_distinguish_world_and_model_relative_links(self):
+        from types import SimpleNamespace
+
+        base = (1.1, -0.4, 0.35)
+        q = np.asarray(K.Q_REST, float)
+        T_robot = K.base_pose(*base)
+        T_fk = K.fk_world('L', q, base)
+
+        def pose_message(T):
+            from vla_follow.drink_task import gz_pose_to_T
+            # Build a pose-shaped object without depending on Gazebo messages.
+            from scipy.spatial.transform import Rotation
+            quat = Rotation.from_matrix(T[:3, :3]).as_quat()
+            return SimpleNamespace(
+                position=SimpleNamespace(x=T[0, 3], y=T[1, 3], z=T[2, 3]),
+                orientation=SimpleNamespace(
+                    x=quat[0], y=quat[1], z=quat[2], w=quat[3]))
+
+        robot_pose = pose_message(T_robot)
+        world_link = pose_message(T_fk)
+        node = SimpleNamespace(
+            base=base, links={'robot': robot_pose, 'L_palm': world_link})
+        world_diag = M.fk_truth_diagnostics(node, 'L', q)
+        self.assertLess(world_diag['base_truth_xy_mm'], 1e-6)
+        self.assertLess(abs(world_diag['base_truth_yaw_deg']), 1e-6)
+        self.assertLess(world_diag['fk_to_palm_raw_mm'], 1e-6)
+        self.assertGreater(world_diag['fk_to_palm_model_mm'], 100.0)
+
+        local_link = np.linalg.inv(T_robot) @ T_fk
+        node.links['L_palm'] = pose_message(local_link)
+        local_diag = M.fk_truth_diagnostics(node, 'L', q)
+        self.assertGreater(local_diag['fk_to_palm_raw_mm'], 100.0)
+        self.assertLess(local_diag['fk_to_palm_model_mm'], 1e-6)
+
+    def test_reach_trace_records_ik_fk_and_base_truth_diagnostics(self):
+        motion_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
+            'drink_motion.py')
+        with open(motion_path, encoding='utf-8') as stream:
+            source = stream.read()
+        start = source.index('def reach(')
+        end = source.index('def sim_now(', start)
+        body = source[start:end]
+        self.assertIn('base_at_ik = tuple(float(v) for v in node.base)', body)
+        self.assertIn('T_ik_fk = K.fk_world(side, q, base_at_ik)', body)
+        self.assertIn("'ik_fk_mm': round(ik_fk_mm, 2)", body)
+        self.assertIn("'ik_fk_deg': round(ik_fk_deg, 3)", body)
+        self.assertIn('truth_diag = (fk_truth_diagnostics(node, side, q_final)', body)
+        self.assertIn('fk_truth=%s', body)
+
     def test_reach_table_collision_reports_measured_residual_and_path(self):
         motion_path = os.path.join(
             ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',

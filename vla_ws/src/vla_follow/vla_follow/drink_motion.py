@@ -78,6 +78,59 @@ def object_pose(node, model):
 def pos_err_mm(Ta, Tb):
     return float(np.linalg.norm(np.asarray(Ta)[:3, 3] - np.asarray(Tb)[:3, 3])) * 1000.0
 
+def _dynamic_pose_matrix(pose):
+    """Convert one Gazebo dynamic_pose/info pose message to a homogeneous matrix."""
+    q = pose.orientation
+    return K.frame(K.quat_to_mat(q.x, q.y, q.z, q.w),
+                   (pose.position.x, pose.position.y, pose.position.z))
+
+
+def fk_truth_diagnostics(node, side, q=None):
+    """Compare joint FK against base and Gazebo palm truth without changing control.
+
+    dynamic_pose/info link poses have historically appeared in either world or
+    model-relative form across tools/consumers. Report both interpretations so
+    a residual cannot be misdiagnosed as an IK/servo problem or hidden by
+    changing tolerances.
+    """
+    if q is None:
+        q = q_meas(node, side)
+    if q is None:
+        return {'reason': 'joint_state_missing'}
+    q = np.asarray(q, float)
+    base = tuple(float(v) for v in node.base)
+    T_fk = K.fk_world(side, q, base)
+    result = {
+        'base': [round(v, 4) for v in base],
+        'fk_xyz': np.round(T_fk[:3, 3], 4).tolist(),
+    }
+    T_robot = object_pose(node, 'robot')
+    if T_robot is not None:
+        model_yaw = math.atan2(T_robot[1, 0], T_robot[0, 0])
+        yaw_gap = math.atan2(math.sin(base[2] - model_yaw),
+                             math.cos(base[2] - model_yaw))
+        result['base_truth_xy_mm'] = round(
+            float(np.linalg.norm(np.asarray(base[:2]) - T_robot[:2, 3])) * 1e3, 2)
+        result['base_truth_yaw_deg'] = round(math.degrees(yaw_gap), 3)
+    link = getattr(node, 'links', {}).get('%s_palm' % side)
+    if link is not None:
+        T_link_raw = _dynamic_pose_matrix(link)
+        result['palm_link_raw_xyz'] = np.round(T_link_raw[:3, 3], 4).tolist()
+        result['fk_to_palm_raw_mm'] = round(pos_err_mm(T_fk, T_link_raw), 2)
+        result['fk_to_palm_raw_deg'] = round(axis_angle_deg(T_fk, T_link_raw), 3)
+        if T_robot is not None:
+            T_link_model = T_robot @ T_link_raw
+            result['palm_link_model_xyz'] = np.round(
+                T_link_model[:3, 3], 4).tolist()
+            result['fk_to_palm_model_mm'] = round(
+                pos_err_mm(T_fk, T_link_model), 2)
+            result['fk_to_palm_model_deg'] = round(
+                axis_angle_deg(T_fk, T_link_model), 3)
+    else:
+        result['palm_link_truth'] = 'missing'
+    return result
+
+
 
 def axis_angle_deg(Ta, Tb):
     """两个位姿的姿态夹角（度）。"""
@@ -389,7 +442,11 @@ def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
         # 选一边, 掌心在中间不动, 残差 115mm 一直不下去。分支是姿态策略,
         # 补位是精度问题, 两件事分开: 第一轮定分支, 后面只用种子做局部修正。
         _mode = elbow if it == 0 else None
-        q, _e, how = K.ik_world(side, T_world, node.base, q_now, elbow=_mode)
+        base_at_ik = tuple(float(v) for v in node.base)
+        q, _e, how = K.ik_world(side, T_world, base_at_ik, q_now, elbow=_mode)
+        T_ik_fk = K.fk_world(side, q, base_at_ik)
+        ik_fk_mm = pos_err_mm(T_ik_fk, T_world)
+        ik_fk_deg = axis_angle_deg(T_ik_fk, T_world)
         if first_how is None:
             first_how = how
         q_target_last = q.copy()
@@ -502,6 +559,9 @@ def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
             if np.all(np.isfinite(joint_err)) else 9e9)
         pass_trace.append({
             'pass': it + 1, 'ik': how, 'res_mm': round(res, 1),
+            'ik_fk_mm': round(ik_fk_mm, 2),
+            'ik_fk_deg': round(ik_fk_deg, 3),
+            'base_at_ik': [round(v, 4) for v in base_at_ik],
             'servo_ok': bool(ok_move),
             'joint_err_deg': round(joint_err_deg, 2)})
         if not ok_move:
@@ -524,11 +584,13 @@ def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
     if res >= tol_mm:
         T_final = wrist(node, side)
         q_final = q_meas(node, side)
+        truth_diag = (fk_truth_diagnostics(node, side, q_final)
+                      if q_final is not None else {'reason': 'joint_state_missing'})
         node.get_logger().warn(
             'REACH %s 收敛不足: passes=%d/%d tol=%.1fmm '
             'first_ik=%s last_ik=%s trace=%s '
             'target_xyz=%s actual_xyz=%s pose_err=%.2fdeg '
-            'q_final=%s q_target=%s'
+            'q_final=%s q_target=%s fk_truth=%s'
             % (side, len(pass_trace), passes, tol_mm,
                first_how, how, pass_trace,
                np.round(np.asarray(T_world)[:3, 3], 4).tolist(),
@@ -539,7 +601,8 @@ def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
                (np.round(q_final, 3).tolist()
                 if q_final is not None else None),
                (np.round(q_target_last, 3).tolist()
-                if q_target_last is not None else None)))
+                if q_target_last is not None else None),
+               truth_diag))
     return res < tol_mm, res, how
 
 
