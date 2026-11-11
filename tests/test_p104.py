@@ -2006,6 +2006,38 @@ class TestP104(unittest.TestCase):
         self.assertIn('truth_diag = (fk_truth_diagnostics(node, side, q_final)', body)
         self.assertIn('fk_truth=%s', body)
 
+    def test_table_collision_reports_world_geometry_for_capsule_hit(self):
+        class Node:
+            js = {}
+
+        box_lo = np.array([0.0, 0.0, 0.0])
+        box_hi = np.array([1.0, 1.0, 1.0])
+        p0 = np.array([-0.2, 0.5, 0.5])
+        p1 = np.array([0.2, 0.5, 0.5])
+        palm = (np.array([3.0, 3.0, 3.0]), np.eye(3),
+                np.array([0.01, 0.01, 0.01]))
+        with patch.object(M, 'q_meas', return_value=np.zeros(K.NJ)), \\
+                patch.object(M, '_table_collision_boxes',
+                             return_value=[('table_top', box_lo, box_hi)]), \\
+                patch.object(M, '_arm_geometry_world',
+                             return_value=([('forearm', p0, p1, 0.03)], palm)):
+            clear, hit = M.arm_path_table_clear(
+                Node(), 'R', [np.zeros(K.NJ)])
+
+        self.assertFalse(clear)
+        self.assertEqual(hit['segment'], 'forearm')
+        self.assertEqual(hit['box'], 'table_top')
+        self.assertAlmostEqual(hit['check_radius_m'], 0.04)
+        np.testing.assert_allclose(hit['segment_start_m'], p0)
+        np.testing.assert_allclose(hit['segment_end_m'], p1)
+        np.testing.assert_allclose(hit['box_min_m'], box_lo)
+        np.testing.assert_allclose(hit['box_max_m'], box_hi)
+        np.testing.assert_allclose(hit['expanded_box_min_m'],
+                                   box_lo - 0.04)
+        np.testing.assert_allclose(hit['expanded_box_max_m'],
+                                   box_hi + 0.04)
+
+
     def test_reach_table_collision_reports_measured_residual_and_path(self):
         motion_path = os.path.join(
             ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',

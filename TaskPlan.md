@@ -10,10 +10,10 @@
 ## 当前执行位置（2026-11-11）
 
 - **当前主节点：P104-07（正在进行中）**。完整 DrinkTask E2E 入口为 `tests/test_drink.py`，单轮 headless 入口为 `tests/run_drink_headless.sh`，多轮顺序验收入口为 `tests/drink_repeat.sh`。CarryBus 专项和纯测试均不能替代完整 Gazebo E2E。
-- **当前功能诊断代码提交：** `6a1de4e4374f8773f5defc361db500a976ff9b55`。随后 `c771b736349910ca0e2f0a24bb875741a807cb24`、`0f3728cc1b310635ce5a9a17efe7b26ec63a84e2` 修正纯测试 fixture；当前 main head `a18a250648b23ebe16e32e672370b5de093896ec` 是 TaskPlan 状态同步提交，未改变 runtime 控制逻辑。
+- **当前功能诊断代码提交：** `e5b8ff4d55e9c38e32be81ab996e193bf3ac6433`，已增加只读底盘 odom twist 追踪；本轮新增桌面碰撞首发几何坐标诊断，不改变碰撞模型、轨迹、控制或安全阈值。
 - **最新 Python CI：** run `42978946911`（#857，TaskPlan head `a18a250648b2`）completed/success；67 项 P104 纯测试全部通过，Python 模块编译通过。先前 #854/#855 的唯一失败来自新增测试 fixture 的 ROS/SciPy/`math` 依赖问题，已改为标准库 pose fixture 并显式导入 `math`，不是生产代码失败。
 - **CarryBus CI：** run `42978946865`（#597，TaskPlan head `a18a250648b2`）completed/success；#596（`42978811022`）也已 completed/success。
-- **最新完整 Gazebo E2E：** run `42978624796`（#23，诊断功能 head `6a1de4e4374f`）仍 in_progress。依赖安装、GraspCarry 插件构建和 ROS 2 workspace/Nav2 地图检查均已通过，当前正在执行完整 headless DrinkTask E2E。任务日志在 job 运行中暂无法读取（logs API 返回 BlobNotFound），尚无 observer 终态或 artifact。
+- **最新完整 Gazebo E2E：** run `42981180366`（#24，head `e5b8ff4d55e9`）completed/failure；Gazebo/ROS 2/Nav2/GraspCarry/workspace 构建全部通过，完整任务进入 PUT_BACK，但右臂第 4/4 步下降被前臂—桌面碰撞门控拒绝（真实掌心残差 67.2mm），安全保持抓持。阶段缺 RETREAT/HANDBACK/DONE，杯子最终 observer 几何位置虽偏差 4.6mm 但仍附着，不能计为放回成功。日志未出现 `odom_twist` trace，因为失败发生在碰撞预检分支、伺服执行前。Artifact `p104-drinktask-e2e-42981180366` 已上传。
 - **最新已完成的完整 E2E：** #22（`42976833348`，功能 head `5b5c923d7b78`）completed/failure。它已越过四维/七维 IK seed 崩溃，但在 PREPARE 左手 cup_carry 位形停止：掌心残差 8.5mm（目标 5mm），杯体偏差 19.2mm，伺服最大关节误差 0.07°；程序正确保持抓持，没有松手。
 - **当前诊断方向：** runtime 已增加每轮 IK 的 FK 预测位置/姿态残差、求解时 base 快照，以及 FK 对 Gazebo palm link 的 raw/model-composed 双坐标误差；该增强仅观测，不改变 IK 选择、运动目标、servo 容差、碰撞检查或释放安全门控。用 #23 的日志确认失败是 IK 自身残差、base 真值同步差，还是 palm link 坐标解释差。
 - **验收计数：** 完整真实 Gazebo DrinkTask E2E 通过轮数仍为 **0**。不得放宽 5mm 验收或绕过碰撞/抓持安全门控。
@@ -4139,3 +4139,10 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 新增只读运行诊断：`DrinkTask._odom_cb` 无论是否已锁定 Gazebo 真值底盘位姿，均记录轮式里程计的瞬时线/角速度及采样时间；`fk_truth_diagnostics` 与 reach 每轮 trace 输出 `odom_twist` / `odom_twist_age_s`。不使用 odom pose 覆盖 Gazebo 真值，不发布任何底盘命令，不改变控制和安全门槛。
 - 新增源码回归契约，确保 twist 诊断即使在 `_truth_base` 锁定后仍持续采集，且 reach trace 保留对应数据。下一轮完整 E2E 需对照 yaw 漂移和角速度：若角速度非零，继续追踪 cmd_mux/底盘制动；若角速度接近零但真值 yaw 漂移，则重点检查 teleport 与 Gazebo 轮组动力学/模型状态语义。末端 5mm 门槛和 fail-closed 抓持行为保持不变。
 - 当前完整 Gazebo E2E 通过次数仍为 **0**；P104-07 保持“正在进行中”。
+
+### 8.252 定位 PUT_BACK 前臂—桌面碰撞拒绝（2026-11-11，首发几何证据增强）
+
+- 完整 Gazebo E2E #24（run `42981180366`，head `e5b8ff4d55e9`）首次越过 PREPARE/PRESENT/HANDOVER/PERSON_DRINK/TAKE_BACK，进入 PUT_BACK。右手第 4/4 下降步的关节路径被桌面碰撞门控拒绝：首碰撞为 `sample=4, segment=forearm, box=table_top`，右掌当前世界坐标约 `[2.2316, 0.3195, 0.8297]`，目标约 `[2.2157, 0.3519, 0.773]`，掌心残差 67.2mm。候选搜索得到 232 个通过 IK/人体关节规则的解，但首批候选路径均碰桌；系统正确保持双手抓持，未执行危险下降或 release。
+- #24 的 [6] 杯子几何位置偏差 4.6mm 不能作为放回成功：杯仍在附着状态，PUT_BACK 未完成，且 RETREAT/HANDBACK/DONE、交还截图均缺失。完整 Gazebo E2E 通过数仍为 0。
+- 新增只读首碰撞几何：记录胶囊段世界坐标端点、桌面 AABB 原始边界、按实际碰撞半径扩张后的边界及检测半径。新增纯测试覆盖这些字段。碰撞判定公式、胶囊半径、10mm 余量、路径采样步长、IK 候选规则和 fail-closed 行为全部不变。
+- 下一步根据 #25 真实首碰撞端点判断是路径确实穿越桌面、桌面 AABB 与 SDF 不一致，还是几何代理过度保守；在证据确认前不放宽碰撞门控，不改变 5mm 放回阈值。

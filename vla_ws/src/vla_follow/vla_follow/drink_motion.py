@@ -404,9 +404,26 @@ def arm_path_table_clear(node, side, path_q, base=None,
                 return False, {'sample': i, 'segment': 'palm_obb',
                                'box': box_name}
             for seg_name, p0, p1, radius in segments:
-                if _segment_hits_aabb(p0, p1, lo, hi, radius + 0.010):
-                    return False, {'sample': i, 'segment': seg_name,
-                                   'box': box_name, 'radius_m': radius}
+                check_radius = float(radius) + 0.010
+                if _segment_hits_aabb(p0, p1, lo, hi, check_radius):
+                    # Preserve the exact world-space geometry behind a
+                    # fail-closed decision. This is diagnostic only: the
+                    # collision proxy and acceptance threshold are unchanged.
+                    return False, {
+                        'sample': i, 'segment': seg_name, 'box': box_name,
+                        'radius_m': float(radius),
+                        'check_radius_m': check_radius,
+                        'segment_start_m': np.round(
+                            np.asarray(p0, float), 5).tolist(),
+                        'segment_end_m': np.round(
+                            np.asarray(p1, float), 5).tolist(),
+                        'box_min_m': np.round(np.asarray(lo, float), 5).tolist(),
+                        'box_max_m': np.round(np.asarray(hi, float), 5).tolist(),
+                        'expanded_box_min_m': np.round(
+                            np.asarray(lo, float) - check_radius, 5).tolist(),
+                        'expanded_box_max_m': np.round(
+                            np.asarray(hi, float) + check_radius, 5).tolist(),
+                    }
     return True, None
 
 
