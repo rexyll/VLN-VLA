@@ -1918,7 +1918,12 @@ class TestP104(unittest.TestCase):
         self.assertIn('res_after = pos_err_mm(Tk_after, T_obj_goal)', body)
         self.assertIn('ang_after = axis_angle_deg(Tk_after, T_obj_goal)', body)
         self.assertIn('return False, res_after', body)
-        self.assertIn('reach_res, res_after, ang_after, res', body)
+        self.assertIn('palm_target = dT @ Tp', body)
+        self.assertIn('Tp_after = wrist(node, side)', body)
+        self.assertIn('palm_res_after = pos_err_mm(Tp_after, palm_target)', body)
+        self.assertIn('how, reach_res', body)
+        self.assertIn('物体目标=%s 实测=%s 残差=%.1fmm/%.2f°; q=%s', body)
+        self.assertIn('q_after = q_meas(node, side)', body)
 
 
     def test_reach_table_collision_reports_measured_residual_and_path(self):
