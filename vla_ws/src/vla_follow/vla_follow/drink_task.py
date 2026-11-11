@@ -735,6 +735,38 @@ class DrinkTask(Node):
             if _hc is not None:
                 res['hands'].update(recv_l_mm=round(_hc[0], 1),
                                     recv_r_mm=round(_hc[1], 1))
+            # P104: 不能只记录两侧手杯距离；同样的手间距可能整体偏离杯轴。
+            # 交接前保存世界系手心中点、杯轴相对中点的三维偏差和沿手间连线
+            # 的有符号偏移，并记录 person_arms/link 原始真值与实测关节值，
+            # 用于区分 PRESENT 目标偏差、link 坐标变换错误和两侧关节不同步。
+            _hl, _hr = M.person_hand_poses(self)
+            _tc = M.object_pose(self, 'cup')
+            _ta = M.object_pose(self, 'person_arms')
+            _tp = M.object_pose(self, 'person')
+            if _hl is not None and _hr is not None and _tc is not None:
+                _mid = 0.5 * (_hl[:3, 3] + _hr[:3, 3])
+                _span = _hr[:3, 3] - _hl[:3, 3]
+                _span_n = float(np.linalg.norm(_span))
+                _cup_delta = _tc[:3, 3] - _mid
+                _lateral = (float(_cup_delta @ (_span / _span_n))
+                            if _span_n > 1e-9 else float('nan'))
+                _arm_q = [self.js.get(n) for n in
+                          ('person_arm_joint', 'person_arm_l_joint',
+                           'person_arm_r_joint')]
+                self.get_logger().info(
+                    'HANDOVER_GEOM world_m: L=%s R=%s mid=%s cup=%s '
+                    'cup_minus_mid_mm=%s lateral_mm=%.1f '
+                    'person=%s arms_link=%s arm_joints=%s'
+                    % (np.round(_hl[:3, 3], 4).tolist(),
+                       np.round(_hr[:3, 3], 4).tolist(),
+                       np.round(_mid, 4).tolist(),
+                       np.round(_tc[:3, 3], 4).tolist(),
+                       np.round(_cup_delta * 1000.0, 1).tolist(),
+                       _lateral * 1000.0,
+                       (np.round(_tp[:3, 3], 4).tolist()
+                        if _tp is not None else None),
+                       (np.round(_ta[:3, 3], 4).tolist()
+                        if _ta is not None else None), _arm_q))
             self._set_state('HANDOVER', {'approach': res['approach'],
                                          'hands': res['hands']})
             ok_h = self.carry.hand_to('cup', 'person', 'person_arms',
