@@ -3909,3 +3909,12 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - tests/test_p104.py 提交 2d743c9bccf4b9c61b6bd6827df2affa9afa4da1：增加回归契约，确保 reach 失败分支重新采集物体真值、计算位置/姿态误差、记录掌心与物体两类误差，并返回最新残差。
 - 下一步需先刷新上述两个提交触发的 Python syntax 与 CarryBus ROS 2 executor CI；随后重跑完整 headless Gazebo E2E，依据新的 PLACE kettle 诊断日志继续定位。若真实物体误差仍大，继续检查附着偏移、壶嘴/壶体姿态和 FK 真值；若物体误差已达标而伺服未确认，则检查关节误差、超时与 IK 分支。不得通过简单放宽落位容差或提前 release 来掩盖问题。
 - **状态：已完成从“环境启动失败”到“真实任务执行并暴露水壶放回故障”的推进；诊断改进已提交 main，等待 CI 与下一轮完整仿真。完整 Gazebo DrinkTask E2E 新增通过轮数仍为 0；至少三轮真实 E2E、长时间稳定性及完整场景动态碰撞/轨迹验收未完成。P104-07 保持“正在进行中”。**
+
+
+### 8.230 修正放回诊断回归测试的源码边界定位，并跟踪修复版完整仿真（2026-11-11，测试修复已提交，CI 进行中）
+
+- §8.229 的诊断代码提交 a1ae887282b1 的 Python syntax run 42951164927 completed/success；其 CarryBus ROS 2 executor run 42951164613 仍 in_progress；同一代码提交触发的完整 headless Gazebo E2E run 42951164551 仍 in_progress，job 130295533111 正在安装 Gazebo/ROS 2/Nav2 依赖，尚未进入完整任务验收。
+- 首版诊断测试提交 2d743c9bccf4 的 Python syntax run 42951178990 completed/failure；失败只发生在新增测试的源码切片边界定位，异常为 ValueError: substring not found。源码编译步骤成功，其他 55 项纯测试通过；该失败不是 drink_motion.py 语法或运行时失败。
+- 随后复核测试源码，确认切片结束标记多写了字面反斜杠，未匹配实际的 def put_down() 声明。tests/test_p104.py 提交 cc5523edc73461e805adf7ed8492d47813f7a36d：修正源码边界标记为 def put_down(，不改变生产逻辑或诊断断言。
+- cc5523edc734 的 Python syntax run 42951259855 与 CarryBus ROS 2 executor run 42951259839 当前均 in_progress；TaskPlan 本次提交后触发的后续 CI 也需刷新到终态。不得把此前失败的 42951178990 或 42951225463 回写为成功。
+- **状态：生产代码已通过 Python syntax；新增测试的首版边界错误已修复并提交，等待最新纯测试/CarryBus CI 与完整 headless Gazebo E2E 终态。完整 Gazebo DrinkTask E2E 新增通过轮数仍为 0；P104-07 保持“正在进行中”。**
