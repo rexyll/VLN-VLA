@@ -4068,3 +4068,12 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - 历史失败的 Python syntax run `42969900825`、`42969990289`、`42970026756`、`42970063679` 都是该过期断言导致的纯测试失败，不能记作 Gazebo E2E 失败。模块编译在这些运行中均成功。
 - 截至记录时，最新 head `b4b3aa424f59` 的 Python syntax run `42970281152` 与 CarryBus `42970281132` 正在运行；较早完整 Gazebo run `42969495781`（head `46572970c9c5`，IK 精修但无后续性能边界优化）仍在运行/等待仿真阶段；含性能边界修正的 Gazebo run `42970026682`（head `760ab67fc124`）处于 pending。必须继续等待新 head 的 E2E artifact，当前完整 E2E 通过轮数仍为 0。
 - **状态：源码测试断言已修复，等待新 CI 与 Gazebo 实际验证；P104-07 仍“正在进行中”。**
+
+
+### 8.245 IK 精修功能测试通过，主线基础 CI 恢复全绿，Gazebo 复验仍在排队（2026-11-11）
+
+- 最新 head `dc35e1e75550` 的 Python syntax run `42970370923` completed/success，包含 62 项 P104 纯数学/运动学测试与模块编译；其中新增 `ik_refine` 合成 FK 目标功能测试通过，验证误差严格下降、最终关节值保持在机械限位内。最新 head CarryBus run `42970370779` completed/success；此前 head `b4b3aa424f59` 的 Python syntax `42970281152` 与 CarryBus `42970281132` 也均 completed/success。
+- 先前失败的纯测试 run 已确认仅为源码断言没有跟随 `refine` 开关改名；修正提交 `b4b3aa424f594e32f2411f13a48261103e672945` 后，最新完整纯测试通过。编译工作在失败运行中一直成功。
+- 完整 Gazebo E2E run `42969495781`（head `46572970c9c5`，含局部 IK 精修但未含后续扫描性能优化）仍在运行，其当前 step 为完整 headless DrinkTask E2E，日志归档端点暂时返回 BlobNotFound，尚无最终结果。含完整扫描性能边界修正的 E2E run `42970026682`（head `760ab67fc124`）仍 pending，等待 workflow concurrency 释放。
+- 新增/修正的运行时路径现状：桌边 HUMAN_SEEDS 扫描使用 `refine=False`，只在候选分支选定后精修，避免 324 组人体种子 × 局部精修造成计算放大；IK 批量扫描也统一先粗筛、最后精修一次。
+- **状态：纯函数/运动学测试和 CarryBus CI 已通过；完整 Gazebo DrinkTask E2E 尚未取得新 artifact，完整通过轮数仍为 0。当前不把单元测试通过视作真实抓取、放杯或全流程验收。P104-07 继续“正在进行中”。**
