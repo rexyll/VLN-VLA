@@ -698,7 +698,7 @@ class DrinkTask(Node):
             # up_roll 顶到 −1.84(R4 肩内旋超限), 本身就是个违反人体规则的解。
             ok_present, present_mm = M.place_held(
                 self, 'L', 'cup', Tp, tol_mm=6.0, iters=14,
-                reach_tol_mm=1.5)
+                reach_tol_mm=1.5, reach_tol_deg=0.08)
             ok_follow, follow_mm = M.follow_hand(
                 self, 'R', 'cup', pr['off_r'])
             res['present'] = {'ok': ok_present, 'position_mm': present_mm,
