@@ -1532,14 +1532,21 @@ class TestP104(unittest.TestCase):
                 return 731
 
         stream = Stream()
-        with patch('os.open', return_value=731):
+        with patch('os.open', side_effect=[731, 732]) as open_file:
             with patch('os.fdopen', return_value=stream):
                 with patch('os.fsync') as sync_file:
-                    namespace['_create_command_attempt_marker'](
-                        '/tmp/unused-marker')
+                    with patch('os.close') as close_file:
+                        namespace['_create_command_attempt_marker'](
+                            '/tmp/unused-marker')
         self.assertEqual(stream.writes, ['GO_DRINK command attempt started\\n'])
         self.assertTrue(stream.flushed)
-        sync_file.assert_called_once_with(731)
+        self.assertEqual([call.args for call in open_file.call_args_list], [
+            ('/tmp/unused-marker', os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600),
+            ('/tmp', os.O_RDONLY | getattr(os, 'O_DIRECTORY', 0)),
+        ])
+        self.assertEqual([call.args for call in sync_file.call_args_list],
+                         [(731,), (732,)])
+        close_file.assert_called_once_with(732)
 
     def test_publish_drink_command_success_persists_marker_before_send(self):
         observer_path = os.path.join(ROOT, 'tests', 'test_drink.py')
@@ -1576,17 +1583,26 @@ class TestP104(unittest.TestCase):
         namespace = {'os': os}
         exec(compile(isolated, observer_path, 'exec'), namespace)
         marker_stream = MarkerStream()
-        with patch('os.open', side_effect=lambda *_args: events.append('open') or 741):
+        def open_marker_or_directory(path, *_args):
+            events.append(('open', path))
+            return 741 if path == '/tmp/unused-marker' else 742
+
+        with patch('os.open', side_effect=open_marker_or_directory):
             with patch('os.fdopen',
                        side_effect=lambda *_args, **_kwargs:
                        events.append('fdopen') or marker_stream):
                 with patch('os.fsync',
-                           side_effect=lambda _fd: events.append('fsync')):
-                    namespace['_publish_drink_command'](
-                        Watch(), '/tmp/unused-marker')
+                           side_effect=lambda fd: events.append(('fsync', fd))):
+                    with patch('os.close',
+                               side_effect=lambda fd: events.append(('close-dir', fd))):
+                        namespace['_publish_drink_command'](
+                            Watch(), '/tmp/unused-marker')
         self.assertEqual(events, [
-            'open', 'fdopen', ('write', 'GO_DRINK command attempt started\\n'),
-            'flush', 'fsync', 'close', ('send', 'GO_DRINK')])
+            ('open', '/tmp/unused-marker'), 'fdopen',
+            ('write', 'GO_DRINK command attempt started\\n'),
+            'flush', ('fsync', 741), 'close',
+            ('open', '/tmp'), ('fsync', 742), ('close-dir', 742),
+            ('send', 'GO_DRINK')])
 
         # An absent marker path is an intentional opt-out, not a send failure.
         events.clear()
@@ -1630,21 +1646,29 @@ class TestP104(unittest.TestCase):
         namespace = {'os': os}
         exec(compile(isolated, observer_path, 'exec'), namespace)
         marker_stream = MarkerStream()
-        with patch('os.open', side_effect=lambda *_args: events.append('open') or 751):
+        def open_marker_or_directory(path, *_args):
+            events.append(('open', path))
+            return 751 if path == '/tmp/unused-marker' else 752
+
+        with patch('os.open', side_effect=open_marker_or_directory):
             with patch('os.fdopen',
                        side_effect=lambda *_args, **_kwargs:
                        events.append('fdopen') or marker_stream):
                 with patch('os.fsync',
-                           side_effect=lambda _fd: events.append('fsync')):
-                    with self.assertRaises(RuntimeError) as caught:
-                        namespace['_publish_drink_command'](
-                            Watch(), '/tmp/unused-marker')
+                           side_effect=lambda fd: events.append(('fsync', fd))):
+                    with patch('os.close',
+                               side_effect=lambda fd: events.append(('close-dir', fd))):
+                        with self.assertRaises(RuntimeError) as caught:
+                            namespace['_publish_drink_command'](
+                                Watch(), '/tmp/unused-marker')
 
         self.assertIs(caught.exception, send_error)
         self.assertEqual(events, [
-            'open', 'fdopen',
+            ('open', '/tmp/unused-marker'), 'fdopen',
             ('write', 'GO_DRINK command attempt started\\n'),
-            'flush', 'fsync', 'close', ('send', 'GO_DRINK')])
+            'flush', ('fsync', 751), 'close',
+            ('open', '/tmp'), ('fsync', 752), ('close-dir', 752),
+            ('send', 'GO_DRINK')])
 
     def test_drink_observer_owns_ros_cleanup_in_main_finally(self):
         observer_path = os.path.join(ROOT, 'tests', 'test_drink.py')
@@ -1693,9 +1717,57 @@ class TestP104(unittest.TestCase):
         self.assertIn('except BaseException:', marker_body)
         self.assertIn('os.close(fd)', marker_body)
         self.assertIn('os.fsync(stream.fileno())', marker_body)
+        self.assertIn('os.open(directory, directory_flags)', marker_body)
+        self.assertIn('os.fsync(directory_fd)', marker_body)
+        self.assertIn('os.close(directory_fd)', marker_body)
 
 
-    def test_observer_cleanup_success_releases_node_and_context(self):
+    def test_marker_directory_fsync_failure_blocks_go_drink(self):
+        observer_path = os.path.join(ROOT, 'tests', 'test_drink.py')
+        with open(observer_path, encoding='utf-8') as stream:
+            source = stream.read()
+        import ast
+        tree = ast.parse(source)
+        helper = next(node for node in tree.body
+                      if isinstance(node, ast.FunctionDef)
+                      and node.name == '_create_command_attempt_marker')
+        publish = next(node for node in tree.body
+                       if isinstance(node, ast.FunctionDef)
+                       and node.name == '_publish_drink_command')
+        isolated = ast.Module(body=[helper, publish], type_ignores=[])
+        namespace = {'os': os}
+        exec(compile(isolated, observer_path, 'exec'), namespace)
+        error = OSError('directory fsync injected failure')
+        calls = []
+
+        class Stream:
+            def __enter__(self):
+                return self
+            def __exit__(self, *_args):
+                calls.append('close-file')
+                return False
+            def write(self, _value):
+                calls.append('write')
+            def flush(self):
+                calls.append('flush')
+            def fileno(self):
+                return 761
+
+        class Watch:
+            def send(self, action):
+                calls.append(('send', action))
+
+        with patch('os.open', side_effect=[761, 762]):
+            with patch('os.fdopen', return_value=Stream()):
+                with patch('os.fsync', side_effect=[None, error]):
+                    with patch('os.close',
+                               side_effect=lambda fd: calls.append(('close-dir', fd))):
+                        with self.assertRaises(OSError) as caught:
+                            namespace['_publish_drink_command'](
+                                Watch(), '/tmp/unused-marker')
+        self.assertIs(caught.exception, error)
+        self.assertEqual(calls, [
+            'write', 'flush', 'close-file', ('close-dir', 762)])
         calls = []
 
         class Node:
