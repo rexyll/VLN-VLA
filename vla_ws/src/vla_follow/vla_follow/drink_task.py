@@ -207,8 +207,13 @@ class DrinkTask(Node):
 
         # ---- 输入: 关节实测 / 底盘位姿 / gz 真值
         self.js = {}
+        self.js_velocity = {}
         self.links = {}
         self.base = (0.0, 0.0, 0.0)
+        # Model-truth finite-difference velocity is independent of wheel odom.
+        self.truth_base_twist = None
+        self.truth_base_twist_t = 0.0
+        self._truth_base_sample = None
         self._have_odom = False
         self._truth_base = False
         # Wheel odometry pose is not authoritative after Gazebo teleport, but
@@ -304,6 +309,9 @@ class DrinkTask(Node):
         updated = dict(self.js)
         updated.update(zip(msg.name, msg.position))
         self.js = updated
+        velocity = dict(self.js_velocity)
+        velocity.update(zip(msg.name, msg.velocity))
+        self.js_velocity = velocity
 
     def _odom_cb(self, msg):
         # 踩坑记录(P86): gz 的 diff-drive 里程计是**轮子积分**, 底盘被
@@ -328,8 +336,27 @@ class DrinkTask(Node):
         # dynamic_pose/info is a stream of complete-ish snapshots. Build the
         # next map off-thread and publish it with one reference assignment.
         updated = dict(self.links)
+        sample_t = time.monotonic()
         for p in msg.pose:
             updated[p.name] = p
+            if p.name == 'robot':
+                pose = (float(p.position.x), float(p.position.y),
+                        float(yaw_of(p.orientation)))
+                previous = self._truth_base_sample
+                if previous is not None:
+                    prev_t, prev_x, prev_y, prev_yaw = previous
+                    dt = sample_t - prev_t
+                    if 0.005 <= dt <= 1.0:
+                        dyaw = math.atan2(
+                            math.sin(pose[2] - prev_yaw),
+                            math.cos(pose[2] - prev_yaw))
+                        self.truth_base_twist = (
+                            (pose[0] - prev_x) / dt,
+                            (pose[1] - prev_y) / dt,
+                            dyaw / dt)
+                        self.truth_base_twist_t = sample_t
+                self._truth_base_sample = (
+                    sample_t, pose[0], pose[1], pose[2])
         self.links = updated
         # P98 排查: 道具键会间歇性从 links 里"消失"(抓取时在、place_held
         # 时变 None → FAIL_PREPARE)。节流打印真值流的关键键存在性, 定位

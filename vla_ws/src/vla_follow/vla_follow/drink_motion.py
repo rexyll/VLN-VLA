@@ -112,6 +112,19 @@ def fk_truth_diagnostics(node, side, q=None):
         twist_t = float(getattr(node, 'odom_twist_t', 0.0) or 0.0)
         result['odom_twist_age_s'] = round(
             max(0.0, time.monotonic() - twist_t), 3) if twist_t else None
+    truth_twist = getattr(node, 'truth_base_twist', None)
+    if truth_twist is not None:
+        result['truth_base_twist'] = [
+            round(float(v), 5) for v in truth_twist]
+        truth_t = float(getattr(node, 'truth_base_twist_t', 0.0) or 0.0)
+        result['truth_base_twist_age_s'] = round(
+            max(0.0, time.monotonic() - truth_t), 3) if truth_t else None
+    wheel_velocity = getattr(node, 'js_velocity', {})
+    if wheel_velocity:
+        result['wheel_joint_velocity'] = {
+            name: round(float(wheel_velocity[name]), 5)
+            for name in ('left_wheel_joint', 'right_wheel_joint')
+            if name in wheel_velocity}
     T_robot = object_pose(node, 'robot')
     if T_robot is not None:
         model_yaw = math.atan2(T_robot[1, 0], T_robot[0, 0])
@@ -590,6 +603,14 @@ def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
             'odom_twist': ([round(float(v), 5) for v in node.odom_twist]
                            if getattr(node, 'odom_twist', None) is not None
                            else None),
+            'truth_base_twist': (
+                [round(float(v), 5) for v in node.truth_base_twist]
+                if getattr(node, 'truth_base_twist', None) is not None
+                else None),
+            'wheel_joint_velocity': {
+                name: round(float(node.js_velocity[name]), 5)
+                for name in ('left_wheel_joint', 'right_wheel_joint')
+                if name in getattr(node, 'js_velocity', {})},
             'servo_ok': bool(ok_move),
             'joint_err_deg': round(joint_err_deg, 2)})
         if not ok_move:
