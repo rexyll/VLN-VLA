@@ -10,10 +10,10 @@
 ## 当前执行位置（2026-11-11）
 
 - **当前主节点：P104-07（正在进行中）**。完整 DrinkTask E2E 入口为 `tests/test_drink.py`，单轮 headless 入口为 `tests/run_drink_headless.sh`，多轮顺序验收入口为 `tests/drink_repeat.sh`。CarryBus 专项和纯测试均不能替代完整 Gazebo E2E。
-- **当前功能代码提交：** `e94f94c58b877ece4f0ead4b4fe8a1e49dea502b`（本轮将提交轮组 effort 限制修正）。PRESENT 已有双臂无动作预检与逐臂真实动作前碰撞复检；失败保持抓持。#32 证明预检通过后左手 `place_held` 仍可能因底盘真值漂移无法收敛，当前新增轮组有限扭矩作为针对性物理假设验证。
-- **最新 Python CI：** run `43003764081`（#877，head `e94f94c`）completed/success；P104 纯数学/运动学测试与 Python 模块编译通过。
-- **CarryBus CI：** run `43003763713`（#617，head `e94f94c`）completed/success；真实 ROS 2 executor 集成测试 11 项全部通过（含 ACK、队列满拒绝和竞争条件用例）。
-- **完整 Gazebo E2E 队列：** #30（run `42997129946`，head `31eff585`）in_progress；Gazebo/ROS 2/Nav2/GraspCarry/workspace 安装与构建步骤已通过，正在执行完整 DrinkTask。#31（run `42998226370`，head `23bc42ad`）pending，等待 #30 释放同一 E2E runner；#31 才会验证本次双臂无动作先验预检。
+- **当前功能代码提交：** `0f553b9f5af8dee62f0823a8536cf201d3d5a98f`（左右驱动轮 5.0Nm effort 限制）。PRESENT 已有双臂无动作预检与逐臂真实动作前碰撞复检；失败保持抓持。#32 证明预检通过后左手 `place_held` 仍可能因底盘真值漂移无法收敛，当前新增轮组有限扭矩作为针对性物理假设验证。
+- **最新 Python CI：** run `43006932364`（#878，head `0f553b9`）completed/success；70 项 P104 纯数学/运动学测试全部通过（包含左右轮 effort 限制契约），Python 模块编译通过。
+- **CarryBus CI：** run `43006932039`（#618，head `0f553b9`）当前 in_progress；等待真实 ROS 2 executor 集成测试结果。
+- **最新完整 Gazebo E2E：** #32（run `43003763896`，head `e94f94c`）completed/failure，阶段为 PREPARE → PRESENT → FAIL_PRESENT。#33（run `43006932018`，head `0f553b9`）当前 in_progress，正在安装 Gazebo/ROS 2/Nav2 并构建工作区，随后验证轮组 effort 修正。
 - **#32 失败根因定位：** PRESENT 左手 `place_held` 的 8 次 reach 掌心残差为 `23.0, 8.2, 15.6, 4.6, 4.7, 1.6, 1.8, 5.5mm`，末端杯体残差 5.6mm；IK/FK 与伺服关节误差均接近 0，右手 follow_hand 为 3.8mm 且通过。reach 期间 Gazebo robot 真值底盘由 `(1.750,0.350,1.228rad)` 移到约 `(1.762,0.384,1.219rad)`，而 odom twist 和左右轮关节速度近零；这次直接阻断左手 1.5mm 掌心收敛，系统保持抓持并进入 FAIL_PRESENT。
 - **当前诊断方向：** #32 已确认 arm reach 期间底盘真值发生约 36mm 平移和约 0.5° 的末段航向变化，wheel/odom 仍近零；但现有数据还不能区分 wheel torque authority 不足、轮地接触滑移或机械臂反作用。下一轮对两驱动轮增加 5.0Nm SDF effort limit（Gazebo Sim 将 joint effort limit 用作轮扭矩上限），通过 Python 静态契约检查配置，再由 #33 E2E 验证真值底盘漂移是否下降；不放宽 1.5mm reach、5mm物体放置或碰撞/抓持门控。
 - **验收计数：** 完整真实 Gazebo DrinkTask E2E 通过轮数仍为 **0**。不得放宽 5mm 验收或绕过碰撞/抓持安全门控。
