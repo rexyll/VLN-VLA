@@ -394,8 +394,23 @@ def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
             _clear, _hit = arm_path_table_clear(
                 node, side, _path, ignore_initial=True)
             if not _clear:
+                # 碰撞门控在执行前拒绝整段关节路径。这里的 res 仍是初始化
+                # 哨兵 9e9，不能作为实际末端误差；读取当前掌心并计算到本步
+                # 目标的真实距离，同时保留关节端点和首次碰撞几何证据。
+                T_current = wrist(node, side)
+                if T_current is not None:
+                    res = pos_err_mm(T_current, T_world)
+                    current_xyz = np.round(T_current[:3, 3], 4).tolist()
+                else:
+                    current_xyz = None
                 node.get_logger().warn(
-                    'REACH %s 被桌面碰撞门控拦截: %s' % (side, _hit))
+                    'REACH %s 桌面碰撞门控拒绝路径: hit=%s '
+                    'current_xyz=%s target_xyz=%s residual=%.1fmm '
+                    'q_now=%s q_target=%s'
+                    % (side, _hit, current_xyz,
+                       np.round(np.asarray(T_world)[:3, 3], 4).tolist(),
+                       res, np.round(q_now, 3).tolist(),
+                       np.round(q, 3).tolist()))
                 return False, res, 'table-collision'
         ok_move, joint_err = node.arm[side].move(
             q, timeout=timeout,
