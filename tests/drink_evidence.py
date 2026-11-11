@@ -142,6 +142,28 @@ def summarize_batch_status(requested_rounds, rows, invalid_rounds,
         ),
     }
 
+def identify_unknown_rounds(outdir, tag, missing_rounds):
+    """Classify missing round results with a durable command-attempt marker as unknown."""
+    import os
+
+    unknown = []
+    for item in missing_rounds:
+        if not isinstance(item, dict):
+            continue
+        round_number = item.get('round')
+        if (isinstance(round_number, bool)
+                or not isinstance(round_number, int)
+                or round_number < 1):
+            continue
+        marker = os.path.join(
+            outdir, 'drink_%s_%d.started' % (tag, round_number))
+        # lexists is deliberately conservative: even a dangling marker path
+        # means the round cannot be assumed not to have attempted GO_DRINK.
+        if os.path.lexists(marker):
+            unknown.append(item)
+    return unknown
+
+
 def validate_observer_result(result):
     """Validate the observer JSON contract before screenshot archival."""
     if not isinstance(result, dict):
