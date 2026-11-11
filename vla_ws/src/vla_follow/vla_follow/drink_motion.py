@@ -424,6 +424,49 @@ def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
                         _fallback = 'out-collision:%s' % alt_hit
                 else:
                     _fallback = 'out-human-rule:%s' % alt_bad
+                # human 与 out 两个预设分支都可能在桌边被前臂几何挡住。
+                # 7 轴臂仍有冗余解：逐一尝试人体规则种子，先筛 IK 残差与
+                # R1~R7，再对完整插值路径做同一套胶囊/掌部 OBB 碰撞检查。
+                # 只执行整段无碰撞候选；没有候选通过时仍 fail-closed。
+                if not _clear:
+                    _seed_candidates = []
+                    _seen_q = set()
+                    for _seed_index, _seed in enumerate(K.HUMAN_SEEDS):
+                        _q_seed, _e_seed, _how_seed = K.ik_world(
+                            side, T_world, node.base, _seed, elbow=None)
+                        if (not np.all(np.isfinite(_q_seed))
+                                or not math.isfinite(float(_e_seed))
+                                or float(_e_seed) > 4e-3
+                                or K.violation_list(side, _q_seed)):
+                            continue
+                        _key = tuple(np.round(_q_seed, 3))
+                        if _key in _seen_q:
+                            continue
+                        _seen_q.add(_key)
+                        _score = (K.human_penalty(side, _q_seed)
+                                  + 2.0 * float(_e_seed)
+                                  + 0.12 * float(np.max(np.abs(_q_seed - q_now))))
+                        _seed_candidates.append(
+                            (_score, _seed_index, _q_seed, _e_seed, _how_seed))
+                    _seed_candidates.sort(key=lambda item: item[0])
+                    _seed_hits = []
+                    for (_score, _seed_index, _q_seed,
+                         _e_seed, _how_seed) in _seed_candidates:
+                        _seed_clear, _seed_hit = _path_clear(_q_seed)
+                        if _seed_clear:
+                            q = _q_seed
+                            how = '%s/human-seed-%d' % (_how_seed, _seed_index)
+                            q_target_last = q.copy()
+                            _clear, _hit = True, None
+                            _fallback = 'human-seed-%d' % _seed_index
+                            break
+                        if len(_seed_hits) < 3:
+                            _seed_hits.append({
+                                'seed': _seed_index, 'hit': _seed_hit})
+                    if not _clear:
+                        _fallback = ('human-seed-search-no-clear-path '
+                                     'candidates=%d hits=%s'
+                                     % (len(_seed_candidates), _seed_hits))
                 node.get_logger().info(
                     'REACH %s 碰撞候选重规划: fallback=%s ik_error=%.5f'
                     % (side, _fallback, float(e_alt)))
