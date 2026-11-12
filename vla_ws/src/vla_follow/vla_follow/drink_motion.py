@@ -1295,11 +1295,46 @@ def put_down(node, side, model, T_obj_goal, retreat=0.10,
             info['drop_mm'] = round(
                 (float(np.asarray(T_obj_goal)[2, 3])
                  - float(T_after_release[2, 3])) * 1e3, 1)
-    ok_back, res_back, _ = reach(node, side, T_back, tol_mm=8.0,
-                                 check_table=True)
+    ok_back, res_back, how_back = reach(
+        node, side, T_back, tol_mm=8.0, check_table=True)
+    withdraw_stage = None
+    # The cup's two-hand put-down already uses this exact, collision-checked
+    # 120mm world-Z waypoint when the free support arm cannot reach around the
+    # table lip. Reuse that proven staged retreat for a released kettle: first
+    # lift the empty hand above the lip, then retry the original retreat target.
+    # Every segment still passes the full table/leg path gate; a blocked lift
+    # or blocked second segment remains fail-closed.
+    if not ok_back and how_back == 'table-collision':
+        T_stage_now = wrist(node, side)
+        if T_stage_now is not None:
+            T_stage = T_stage_now.copy()
+            T_stage[2, 3] += 0.12
+            ok_stage, res_stage, how_stage = reach(
+                node, side, T_stage, tol_mm=8.0, check_table=True)
+            withdraw_stage = {
+                'attempted': True, 'ok': bool(ok_stage),
+                'residual_mm': round(float(res_stage), 1),
+                'how': how_stage, 'target_z': round(float(T_stage[2, 3]), 4)}
+            if ok_stage:
+                ok_back, res_back, how_back = reach(
+                    node, side, T_back, tol_mm=8.0, check_table=True)
+                withdraw_stage.update(
+                    retry_ok=bool(ok_back),
+                    retry_residual_mm=round(float(res_back), 1),
+                    retry_how=how_back)
+        else:
+            withdraw_stage = {'attempted': False,
+                              'reason': 'current_wrist_pose_missing'}
     if info is not None:
         info['withdraw_ok'] = bool(ok_back)
         info['withdraw_res_mm'] = round(float(res_back), 1)
+        if withdraw_stage is not None:
+            info['withdraw_stage'] = withdraw_stage
+    if ok_back and withdraw_stage and withdraw_stage.get('ok'):
+        node.get_logger().info(
+            'PUT_DOWN %s 经桌边上方安全航点撤手到位 '
+            '(上抬残差 %.1fmm, 最终残差 %.1fmm)'
+            % (model, withdraw_stage['residual_mm'], res_back))
     if not ok_back:
         node.get_logger().warn(
             'PUT_DOWN %s 已确认释放并落桌，但撤手未到位 %.1fmm；'

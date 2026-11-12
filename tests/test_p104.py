@@ -2507,6 +2507,31 @@ class TestP104(unittest.TestCase):
         self.assertNotIn(
             '水壶未确认落稳，保持抓持并中止后续动作', prepare)
 
+    def test_put_down_retries_table_lip_with_collision_checked_lift_waypoint(self):
+        motion_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
+            'drink_motion.py')
+        with open(motion_path, encoding='utf-8') as stream:
+            motion = stream.read()
+        start = motion.index('def put_down(')
+        end = motion.index('# ---------------------------------------------------------------- 双手捧', start)
+        body = motion[start:end]
+        first = body.index('ok_back, res_back, how_back = reach(')
+        gate = body.index("if not ok_back and how_back == 'table-collision':")
+        lift = body.index('T_stage[2, 3] += 0.12', gate)
+        stage_reach = body.index(
+            'node, side, T_stage, tol_mm=8.0, check_table=True', lift)
+        retry = body.index('node, side, T_back, tol_mm=8.0, check_table=True',
+                           stage_reach)
+        self.assertLess(first, gate)
+        self.assertLess(gate, lift)
+        self.assertLess(lift, stage_reach)
+        self.assertLess(stage_reach, retry)
+        self.assertIn('if ok_stage:', body[stage_reach:retry])
+        self.assertIn('withdraw_stage', body)
+        # Both the lift and retry keep the original full table collision gate.
+        self.assertEqual(body.count('check_table=True'), 3)
+
     def test_reach_servo_failure_keeps_joint_and_base_trace(self):
         motion_path = os.path.join(
             ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
