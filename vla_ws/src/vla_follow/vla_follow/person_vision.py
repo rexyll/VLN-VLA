@@ -690,7 +690,7 @@ class PersonVision(Node):
                 detail = ' '.join(
                     '{}:stale={}({}),age[r/d/p]={:.3f}/{:.3f}/{:.3f},'
                     'skew[rd/p]={:.3f}/{:.3f},cnt={},area={},shape={},'
-                    'depth={},width={},assoc={},reject_samples={}'.format(
+                    'depth={},width={},assoc=\'reject_samples={}\''.format(
                         name, results[name]['diag']['stale'],
                         results[name]['diag']['stale_reason'],
                         results[name]['diag']['rgb_age'],
@@ -703,7 +703,8 @@ class PersonVision(Node):
                         results[name]['diag']['shape'],
                         results[name]['diag']['depth'],
                         results[name]['diag']['width'],
-                        results[name]['diag']['association'])
+                        results[name]['diag']['association'],
+                        results[name]['diag']['reject_samples'])
                     for name, _ in CAMS)
                 self.get_logger().info(
                     f'VISION 四相机视野内均无人 (检出率 '

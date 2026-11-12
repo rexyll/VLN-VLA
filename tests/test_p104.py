@@ -177,6 +177,7 @@ class TestP104(unittest.TestCase):
         self.assertIn("note_reject('shape_y'", source)
         self.assertIn("valid_depth=valid.size, depth_q30=dist", source)
         self.assertIn("'reject_samples={}'", source)
+        self.assertIn("results[name]['diag']['reject_samples']", source)
         self.assertIn("len(diag['reject_samples']) < 4", source)
         self.assertIn("if not (0.22 <= asp <= 1.25)", source)
         self.assertIn("elif area < 250 or area > 18000", source)
