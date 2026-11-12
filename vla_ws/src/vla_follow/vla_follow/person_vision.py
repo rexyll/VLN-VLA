@@ -317,15 +317,19 @@ class PersonVision(Node):
             td = self.dep_t.get(name, 0.0)
             rx, ry, ryaw, pose_t = (
                 self.rx, self.ry, self.ryaw, self.pose_t)
+        diag = {'stale': 0, 'contours': 0, 'area': 0, 'shape': 0,
+                'depth': 0, 'width': 0, 'association': 0, 'accepted': 0}
         miss = {'det': False, 'dist': -1.0, 'bc': 0.0, 'u': -1,
                 'area': 0, 'bbox': None, 'world_xy': None,
-                'track_error': None, 'obs_t': None}
+                'track_error': None, 'obs_t': None, 'diag': diag}
         if rgb is None or dep is None or tr <= 0.0 or td <= 0.0:
+            diag['stale'] += 1
             return miss
         # P104: 不能将相机断流前的旧图与另一条新深度帧拼成“检出”。
         # 世界坐标投影要求 RGB、Depth 与底盘位姿都新鲜，且位姿采样时刻
         # 靠近图像帧对；底盘移动期间不能拿“刚刚但不同步”的 pose 投影旧帧。
         if not sensor_pose_pair_fresh(tr, td, pose_t, now):
+            diag['stale'] += 1
             return miss
         obs_t = 0.5 * (tr + td)
         if rgb.shape[:2] != dep.shape:
@@ -345,6 +349,7 @@ class PersonVision(Node):
             cnts, _ = cv2.findContours(
                 mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
             contour_sets.extend((color_name, cnt) for cnt in cnts)
+        diag['contours'] = len(contour_sets)
         candidates = []
         img_w = rgb.shape[1]
         img_h = rgb.shape[0]
@@ -354,18 +359,23 @@ class PersonVision(Node):
             area = cv2.contourArea(cnt)
             if color_name == 'dark':
                 if area < AREA_MIN or area > AREA_MAX:
+                    diag['area'] += 1
                     continue
             elif area < 250 or area > 18000:
+                diag['area'] += 1
                 continue
             x, y, w, h = cv2.boundingRect(cnt)
             asp = w / max(h, 1)
             if color_name == 'dark':
                 if not (ASPECT_MIN <= asp <= ASPECT_MAX):
+                    diag['shape'] += 1
                     continue
             else:
                 if not (0.22 <= asp <= 1.25):
+                    diag['shape'] += 1
                     continue
                 if y + 0.5 * h > img_h * 0.78:
+                    diag['shape'] += 1
                     continue
             # 先过滤无效深度，再比较目标候选，避免最大伪影吞掉真实人体。
             y0 = y + int(h * 0.15)
@@ -374,14 +384,17 @@ class PersonVision(Node):
             valid = sub[np.isfinite(sub) & (sub > DEPTH_MIN)
                         & (sub < DEPTH_MAX)]
             if valid.size < 10:
+                diag['depth'] += 1
                 continue
             dist = float(np.quantile(valid, 0.30))
             # 被障碍切断的人体允许只剩 9cm 可见宽度。
             w_vis = dist * 2.0 * w * tan_h / img_w
             if color_name == 'dark':
                 if not (W_VIS_MIN <= w_vis <= W_VIS_MAX):
+                    diag['width'] += 1
                     continue
             elif not (0.12 <= w_vis <= 0.48):
+                diag['width'] += 1
                 continue
             u = x + w / 2.0
             bc = (img_w / 2.0 - u) * HFOV / img_w
@@ -396,17 +409,19 @@ class PersonVision(Node):
                 # 但人已被遮挡较久时仍逐渐放宽，避免锁死旧目标。
                 gate = association_gate(age)
                 if age <= TRACK_ASSOC_MAX_AGE_S and track_error > gate:
+                    diag['association'] += 1
                     continue
             candidates.append({
                 'det': True, 'dist': dist, 'bc': bc, 'u': int(u),
                 'area': int(area), 'bbox': (x, y, w, h),
                 'world_xy': (float(wx), float(wy)),
                 'track_error': track_error, 'obs_t': float(obs_t),
-                'color': color_name,
+                'color': color_name, 'diag': diag,
                 # rgb 在回调中已 copy；后续回调会替换 dict 值而不会改写该数组，
                 # 所以快照可复用与 bbox/深度完全对应的那一帧。
                 'rgb_frame': rgb,
             })
+        diag['accepted'] = len(candidates)
         if not candidates:
             return miss
         if predicted is None:
@@ -568,9 +583,20 @@ class PersonVision(Node):
                     f'{math.degrees(r["bc"]):+.1f}° 距离={r["dist"]:.2f}m '
                     f'面积={r["area"]}px')
             elif primary is None:
+                detail = ' '.join(
+                    '{}:stale={},cnt={},area={},shape={},depth={},width={},assoc={}'.format(
+                        name, results[name]['diag']['stale'],
+                        results[name]['diag']['contours'],
+                        results[name]['diag']['area'],
+                        results[name]['diag']['shape'],
+                        results[name]['diag']['depth'],
+                        results[name]['diag']['width'],
+                        results[name]['diag']['association'])
+                    for name, _ in CAMS)
                 self.get_logger().info(
                     f'VISION 四相机视野内均无人 (检出率 '
-                    f'{self._det_n}/{max(self._frm_n, 1)})')
+                    f'{self._det_n}/{max(self._frm_n, 1)}; 本帧拒绝统计 {detail})')
+
 
     def stats(self):
         return self._det_n, self._frm_n
