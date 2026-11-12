@@ -2434,6 +2434,8 @@ class TestP104(unittest.TestCase):
         self.assertLess(first_attempt, stage_raise)
         self.assertLess(stage_raise, stage_gate)
         self.assertLess(stage_gate, retry)
+        self.assertIn('PUT_DOWN_TWO 右手上抬航点结果', body)
+        self.assertIn('_stage_mm, _stage_how', body)
         self.assertIn("release_block_reason='right_arm_path_failed'", body)
         self.assertIn("node.carry.release(model)", body)
         right_failure = body.index("if not ok_r:", retry)

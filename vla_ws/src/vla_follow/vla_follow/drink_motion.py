@@ -1364,6 +1364,14 @@ def put_down_two(node, model, T_obj_goal, tol_mm=PLACE_TOL_MM, steps=4,
                 ok_stage, _stage_mm, _stage_how = reach(
                     node, 'R', T_right_stage, tol_mm=8.0,
                     elbow=elbow, check_table=True)
+                # Physical upward displacement is not proof that the waypoint
+                # passed its endpoint tolerance and collision-checked path.
+                node.get_logger().info(
+                    'PUT_DOWN_TWO 右手上抬航点结果 '
+                    '(step=%d, ok=%s, residual=%.1fmm, how=%s, '
+                    'target_z=%.3fm)'
+                    % (i, ok_stage, _stage_mm, _stage_how,
+                       float(T_right_stage[2, 3])))
                 if ok_stage:
                     ok_r, res_r, how_r = reach(
                         node, 'R', T_right_goal, tol_mm=6.0,
