@@ -124,6 +124,28 @@ class TestP104(unittest.TestCase):
             observed_hand_distance - L.PRESENT_APPROACH_CLEAR,
             L.PRESENT_APPROACH_GAP)
 
+    def test_handover_geometry_gate_is_fail_closed_at_existing_92_plusminus_25mm(self):
+        self.assertTrue(M.person_handover_geometry_ok((67.0, 117.0)))
+        self.assertTrue(M.person_handover_geometry_ok((92.0, 92.0)))
+        self.assertFalse(M.person_handover_geometry_ok((66.9, 92.0)))
+        self.assertFalse(M.person_handover_geometry_ok((92.0, 117.1)))
+        self.assertFalse(M.person_handover_geometry_ok((62.0, 127.3)))
+        self.assertFalse(M.person_handover_geometry_ok(None))
+        self.assertFalse(M.person_handover_geometry_ok((float('nan'), 92.0)))
+
+    def test_handover_geometry_gate_runs_before_host_ownership_transfer(self):
+        task_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
+            'drink_task.py')
+        with open(task_path, encoding='utf-8') as stream:
+            source = stream.read()
+        start = source.index('_pre_hc = M.hands_to_cup_mm(self)')
+        gate = source.index("self._set_state('FAIL_HANDOVER_GEOMETRY')", start)
+        transfer = source.index("self.carry.hand_to('cup', 'person', 'person_arms'", start)
+        self.assertLess(start, gate)
+        self.assertLess(gate, transfer)
+        self.assertIn('保持机器人持杯，不交权', source[start:transfer])
+
     def test_pose_history_interpolates_at_rgbd_capture_time_without_extrapolation(self):
         # Latest pose is intentionally newer than the image by 300ms. The
         # historical pose at image time must be used, not rejected as skew.

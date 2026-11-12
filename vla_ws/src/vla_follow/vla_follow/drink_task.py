@@ -826,10 +826,20 @@ class DrinkTask(Node):
             if _hc is not None:
                 res['hands'].update(recv_l_mm=round(_hc[0], 1),
                                     recv_r_mm=round(_hc[1], 1))
-            # P104: 不能只记录两侧手杯距离；同样的手间距可能整体偏离杯轴。
-            # 交接前保存世界系手心中点、杯轴相对中点的三维偏差和沿手间连线
-            # 的有符号偏移，并记录 person_arms/link 原始真值与实测关节值，
-            # 用于区分 PRESENT 目标偏差、link 坐标变换错误和两侧关节不同步。
+            # P104: 交接前必须验证两只手均处于杯轴相切带。CarryBus.hand_to
+            # 会冻结当前 host->cup 相对变换，不会把杯子瞬移到目标手点；若
+            # 此时几何不合格，先 fail closed，继续由机器人持杯，不得转移所有权。
+            _pre_hc = M.hands_to_cup_mm(self)
+            if (_pre_hc is None or not M.person_handover_geometry_ok(
+                    _pre_hc[:2], L.CUP_GRIP_R * 1000.0, 25.0)):
+                self._set_state('FAIL_HANDOVER_GEOMETRY')
+                self.get_logger().error(
+                    'DRINK 交接前双手未进入杯轴相切带: %s；保持机器人持杯，不交权'
+                    % (None if _pre_hc is None else
+                       tuple(round(v, 1) for v in _pre_hc[:2])))
+                return False
+            # 保存世界系手心中点、杯轴相对中点的三维偏差和沿手间连线
+            # 的有符号偏移，并记录 person_arms/link 原始真值与实测关节值。
             _hl, _hr = M.person_hand_poses(self)
             _tc = M.object_pose(self, 'cup')
             _ta = M.object_pose(self, 'person_arms')

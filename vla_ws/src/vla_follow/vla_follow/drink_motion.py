@@ -2303,6 +2303,22 @@ def hand_gap_mm(node, T_person=None):
     return float(np.linalg.norm(Tl[:3, 3] - Tr[:3, 3])) * 1000.0
 
 
+def person_handover_geometry_ok(distances_mm, target_mm=92.0,
+                               tolerance_mm=25.0):
+    """Fail-closed check that both palms are within the accepted cup-axis band."""
+    try:
+        values = tuple(float(v) for v in distances_mm)
+        target = float(target_mm)
+        tolerance = float(tolerance_mm)
+    except (TypeError, ValueError, OverflowError):
+        return False
+    if (len(values) != 2 or not math.isfinite(target)
+            or not math.isfinite(tolerance) or tolerance < 0.0):
+        return False
+    return all(math.isfinite(v) and v >= 0.0
+               and abs(v - target) <= tolerance for v in values)
+
+
 def hands_to_cup_mm(node, T_person=None, T_cup=None):
     """(左手到杯轴, 右手到杯轴, 手杯高差) 三项，单位 mm，全真值。
 
