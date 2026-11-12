@@ -7,18 +7,17 @@
 > 基线：当前工程已完成"语音驱动的机器人跟随人"（距离 0.5~1.5m / 方位 ±10° /
 > 0 接触 / 0 丢失），本轮在其之上叠加**双臂操作**与**人主动去喝水**两条新链路。
 
-## 当前执行位置（2026-11-11）
+## 当前执行位置（2026-11-12）
 
-- **当前主节点：P104-07（正在进行中）**。完整 DrinkTask E2E 入口为 `tests/test_drink.py`，单轮 headless 入口为 `tests/run_drink_headless.sh`，多轮顺序验收入口为 `tests/drink_repeat.sh`。CarryBus 专项和纯测试均不能替代完整 Gazebo E2E。
-- **当前功能代码提交：** `f6b149e5aa8bbe15ca1834c3e7200c3759bb86fa`（陈旧底盘命令遥测标记为 unknown；不改控制行为）。（新增 `/drink/cmd_vel` 与 mux 后 `/robot/cmd_vel` 只读遥测；未改控制行为）。
-- **最新 Python CI：** run `43009985034`（#880，head `a96ebad`）completed/success；71 项 P104 测试通过，Python 模块编译通过。
-- **CarryBus CI：** run `43009984929`（#620，head `a96ebad`）completed/success；真实 ROS 2 executor 集成测试通过。
-- **最新完整 Gazebo E2E：** #34（run `43009984917`，head `a96ebad`）completed/failure；阶段 PREPARE → PRESENT → HANDOVER → PERSON_DRINK → TAKE_BACK → PUT_BACK → FAIL_PUT_BACK。TAKE_BACK 左右掌心均 1.5mm，成功越过 #33 的接回失败；PUT_BACK 第 4/4 步右臂前臂路径与 `table_top` 碰撞，240 个候选姿态均未找到无碰撞路径，右掌残差 62.2mm，系统保持抓持并阻止 release。由于碰撞预检在执行/trace 记录前拒绝，本轮没有有效的新增底盘命令遥测样本。
-- **下一步：** 定位 PUT_BACK 右臂支持姿态与桌面几何的冲突，设计并验证不改变碰撞门控的安全路径/姿态；不得通过降低 5mm 放置精度、缩小碰撞半径或提前松手绕过失败。完整真实 Gazebo DrinkTask E2E 通过轮数仍为 **0**。
-- **#32 失败根因定位：** PRESENT 左手 `place_held` 的 8 次 reach 掌心残差为 `23.0, 8.2, 15.6, 4.6, 4.7, 1.6, 1.8, 5.5mm`，末端杯体残差 5.6mm；IK/FK 与伺服关节误差均接近 0，右手 follow_hand 为 3.8mm 且通过。reach 期间 Gazebo robot 真值底盘由 `(1.750,0.350,1.228rad)` 移到约 `(1.762,0.384,1.219rad)`，而 odom twist 和左右轮关节速度近零；这次直接阻断左手 1.5mm 掌心收敛，系统保持抓持并进入 FAIL_PRESENT。
-- **当前诊断方向：** #33 中 TAKE_BACK 右臂 reach 的 5 轮掌心残差为 48.5、16.1、5.6、8.9、8.3mm；IK/FK 与伺服关节误差近零，但 base yaw 从约 1.2055rad 漂到 1.0783rad，左轮首轮速度 -1.59882rad/s，右轮为 0。5.0Nm effort 未消除该运动。现有日志没有同时记录 `/drink/cmd_vel` 与 mux 后 `/robot/cmd_vel`，无法确认是任务速度残留还是轮组受机械臂反作用/地面接触驱动；本次增加两路指令及采样 age 到 reach trace，下一轮再决定物理或控制修正。
-- **验收计数：** 完整真实 Gazebo DrinkTask E2E 通过轮数仍为 **0**。不得放宽 5mm 验收或绕过碰撞/抓持安全门控。
-- **分支纪律：** 所有后续改动只提交 `main`；不创建新分支或 PR，不擅自合并其他分支。
+- **当前主节点：P104-07（正在进行中）**。完整 DrinkTask E2E 入口为 `tests/test_drink.py`，单轮 headless 入口为 `tests/run_drink_headless.sh`，多轮顺序验收入口为 `tests/drink_repeat.sh`。CarryBus 专项和纯测试不能替代完整 Gazebo E2E。
+- **最新 main：** `9149c1d26541e32f5399a15b06c7d82cb4355889`。该提交包含新鲜 Gazebo robot 真值刷新 `node.base` 的修复，以及对应回归测试和旧断言同步。
+- **Python CI：** run `43033986491`（#899，head `9149c1d2`）completed/success；编译及77项P104纯数学/运动学测试通过。
+- **CarryBus CI：** run `43033986406`（#639，head `9149c1d2`）首次失败于ROS/Ubuntu依赖安装阶段，日志显示多个apt包下载时临时DNS解析失败（`Temporary failure resolving 'azure.archive.ubuntu.com'`），尚未执行CarryBus集成测试；已触发失败job重跑，等待结果。此为runner网络/包下载故障证据，不能记为代码测试失败或成功。
+- **最新真实 Gazebo E2E：** #41（run `43033799137`，head `26d19b63`）原运行被取消，未形成任务结果；已触发该job重跑，等待结果。此前#40（run `43031770733`）在 `PREPARE → FAIL_PREPARE` 失败：抓壶5轮后掌心残差7.1mm，未attach水壶，未进入后续任务。#40的base/truth同迭代差异揭示旧`node.base`未随truth快照刷新，当前代码已修复这一问题，但尚无完整E2E验证。
+- **本轮CI韧性修复：** CarryBus workflow 的apt update/install增加 `Acquire::Retries=5`，减少runner短暂DNS/下载故障导致的假阴性；不跳过依赖安装、不允许失败后继续测试。
+- **验收计数：** 完整真实 Gazebo DrinkTask E2E 通过轮数仍为 **0**。不得放宽5mm抓取/1.5mm掌心精度，亦不得绕过碰撞/抓持/释放安全门控。
+- **下一步：** 确认CarryBus job重跑结果；确认Gazebo #41重跑是否执行以及任务实际阶段。若E2E仍在PREPARE失败，基于新鲜真值底盘数据分析剩余轮组运动与IK误差；若进入PUT_BACK，继续处理右前臂-桌面真实碰撞，任何方案先完成双臂全路径预检。
+- **分支纪律：** 所有后续改动只提交 `main`；不创建新分支或PR，不擅自合并其他分支。
 ---
 
 ## 0. 目标（验收口径）
@@ -4317,3 +4316,12 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - **修正：** 将旧断言更新为 `base_at_ik = _base_pose(node)`，保留对 `reach()` 必须经新鲜 Gazebo 真值刷新底盘的检查。没有删除测试或放宽任何安全/精度约束。
 - **并行验证：** 对应 Gazebo E2E run `43033799137` 与 CarryBus run `43033798936` 在本记录更新时仍在执行，须等待其真实结论；Python run `43033798988` 因上述断言失败。
 - **当前任务：** P104-07 继续“正在进行中”；完整真实 Gazebo DrinkTask E2E 通过次数仍为 **0**。
+
+
+### 8.271 修复 CarryBus CI 对临时 APT DNS 故障的脆弱性并同步当前执行状态（2026-11-12）
+
+- **失败证据：** main `9149c1d26541e32f5399a15b06c7d82cb4355889` 的 CarryBus run `43033986406`（#639）在 `Install ROS 2 Jazzy and runtime dependencies` 步骤失败，日志明确出现多个Ubuntu/ROS包下载 `Temporary failure resolving 'azure.archive.ubuntu.com'`，最终apt退出码100。测试步骤被skip，故该run不能说明CarryBus代码测试失败。
+- **处理：** 在 `.github/workflows/p104-carry-ros2.yml` 的apt update/install命令启用 `Acquire::Retries=5`，使APT对临时下载/DNS错误自动重试。依赖安装仍必须成功后才执行测试；不忽略错误、不跳过安装、不把失败标绿。
+- **重跑：** 已通过GitHub Actions重新运行CarryBus #639失败job（job `130894115905`）和Gazebo E2E #41取消job（job `130894129220`）；提交本记录时两者仍在运行，须以重跑最终状态及artifact为准。
+- **当前代码行为：** 新鲜Gazebo真值底盘刷新修复仍需完整E2E验证。#40曾在PREPARE抓壶残差7.1mm处fail-closed；没有水壶attach或倒水。
+- **当前任务：** P104-07仍“正在进行中”；完整真实Gazebo DrinkTask E2E通过次数仍为 **0**。

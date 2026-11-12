@@ -21,8 +21,8 @@ jobs:
         run: |
           # Configure the official ROS apt source directly. The GitHub
           # Releases asset endpoint intermittently returns HTTP 504 on runners.
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends curl ca-certificates
+          sudo apt-get -o Acquire::Retries=5 update
+          sudo apt-get -o Acquire::Retries=5 install -y --no-install-recommends curl ca-certificates
           sudo install -d -m 0755 /usr/share/keyrings
           sudo curl --fail --location --connect-timeout 20 --max-time 120 \
             --retry 8 --retry-all-errors --retry-delay 3 --retry-max-time 240 \
@@ -31,11 +31,14 @@ jobs:
             -o /usr/share/keyrings/ros-archive-keyring.gpg
           echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo ${UBUNTU_CODENAME}) main" \
             | sudo tee /etc/apt/sources.list.d/ros2.list > /dev/null
-          sudo apt-get update
+          sudo apt-get -o Acquire::Retries=5 update
 
       - name: Install ROS 2 Jazzy and runtime dependencies
         run: |
-          sudo apt-get install -y ros-jazzy-ros-base ros-jazzy-rclpy ros-jazzy-std-msgs python3-numpy
+          # Hosted runners can transiently lose DNS while downloading Ubuntu/ROS
+          # packages. Let APT retry individual fetches rather than failing the job
+          # on the first temporary resolver error.
+          sudo apt-get -o Acquire::Retries=5 install -y ros-jazzy-ros-base ros-jazzy-rclpy ros-jazzy-std-msgs python3-numpy
 
       - name: Run CarryBus executor integration test
         shell: bash
