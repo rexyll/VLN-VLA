@@ -80,6 +80,20 @@ CAMS = (('front', 0.0), ('left', 1.5707963),
 CAM_CN = {'front': '前', 'left': '左', 'right': '右', 'back': '后'}
 
 
+def person_color_masks(hsv):
+    """Return independent dark-skirt and blue-torso masks from an HSV frame.
+
+    The blue interval matches the deliberately blue human torso in work_area.sdf.
+    It is not a general-purpose detector: geometry, depth and temporal association
+    are still required before a candidate can become a person observation.
+    """
+    dark = cv2.inRange(
+        hsv, (0, 0, 0), (179, SAT_MAX, DARK_V_MAX))
+    blue = cv2.inRange(
+        hsv, (95, 65, 35), (135, 255, 255))
+    return dark, blue
+
+
 def timestamp_fresh(stamp, now, max_age=MAX_SENSOR_AGE_S):
     """判断单路时钟戳是否为有效的非未来新鲜观测。"""
     if stamp is None:
@@ -317,23 +331,42 @@ class PersonVision(Node):
         if rgb.shape[:2] != dep.shape:
             dep = cv2.resize(dep, (rgb.shape[1], rgb.shape[0]))
         hsv = cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV)
-        mask = cv2.inRange(hsv, (0, 0, 0), (179, SAT_MAX, DARK_V_MAX))
-        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN,
-                                np.ones((5, 5), np.uint8))
-        cnts, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL,
-                                   cv2.CHAIN_APPROX_SIMPLE)
+        dark_mask, blue_mask = person_color_masks(hsv)
+        kernel = np.ones((5, 5), np.uint8)
+        dark_mask = cv2.morphologyEx(
+            dark_mask, cv2.MORPH_OPEN, kernel)
+        blue_mask = cv2.morphologyEx(
+            blue_mask, cv2.MORPH_OPEN, kernel)
+        # P104-08: 桌沿会遮挡深色裙摆，但蓝色躯干仍高于桌面可见。
+        # 两种颜色分别做几何约束；蓝色候选必须是窄高人体形状且位于
+        # 图像上部，降低机器人蓝色机械臂/场景蓝色障碍物的误检风险。
+        contour_sets = []
+        for color_name, mask in (('dark', dark_mask), ('blue', blue_mask)):
+            cnts, _ = cv2.findContours(
+                mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            contour_sets.extend((color_name, cnt) for cnt in cnts)
         candidates = []
         img_w = rgb.shape[1]
+        img_h = rgb.shape[0]
         tan_h = math.tan(HFOV / 2.0)
         cam_yaw = dict(CAMS)[name]
-        for cnt in cnts:
+        for color_name, cnt in contour_sets:
             area = cv2.contourArea(cnt)
-            if area < AREA_MIN or area > AREA_MAX:
+            if color_name == 'dark':
+                if area < AREA_MIN or area > AREA_MAX:
+                    continue
+            elif area < 250 or area > 18000:
                 continue
             x, y, w, h = cv2.boundingRect(cnt)
             asp = w / max(h, 1)
-            if not (ASPECT_MIN <= asp <= ASPECT_MAX):
-                continue
+            if color_name == 'dark':
+                if not (ASPECT_MIN <= asp <= ASPECT_MAX):
+                    continue
+            else:
+                if not (0.22 <= asp <= 1.25):
+                    continue
+                if y + 0.5 * h > img_h * 0.78:
+                    continue
             # 先过滤无效深度，再比较目标候选，避免最大伪影吞掉真实人体。
             y0 = y + int(h * 0.15)
             y1 = y + int(h * 0.60)
@@ -345,7 +378,10 @@ class PersonVision(Node):
             dist = float(np.quantile(valid, 0.30))
             # 被障碍切断的人体允许只剩 9cm 可见宽度。
             w_vis = dist * 2.0 * w * tan_h / img_w
-            if not (W_VIS_MIN <= w_vis <= W_VIS_MAX):
+            if color_name == 'dark':
+                if not (W_VIS_MIN <= w_vis <= W_VIS_MAX):
+                    continue
+            elif not (0.12 <= w_vis <= 0.48):
                 continue
             u = x + w / 2.0
             bc = (img_w / 2.0 - u) * HFOV / img_w
@@ -366,6 +402,7 @@ class PersonVision(Node):
                 'area': int(area), 'bbox': (x, y, w, h),
                 'world_xy': (float(wx), float(wy)),
                 'track_error': track_error, 'obs_t': float(obs_t),
+                'color': color_name,
                 # rgb 在回调中已 copy；后续回调会替换 dict 值而不会改写该数组，
                 # 所以快照可复用与 bbox/深度完全对应的那一帧。
                 'rgb_frame': rgb,

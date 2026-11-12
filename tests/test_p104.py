@@ -112,6 +112,28 @@ from vla_follow import carry as C  # noqa: E402
 
 class TestP104(unittest.TestCase):
 
+    def test_person_color_masks_detect_dark_skirt_and_blue_torso_separately(self):
+        hsv = np.array([[
+            [0, 0, 40],       # dark skirt
+            [110, 200, 180],  # blue torso
+            [20, 200, 180],   # unrelated saturated object
+            [110, 30, 180],   # low-saturation blue-like object
+        ]], dtype=np.uint8)
+        dark, blue = V.person_color_masks(hsv)
+        self.assertEqual(dark[0].tolist(), [255, 0, 0, 0])
+        self.assertEqual(blue[0].tolist(), [0, 255, 0, 0])
+
+    def test_blue_torso_candidate_has_stricter_geometry_than_dark_skirt(self):
+        vision_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
+            'person_vision.py')
+        with open(vision_path, encoding='utf-8') as stream:
+            vision = stream.read()
+        self.assertIn("elif area < 250 or area > 18000:", vision)
+        self.assertIn("if not (0.22 <= asp <= 1.25):", vision)
+        self.assertIn("if y + 0.5 * h > img_h * 0.78:", vision)
+        self.assertIn("elif not (0.12 <= w_vis <= 0.48):", vision)
+
     def test_missing_round_with_command_marker_is_classified_unknown(self):
         with tempfile.TemporaryDirectory() as outdir:
             missing = [
