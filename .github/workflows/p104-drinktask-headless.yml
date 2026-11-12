@@ -29,7 +29,7 @@ concurrency:
 
 jobs:
   drinktask-e2e:
-    name: Full work_area DrinkTask E2E (one-round baseline)
+    name: Full work_area DrinkTask E2E (two consecutive rounds)
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
@@ -114,7 +114,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          timeout 50m bash tests/run_drink_headless.sh 1 "ci_${GITHUB_RUN_ID}" 0
+          timeout 50m bash tests/run_drink_headless.sh 2 "ci_${GITHUB_RUN_ID}" 10
 
       - name: Upload Gazebo logs, round JSON and screenshot evidence
         if: always()
@@ -127,6 +127,6 @@ jobs:
             vla_ws/logs/*.log
             vla_ws/logs/test_drink.json
             tests/out/drink_repeat_ci_*.json
-            tests/out/drink_ci_*_1.json
-            tests/out/drink_ci_*_1_shots/**
+            tests/out/drink_ci_*.json
+            tests/out/drink_ci_*_shots/**
             vla_demo/snapshots/*.jpg
