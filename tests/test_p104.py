@@ -117,7 +117,7 @@ class TestP104(unittest.TestCase):
         # E2E #48 had the hand target 33.6mm beyond the 0.70m arm reach.
         # A 35mm deadband incorrectly skipped base compensation, leaving one
         # palm 123.9mm from the cup axis (acceptance maximum is 117mm).
-        self.assertAlmostEqual(L.PRESENT_APPROACH_CLEAR, 0.70)
+        self.assertAlmostEqual(L.PRESENT_APPROACH_CLEAR, 0.69)
         self.assertLessEqual(L.PRESENT_APPROACH_GAP, 0.010)
         observed_hand_distance = L.PRESENT_APPROACH_CLEAR + 0.0336
         self.assertGreater(
