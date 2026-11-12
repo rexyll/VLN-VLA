@@ -547,6 +547,14 @@ def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
         truth_pose_t_at_ik = (
             float(truth_snapshot_at_ik[1])
             if truth_snapshot_at_ik is not None else 0.0)
+        # Snapshot chassis motion and both command channels at the exact IK
+        # boundary. Post-servo telemetry alone cannot establish who moved the
+        # base while a multi-pass reach was converging.
+        truth_twist_at_ik = getattr(node, 'truth_base_twist', None)
+        truth_twist_t_at_ik = float(
+            getattr(node, 'truth_base_twist_t', 0.0) or 0.0)
+        drink_cmd_at_ik = getattr(node, '_drink_cmd_snapshot', None)
+        robot_cmd_at_ik = getattr(node, '_robot_cmd_snapshot', None)
         base_truth_xy_mm_at_ik = None
         base_truth_yaw_deg_at_ik = None
         if truth_pose_at_ik is not None:
@@ -730,6 +738,28 @@ def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
             'truth_base_pose_at_ik': (
                 [round(v, 5) for v in truth_pose_at_ik]
                 if truth_pose_at_ik is not None else None),
+            'truth_base_twist_at_ik': (
+                [round(float(v), 5) for v in truth_twist_at_ik]
+                if truth_twist_at_ik is not None else None),
+            'truth_base_twist_age_at_ik_s': (
+                round(max(0.0, ik_sample_t - truth_twist_t_at_ik), 4)
+                if truth_twist_t_at_ik > 0.0 else None),
+            'drink_cmd_at_ik': (
+                [round(float(v), 5) for v in drink_cmd_at_ik[0]]
+                if drink_cmd_at_ik is not None
+                and ik_sample_t - float(drink_cmd_at_ik[1]) <= 0.5
+                else None),
+            'drink_cmd_age_at_ik_s': (
+                round(max(0.0, ik_sample_t - float(drink_cmd_at_ik[1])), 4)
+                if drink_cmd_at_ik is not None else None),
+            'robot_cmd_at_ik': (
+                [round(float(v), 5) for v in robot_cmd_at_ik[0]]
+                if robot_cmd_at_ik is not None
+                and ik_sample_t - float(robot_cmd_at_ik[1]) <= 0.5
+                else None),
+            'robot_cmd_age_at_ik_s': (
+                round(max(0.0, ik_sample_t - float(robot_cmd_at_ik[1])), 4)
+                if robot_cmd_at_ik is not None else None),
             'base_truth_xy_mm_at_ik': (
                 round(base_truth_xy_mm_at_ik, 2)
                 if base_truth_xy_mm_at_ik is not None else None),
