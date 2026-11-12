@@ -124,6 +124,23 @@ class TestP104(unittest.TestCase):
             observed_hand_distance - L.PRESENT_APPROACH_CLEAR,
             L.PRESENT_APPROACH_GAP)
 
+    def test_present_approach_small_correction_accounts_for_drive_tolerance(self):
+        # E2E #62: the measured hand distance was just over 0.700m, while
+        # CLEAR=0.690m and the accepted gap is 10mm. A 10mm command is inside
+        # drive_to's 12mm arrival tolerance and may be reported as no movement.
+        required = 0.0101
+        command = L.present_approach_command_step(required, 0.34)
+        self.assertGreaterEqual(command, 0.02)
+        self.assertGreaterEqual(command - required, 0.017 - 1e-9)
+        # The command remains bounded by the table-clearance result.
+        self.assertLessEqual(command, 0.34)
+        # If only 19mm of collision-clear travel remains, do not issue a
+        # sub-floor motion; preserve fail-closed behavior.
+        self.assertEqual(L.present_approach_command_step(required, 0.019), 0.0)
+        # Larger shortfalls may use a safe partial step and be re-measured.
+        self.assertAlmostEqual(
+            L.present_approach_command_step(0.10, 0.025), 0.025)
+
     def test_handover_geometry_gate_is_fail_closed_at_existing_92_plusminus_25mm(self):
         self.assertTrue(M.person_handover_geometry_ok((67.0, 117.0)))
         self.assertTrue(M.person_handover_geometry_ok((92.0, 92.0)))

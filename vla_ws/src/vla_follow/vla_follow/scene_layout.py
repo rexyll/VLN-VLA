@@ -168,6 +168,29 @@ FOLLOW_BAND_M = 1.00
 FOLLOW_BAND_TOL_M = 0.35
 
 
+def present_approach_command_step(required_m, safe_m):
+    """Choose a collision-bounded chassis correction that survives drive tolerance.
+
+    drive_to() accepts a 12mm terminal position tolerance. Commanding only the
+    geometric shortfall can therefore be treated as already-at-goal without
+    moving (E2E #62 observed a ~10mm shortfall). Aim 17mm beyond the shortfall
+    where clearance permits; otherwise use the available safe partial step and
+    re-evaluate from fresh poses on the next iteration. Never command less than
+    the existing 20mm meaningful-motion floor.
+    """
+    try:
+        required = float(required_m)
+        safe = float(safe_m)
+    except (TypeError, ValueError, OverflowError):
+        return 0.0
+    if not math.isfinite(required) or not math.isfinite(safe):
+        return 0.0
+    if required <= 0.0 or safe < 0.02:
+        return 0.0
+    target = max(0.02, required + 0.017)  # 12mm drive tolerance + 5mm margin
+    return min(target, safe)
+
+
 def table_clearance(x, y, pad=0.0):
     """底盘中心 (x, y) 到**桌面矩形**的间隙(m), 已含底盘外接圆半径。
 

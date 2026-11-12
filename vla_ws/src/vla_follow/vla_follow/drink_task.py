@@ -604,7 +604,7 @@ class DrinkTask(Node):
                                  pad=L.PRESENT_TABLE_PAD) < 0.0:
                 break
             step += 0.02
-        step = min(gap, step)
+        step = L.present_approach_command_step(gap, step)
         if step < 0.02:            # 桌子和人夹住了, 一步也挪不动
             self.get_logger().warn(
                 'DRINK 递杯补位: 车→人手 %.3fm, 但朝人方向已贴到桌子, '
@@ -642,7 +642,7 @@ class DrinkTask(Node):
                                      pad=L.PRESENT_TABLE_PAD) < 0.0:
                     break
                 sn += 0.02
-            sn = min(gap_n, sn)
+            sn = L.present_approach_command_step(gap_n, sn)
             if sn < 0.02:
                 break
             ok, res_d = M.drive_to(self, (bxn + sn * uxn, byn + sn * uyn),
