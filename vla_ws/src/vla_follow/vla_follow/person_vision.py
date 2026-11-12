@@ -317,19 +317,51 @@ class PersonVision(Node):
             td = self.dep_t.get(name, 0.0)
             rx, ry, ryaw, pose_t = (
                 self.rx, self.ry, self.ryaw, self.pose_t)
-        diag = {'stale': 0, 'contours': 0, 'area': 0, 'shape': 0,
+        diag = {'stale': 0, 'stale_reason': 'none',
+                'rgb_age': -1.0, 'depth_age': -1.0, 'pose_age': -1.0,
+                'rgb_depth_skew': -1.0, 'pose_rgbd_skew': -1.0,
+                'contours': 0, 'area': 0, 'shape': 0,
                 'depth': 0, 'width': 0, 'association': 0, 'accepted': 0}
         miss = {'det': False, 'dist': -1.0, 'bc': 0.0, 'u': -1,
                 'area': 0, 'bbox': None, 'world_xy': None,
                 'track_error': None, 'obs_t': None, 'diag': diag}
-        if rgb is None or dep is None or tr <= 0.0 or td <= 0.0:
+        diag['rgb_age'] = now - tr if tr > 0.0 else -1.0
+        diag['depth_age'] = now - td if td > 0.0 else -1.0
+        diag['pose_age'] = now - pose_t if pose_t > 0.0 else -1.0
+        if tr > 0.0 and td > 0.0:
+            diag['rgb_depth_skew'] = abs(tr - td)
+            diag['pose_rgbd_skew'] = abs(pose_t - 0.5 * (tr + td))
+        if rgb is None or tr <= 0.0:
             diag['stale'] += 1
+            diag['stale_reason'] = 'rgb_missing'
+            return miss
+        if dep is None or td <= 0.0:
+            diag['stale'] += 1
+            diag['stale_reason'] = 'depth_missing'
             return miss
         # P104: 不能将相机断流前的旧图与另一条新深度帧拼成“检出”。
         # 世界坐标投影要求 RGB、Depth 与底盘位姿都新鲜，且位姿采样时刻
         # 靠近图像帧对；底盘移动期间不能拿“刚刚但不同步”的 pose 投影旧帧。
-        if not sensor_pose_pair_fresh(tr, td, pose_t, now):
+        if not timestamp_fresh(tr, now):
             diag['stale'] += 1
+            diag['stale_reason'] = 'rgb_age'
+            return miss
+        if not timestamp_fresh(td, now):
+            diag['stale'] += 1
+            diag['stale_reason'] = 'depth_age'
+            return miss
+        if abs(tr - td) > MAX_RGB_DEPTH_SKEW_S:
+            diag['stale'] += 1
+            diag['stale_reason'] = 'rgb_depth_skew'
+            return miss
+        if not timestamp_fresh(pose_t, now):
+            diag['stale'] += 1
+            diag['stale_reason'] = 'pose_age'
+            return miss
+        obs_t = 0.5 * (tr + td)
+        if abs(pose_t - obs_t) > MAX_POSE_RGBD_SKEW_S:
+            diag['stale'] += 1
+            diag['stale_reason'] = 'pose_rgbd_skew'
             return miss
         obs_t = 0.5 * (tr + td)
         if rgb.shape[:2] != dep.shape:
@@ -584,8 +616,16 @@ class PersonVision(Node):
                     f'面积={r["area"]}px')
             elif primary is None:
                 detail = ' '.join(
-                    '{}:stale={},cnt={},area={},shape={},depth={},width={},assoc={}'.format(
+                    '{}:stale={}({}),age[r/d/p]={:.3f}/{:.3f}/{:.3f},'
+                    'skew[rd/p]={:.3f}/{:.3f},cnt={},area={},shape={},'
+                    'depth={},width={},assoc={}'.format(
                         name, results[name]['diag']['stale'],
+                        results[name]['diag']['stale_reason'],
+                        results[name]['diag']['rgb_age'],
+                        results[name]['diag']['depth_age'],
+                        results[name]['diag']['pose_age'],
+                        results[name]['diag']['rgb_depth_skew'],
+                        results[name]['diag']['pose_rgbd_skew'],
                         results[name]['diag']['contours'],
                         results[name]['diag']['area'],
                         results[name]['diag']['shape'],
