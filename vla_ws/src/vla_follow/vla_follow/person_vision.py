@@ -113,11 +113,43 @@ def sensor_pair_fresh(rgb_t, dep_t, now,
     return abs(float(rgb_t) - float(dep_t)) <= float(max_skew)
 
 
+def pose_at_timestamp(history, stamp, max_skew=MAX_POSE_RGBD_SKEW_S):
+    """从单调时钟位姿历史中插值得到图像采样时刻的底盘位姿。
+
+    图像回调可能比动态位姿回调晚数百毫秒；使用“最新 pose”与旧图像
+    比较会系统性拒绝有效帧。只在图像时刻两侧均有历史样本且邻近样本
+    不超过既有 skew 门限时插值，绝不外推。
+    history 项为 (monotonic_time, x, y, yaw)，按时间升序。
+    """
+    if not history:
+        return None
+    t = float(stamp)
+    rows = sorted(history, key=lambda row: float(row[0]))
+    before = [row for row in rows if float(row[0]) <= t]
+    after = [row for row in rows if float(row[0]) >= t]
+    if before and after:
+        a, b = before[-1], after[0]
+        if t - float(a[0]) > max_skew or float(b[0]) - t > max_skew:
+            return None
+        if float(b[0]) <= float(a[0]):
+            return tuple(float(v) for v in a)
+        ratio = (t - float(a[0])) / (float(b[0]) - float(a[0]))
+        yaw_delta = wrap(float(b[3]) - float(a[3]))
+        return (t,
+                float(a[1]) + ratio * (float(b[1]) - float(a[1])),
+                float(a[2]) + ratio * (float(b[2]) - float(a[2])),
+                wrap(float(a[3]) + ratio * yaw_delta))
+    nearest = min(rows, key=lambda row: abs(float(row[0]) - t))
+    if abs(float(nearest[0]) - t) > max_skew:
+        return None
+    return tuple(float(v) for v in nearest)
+
+
 def sensor_pose_pair_fresh(rgb_t, dep_t, pose_t, now,
                              max_age=MAX_SENSOR_AGE_S,
                              max_rgbd_skew=MAX_RGB_DEPTH_SKEW_S,
                              max_pose_skew=MAX_POSE_RGBD_SKEW_S):
-    """RGB/Depth 与底盘位姿都新鲜，且机器人位姿时间接近图像帧对。"""
+    """兼容旧接口：判断 RGB-D 与给定 pose 时间戳是否配对新鲜。"""
     if not sensor_pair_fresh(rgb_t, dep_t, now, max_age, max_rgbd_skew):
         return False
     if not timestamp_fresh(pose_t, now, max_age):
@@ -218,6 +250,7 @@ class PersonVision(Node):
         self.rgb_t, self.dep_t = {}, {}
         self.rx, self.ry, self.ryaw = 0.0, 0.0, 0.0
         self.pose_t = 0.0
+        self.pose_history = []  # monotonic pose samples for delayed RGB-D frames
         for name, _ in CAMS:
             self._gz.subscribe(GzImage, '/depth_' + name + '/image',
                                self._mk_rgb(name))
@@ -277,6 +310,10 @@ class PersonVision(Node):
                     self.ry = p.position.y
                     self.ryaw = yaw_of(q)
                     self.pose_t = time.monotonic()
+                    self.pose_history.append(
+                        (self.pose_t, self.rx, self.ry, self.ryaw))
+                    # Keep >1s of samples; sensor freshness remains capped at 0.40s.
+                    self.pose_history = self.pose_history[-256:]
                 return
 
     def _predict_world(self, now):
@@ -315,8 +352,7 @@ class PersonVision(Node):
             dep = self.dep.get(name)
             tr = self.rgb_t.get(name, 0.0)
             td = self.dep_t.get(name, 0.0)
-            rx, ry, ryaw, pose_t = (
-                self.rx, self.ry, self.ryaw, self.pose_t)
+            pose_history = list(self.pose_history)
         diag = {'stale': 0, 'stale_reason': 'none',
                 'rgb_age': -1.0, 'depth_age': -1.0, 'pose_age': -1.0,
                 'rgb_depth_skew': -1.0, 'pose_rgbd_skew': -1.0,
@@ -354,16 +390,19 @@ class PersonVision(Node):
             diag['stale'] += 1
             diag['stale_reason'] = 'rgb_depth_skew'
             return miss
-        if not timestamp_fresh(pose_t, now):
-            diag['stale'] += 1
-            diag['stale_reason'] = 'pose_age'
-            return miss
         obs_t = 0.5 * (tr + td)
-        if abs(pose_t - obs_t) > MAX_POSE_RGBD_SKEW_S:
+        pose_sample = pose_at_timestamp(pose_history, obs_t)
+        if pose_sample is None:
             diag['stale'] += 1
             diag['stale_reason'] = 'pose_rgbd_skew'
             return miss
-        obs_t = 0.5 * (tr + td)
+        pose_sample_t, rx, ry, ryaw = pose_sample
+        diag['pose_age'] = now - pose_sample_t
+        diag['pose_rgbd_skew'] = abs(pose_sample_t - obs_t)
+        if not timestamp_fresh(pose_sample_t, now):
+            diag['stale'] += 1
+            diag['stale_reason'] = 'pose_age'
+            return miss
         if rgb.shape[:2] != dep.shape:
             dep = cv2.resize(dep, (rgb.shape[1], rgb.shape[0]))
         hsv = cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV)

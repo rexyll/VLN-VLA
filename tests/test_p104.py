@@ -124,6 +124,27 @@ class TestP104(unittest.TestCase):
             observed_hand_distance - L.PRESENT_APPROACH_CLEAR,
             L.PRESENT_APPROACH_GAP)
 
+    def test_pose_history_interpolates_at_rgbd_capture_time_without_extrapolation(self):
+        # Latest pose is intentionally newer than the image by 300ms. The
+        # historical pose at image time must be used, not rejected as skew.
+        history = [
+            (10.00, 1.0, 2.0, math.radians(179.0)),
+            (10.10, 2.0, 4.0, math.radians(-179.0)),
+            (10.20, 3.0, 6.0, math.radians(-170.0)),
+        ]
+        pose = V.pose_at_timestamp(history, 10.05)
+        self.assertIsNotNone(pose)
+        self.assertAlmostEqual(pose[0], 10.05)
+        self.assertAlmostEqual(pose[1], 1.5)
+        self.assertAlmostEqual(pose[2], 3.0)
+        self.assertAlmostEqual(abs(pose[3]), math.pi, places=6)
+        self.assertIsNone(V.pose_at_timestamp(history, 9.80))
+        self.assertIsNone(V.pose_at_timestamp(history, 10.50))
+
+    def test_pose_history_rejects_gaps_beyond_existing_skew_gate(self):
+        history = [(1.0, 0.0, 0.0, 0.0), (1.5, 1.0, 0.0, 0.0)]
+        self.assertIsNone(V.pose_at_timestamp(history, 1.25))
+
     def test_person_color_masks_detect_dark_skirt_and_blue_torso_separately(self):
         hsv = np.array([[
             [0, 0, 40],       # dark skirt
