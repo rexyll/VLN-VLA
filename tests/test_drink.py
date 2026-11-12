@@ -50,7 +50,10 @@ from drink_evidence import (REQUIRED_SHOT_LABELS,
                             cleanup_observer_resources)  # noqa: E402
 
 LOG_DIR = os.path.join(ROOT, 'vla_ws', 'logs')
-TOTAL_TIMEOUT = 420.0
+# The task's drive_to() has a bounded wall-clock hard limit of 18*timeout.
+# Keep the read-only observer alive beyond that bound so slow Gazebo RTF does
+# not kill a valid retreat before HANDBACK/DONE can be observed.
+TOTAL_TIMEOUT = 600.0
 # 进入该阶段时抓一张图
 # P96: HANDOVER 是"人双手合拢捧住杯子"的那一瞬(合拢动作就排在进
 # HANDOVER 之前), 值得单独留一张 —— 这是双手接杯唯一的可见证据。

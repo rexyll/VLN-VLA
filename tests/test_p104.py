@@ -2442,6 +2442,23 @@ class TestP104(unittest.TestCase):
         release = body.index("node.carry.release(model)")
         self.assertLess(right_failure, release)
 
+
+    def test_drink_observer_timeout_exceeds_drive_to_hard_wall_limit(self):
+        observer_path = os.path.join(ROOT, 'tests', 'test_drink.py')
+        with open(observer_path, encoding='utf-8') as stream:
+            source = stream.read()
+        import ast
+        tree = ast.parse(source)
+        timeout = next(
+            node.value for node in tree.body
+            if isinstance(node, ast.Assign)
+            and any(isinstance(target, ast.Name)
+                    and target.id == 'TOTAL_TIMEOUT'
+                    for target in node.targets))
+        self.assertIsInstance(timeout, ast.Constant)
+        self.assertGreater(timeout.value, 18.0 * 30.0)
+        self.assertLessEqual(timeout.value, 600.0)
+
     def test_command_snapshots_start_unknown_not_as_zero(self):
         task_path = os.path.join(
             ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
