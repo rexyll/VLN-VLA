@@ -796,11 +796,26 @@ def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
             'servo_ok': bool(ok_move),
             'joint_err_deg': round(joint_err_deg, 2)})
         if not ok_move:
+            # A failed servo pass returns before the ordinary convergence
+            # summary below. Preserve the exact target/measurement and the
+            # already-collected per-pass chassis/command evidence here.
+            q_failed = q_meas(node, side)
             node.get_logger().warn(
-                'REACH %s 伺服未确认到位，停止补位: 残差 %.1fmm 最大关节误差 %.2f°'
-                % (side, res,
-                   float(np.max(np.abs(np.degrees(joint_err))))
-                   if np.all(np.isfinite(joint_err)) else 9e9))
+                'REACH %s 伺服未确认到位，停止补位: 残差 %.1fmm '
+                '最大关节误差 %.2f° target_xyz=%s actual_xyz=%s '
+                'base_at_ik=%s q_target=%s q_measured=%s '
+                'joint_delta_deg=%s trace=%s'
+                % (side, res, joint_err_deg,
+                   np.round(np.asarray(T_world)[:3, 3], 4).tolist(),
+                   (np.round(T_after_move[:3, 3], 4).tolist()
+                    if T_after_move is not None else None),
+                   [round(float(v), 5) for v in base_at_ik],
+                   np.round(q, 4).tolist(),
+                   np.round(q_failed, 4).tolist()
+                   if q_failed is not None else None,
+                   np.round(np.degrees(joint_err), 2).tolist()
+                   if np.all(np.isfinite(joint_err)) else None,
+                   pass_trace))
             return False, res, how
         if os.environ.get('REACH_DEBUG'):
             _qm = q_meas(node, side)
@@ -1265,9 +1280,14 @@ def put_down(node, side, model, T_obj_goal, retreat=0.10,
             'PUT_DOWN %s release ACK 未确认；不移动手臂，保持当前位置供安全恢复'
             % model)
         if info is not None:
-            info.update(release_blocked=True,
+            info.update(release_confirmed=False, object_state='still_attached',
+                        release_blocked=True,
                         release_block_reason='release_ack_missing')
         return False, res2
+    # Release ACK is the ownership boundary. From this point onward the
+    # object is no longer held even if the arm cannot withdraw successfully.
+    if info is not None:
+        info.update(release_confirmed=True, object_state='released')
     node.spin_for(0.6)
     if info is not None:
         T_after_release = object_pose(node, model)
@@ -1282,7 +1302,15 @@ def put_down(node, side, model, T_obj_goal, retreat=0.10,
         info['withdraw_res_mm'] = round(float(res_back), 1)
     if not ok_back:
         node.get_logger().warn(
-            'PUT_DOWN %s 已安全落桌，但撤手未到位 %.1fmm' % (model, res_back))
+            'PUT_DOWN %s 已确认释放并落桌，但撤手未到位 %.1fmm；'
+            '物体状态=released，禁止按仍抓持处理'
+            % (model, res_back))
+        if info is not None:
+            info.update(withdraw_failed=True,
+                        failure_stage='arm_withdraw_after_release')
+    elif info is not None:
+        info.update(withdraw_failed=False,
+                    failure_stage=None)
     return bool(ok_back), res2
 
 
@@ -2114,11 +2142,21 @@ def prepare_present(node, fill=0.65, verbose=True):
         return out
     if getattr(node, 'liquid', None) is not None:
         node.liquid.pour_stop()      # P98: 水柱已回收, 再停止液体积分
-    ok_d, res_d = put_down(node, 'R', 'kettle', Tk_home)
+    kettle_putdown = {}
+    ok_d, res_d = put_down(
+        node, 'R', 'kettle', Tk_home, info=kettle_putdown)
     out['res']['kettle_back'] = res_d
+    out['kettle_putdown'] = kettle_putdown
     if not ok_d:
-        node.get_logger().error(
-            'PREPARE 水壶未确认落稳，保持抓持并中止后续动作')
+        if kettle_putdown.get('release_confirmed'):
+            out['reason'] = 'kettle_retract_failed_after_release'
+            node.get_logger().error(
+                'PREPARE 水壶已确认释放并落桌，但右臂撤离失败；'
+                '停止后续动作，物体状态=released')
+        else:
+            out['reason'] = 'kettle_release_or_placement_unconfirmed'
+            node.get_logger().error(
+                'PREPARE 水壶未确认释放/落稳，保持抓持状态并中止后续动作')
         return out
     ok_r_home, err_r_home = node.arm['R'].move(K.Q_REST, timeout=10.0)
     if not ok_r_home:

@@ -230,3 +230,12 @@
 - 新增纯函数 `present_approach_command_step()`：以桌沿检查给出的可行安全步长为硬上限，优先按“当前缺口 + 17mm”（12mm 行驶容差 + 5mm 余量）规划；安全余量不足时允许安全部分步进并重新测量；不足 20mm 时不发运动命令，继续 fail-closed。
 - 首轮与每轮重测补位统一使用该函数；增加 10.1mm 边界、19mm 不可行安全步长和部分安全步进回归测试。未改变 0.690m 目标、10mm 接受误差、桌沿 pad、0.70m 臂前伸上限或碰撞检查。
 - 验证状态：等待 Python/编译/CarryBus CI 与双轮 Gazebo E2E。当前完整 Gazebo E2E 成功轮数仍为 1，P104-07 继续进行中。
+
+
+### 8.299 修正水壶释放成功但撤手失败时的物体状态误报（2026-11-12）
+
+- E2E #63（run `43232396024`，commit `92dc33729b5e0d0dec489ec697ae9b40aca35cff`）第 1 轮完整通过，第 2 轮停在 PREPARE。日志证实水壶 release ACK 成功，随后右臂撤手 reach 失败（掌心残差 17.1mm、最大关节误差 19.84°）；任务层却统一打印“水壶未确认落稳，保持抓持”，与已经确认的释放事实矛盾。
+- 根因是 `put_down()` 仅返回一个布尔值，将“release 未确认/仍附着”和“release 已确认但 arm withdraw 失败”合并为 False；`prepare_present()` 又将所有 False 一律解释为仍抓持。此状态混淆可能误导后续恢复操作。
+- 修复将 release ACK 作为明确状态边界：`info.release_confirmed` 与 `object_state` 分别记录 released/still_attached；撤手失败另记 `failure_stage=arm_withdraw_after_release`。PREPARE 根据该状态输出准确失败原因，释放已确认时不再声称仍抓持，也不继续执行后续动作。
+- 同时补齐 reach 伺服未确认分支此前缺失的失败证据：输出目标/实测掌心坐标、IK 底盘位姿、目标/实测关节角、逐关节误差及该次 reach 已采集的逐轮底盘/速度命令 trace。只增加诊断与状态传播，不改变 IK 收敛阈值、伺服容差、关节限位、碰撞检查或释放时序。
+- 新增静态回归测试覆盖 release ACK 成功后撤手失败、release ACK 未确认仍附着，以及伺服失败诊断字段。验证待 CI 与新的连续双轮 Gazebo E2E；完整 E2E 成功轮数仍为 **1**，P104-07 保持进行中。

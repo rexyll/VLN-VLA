@@ -2482,6 +2482,46 @@ class TestP104(unittest.TestCase):
         self.assertIn("_pb", failure_path)
 
 
+    def test_put_down_distinguishes_release_from_withdraw_failure(self):
+        motion_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
+            'drink_motion.py')
+        with open(motion_path, encoding='utf-8') as stream:
+            motion = stream.read()
+        start = motion.index('def put_down(')
+        end = motion.index('# ---------------------------------------------------------------- 双手捧', start)
+        body = motion[start:end]
+        release = body.index('release_ok = node.carry.release(model)')
+        confirmed = body.index(
+            "info.update(release_confirmed=True, object_state='released')")
+        withdraw = body.index('ok_back, res_back, _ = reach(')
+        self.assertLess(release, confirmed)
+        self.assertLess(confirmed, withdraw)
+        self.assertIn("object_state='still_attached'", body)
+        self.assertIn("failure_stage='arm_withdraw_after_release'", body)
+        self.assertIn('已确认释放并落桌，但撤手未到位', body)
+
+        prepare = motion[motion.index('def prepare_present('):]
+        self.assertIn("kettle_putdown.get('release_confirmed')", prepare)
+        self.assertIn("'kettle_retract_failed_after_release'", prepare)
+        self.assertNotIn(
+            '水壶未确认落稳，保持抓持并中止后续动作', prepare)
+
+    def test_reach_servo_failure_keeps_joint_and_base_trace(self):
+        motion_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
+            'drink_motion.py')
+        with open(motion_path, encoding='utf-8') as stream:
+            motion = stream.read()
+        start = motion.index('def reach(')
+        end = motion.index('def sim_now(', start)
+        body = motion[start:end]
+        self.assertIn('q_failed = q_meas(node, side)', body)
+        self.assertIn('joint_delta_deg=%s trace=%s', body)
+        self.assertIn('q_target=%s q_measured=%s', body)
+        self.assertIn('base_at_ik=%s', body)
+        self.assertIn('truth_base_twist_at_ik', body)
+
     def test_reach_command_telemetry_rejects_stale_cached_zero(self):
         motion_path = os.path.join(
             ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
