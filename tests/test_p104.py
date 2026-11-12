@@ -611,6 +611,21 @@ class TestP104(unittest.TestCase):
             self.assertTrue(summary['process_ok'])
             self.assertEqual(summary['screenshots_archived'], 7)
 
+            # Optional event-linked frames (such as the post-handover
+            # following image) must not invalidate the seven required frames.
+            optional_path = os.path.join(shot_dir, '08_following.png')
+            with open(optional_path, 'wb') as stream:
+                stream.write(b'optional-png-placeholder')
+            optional_result = dict(
+                result,
+                shots=shots + [os.path.relpath(optional_path, root)],
+                shot_labels=labels + ['following'],
+                evidence={'screenshots_archived': 8})
+            optional_summary = summarize_round_evidence(optional_result, root)
+            self.assertTrue(optional_summary['ok'])
+            self.assertTrue(optional_summary['archive_ok'])
+            self.assertEqual(optional_summary['screenshots_archived'], 8)
+
             # A complete task JSON and screenshot archive must still fail
             # acceptance when the observer process exited non-zero.
             crashed_observer = dict(result, observer_exit_code=7)

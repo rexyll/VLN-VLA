@@ -56,10 +56,14 @@ def summarize_round_evidence(result, root):
     )
     missing = set(missing_required_shots(
         labels if labels_well_formed else []))
+    labels_unique = (
+        labels_well_formed and len(set(labels)) == len(labels)
+    )
+    # Required milestone frames are mandatory; additional event-linked
+    # evidence (for example the post-handover following frame) is valid too.
     labels_ok = (
-        labels_well_formed
-        and len(labels) == len(REQUIRED_SHOT_LABELS)
-        and set(labels) == REQUIRED_SHOT_LABELS
+        labels_unique
+        and REQUIRED_SHOT_LABELS.issubset(set(labels))
         and not missing
     )
 
@@ -89,9 +93,10 @@ def summarize_round_evidence(result, root):
     archive_ok = (
         isinstance(declared, int)
         and not isinstance(declared, bool)
-        and declared == len(REQUIRED_SHOT_LABELS)
         and isinstance(shots, list)
-        and len(shots) == len(REQUIRED_SHOT_LABELS)
+        and declared == len(shots)
+        and len(shots) >= len(REQUIRED_SHOT_LABELS)
+        and len(shots) == len(labels)
         and labels_ok
         and paths_ok
         and unique_paths
