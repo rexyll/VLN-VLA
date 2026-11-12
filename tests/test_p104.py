@@ -2417,6 +2417,28 @@ class TestP104(unittest.TestCase):
         self.assertIn('if not ok or res > GRASP_TOL_MM * 3.0',
                       motion[grasp_start:grasp_end])
 
+    def test_put_down_two_uses_collision_checked_high_waypoint_before_retry(self):
+        motion_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
+            'drink_motion.py')
+        with open(motion_path, encoding='utf-8') as stream:
+            motion = stream.read()
+        start = motion.index('def put_down_two(')
+        end = motion.index('# ------------------------------------------------------------------ 收臂/抬臂',
+                           start)
+        body = motion[start:end]
+        first_attempt = body.index("how_r == 'table-collision'")
+        stage_raise = body.index("T_right_stage[2, 3] += 0.12", first_attempt)
+        stage_gate = body.index("elbow=elbow, check_table=True", stage_raise)
+        retry = body.index("node, 'R', T_right_goal", stage_gate)
+        self.assertLess(first_attempt, stage_raise)
+        self.assertLess(stage_raise, stage_gate)
+        self.assertLess(stage_gate, retry)
+        self.assertIn("release_block_reason='right_arm_path_failed'", body)
+        self.assertIn("node.carry.release(model)", body)
+        self.assertLess(body.index("node.carry.release(model)"),
+                        body.index("if not ok_r:"))
+
     def test_command_snapshots_start_unknown_not_as_zero(self):
         task_path = os.path.join(
             ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',

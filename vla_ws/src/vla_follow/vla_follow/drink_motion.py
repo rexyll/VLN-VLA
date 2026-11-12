@@ -1346,9 +1346,32 @@ def put_down_two(node, model, T_obj_goal, tol_mm=PLACE_TOL_MM, steps=4,
                             release_block_reason='left_arm_path_failed',
                             failed_step=i, left_res_mm=round(res_l, 1))
             return False, res_l
-        ok_r, res_r, _ = reach(
-            node, 'R', Ti @ off_r, tol_mm=6.0, elbow=elbow,
+        T_right_goal = Ti @ off_r
+        ok_r, res_r, how_r = reach(
+            node, 'R', T_right_goal, tol_mm=6.0, elbow=elbow,
             check_table=True)
+        if not ok_r and how_r == 'table-collision':
+            # A collision-free endpoint can still be unreachable by a direct
+            # joint interpolation around the table lip. First lift the free
+            # support hand vertically, with the same collision gate, then
+            # retry the original rigid-support target from the elevated seed.
+            # The cup remains attached to the left hand throughout; no release
+            # or collision-margin relaxation is performed here.
+            T_right_now = wrist(node, 'R')
+            if T_right_now is not None:
+                T_right_stage = T_right_now.copy()
+                T_right_stage[2, 3] += 0.12
+                ok_stage, _stage_mm, _stage_how = reach(
+                    node, 'R', T_right_stage, tol_mm=8.0,
+                    elbow=elbow, check_table=True)
+                if ok_stage:
+                    ok_r, res_r, how_r = reach(
+                        node, 'R', T_right_goal, tol_mm=6.0,
+                        elbow=elbow, check_table=True)
+                    if ok_r:
+                        node.get_logger().info(
+                            'PUT_DOWN_TWO 右手经桌边上方安全航点到位 '
+                            '(step=%d, residual=%.1fmm)' % (i, res_r))
         if not ok_r:
             node.get_logger().error(
                 'PUT_DOWN_TWO 第%d/%d步右手未到位 %.1fmm，停止下降并保持抓持'
@@ -1356,7 +1379,8 @@ def put_down_two(node, model, T_obj_goal, tol_mm=PLACE_TOL_MM, steps=4,
             if info is not None:
                 info.update(release_blocked=True,
                             release_block_reason='right_arm_path_failed',
-                            failed_step=i, right_res_mm=round(res_r, 1))
+                            failed_step=i, right_res_mm=round(res_r, 1),
+                            right_path_how=how_r)
             return False, res_r
         settle_sim(node, 0.12)
     ok1, res = place_held(node, 'L', model, T_obj_goal, tol_mm, elbow=elbow)
