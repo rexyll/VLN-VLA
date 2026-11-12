@@ -357,7 +357,23 @@ class PersonVision(Node):
                 'rgb_age': -1.0, 'depth_age': -1.0, 'pose_age': -1.0,
                 'rgb_depth_skew': -1.0, 'pose_rgbd_skew': -1.0,
                 'contours': 0, 'area': 0, 'shape': 0,
-                'depth': 0, 'width': 0, 'association': 0, 'accepted': 0}
+                'depth': 0, 'width': 0, 'association': 0, 'accepted': 0,
+                'reject_samples': []}
+        def note_reject(reason, color, area, bbox, aspect,
+                        valid_depth=None, depth_q30=None, width_m=None):
+            # Bounded diagnostic examples only; candidate acceptance is unchanged.
+            if len(diag['reject_samples']) < 4:
+                diag['reject_samples'].append({
+                    'why': reason, 'color': color, 'area': int(area),
+                    'bbox': tuple(int(v) for v in bbox),
+                    'aspect': round(float(aspect), 3),
+                    'valid_depth': (None if valid_depth is None
+                                    else int(valid_depth)),
+                    'depth_q30': (None if depth_q30 is None
+                                  else round(float(depth_q30), 3)),
+                    'width_m': (None if width_m is None
+                                else round(float(width_m), 3)),
+                })
         miss = {'det': False, 'dist': -1.0, 'bc': 0.0, 'u': -1,
                 'area': 0, 'bbox': None, 'world_xy': None,
                 'track_error': None, 'obs_t': None, 'diag': diag}
@@ -431,25 +447,31 @@ class PersonVision(Node):
         cam_yaw = dict(CAMS)[name]
         for color_name, cnt in contour_sets:
             area = cv2.contourArea(cnt)
+            x, y, w, h = cv2.boundingRect(cnt)
+            asp = w / max(h, 1)
+            bbox = (x, y, w, h)
             if color_name == 'dark':
                 if area < AREA_MIN or area > AREA_MAX:
                     diag['area'] += 1
+                    note_reject('area', color_name, area, bbox, asp)
                     continue
             elif area < 250 or area > 18000:
                 diag['area'] += 1
+                note_reject('area', color_name, area, bbox, asp)
                 continue
-            x, y, w, h = cv2.boundingRect(cnt)
-            asp = w / max(h, 1)
             if color_name == 'dark':
                 if not (ASPECT_MIN <= asp <= ASPECT_MAX):
                     diag['shape'] += 1
+                    note_reject('shape', color_name, area, bbox, asp)
                     continue
             else:
                 if not (0.22 <= asp <= 1.25):
                     diag['shape'] += 1
+                    note_reject('shape', color_name, area, bbox, asp)
                     continue
                 if y + 0.5 * h > img_h * 0.78:
                     diag['shape'] += 1
+                    note_reject('shape_y', color_name, area, bbox, asp)
                     continue
             # 先过滤无效深度，再比较目标候选，避免最大伪影吞掉真实人体。
             y0 = y + int(h * 0.15)
@@ -459,6 +481,8 @@ class PersonVision(Node):
                         & (sub < DEPTH_MAX)]
             if valid.size < 10:
                 diag['depth'] += 1
+                note_reject('depth', color_name, area, bbox, asp,
+                            valid_depth=valid.size)
                 continue
             dist = float(np.quantile(valid, 0.30))
             # 被障碍切断的人体允许只剩 9cm 可见宽度。
@@ -466,9 +490,15 @@ class PersonVision(Node):
             if color_name == 'dark':
                 if not (W_VIS_MIN <= w_vis <= W_VIS_MAX):
                     diag['width'] += 1
+                    note_reject('width', color_name, area, bbox, asp,
+                                valid_depth=valid.size, depth_q30=dist,
+                                width_m=w_vis)
                     continue
             elif not (0.12 <= w_vis <= 0.48):
                 diag['width'] += 1
+                note_reject('width', color_name, area, bbox, asp,
+                            valid_depth=valid.size, depth_q30=dist,
+                            width_m=w_vis)
                 continue
             u = x + w / 2.0
             bc = (img_w / 2.0 - u) * HFOV / img_w
@@ -660,7 +690,7 @@ class PersonVision(Node):
                 detail = ' '.join(
                     '{}:stale={}({}),age[r/d/p]={:.3f}/{:.3f}/{:.3f},'
                     'skew[rd/p]={:.3f}/{:.3f},cnt={},area={},shape={},'
-                    'depth={},width={},assoc={}'.format(
+                    'depth={},width={},assoc={},reject_samples={}'.format(
                         name, results[name]['diag']['stale'],
                         results[name]['diag']['stale_reason'],
                         results[name]['diag']['rgb_age'],

@@ -167,6 +167,20 @@ class TestP104(unittest.TestCase):
         history = [(1.0, 0.0, 0.0, 0.0), (1.5, 1.0, 0.0, 0.0)]
         self.assertIsNone(V.pose_at_timestamp(history, 1.25))
 
+    def test_person_vision_rejection_diagnostics_capture_candidate_geometry(self):
+        vision_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
+            'person_vision.py')
+        with open(vision_path, encoding='utf-8') as stream:
+            source = stream.read()
+        self.assertIn("'reject_samples': []", source)
+        self.assertIn("note_reject('shape_y'", source)
+        self.assertIn("valid_depth=valid.size, depth_q30=dist", source)
+        self.assertIn("'reject_samples={}'", source)
+        self.assertIn("len(diag['reject_samples']) < 4", source)
+        self.assertIn("if not (0.22 <= asp <= 1.25)", source)
+        self.assertIn("elif area < 250 or area > 18000", source)
+
     def test_person_color_masks_detect_dark_skirt_and_blue_torso_separately(self):
         hsv = np.array([[
             [0, 0, 40],       # dark skirt
