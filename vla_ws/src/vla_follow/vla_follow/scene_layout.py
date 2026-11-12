@@ -78,7 +78,7 @@ PALM_HALF_GAP = 0.105         # 两手掌到杯心的横向间距
 CUP_PRESENT_R_MAX = 0.70
 # P94: 底盘补位。臂伸满仍差超过 35mm 时, 机器人朝人挪一段再递 —— 否则
 # `hand_to` 交接时杯子会从"离手 70mm 处"瞬移过去。
-PRESENT_APPROACH_GAP = 0.035   # 差多少才值得挪(小于它臂的余量能吸收)
+PRESENT_APPROACH_GAP = 0.010   # 递杯最大允许超出臂前伸距离 10mm；更大的余量必须经桌沿碰撞检查后补位
 PRESENT_APPROACH_MAX = 0.40    # 一次最多挪多少 —— 真正的上限由
 #                               # `table_clearance()` 现算: 贴到桌面
 #                               # PRESENT_TABLE_PAD 之内就不再往前
