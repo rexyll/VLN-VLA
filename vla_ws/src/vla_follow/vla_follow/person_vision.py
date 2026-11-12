@@ -363,10 +363,13 @@ class PersonVision(Node):
                 'track_error': None, 'obs_t': None, 'diag': diag}
         diag['rgb_age'] = now - tr if tr > 0.0 else -1.0
         diag['depth_age'] = now - td if td > 0.0 else -1.0
-        diag['pose_age'] = now - pose_t if pose_t > 0.0 else -1.0
+        latest_pose_t = float(pose_history[-1][0]) if pose_history else 0.0
+        diag['pose_age'] = now - latest_pose_t if latest_pose_t > 0.0 else -1.0
         if tr > 0.0 and td > 0.0:
             diag['rgb_depth_skew'] = abs(tr - td)
-            diag['pose_rgbd_skew'] = abs(pose_t - 0.5 * (tr + td))
+            diag['pose_rgbd_skew'] = (
+                abs(latest_pose_t - 0.5 * (tr + td))
+                if latest_pose_t > 0.0 else -1.0)
         if rgb is None or tr <= 0.0:
             diag['stale'] += 1
             diag['stale_reason'] = 'rgb_missing'
