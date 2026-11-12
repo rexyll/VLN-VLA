@@ -2436,8 +2436,9 @@ class TestP104(unittest.TestCase):
         self.assertLess(stage_gate, retry)
         self.assertIn("release_block_reason='right_arm_path_failed'", body)
         self.assertIn("node.carry.release(model)", body)
-        self.assertLess(body.index("node.carry.release(model)"),
-                        body.index("if not ok_r:"))
+        right_failure = body.index("if not ok_r:", retry)
+        release = body.index("node.carry.release(model)")
+        self.assertLess(right_failure, release)
 
     def test_command_snapshots_start_unknown_not_as_zero(self):
         task_path = os.path.join(
