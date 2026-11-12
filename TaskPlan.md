@@ -194,3 +194,15 @@
 - 将 artifact 收集范围改为所有 `drink_ci_*.json` 与 `drink_ci_*_shots/**`，确保第 1、2 轮各自的 JSON 和截图都被保留，不再只上传第一轮证据。
 - 未改变机器人速度、距离带、检测阈值、手杯几何门槛、碰撞检查或释放安全；workflow 超时仍为 50min，小于 job 60min 上限。
 - 本次工作流调整提交后等待 CI 实际执行；连续两轮均通过前，成功轮数仍按已核实的 1 轮记录。
+
+
+### 8.295 E2E #61 连续第二轮失败：单轮成功不等于同一仿真内可重复执行（2026-11-12）
+
+- E2E #61（run `43223358137`，commit `97fa2dbc`）构建、Gazebo/ROS 环境安装均成功；Python #924 与 CarryBus #664 通过；E2E 两轮批次失败。
+- Repeat 汇总：requested=2、completed=2、passed=1、failed=1、invalid=0、missing=0、unknown=0，`all_passed=false`、`runner_failed=true`。第 1 轮完整通过：全部阶段到 DONE/IDLE、observer exit 0、8 张截图归档；杯子回位 0.8mm、跟随 1.91m、末段 0.46m，但跟随带内占比仅 17.8%。第 2 轮停在 `PREPARE → FAIL_PREPARE`，observer exit 2，只有 arrive/following 两张图，杯子离 home 154.1mm；未执行交接、放回或交权，不能把本轮的 100% 跟随带内（无任务移动）视为成功。
+- 第二轮故障不是截图归档问题：第二轮 JSON 显示阶段仅 PREPARE，缺少其余八个阶段；归档器正确拒绝只有 2 张截图的结果。
+- `drink.log` 定位到第二轮在倒水/捧杯阶段右臂 reach 失败：5 次 IK refine 残差从 108.5mm 降至 16.4mm，仍高于既有 4.0mm 收敛要求，随后 `DRINK 失败: 倒水/捧杯阶段`。FK 与 Gazebo palm link 对齐约 3.46mm，关节状态年龄约 18ms，底盘真值与 IK base 快照一致；因此不是明显的 FK 标定或关节状态陈旧问题。
+- 同一 reach trace 中，求解各轮期间底盘真值 yaw 从约 -0.026rad 变化至 +0.305rad，truth_base_twist 曾达到约 0.10rad/s；但 `/drink/cmd_vel` 快照为空/过期，`/robot/cmd_vel` 快照为零，轮速也接近零。这说明底盘真值姿态在 IK 求解窗口发生了变化，但现有日志尚不足以判定是 Gazebo 真值采样/模型姿态扰动、其他控制通道、或求解目标相对基座变化；不能直接将其归因于 follower 或放宽 IK 收敛门槛。
+- 第二轮人员在收到“去喝水”命令时位于约 (2.80,1.98)，随后才逐步走向服务位；视觉曾在左相机以机器人相对方位约 +80.2°、距离约 0.62m 稳定检出。说明连续轮次的人员/机器人状态并非第 1 轮初始状态，重复任务会遇到状态累积和不同起始几何。
+- 下一步优先追踪失败 reach 的目标坐标、底盘真值姿态变化来源及 PREPARE 状态初始化；核查重复任务之间 robot/person/follower/cmd_mux 的所有权与位姿复位时序。新增诊断或修复必须保留 4.0mm IK 收敛要求、碰撞门控和 fail-closed；不以重置失败证据、缩短任务或更改人物路径制造通过。
+- 当前已核实完整 Gazebo E2E 成功轮数仍为 **1**；连续两轮稳定性未通过，P104-07 继续进行。
