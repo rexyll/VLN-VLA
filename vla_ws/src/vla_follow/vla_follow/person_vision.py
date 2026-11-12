@@ -690,7 +690,7 @@ class PersonVision(Node):
                 detail = ' '.join(
                     '{}:stale={}({}),age[r/d/p]={:.3f}/{:.3f}/{:.3f},'
                     'skew[rd/p]={:.3f}/{:.3f},cnt={},area={},shape={},'
-                    'depth={},width={},assoc=\'reject_samples={}\''.format(
+                    'depth={},width={},assoc={},\'reject_samples={}\''.format(
                         name, results[name]['diag']['stale'],
                         results[name]['diag']['stale_reason'],
                         results[name]['diag']['rgb_age'],
