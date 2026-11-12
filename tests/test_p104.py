@@ -2396,6 +2396,27 @@ class TestP104(unittest.TestCase):
         self.assertIn("'base_truth_xy_mm_at_ik':", motion)
         self.assertIn("'base_truth_yaw_deg_at_ik':", motion)
 
+    def test_reach_settles_sim_after_servo_before_world_pose_measurement(self):
+        motion_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
+            'drink_motion.py')
+        with open(motion_path, encoding='utf-8') as stream:
+            motion = stream.read()
+        start = motion.index('def reach(')
+        end = motion.index('def sim_now(', start)
+        body = motion[start:end]
+        move = body.index('ok_move, joint_err = node.arm[side].move(')
+        settle = body.index('settle_sim(node, 0.20)', move)
+        measure = body.index('T_after_move = wrist(node, side)', settle)
+        self.assertLess(move, settle)
+        self.assertLess(settle, measure)
+        grasp_start = motion.index('def grasp(')
+        grasp_end = motion.index('def held_palm_target(', grasp_start)
+        self.assertIn('tol_mm=GRASP_TOL_MM, passes=8',
+                      motion[grasp_start:grasp_end])
+        self.assertIn('if not ok or res > GRASP_TOL_MM * 3.0',
+                      motion[grasp_start:grasp_end])
+
     def test_command_snapshots_start_unknown_not_as_zero(self):
         task_path = os.path.join(
             ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',

@@ -10,13 +10,14 @@
 ## 当前执行位置（2026-11-12）
 
 - **当前主节点：P104-07（正在进行中）**。完整 DrinkTask E2E 入口为 `tests/test_drink.py`，单轮 headless 入口为 `tests/run_drink_headless.sh`，多轮顺序验收入口为 `tests/drink_repeat.sh`。CarryBus 专项和纯测试不能替代完整 Gazebo E2E。
-- **最新 main：** `9149c1d26541e32f5399a15b06c7d82cb4355889`。该提交包含新鲜 Gazebo robot 真值刷新 `node.base` 的修复，以及对应回归测试和旧断言同步。
-- **Python CI：** run `43033986491`（#899，head `9149c1d2`）completed/success；编译及77项P104纯数学/运动学测试通过。
-- **CarryBus CI：** run `43033986406`（#639，head `9149c1d2`）首次失败于ROS/Ubuntu依赖安装阶段，日志显示多个apt包下载时临时DNS解析失败（`Temporary failure resolving 'azure.archive.ubuntu.com'`），尚未执行CarryBus集成测试；已触发失败job重跑，等待结果。此为runner网络/包下载故障证据，不能记为代码测试失败或成功。
-- **最新真实 Gazebo E2E：** #41（run `43033799137`，head `26d19b63`）原运行被取消，未形成任务结果；已触发该job重跑，等待结果。此前#40（run `43031770733`）在 `PREPARE → FAIL_PREPARE` 失败：抓壶5轮后掌心残差7.1mm，未attach水壶，未进入后续任务。#40的base/truth同迭代差异揭示旧`node.base`未随truth快照刷新，当前代码已修复这一问题，但尚无完整E2E验证。
-- **本轮CI韧性修复：** CarryBus workflow 的apt update/install增加 `Acquire::Retries=5`，减少runner短暂DNS/下载故障导致的假阴性；不跳过依赖安装、不允许失败后继续测试。
+- **最新 main（本轮提交前）：** `7d4df5b014f272356bf0c4d215639892bb4ae6b2`。已修复 CarryBus apt 瞬时 DNS/下载失败的重试韧性。
+- **Python CI：** run `43130976103`（#900，head `7d4df5b0`）completed/success；源码编译与 P104 纯测试通过。
+- **CarryBus CI：** run `43130976169`（#640，head `7d4df5b0`）completed/success；ROS 2 Jazzy 安装、真实 ROS 2 executor integration 测试全部通过。此前 #639 的失败是 apt DNS 故障，重跑通过；不是代码测试失败。
+- **最新真实 Gazebo E2E：** #41（run `43033799137`，attempt 2，head `26d19b63`）completed/failure。环境安装、GraspCarry 插件构建、ROS 工作区构建均成功；完整任务失败于 `PREPARE → POUR 抓壶`：右手 reach 5/5 轮后残差 6.3mm，超过 5mm 抓取阈值，跳过 kettle attach 并停止倒水。完整任务未完成，未执行后续放回/交接。
+- **根因证据：** 每轮 IK 时的 `base_at_ik` 与同一时刻 Gazebo truth 快照一致（XY 0mm、yaw 0°），说明上一轮 node.base 陈旧问题已修复；但伺服完成后底盘仍有真值角速度，最终姿态变化使实际掌心偏离固定世界目标。第5轮真值角速度约 0.018rad/s，最终掌心位置误差 6.3mm、姿态误差 0.77°。新鲜真值更新本身有效，但 reach 在伺服刚进入容差时立即测量，未给机械臂/底盘反作用运动充分稳定时间。
+- **本轮修复：** `reach()` 每轮伺服后增加 0.20 仿真秒稳定时间，再用新鲜真值测量掌心；抓取闭环迭代上限由 5 增至 8，5mm 抓取阈值不变，attach 安全门控不变。增加顺序回归断言，确保“伺服→仿真稳定→掌心测量”执行顺序。
 - **验收计数：** 完整真实 Gazebo DrinkTask E2E 通过轮数仍为 **0**。不得放宽5mm抓取/1.5mm掌心精度，亦不得绕过碰撞/抓持/释放安全门控。
-- **下一步：** 确认CarryBus job重跑结果；确认Gazebo #41重跑是否执行以及任务实际阶段。若E2E仍在PREPARE失败，基于新鲜真值底盘数据分析剩余轮组运动与IK误差；若进入PUT_BACK，继续处理右前臂-桌面真实碰撞，任何方案先完成双臂全路径预检。
+- **下一步：** 对本轮 reach 稳定时间与额外抓取补偿迭代执行 Python CI 和完整 Gazebo E2E；若仍未收敛，读取逐轮 base twist 与掌心残差，继续定位底盘被动运动/反作用力来源，不降低精度阈值。
 - **分支纪律：** 所有后续改动只提交 `main`；不创建新分支或PR，不擅自合并其他分支。
 ---
 
@@ -4325,3 +4326,22 @@ P90 的坑见 §6.4 #46~#48；P91 的坑见 #49~#52；P92 的坑见 #53~#54。
 - **重跑：** 已通过GitHub Actions重新运行CarryBus #639失败job（job `130894115905`）和Gazebo E2E #41取消job（job `130894129220`）；提交本记录时两者仍在运行，须以重跑最终状态及artifact为准。
 - **当前代码行为：** 新鲜Gazebo真值底盘刷新修复仍需完整E2E验证。#40曾在PREPARE抓壶残差7.1mm处fail-closed；没有水壶attach或倒水。
 - **当前任务：** P104-07仍“正在进行中”；完整真实Gazebo DrinkTask E2E通过次数仍为 **0**。
+
+
+### 8.272 基于 E2E #41 伺服后底盘微动证据修复抓壶闭环收敛（2026-11-12）
+
+**失败证据（真实 Gazebo E2E #41 attempt 2）：**
+- 环境、GraspCarry 插件、ROS 工作区构建均通过；完整任务失败于 `POUR 抓壶`。
+- 右手抓壶 reach 5/5 轮后残差 6.3mm，超过 5mm 抓取门槛；`grasp()` 因此跳过 attach，任务停止倒水。
+- 每轮 IK 的 `base_at_ik` 与同一时刻 Gazebo truth 快照完全一致（XY 0mm、yaw 0°），排除旧 `node.base` 未刷新的问题。
+- 伺服完成后仍观测到 truth base yaw 变化；最终姿态误差 0.77°，说明在关节刚进入伺服容差时立即测量，仍可能把机械臂/底盘反作用运动计入末端残差。
+
+**修复：**
+- `drink_motion.reach()` 在关节伺服命令完成后先推进 0.20 仿真秒，再读取新鲜真值底盘和实测关节角计算掌心残差。
+- `grasp()` 的抓取闭环最多迭代 8 轮（此前 5 轮）；继续使用原有 `GRASP_TOL_MM=5.0`，不降低抓取精度要求。
+- 未改变人体关节规则、桌面碰撞门控、attach ACK 校验及失败时保持未附着的安全策略。
+- 新增静态回归断言，验证伺服、仿真稳定等待、掌心测量的顺序，以及抓取阈值/attach 门控保持不变。
+
+**验证边界：**
+- 本节代码与 TaskPlan 状态更新提交后，需以新 commit 的 Python CI 和真实 Gazebo E2E 验证。
+- 不能用纯测试通过替代 Gazebo 结果；P104-07/P104-08/P104-09 继续保持“正在进行中”。

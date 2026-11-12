@@ -692,6 +692,11 @@ def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
             q, timeout=timeout,
             tol_deg=(tol_deg if tol_deg is not None
                      else TOL_SCHED[min(it, len(TOL_SCHED) - 1)]))
+        # Servo completion only means the joints entered tolerance; the arm
+        # can still settle and transmit reaction torque into the mobile base.
+        # Let Gazebo advance before measuring the world-frame palm so the next
+        # IK pass starts from a settled, fresh base-truth snapshot.
+        settle_sim(node, 0.20)
         T_after_move = wrist(node, side)
         res = pos_err_mm(T_after_move, T_world)
         joint_err_deg = (
@@ -1047,7 +1052,10 @@ def grasp(node, side, model, palm_fn, grip, approach=0.10, verbose=True):
             'grasp %s (%s): 接近位未到达 %.1fmm，禁止继续伸入' %
             (model, side, res_pre))
         return False, res_pre
-    ok, res, how = reach(node, side, T_grasp, tol_mm=GRASP_TOL_MM)
+    # A grasp may induce small chassis motion through arm reaction torque.
+    # Keep the 5mm gate unchanged, but allow extra truth-refreshed correction
+    # passes after each post-servo settling interval.
+    ok, res, how = reach(node, side, T_grasp, tol_mm=GRASP_TOL_MM, passes=8)
     # P98 补: reach 严重未到位还照旧 attach, 会把物体钉到 0.3m 外(实测把杯
     # 钉飞、场景全污)。阈值取 3x 容差: 边缘差几毫米照常抓(IK 已收敛, 手指
     # 闭合余量足够), 300mm 级的灾难失败才拒绝, 让上游走 FAIL 路径。
