@@ -295,3 +295,10 @@
 - 修复：新增纯判定 `base_motion_snapshot_ok()`，要求左右轮速度均 ≤0.05rad/s、Gazebo 真值平面速度 ≤0.01m/s、角速度 ≤0.015rad/s，且 joint state 与真值 twist 年龄均 ≤0.25s；新增 `wait_base_stopped()`，先发布零速度，再要求上述证据连续稳定至少 0.25 仿真秒，最多等待 4.0 仿真秒，缺数据/超时即 fail-closed。所有 `place_robot()` 在 teleport 前等待停稳，teleport 后再次等待停稳，再读取并验收位姿；原有位置 8mm、yaw 2° 门槛保持不变。
 - 新增回归测试覆盖轮速超限、真值角速度超限、遥测陈旧、缺失轮速以及 teleport 前后停稳检查顺序。未修改 4mm IK 门槛、机械臂伺服精度、人体关节约束或桌面碰撞检查。
 - 验证状态：等待本提交的 Python/编译、CarryBus 与连续双轮 Gazebo E2E。完整 Gazebo E2E 成功轮数仍为 **1**；P104-07 保持“正在进行中”。
+
+
+### 8.306 修正底盘停稳回归测试的插入位置（2026-11-13）
+
+- 提交 `da4075dc4a24cfb7d0cbdb228fd434bd8b821ad0` 的首次 Python CI 在编译和纯测试阶段均发现 `tests/test_p104.py` 语法错误；定位为自动插入新测试时误匹配了测试函数内部字符串中的 `if __name__ == '__main__'`，将方法体写入字符串字面量，导致未闭合字符串。
+- 修正：恢复原有 observer main-finally 测试中的 `main_end` 字符串表达式，并将两项底盘停稳回归测试放到测试类结束、模块级 `unittest.main()` 之前。未改动底盘控制实现。
+- 当前提交的 CarryBus 与 Gazebo E2E 仍需分别读取结果；语法修复后的 Python/编译 CI 重新通过前，不把新控制修复标记为验证通过。完整 E2E 成功轮数仍为 **1**，P104-07 保持进行中。
