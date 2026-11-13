@@ -2560,8 +2560,8 @@ def person_hand_midpoint_predict(T_left_palm, T_right_palm,
         # apply only the commanded joint delta about that link's local origin.
         Tll = Tl @ np.linalg.inv(K.trans(ol))
         Trl = Tr @ np.linalg.inv(K.trans(or_))
-        Tlp = Tll @ K.rot_z(target - ql) @ K.trans(ol)
-        Trp = Trl @ K.rot_z(-target - qr) @ K.trans(or_)
+        Tlp = Tll @ K.frame(K.rot_z(target - ql)) @ K.trans(ol)
+        Trp = Trl @ K.frame(K.rot_z(-target - qr)) @ K.trans(or_)
         midpoint = 0.5 * (Tlp[:3, 3] + Trp[:3, 3])
         if not np.all(np.isfinite(midpoint)):
             return None
