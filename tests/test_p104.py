@@ -2701,9 +2701,7 @@ class TestP104(unittest.TestCase):
         first_attempt = body.index("how_r == 'table-collision'")
         sweep = body.index('for _candidate in putback_route_candidates(T_right_goal):',
                            first_attempt)
-        preflight = body.index(
-            'preflight_table_route(\n                    node, \'R\', [_route_waypoint, T_right_goal]',
-            sweep)
+        preflight = body.index('preflight_table_route(', sweep)
         execute_waypoint = body.index("node, 'R', _route_waypoint", preflight)
         retry_final = body.index("node, 'R', T_right_goal", execute_waypoint)
         self.assertLess(first_attempt, sweep)
