@@ -2960,6 +2960,19 @@ class TestP104(unittest.TestCase):
         self.assertIn('endpoint_hits=%s', body)
 
 
+    def test_handover_logs_cup_and_palms_before_and_after_person_close(self):
+        task_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
+            'drink_task.py')
+        with open(task_path, encoding='utf-8') as stream:
+            source = stream.read()
+        self.assertIn('HANDOVER_PRE_CLOSE cup_xyz=%s left_xyz=%s right_xyz=%s gap_mm=%s', source)
+        self.assertIn('HANDOVER_POST_CLOSE cup_xyz=%s cup_drift_mm=%s gap_mm=%s', source)
+        self.assertIn('_close_drift_mm', source)
+        self.assertLess(source.index('HANDOVER_PRE_CLOSE'), source.index('ok_person_grip = M.person_hands'))
+        self.assertLess(source.index('ok_person_grip = M.person_hands'), source.index('HANDOVER_POST_CLOSE'))
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)
 

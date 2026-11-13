@@ -824,6 +824,18 @@ class DrinkTask(Node):
                     % (ok_present, present_mm, ok_follow, follow_mm))
                 return False
             self.spin_for(0.5)
+            _cup_before_person_close = M.object_pose(self, 'cup')
+            _hl_before_close, _hr_before_close = M.person_hand_poses(self)
+            self.get_logger().info(
+                'HANDOVER_PRE_CLOSE cup_xyz=%s left_xyz=%s right_xyz=%s gap_mm=%s' %
+                (np.round(_cup_before_person_close[:3, 3], 5).tolist()
+                 if _cup_before_person_close is not None else None,
+                 np.round(_hl_before_close[:3, 3], 5).tolist()
+                 if _hl_before_close is not None else None,
+                 np.round(_hr_before_close[:3, 3], 5).tolist()
+                 if _hr_before_close is not None else None,
+                 (round(M.hand_gap_mm(self), 2)
+                  if M.hand_gap_mm(self) is not None else None)))
             res['hands'] = {'open_gap_mm': M.hand_gap_mm(self)}
             # 3) **人先双手合拢捧住 → 机器人才松手**。
             #    反过来的话(机器人先松、人再合), 杯子会在两只手中间悬着 0.8s,
@@ -838,6 +850,20 @@ class DrinkTask(Node):
                     'DRINK 人手未确认合拢；不执行机器人交接')
                 return False
             res['hands']['close_gap_mm'] = M.hand_gap_mm(self)
+            _cup_after_person_close = M.object_pose(self, 'cup')
+            _close_drift_mm = (
+                float(np.linalg.norm(_cup_after_person_close[:3, 3] -
+                                     _cup_before_person_close[:3, 3])) * 1000.0
+                if (_cup_after_person_close is not None and
+                    _cup_before_person_close is not None) else None)
+            self.get_logger().info(
+                'HANDOVER_POST_CLOSE cup_xyz=%s cup_drift_mm=%s gap_mm=%s' %
+                (np.round(_cup_after_person_close[:3, 3], 5).tolist()
+                 if _cup_after_person_close is not None else None,
+                 (round(_close_drift_mm, 2)
+                  if _close_drift_mm is not None else None),
+                 (round(float(res['hands']['close_gap_mm']), 2)
+                  if res['hands']['close_gap_mm'] is not None else None)))
             # P96: **交接前**的手-杯间距是"递杯精度"(和 P94 的 d_hand 同一个
             # 东西), **交接后**的才是"两只手捧没捧在杯壁上"。混在一起量的话,
             # 实测会把 23mm 的递杯误差(机器人把杯子递偏了)当成"手没捧住"

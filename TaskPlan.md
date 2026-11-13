@@ -518,3 +518,13 @@
 - 系统保持杯子附着并阻止 release；未发生不安全松手。observer exit 2，截图采集 6 张但 archive 未完成，缺 placed/handback；RETREAT/HANDBACK/DONE 未执行。follow_travel=0m、末段人机距离 2.92m，不能视为跟随通过。
 - 新增只读诊断：对每个通过 4mm IK/FK 与人体关节规则筛选、但完整路径被拒绝的冗余 IK seed，再独立检查其终点姿态碰撞；日志统计 endpoint_clear_seeds 并保留首批终点碰撞几何。此项不改变候选接受、运动执行、碰撞模型或安全门槛，只用于判断 7 轴冗余姿态中是否存在终点无碰撞但路径碰撞的分支。
 - 下一步根据新计数决策：若存在终点无碰撞 seed，规划从高位航点到该分支的连续无碰撞路径；若全部终点均碰撞，则优先调整机器人相对桌沿站位或双手支撑位姿设计，不得缩小碰撞盒、放宽 4mm IK/FK 或提前 release。完整 Gazebo E2E 成功轮数仍为 1；P104-07 继续正在进行中。
+
+
+### 8.333 E2E #77 HANDOVER 再现性与杯体漂移定位（2026-11-13）
+
+- 提交 840827517cb97563628347c2f0acff76719a924e 的 Python 测试/编译 run 43389363729 成功，CarryBus run 43389363597 成功；Gazebo E2E run 43389363624 失败，artifact 14020951666。requested=2、completed=1、passed=0、failed=2、round 2 缺失、all_passed=false、runner_failed=true。
+- 本轮只执行 PREPARE→PRESENT→FAIL_HANDOVER_GEOMETRY，未进入 PUT_BACK，因此 endpoint_clear_seeds 诊断未被触发；不能将本轮作为 PUT_BACK 冗余 IK 结果。
+- PRESENT_EXEC_RESULT 目标/实际杯位置误差 1.025mm、轴角 0.091°。HANDOVER 真值：张开间距 345.3mm，合拢间距 208.1mm；左/右手到杯轴 71.8/140.1mm，右手超出既有 67–117mm 带，fail-closed 保持机器人持杯、不交权。HANDOVER_GEOM 中手心中点 [2.0277,0.9354,1.0]m，杯轴 [2.0681,0.9523,1.0]m，杯轴相对中点 [40.4,16.8,0]mm，沿手间连线偏移 -35.3mm。
+- PRESENT_EXEC_RESULT 时杯轴约 [2.02755,0.93920,0.99999]m；HANDOVER_GEOM 时约 [2.0681,0.9523,1.0]m，二者存在约 43mm 的位置差。两次采样之间执行了右臂 follow_hand 与人手合拢，因此现有日志无法判断漂移发生在 follow_hand、手掌接触还是其它物理耦合阶段。该差值是诊断线索，不能直接断言杯体已发生物理漂移。
+- 新增 HANDOVER_PRE_CLOSE 与 HANDOVER_POST_CLOSE 只读快照：记录人手合拢前杯体/双掌位置与间距，以及合拢后杯体位置、杯体位移量和手掌间距。用于把杯体偏移定位到 follow_hand 后、闭手动作期间或闭手后；不改变任何控制动作、交接门槛、持有权或安全行为。
+- 下一轮若杯体在闭手前已偏移，检查 follow_hand 的杯体刚体保持；若只在闭手过程中偏移，检查人手与杯体碰撞/接触物理；若杯体不漂移而掌心中点变化，则检查手臂闭合姿态预测。PUT_BACK 终点姿态诊断等待一轮成功通过 HANDOVER 后再取证。完整 E2E 成功次数仍为 1；P104-07 继续正在进行中。
