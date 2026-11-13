@@ -161,7 +161,8 @@ class TestP104(unittest.TestCase):
         transfer = source.index("self.carry.hand_to('cup', 'person', 'person_arms'", start)
         diagnostic = source.index('HANDOVER_GEOM world_m', start)
         self.assertLess(start, gate)
-        self.assertLess(diagnostic, gate)\n        self.assertLess(gate, transfer)
+        self.assertLess(diagnostic, gate)
+        self.assertLess(gate, transfer)
         self.assertIn('保持机器人持杯，不交权', source[start:transfer])
 
     def test_pose_history_interpolates_at_rgbd_capture_time_without_extrapolation(self):
