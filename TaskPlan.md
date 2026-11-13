@@ -26,7 +26,7 @@
 - 状态：**正在进行中**
 - 完整真实 Gazebo DrinkTask E2E 成功轮数：**1（E2E #60，单轮通过；连续多轮稳定性仍未验收）**
 - 已稳定通过的部分：ROS 2 工作区构建、Python 单元回归、CarryBus 回归；E2E #60 首次完整通过任务、观察器进程、8 张截图归档及交权后视觉跟随指标。
-- 当前阻塞：最新 Gazebo E2E run `43443794416`（commit `ec6ea2e`）在 `PREPARE → FAIL_PREPARE` 停止。artifact `14047628413` 显示右臂倒水位形 reach 5/5 后掌心残差 11.5mm、物体残差 13.2mm，超过原 4mm IK 门槛；过程中底盘偏航从约 -0.015rad 扩大到 -0.10rad。诊断发现位姿保持控制在 XY 误差越过 30mm 时切回 reverse-bearing 控制，可能产生与 yaw 恢复相反的转向。已将分阶段 yaw/纵向控制区间扩大到 60mm，并增加 34mm 偏移回归测试；待 CI 与 Gazebo E2E 验证。不得放宽 IK、掌心、人体姿态、碰撞或 release 门槛。
+- 当前阻塞：最新 Gazebo E2E run `43447334486`（commit `06c0bbe`）在 `PREPARE → FAIL_PREPARE` 停止。artifact `14049327143` 显示倒水位形 reach 5/5 后掌心残差 10.6mm、物体残差 11.1mm，超过原 4mm IK 门槛。时间序列显示底盘 yaw 从 -0.010rad 超调至 +0.126rad，随后控制器反向制动；这是底盘角速度惯性导致的 pose-only P 控制超调，不是角度误差符号错误。已在 arm-reaction 保持窗口引入 Gazebo 真值 yaw-rate 阻尼、0.04rad/s 角速度上限，并在 twist 真值过期时 fail-safe 输出零；待 CI 与 Gazebo E2E 验证。不得放宽 IK、掌心、人体姿态、碰撞或 release 门槛。
 
 ## 任务章节
 
@@ -714,3 +714,12 @@
 - 根因定位：近目标分阶段保持控制此前仅在 XY 偏差 ≤30mm 时启用；本轮机械臂反作用将底盘推过该边界后，控制器切回 reverse-bearing 分支，重新允许倒车转向逻辑改变 yaw。该模式切换与 yaw 误差扩大、后续 IK 世界目标残差恶化在时间上吻合。
 - 修正：将 yaw 优先、对齐后仅纵向校正的分阶段控制区间扩大至 60mm；在 34mm XY 偏移、-0.09rad yaw 的回归样本中，必须输出零线速度和正向 yaw 修正，避免切回 reverse-bearing 分支。较大位移仍使用原有有界控制；线/角速度上限不变。
 - 未修改 4mm IK 门槛、3mm 杯体放置精度、人体关节规则、碰撞检测、关节限位、抓持或 release 条件。新修复尚待 Python/CarryBus/Gazebo 验证；完整双轮 E2E 成功次数仍为 **1**，P104-07 继续正在进行中。
+
+
+### 8.354 PREPARE 底盘偏航惯性阻尼与真值过期保护（2026-11-13）
+
+- run `43447334486`（commit `06c0bbe`，artifact `14049327143`）Python 与 CarryBus 均通过，Gazebo E2E 失败于 `PREPARE → FAIL_PREPARE`；第二轮缺失，完整阶段仅 `PREPARE`。
+- 日志记录倒水位形 reach 5/5 后掌心残差 10.6mm、物体残差 11.1mm；IK/FK 自洽且关节伺服误差为 0，但严格 4mm reach 门槛未满足，系统保持水壶抓持并禁止水柱启动。
+- 控制时序：初始 yaw=-0.01043rad，目标约 0，初始角速度 +0.006rad/s、命令 +0.01259rad/s；随后 yaw 超调至 +0.12559rad，控制器已正确反向输出 -0.12rad/s，但底盘仍有 +0.0679rad/s 角速度。后续真值角速度转负，表明这是底盘惯性/响应滞后造成的超调，而非 yaw 误差符号错误。此前把它描述为“错误方向命令”不准确，现予以更正。
+- 修正：分阶段 arm-reaction 保持控制使用 Gazebo 真值角速度做阻尼项 `1.2*theta - 1.5*yaw_rate`，将该窗口角速度限幅收紧到 0.04rad/s；仅在 pose 与 twist 真值都新鲜（≤0.25s）时发控制，否则输出零。常规 Nav2 与较大范围运动控制不变。
+- 新增测试覆盖角速度阻尼与限幅。未修改 4mm IK、3mm 放置精度、碰撞/关节限制、抓持与 release 门控。该控制修复待 CI 和 Gazebo E2E 验证；完整双轮成功次数仍为 **1**，P104-07 继续进行中。

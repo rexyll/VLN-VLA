@@ -1662,9 +1662,15 @@ class DrinkTask(Node):
             if snapshot is None or now_mono - snapshot[1] > 0.25:
                 self.drive(0.0, 0.0)
             else:
-                vx, wz = _motion_mod.base_pose_hold_velocity(
-                    hold_target, snapshot[0])
-                self.drive(vx, wz)
+                twist_age = (now_mono - self.truth_base_twist_t
+                             if self.truth_base_twist_t else float('inf'))
+                if (self.truth_base_twist is None or twist_age > 0.25):
+                    self.drive(0.0, 0.0)
+                else:
+                    vx, wz = _motion_mod.base_pose_hold_velocity(
+                        hold_target, snapshot[0],
+                        current_twist=self.truth_base_twist)
+                    self.drive(vx, wz)
         self.bus.publish_all()
         now = time.time()
         # P98: 道具自愈 —— 壶/杯是自由体, 速度只增不减, 漂出场外后喝水

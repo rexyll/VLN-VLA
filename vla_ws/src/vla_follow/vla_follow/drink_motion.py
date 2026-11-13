@@ -1012,18 +1012,18 @@ def wrap_deg(a):
 
 
 def base_pose_hold_velocity(target, current, max_linear=0.04,
-                           max_angular=0.12):
+                           max_angular=0.12, current_twist=(0.0, 0.0, 0.0)):
     """Bounded unicycle pose stabilizer for short arm-reaction disturbances.
 
     target/current are (x, y, yaw) in world coordinates. Reverse motion is
     allowed so the controller can return to the captured pose without making
     a full turn. This is active only during bounded arm-reaction windows (PREPARE pour and PRESENT follow_hand).
     """
-    values = tuple(float(v) for v in (*target, *current,
+    values = tuple(float(v) for v in (*target, *current, *current_twist,
                                       max_linear, max_angular))
     if not all(math.isfinite(v) for v in values):
         return 0.0, 0.0
-    tx, ty, tyaw, x, y, yaw, vlim, wlim = values
+    tx, ty, tyaw, x, y, yaw, _tvx, _tvy, yaw_rate, vlim, wlim = values
     if vlim <= 0.0 or wlim <= 0.0:
         return 0.0, 0.0
     dx, dy = tx - x, ty - y
@@ -1039,7 +1039,12 @@ def base_pose_hold_velocity(target, current, max_linear=0.04,
     # Keep the staged yaw/longitudinal controller through a 60mm recovery band.
     if rho <= 0.06:
         if abs(theta) > math.radians(0.5):
-            wz = max(-wlim, min(wlim, 1.2 * theta))
+            # Gazebo chassis yaw has measurable inertia: pose-only P control
+            # reversed after crossing the target but still overshot. Use the
+            # independently sampled truth yaw rate as derivative damping.
+            hold_wlim = min(wlim, 0.04)
+            wz = max(-hold_wlim, min(
+                hold_wlim, 1.2 * theta - 1.5 * yaw_rate))
             return 0.0, wz
         longitudinal = dx * math.cos(yaw) + dy * math.sin(yaw)
         vx = max(-vlim, min(vlim, 0.8 * longitudinal))

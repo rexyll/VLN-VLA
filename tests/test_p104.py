@@ -2955,6 +2955,19 @@ class TestP104(unittest.TestCase):
         self.assertEqual(vx_drift, 0.0)
         self.assertGreater(wz_drift, 0.0)
         self.assertLessEqual(abs(wz_drift), 0.12)
+        # Dampen measured chassis angular momentum and cap corrective yaw.
+        vx_damped, wz_damped = M.base_pose_hold_velocity(
+            (0.0, 0.0, 0.0), (0.0, 0.0, 0.01),
+            current_twist=(0.0, 0.0, 0.08))
+        self.assertEqual(vx_damped, 0.0)
+        self.assertLess(wz_damped, 0.0)
+        self.assertLessEqual(abs(wz_damped), 0.04)
+        vx_brake, wz_brake = M.base_pose_hold_velocity(
+            (0.0, 0.0, 0.0), (0.0, 0.0, -0.01),
+            current_twist=(0.0, 0.0, 0.08))
+        self.assertEqual(vx_brake, 0.0)
+        self.assertLess(wz_brake, 0.0)
+        self.assertLessEqual(abs(wz_brake), 0.04)
         # Once yaw is aligned, longitudinal correction must not add yaw.
         vx_xy, wz_xy = M.base_pose_hold_velocity(
             (0.0, 0.0, 0.0), (0.009, 0.002, 0.0))
