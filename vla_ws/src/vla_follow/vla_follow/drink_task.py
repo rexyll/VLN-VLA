@@ -833,10 +833,13 @@ class DrinkTask(Node):
             if (_pre_hc is None or not M.person_handover_geometry_ok(
                     _pre_hc[:2], L.CUP_GRIP_R * 1000.0, 25.0)):
                 self._set_state('FAIL_HANDOVER_GEOMETRY')
+                _pre_hc_text = (
+                    '不可用' if _pre_hc is None else
+                    'L=%.1fmm, R=%.1fmm' % (
+                        float(_pre_hc[0]), float(_pre_hc[1])))
                 self.get_logger().error(
                     'DRINK 交接前双手未进入杯轴相切带: %s；保持机器人持杯，不交权'
-                    % (None if _pre_hc is None else
-                       tuple(round(v, 1) for v in _pre_hc[:2])))
+                    % _pre_hc_text)
                 return False
             # 保存世界系手心中点、杯轴相对中点的三维偏差和沿手间连线
             # 的有符号偏移，并记录 person_arms/link 原始真值与实测关节值。

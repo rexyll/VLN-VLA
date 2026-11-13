@@ -2679,3 +2679,20 @@ class TestP104(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)
+
+    def test_handover_geometry_failure_log_formats_pair_without_tuple_unpack(self):
+        task_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
+            'drink_task.py')
+        with open(task_path, encoding='utf-8') as stream:
+            source = stream.read()
+        start = source.index('_pre_hc = M.hands_to_cup_mm(self)')
+        end = source.index('            # 保存世界系手心中点', start)
+        body = source[start:end]
+        self.assertIn("'不可用' if _pre_hc is None else", body)
+        self.assertIn("'L=%.1fmm, R=%.1fmm' % (", body)
+        self.assertIn('% _pre_hc_text)', body)
+        self.assertNotIn('% (None if _pre_hc is None', body)
+        self.assertIn("self._set_state('FAIL_HANDOVER_GEOMETRY')", body)
+        self.assertIn('保持机器人持杯，不交权', body)
+
