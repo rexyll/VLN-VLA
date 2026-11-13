@@ -315,3 +315,13 @@
 - 提交 `279c55221e7f3860b8452268d6de540eb21de6e1` 的 Python 编译通过；95 项纯测试中 94 项通过，唯一失败为新增静态测试使用 `str.index(sub, 1)` 查找“第二次”停稳检查，实际返回了第一次出现的位置，导致顺序断言错误。
 - 修正为先定位 teleport 后的 `settle_sim()`，再从该位置查找后置停稳检查，并分别验证“前置停稳 → teleport/settle → 后置停稳 → 读取真值位姿”的顺序。生产代码未改变。
 - 继续等待下一轮 Python/CarryBus 与当前 Gazebo E2E；完整 E2E 成功轮数仍为 **1**，P104-07 保持进行中。
+
+
+### 8.309 将交接失败的世界坐标诊断前移到 fail-closed 门控之前（2026-11-13）
+
+- E2E #69（run `43352924130`，提交 `da4075dc4a24cfb7d0cbdb228fd434bd8b821ad0`）已完成但失败。该运行的 Python 与 CarryBus 对应提交曾因测试代码问题未通过/未验证，Gazebo E2E 本身已执行；底盘停稳机制在本轮多次输出左右轮近零、Gazebo 真值 twist=(0,0,0)，说明它确实被调用且观测到静止。
+- 本轮 DrinkTask 只完成 PREPARE、PRESENT，随后以 `FAIL_HANDOVER_GEOMETRY` 正确拒绝交权；双手间距 184.1mm，杯轴距离 L=59.7mm、R=127.7mm，均值 93.7mm 但相对目标 92mm 分别偏离 -32.3/+35.7mm，未满足既有 92±25mm 条件。任务未完成、仅 3 张早期截图、归档失败；repeat requested=2、completed=1、passed=0、failed=2、round2 missing、all_passed=false。
+- 重要诊断缺口：原本已有 `HANDOVER_GEOM world_m` 日志（双手、杯轴、手心中点、cup-minus-mid、侧向偏移、person/arms_link 和手臂关节），但它位于几何 gate 之后；一旦 fail-closed，恰好最需要的世界坐标就不会记录。
+- 修复：将既有只读几何诊断整体移到 `FAIL_HANDOVER_GEOMETRY` 判定之前；不改变任何动作、目标位姿、所有权转移顺序或相切带阈值。新增静态回归断言，确保 `HANDOVER_GEOM world_m` 必须先于失败 gate 记录，且 gate 仍先于 `carry.hand_to()` 所有权转移。
+- 下一步读取新运行中失败样本的真实世界坐标，分离杯轴中点偏差与双手连线方向偏差，再确定是否需要对 PRESENT 目标做受碰撞约束的几何修正。不得用单纯平移猜测、放宽 67–117mm 相切带或绕过 fail-closed。
+- 完整 Gazebo E2E 成功轮数仍为 **1**；P104-07 保持“正在进行中”。

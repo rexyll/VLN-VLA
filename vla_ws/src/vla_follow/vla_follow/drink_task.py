@@ -826,21 +826,6 @@ class DrinkTask(Node):
             if _hc is not None:
                 res['hands'].update(recv_l_mm=round(_hc[0], 1),
                                     recv_r_mm=round(_hc[1], 1))
-            # P104: 交接前必须验证两只手均处于杯轴相切带。CarryBus.hand_to
-            # 会冻结当前 host->cup 相对变换，不会把杯子瞬移到目标手点；若
-            # 此时几何不合格，先 fail closed，继续由机器人持杯，不得转移所有权。
-            _pre_hc = M.hands_to_cup_mm(self)
-            if (_pre_hc is None or not M.person_handover_geometry_ok(
-                    _pre_hc[:2], L.CUP_GRIP_R * 1000.0, 25.0)):
-                self._set_state('FAIL_HANDOVER_GEOMETRY')
-                _pre_hc_text = (
-                    '不可用' if _pre_hc is None else
-                    'L=%.1fmm, R=%.1fmm' % (
-                        float(_pre_hc[0]), float(_pre_hc[1])))
-                self.get_logger().error(
-                    'DRINK 交接前双手未进入杯轴相切带: %s；保持机器人持杯，不交权'
-                    % _pre_hc_text)
-                return False
             # 保存世界系手心中点、杯轴相对中点的三维偏差和沿手间连线
             # 的有符号偏移，并记录 person_arms/link 原始真值与实测关节值。
             _hl, _hr = M.person_hand_poses(self)
@@ -871,6 +856,21 @@ class DrinkTask(Node):
                         if _tp is not None else None),
                        (np.round(_ta[:3, 3], 4).tolist()
                         if _ta is not None else None), _arm_q))
+            # P104: 交接前必须验证两只手均处于杯轴相切带。CarryBus.hand_to
+            # 会冻结当前 host->cup 相对变换，不会把杯子瞬移到目标手点；若
+            # 此时几何不合格，先 fail closed，继续由机器人持杯，不得转移所有权。
+            _pre_hc = M.hands_to_cup_mm(self)
+            if (_pre_hc is None or not M.person_handover_geometry_ok(
+                    _pre_hc[:2], L.CUP_GRIP_R * 1000.0, 25.0)):
+                self._set_state('FAIL_HANDOVER_GEOMETRY')
+                _pre_hc_text = (
+                    '不可用' if _pre_hc is None else
+                    'L=%.1fmm, R=%.1fmm' % (
+                        float(_pre_hc[0]), float(_pre_hc[1])))
+                self.get_logger().error(
+                    'DRINK 交接前双手未进入杯轴相切带: %s；保持机器人持杯，不交权'
+                    % _pre_hc_text)
+                return False
             self._set_state('HANDOVER', {'approach': res['approach'],
                                          'hands': res['hands']})
             ok_h = self.carry.hand_to('cup', 'person', 'person_arms',
