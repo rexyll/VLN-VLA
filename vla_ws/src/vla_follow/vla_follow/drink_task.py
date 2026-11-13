@@ -811,8 +811,53 @@ class DrinkTask(Node):
                   if _present_ang_deg is not None else None)))
             # Both arms approach the handover pose across the table edge.
             # Gate each complete interpolated path before moving either arm.
+            # Snapshot the cup and right palm around the secondary-hand follow.
+            # The cup is attached to the left palm; this read-only trace distinguishes
+            # an inaccurate frozen offset from contact-induced cup displacement.
+            _cup_before_follow = M.object_pose(self, 'cup')
+            _right_before_follow = M.wrist(self, 'R')
+            _right_goal_follow = (
+                _cup_before_follow @ np.asarray(pr['off_r'], float)
+                if _cup_before_follow is not None and pr.get('off_r') is not None
+                else None)
+            self.get_logger().info(
+                'PRESENT_FOLLOW_PRE cup_xyz=%s right_xyz=%s right_goal_xyz=%s '
+                'off_r_xyz=%s base=%s' %
+                (np.round(_cup_before_follow[:3, 3], 5).tolist()
+                 if _cup_before_follow is not None else None,
+                 np.round(_right_before_follow[:3, 3], 5).tolist()
+                 if _right_before_follow is not None else None,
+                 np.round(_right_goal_follow[:3, 3], 5).tolist()
+                 if _right_goal_follow is not None else None,
+                 np.round(np.asarray(pr['off_r'], float)[:3, 3], 5).tolist()
+                 if pr.get('off_r') is not None else None,
+                 np.round(self.base, 5).tolist()))
             ok_follow, follow_mm = M.follow_hand(
                 self, 'R', 'cup', pr['off_r'], check_table=True)
+            _cup_after_follow = M.object_pose(self, 'cup')
+            _right_after_follow = M.wrist(self, 'R')
+            _follow_drift_mm = (
+                float(np.linalg.norm(_cup_after_follow[:3, 3] -
+                                     _cup_before_follow[:3, 3])) * 1000.0
+                if (_cup_after_follow is not None and
+                    _cup_before_follow is not None) else None)
+            _follow_right_err_mm = (
+                M.pos_err_mm(_right_after_follow, _right_goal_follow)
+                if (_right_after_follow is not None and
+                    _right_goal_follow is not None) else None)
+            self.get_logger().info(
+                'PRESENT_FOLLOW_POST ok=%s reported_mm=%.3f cup_xyz=%s '
+                'cup_drift_mm=%s right_xyz=%s right_goal_err_mm=%s base=%s' %
+                (ok_follow, float(follow_mm),
+                 np.round(_cup_after_follow[:3, 3], 5).tolist()
+                 if _cup_after_follow is not None else None,
+                 (round(_follow_drift_mm, 3)
+                  if _follow_drift_mm is not None else None),
+                 np.round(_right_after_follow[:3, 3], 5).tolist()
+                 if _right_after_follow is not None else None,
+                 (round(float(_follow_right_err_mm), 3)
+                  if _follow_right_err_mm is not None else None),
+                 np.round(self.base, 5).tolist()))
             res['present'] = {'ok': ok_present, 'position_mm': present_mm,
                               'right_hand_ok': ok_follow,
                               'right_hand_mm': follow_mm}
