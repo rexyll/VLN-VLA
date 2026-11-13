@@ -198,24 +198,27 @@ class TestP104(unittest.TestCase):
 
     def test_person_hand_midpoint_predicts_from_gap_confirmed_mirrored_command(self):
         q_open, q_close = 0.42, 0.035
-        root = K.trans((1.0, 2.0, 1.0))
-        left_link = root @ K.frame(K.rot((0.0, 0.0, 1.0), q_open))
-        right_link = root @ K.frame(K.rot((0.0, 0.0, 1.0), -q_open))
+        left_root = K.trans((1.0, 2.0 + 0.155, 1.0))
+        right_root = K.trans((1.0, 2.0 - 0.155, 1.0))
+        left_link = left_root @ K.frame(K.rot((0.0, 0.0, 1.0), q_open))
+        right_link = right_root @ K.frame(K.rot((0.0, 0.0, 1.0), -q_open))
         left = left_link @ K.trans(L.PERSON_HAND_IN_ARML)
         right = right_link @ K.trans(L.PERSON_HAND_IN_ARMR)
         predicted = M.person_hand_midpoint_from_confirmed_command(
             left, right, q_open, -q_open, q_close)
-        expected_l = root @ K.frame(K.rot((0.0, 0.0, 1.0), q_close)) @ K.trans(
+        expected_l = left_root @ K.frame(K.rot((0.0, 0.0, 1.0), q_close)) @ K.trans(
             L.PERSON_HAND_IN_ARML)
-        expected_r = root @ K.frame(K.rot((0.0, 0.0, 1.0), -q_close)) @ K.trans(
+        expected_r = right_root @ K.frame(K.rot((0.0, 0.0, 1.0), -q_close)) @ K.trans(
             L.PERSON_HAND_IN_ARMR)
         expected = 0.5 * (expected_l[:3, 3] + expected_r[:3, 3])
         self.assertIsNotNone(predicted)
         np.testing.assert_allclose(predicted[:3, 3], expected, atol=1e-9)
         self.assertIsNone(M.person_hand_midpoint_from_confirmed_command(
             left, right, q_open, q_open, q_close))
+        wrong_gap = right.copy()
+        wrong_gap[1, 3] += 0.05
         self.assertIsNone(M.person_hand_midpoint_from_confirmed_command(
-            left, right, q_open, -q_open, q_open - 0.10))
+            left, wrong_gap, q_open, -q_open, q_close))
 
     def test_present_target_prediction_rejects_missing_or_nonfinite_joint_state(self):
         valid = K.trans((0.0, 0.0, 0.0))
