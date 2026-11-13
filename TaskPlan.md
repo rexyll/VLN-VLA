@@ -508,3 +508,13 @@
 - 最新 E2E `43382496286` 在 HANDOVER 前失败：双手开合真值正常（345.3/184.1mm），但杯轴相对双掌中点偏移 86.9mm，左/右手到杯轴 7.9/178.8mm。安全门正确阻止交权。
 - 仅凭最终杯/手真值无法区分目标生成错误与 `place_held()` 执行误差。本次新增 `PRESENT_TARGET`：记录目标来源（预测闭合中点或名义回退）、base、手中点、车手距离、目标方向/半径、目标与手中点差；并新增 `PRESENT_EXEC_RESULT`：记录 `place_held` 返回值、冻结目标杯位姿、执行后 Gazebo 实测杯位姿、独立位置残差和轴角残差。
 - 本次只增加可观测性，不改变目标计算、机械臂轨迹、IK、碰撞检查、容差或交权条件。下一轮依据两组日志定位：若目标本身偏离手中点，修正预测/坐标变换；若目标正确但执行后偏离，追查物体抓持偏移或伺服闭环。
+
+
+### 8.332 E2E #76 确认 PUT_BACK 最终右臂姿态本身侵入桌面碰撞区（2026-11-13）
+
+- 验证提交 324eb01bdb31a090b1f1d36d348f834d54b7f9fa，Python run 43385943408 成功，CarryBus run 43385943389 成功；Gazebo E2E run 43385943380 失败，artifact 14019217249。requested=2、completed=1、passed=0、failed=2、round 2 缺失、all_passed=false、runner_failed=true。
+- 本轮 PRESENT 目标来源为 predicted_closed_midpoint；目标与执行后杯子真值误差 1.168mm、轴角误差 0.101°。HANDOVER 双侧距离 72.9/111.2mm，均通过既有 67–117mm 区间；PERSON_DRINK 与 TAKE_BACK 完成，失败发生在 PUT_BACK。
+- 第 4/4 步右手目标掌心约 [2.212, 0.359, 0.773]m。直接 IK 解的终点姿态单独碰撞检查为 endpoint_clear=false；终点前臂线段 [1.983,0.141,0.703]→[2.177,0.360,0.773]m 与扩张桌面盒相交。27 组高位/XY 航点均以 table_collision 拒绝，PUTBACK_ROUTE_SUMMARY 为 table_collision: 27。这证明本轮不是单纯从高位下降的插值扫掠问题：至少当前选中的最终右臂 IK 姿态本身已侵入桌面碰撞体。
+- 系统保持杯子附着并阻止 release；未发生不安全松手。observer exit 2，截图采集 6 张但 archive 未完成，缺 placed/handback；RETREAT/HANDBACK/DONE 未执行。follow_travel=0m、末段人机距离 2.92m，不能视为跟随通过。
+- 新增只读诊断：对每个通过 4mm IK/FK 与人体关节规则筛选、但完整路径被拒绝的冗余 IK seed，再独立检查其终点姿态碰撞；日志统计 endpoint_clear_seeds 并保留首批终点碰撞几何。此项不改变候选接受、运动执行、碰撞模型或安全门槛，只用于判断 7 轴冗余姿态中是否存在终点无碰撞但路径碰撞的分支。
+- 下一步根据新计数决策：若存在终点无碰撞 seed，规划从高位航点到该分支的连续无碰撞路径；若全部终点均碰撞，则优先调整机器人相对桌沿站位或双手支撑位姿设计，不得缩小碰撞盒、放宽 4mm IK/FK 或提前 release。完整 Gazebo E2E 成功轮数仍为 1；P104-07 继续正在进行中。

@@ -681,6 +681,8 @@ def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
                             (_score, _seed_index, _q_seed, _e_seed, _how_seed))
                     _seed_candidates.sort(key=lambda item: item[0])
                     _seed_hits = []
+                    _endpoint_seed_clear = 0
+                    _endpoint_seed_hits = []
                     for (_score, _seed_index, _q_seed,
                          _e_seed, _how_seed) in _seed_candidates:
                         _seed_clear, _seed_hit = _path_clear(_q_seed)
@@ -691,13 +693,27 @@ def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
                             _clear, _hit = True, None
                             _fallback = 'human-seed-%d' % _seed_index
                             break
+                        # Diagnose endpoint-only collision separately for each
+                        # valid human IK seed. Rejected candidates stay rejected.
+                        _endpoint_seed_ok, _endpoint_seed_hit = (
+                            arm_path_table_clear(
+                                node, side, [_q_seed], base=base_at_ik,
+                                ignore_initial=True, q_start=_q_seed))
+                        if _endpoint_seed_ok:
+                            _endpoint_seed_clear += 1
+                        elif len(_endpoint_seed_hits) < 3:
+                            _endpoint_seed_hits.append({
+                                'seed': _seed_index,
+                                'hit': _endpoint_seed_hit})
                         if len(_seed_hits) < 3:
                             _seed_hits.append({
                                 'seed': _seed_index, 'hit': _seed_hit})
                     if not _clear:
-                        _fallback = ('human-seed-search-no-clear-path '
-                                     'candidates=%d hits=%s'
-                                     % (len(_seed_candidates), _seed_hits))
+                        _fallback = (
+                            'human-seed-search-no-clear-path candidates=%d '
+                            'endpoint_clear_seeds=%d path_hits=%s endpoint_hits=%s'
+                            % (len(_seed_candidates), _endpoint_seed_clear,
+                               _seed_hits, _endpoint_seed_hits))
                 node.get_logger().info(
                     'REACH %s 碰撞候选重规划: fallback=%s ik_error=%.5f'
                     % (side, _fallback, float(e_alt)))

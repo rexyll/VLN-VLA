@@ -2944,6 +2944,22 @@ class TestP104(unittest.TestCase):
 
 
 
+    def test_reach_seed_search_counts_intrinsic_endpoint_collisions(self):
+        motion_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
+            'drink_motion.py')
+        with open(motion_path, encoding='utf-8') as stream:
+            source = stream.read()
+        start = source.index('def reach(')
+        end = source.index('def sim_now(', start)
+        body = source[start:end]
+        self.assertIn('_endpoint_seed_clear = 0', body)
+        self.assertIn('_endpoint_seed_ok, _endpoint_seed_hit = (', body)
+        self.assertIn('endpoint_clear_seeds=%d', body)
+        self.assertIn('q_start=_q_seed', body)
+        self.assertIn('endpoint_hits=%s', body)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)
 
