@@ -2596,17 +2596,40 @@ def present_target_at_hand(node):
     # articulated child palms and can be off by >40mm in a rotated scene.
     Th = person_hand_midpoint_world(node, L.PERSON_HAND_CLOSE)
     if Th is None:
-        return cup_present_target(node)
+        target = cup_present_target(node)
+        node.get_logger().warn(
+            'PRESENT_TARGET source=nominal_fallback reason=hand_midpoint_unavailable '
+            'base=%s target_xyz=%s' %
+            (np.round(node.base, 5).tolist(),
+             np.round(target[:3, 3], 5).tolist()))
+        return target
     dx, dy = Th[0, 3] - bx, Th[1, 3] - by
     d_hb = math.hypot(dx, dy)
     if d_hb < 0.30:            # 数据不可信(人贴太近), 退回名义位形
-        return cup_present_target(node)
+        target = cup_present_target(node)
+        node.get_logger().warn(
+            'PRESENT_TARGET source=nominal_fallback reason=hand_distance_below_300mm '
+            'd_hand_base=%.5f base=%s hand_xyz=%s target_xyz=%s' %
+            (d_hb, np.round(node.base, 5).tolist(),
+             np.round(Th[:3, 3], 5).tolist(),
+             np.round(target[:3, 3], 5).tolist()))
+        return target
     # P94: 上限从 CUP_PRESENT_R(0.62) 放宽到 CUP_PRESENT_R_MAX(0.70) ——
     # 0.62 是"人站准"的解; 人往外站 0.15m 时车→人手 0.77m, 卡在 0.62
     # 会把杯子停在离手 150mm 处。0.70 是 diag_p94_reach.py 扫出来的
     # 安全上限(再远就顶臂长)。不够的部分由 `_approach_if_far` 补。
     r = max(0.50, min(L.CUP_PRESENT_R_MAX, d_hb))
-    return P.cup_in_base(bx, by, math.atan2(dy, dx), r, L.CUP_PRESENT_Z)
+    yaw = math.atan2(dy, dx)
+    target = P.cup_in_base(bx, by, yaw, r, L.CUP_PRESENT_Z)
+    node.get_logger().info(
+        'PRESENT_TARGET source=predicted_closed_midpoint base=%s hand_xyz=%s '
+        'd_hand_base=%.5f yaw_deg=%.3f radius=%.5f target_xyz=%s '
+        'target_minus_hand_mm=%s' %
+        (np.round(node.base, 5).tolist(),
+         np.round(Th[:3, 3], 5).tolist(), d_hb, math.degrees(yaw), r,
+         np.round(target[:3, 3], 5).tolist(),
+         np.round((target[:3, 3] - Th[:3, 3]) * 1000.0, 2).tolist()))
+    return target
 
 
 def person_hand_world(node, T_person, link='person_arms', local_off=None):

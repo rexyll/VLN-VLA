@@ -231,6 +231,19 @@ class TestP104(unittest.TestCase):
         # mutation cannot rewrite the reference target in the failure record.
         self.assertIn('q_commanded = np.asarray(q, dtype=float).copy()', source)
 
+    def test_present_target_emits_target_source_and_execution_residual_diagnostics(self):
+        motion = open(os.path.join(ROOT, 'vla_ws', 'src', 'vla_follow',
+                                  'vla_follow', 'drink_motion.py'),
+                      encoding='utf-8').read()
+        task = open(os.path.join(ROOT, 'vla_ws', 'src', 'vla_follow',
+                                'vla_follow', 'drink_task.py'),
+                    encoding='utf-8').read()
+        self.assertIn('PRESENT_TARGET source=nominal_fallback', motion)
+        self.assertIn('PRESENT_TARGET source=predicted_closed_midpoint', motion)
+        self.assertIn('target_minus_hand_mm=%s', motion)
+        self.assertIn('PRESENT_EXEC_RESULT ok=%s reported_mm=%.3f', task)
+        self.assertIn('actual_position_mm=%s actual_axis_deg=%s', task)
+
     def test_present_target_prediction_rejects_missing_or_nonfinite_joint_state(self):
         valid = K.trans((0.0, 0.0, 0.0))
         self.assertIsNone(M.person_hand_midpoint_predict(

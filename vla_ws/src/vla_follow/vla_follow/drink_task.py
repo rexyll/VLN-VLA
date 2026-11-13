@@ -791,6 +791,24 @@ class DrinkTask(Node):
                 self, 'L', 'cup', Tp, tol_mm=6.0, iters=14,
                 reach_tol_mm=1.5, reach_tol_deg=0.08,
                 reach_passes=8, check_table=True)
+            _cup_after_present = M.object_pose(self, 'cup')
+            _present_pos_mm = (M.pos_err_mm(_cup_after_present, Tp)
+                               if _cup_after_present is not None and Tp is not None
+                               else None)
+            _present_ang_deg = (M.axis_angle_deg(_cup_after_present, Tp)
+                                if _cup_after_present is not None and Tp is not None
+                                else None)
+            self.get_logger().info(
+                'PRESENT_EXEC_RESULT ok=%s reported_mm=%.3f '
+                'target_xyz=%s actual_xyz=%s actual_position_mm=%s actual_axis_deg=%s' %
+                (ok_present, float(present_mm),
+                 np.round(Tp[:3, 3], 5).tolist() if Tp is not None else None,
+                 np.round(_cup_after_present[:3, 3], 5).tolist()
+                 if _cup_after_present is not None else None,
+                 (round(float(_present_pos_mm), 3)
+                  if _present_pos_mm is not None else None),
+                 (round(float(_present_ang_deg), 3)
+                  if _present_ang_deg is not None else None)))
             # Both arms approach the handover pose across the table edge.
             # Gate each complete interpolated path before moving either arm.
             ok_follow, follow_mm = M.follow_hand(
