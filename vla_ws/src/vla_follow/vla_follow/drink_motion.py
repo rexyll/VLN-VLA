@@ -584,6 +584,55 @@ def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
 
             _clear, _hit = _path_clear(q)
             _fallback = None
+            # Enforce the established 4mm IK convergence gate before motion.
+            # If the primary branch misses it, search existing human-valid
+            # seeds and accept only a candidate that also clears the full path.
+            if ik_fk_mm > 4.0:
+                _ik_seed_candidates = []
+                _ik_seed_hits = []
+                for _seed_index, _seed in enumerate(K.HUMAN_SEEDS):
+                    _seed_q = K.human_seed_joints(_seed)
+                    _q_seed, _e_seed, _how_seed = K.ik_world(
+                        side, T_world, base_at_ik, _seed_q, elbow=None,
+                        refine=False)
+                    if (not np.all(np.isfinite(_q_seed))
+                            or not math.isfinite(float(_e_seed))
+                            or float(_e_seed) > 4e-3
+                            or K.violation_list(side, _q_seed)):
+                        continue
+                    _seed_fk = K.fk_world(side, _q_seed, base_at_ik)
+                    _seed_fk_mm = pos_err_mm(_seed_fk, T_world)
+                    if (not math.isfinite(float(_seed_fk_mm))
+                            or _seed_fk_mm > 4.0):
+                        continue
+                    _seed_clear, _seed_hit = _path_clear(_q_seed)
+                    if not _seed_clear:
+                        if len(_ik_seed_hits) < 3:
+                            _ik_seed_hits.append({
+                                'seed': _seed_index, 'hit': _seed_hit})
+                        continue
+                    _score = (K.human_penalty(side, _q_seed)
+                              + 0.12 * float(np.max(np.abs(_q_seed - q_now))))
+                    _ik_seed_candidates.append(
+                        (_score, _seed_index, _q_seed, _seed_fk_mm, _how_seed))
+                if _ik_seed_candidates:
+                    (_score, _seed_index, q, ik_fk_mm,
+                     _seed_how) = min(_ik_seed_candidates, key=lambda x: x[0])
+                    how = '%s/human-seed-%d' % (_seed_how, _seed_index)
+                    T_ik_fk = K.fk_world(side, q, base_at_ik)
+                    ik_fk_deg = axis_angle_deg(T_ik_fk, T_world)
+                    q_target_last = q.copy()
+                    _clear, _hit = True, None
+                    _fallback = 'ik-residual-human-seed-%d' % _seed_index
+                else:
+                    node.get_logger().warn(
+                        'REACH %s IK 候选未满足 4mm 收敛门槛，拒绝执行: '
+                        'primary=%.1fmm collision_clear_seeds=0 hits=%s '
+                        'target_xyz=%s base=%s'
+                        % (side, ik_fk_mm, _ik_seed_hits,
+                           np.round(np.asarray(T_world)[:3, 3], 4).tolist(),
+                           [round(float(v), 5) for v in base_at_ik]))
+                    return False, ik_fk_mm, 'ik-residual'
             # 目标掌心不变时，7 轴臂仍有冗余姿态可选。human 分支的关节
             # 插值若撞桌，不立即放弃：尝试肘外分支，但必须同时满足人体
             # 关节规则和同一套完整路径碰撞检查。只接受可验证的整段候选；

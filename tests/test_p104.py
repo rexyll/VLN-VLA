@@ -2494,7 +2494,7 @@ class TestP104(unittest.TestCase):
         release = body.index('release_ok = node.carry.release(model)')
         confirmed = body.index(
             "info.update(release_confirmed=True, object_state='released')")
-        withdraw = body.index('ok_back, res_back, _ = reach(')
+        withdraw = body.index('ok_back, res_back, how_back = reach(')
         self.assertLess(release, confirmed)
         self.assertLess(confirmed, withdraw)
         self.assertIn("object_state='still_attached'", body)
@@ -2531,6 +2531,23 @@ class TestP104(unittest.TestCase):
         self.assertIn('withdraw_stage', body)
         # Both the lift and retry keep the original full table collision gate.
         self.assertEqual(body.count('check_table=True'), 3)
+
+    def test_reach_enforces_ik_fk_four_mm_before_table_checked_motion(self):
+        motion_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
+            'drink_motion.py')
+        with open(motion_path, encoding='utf-8') as stream:
+            motion = stream.read()
+        start = motion.index('def reach(')
+        end = motion.index('def sim_now(', start)
+        body = motion[start:end]
+        gate = body.index('if ik_fk_mm > 4.0:')
+        self.assertIn('float(_e_seed) > 4e-3', body[gate:])
+        self.assertIn('_seed_fk_mm > 4.0', body[gate:])
+        self.assertIn('K.violation_list(side, _q_seed)', body[gate:])
+        self.assertIn('_seed_clear, _seed_hit = _path_clear(_q_seed)', body[gate:])
+        self.assertIn("return False, ik_fk_mm, 'ik-residual'", body[gate:])
+        self.assertIn('if _ik_seed_candidates:', body[gate:])
 
     def test_reach_servo_failure_keeps_joint_and_base_trace(self):
         motion_path = os.path.join(
