@@ -875,7 +875,7 @@ class DrinkTask(Node):
                     _right_goal_follow is not None) else None)
             self.get_logger().info(
                 'PRESENT_FOLLOW_POST ok=%s reported_mm=%.3f cup_xyz=%s '
-                'cup_drift_mm=%s right_xyz=%s right_goal_err_mm=%s base=%s' %
+                'cup_drift_mm=%s right_xyz=%s right_goal_err_mm=%s base=%s chassis=%s' %
                 (ok_follow, float(follow_mm),
                  np.round(_cup_after_follow[:3, 3], 5).tolist()
                  if _cup_after_follow is not None else None,
