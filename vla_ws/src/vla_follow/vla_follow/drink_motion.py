@@ -1578,35 +1578,33 @@ def put_down_two(node, model, T_obj_goal, tol_mm=PLACE_TOL_MM, steps=4,
             node, 'R', T_right_goal, tol_mm=6.0, elbow=elbow,
             check_table=True)
         if not ok_r and how_r == 'table-collision':
-            # A collision-free endpoint can still be unreachable by a direct
-            # joint interpolation around the table lip. First lift the free
-            # support hand vertically, with the same collision gate, then
-            # retry the original rigid-support target from the elevated seed.
-            # The cup remains attached to the left hand throughout; no release
-            # or collision-margin relaxation is performed here.
-            T_right_now = wrist(node, 'R')
-            if T_right_now is not None:
-                T_right_stage = T_right_now.copy()
-                T_right_stage[2, 3] += 0.12
-                ok_stage, _stage_mm, _stage_how = reach(
-                    node, 'R', T_right_stage, tol_mm=8.0,
+            # A direct joint interpolation can collide even when the final
+            # support pose is geometrically reachable. Route the free support
+            # hand through a waypoint directly above its *final target* so the
+            # last descent is predominantly vertical, rather than merely
+            # lifting the current wrist and then making a long diagonal move.
+            # Both legs are independently IK/FK-, joint-limit-, and
+            # table-collision-checked. The cup remains attached to the left
+            # hand throughout; no collision margin or release rule is relaxed.
+            T_right_stage = T_right_goal.copy()
+            T_right_stage[2, 3] += 0.12
+            ok_stage, _stage_mm, _stage_how = reach(
+                node, 'R', T_right_stage, tol_mm=8.0,
+                elbow=elbow, check_table=True)
+            node.get_logger().info(
+                'PUT_DOWN_TWO 右手目标上方航点结果 '
+                '(step=%d, ok=%s, residual=%.1fmm, how=%s, '
+                'target_xyz=%s)'
+                % (i, ok_stage, _stage_mm, _stage_how,
+                   np.round(T_right_stage[:3, 3], 4).tolist()))
+            if ok_stage:
+                ok_r, res_r, how_r = reach(
+                    node, 'R', T_right_goal, tol_mm=6.0,
                     elbow=elbow, check_table=True)
-                # Physical upward displacement is not proof that the waypoint
-                # passed its endpoint tolerance and collision-checked path.
-                node.get_logger().info(
-                    'PUT_DOWN_TWO 右手上抬航点结果 '
-                    '(step=%d, ok=%s, residual=%.1fmm, how=%s, '
-                    'target_z=%.3fm)'
-                    % (i, ok_stage, _stage_mm, _stage_how,
-                       float(T_right_stage[2, 3])))
-                if ok_stage:
-                    ok_r, res_r, how_r = reach(
-                        node, 'R', T_right_goal, tol_mm=6.0,
-                        elbow=elbow, check_table=True)
-                    if ok_r:
-                        node.get_logger().info(
-                            'PUT_DOWN_TWO 右手经桌边上方安全航点到位 '
-                            '(step=%d, residual=%.1fmm)' % (i, res_r))
+                if ok_r:
+                    node.get_logger().info(
+                        'PUT_DOWN_TWO 右手经目标上方安全航点到位 '
+                        '(step=%d, residual=%.1fmm)' % (i, res_r))
         if not ok_r:
             node.get_logger().error(
                 'PUT_DOWN_TWO 第%d/%d步右手未到位 %.1fmm，停止下降并保持抓持'

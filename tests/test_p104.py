@@ -2628,7 +2628,7 @@ class TestP104(unittest.TestCase):
         self.assertIn('if not ok or res > GRASP_TOL_MM * 3.0',
                       motion[grasp_start:grasp_end])
 
-    def test_put_down_two_uses_collision_checked_high_waypoint_before_retry(self):
+    def test_put_down_two_routes_right_support_via_target_aligned_high_waypoint(self):
         motion_path = os.path.join(
             ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
             'drink_motion.py')
@@ -2639,13 +2639,16 @@ class TestP104(unittest.TestCase):
                            start)
         body = motion[start:end]
         first_attempt = body.index("how_r == 'table-collision'")
-        stage_raise = body.index("T_right_stage[2, 3] += 0.12", first_attempt)
+        stage_pose = body.index("T_right_stage = T_right_goal.copy()", first_attempt)
+        stage_raise = body.index("T_right_stage[2, 3] += 0.12", stage_pose)
         stage_gate = body.index("elbow=elbow, check_table=True", stage_raise)
         retry = body.index("node, 'R', T_right_goal", stage_gate)
-        self.assertLess(first_attempt, stage_raise)
+        self.assertLess(first_attempt, stage_pose)
+        self.assertLess(stage_pose, stage_raise)
         self.assertLess(stage_raise, stage_gate)
         self.assertLess(stage_gate, retry)
-        self.assertIn('PUT_DOWN_TWO 右手上抬航点结果', body)
+        self.assertIn('PUT_DOWN_TWO 右手目标上方航点结果', body)
+        self.assertIn('np.round(T_right_stage[:3, 3], 4).tolist()', body)
         self.assertIn('_stage_mm, _stage_how', body)
         self.assertIn("release_block_reason='right_arm_path_failed'", body)
         self.assertIn("node.carry.release(model)", body)
