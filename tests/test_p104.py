@@ -3052,6 +3052,20 @@ class TestP104(unittest.TestCase):
         self.assertIn('_post_follow_axis_deg > 0.5', source)
 
 
+
+    def test_drive_wheels_have_bounded_zero_command_damping(self):
+        world_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'worlds', 'work_area.sdf')
+        with open(world_path, encoding='utf-8') as stream:
+            world = stream.read()
+        for joint in ('left_wheel_joint', 'right_wheel_joint'):
+            start = world.index('<joint name="%s"' % joint)
+            end = world.index('</joint>', start)
+            block = world[start:end]
+            self.assertIn('<effort>5.0</effort>', block)
+            self.assertIn('<dynamics><damping>0.5</damping></dynamics>', block)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)
 

@@ -647,6 +647,7 @@
         <axis>
           <xyz>0 0 -1</xyz>
           <limit><lower>-1e16</lower><upper>1e16</upper><effort>5.0</effort></limit>
+                  <dynamics><damping>0.5</damping></dynamics>
         </axis>
       </joint>
       <joint name="right_wheel_joint" type="revolute">
@@ -655,6 +656,7 @@
         <axis>
           <xyz>0 0 -1</xyz>
           <limit><lower>-1e16</lower><upper>1e16</upper><effort>5.0</effort></limit>
+                  <dynamics><damping>0.5</damping></dynamics>
         </axis>
       </joint>
       <!-- P72: 后支撑脚(原来 caster 是游离 link, 车体 31° 后仰拖地) -->
