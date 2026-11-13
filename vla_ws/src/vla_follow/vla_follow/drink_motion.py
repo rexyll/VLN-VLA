@@ -1605,7 +1605,8 @@ def putback_route_candidates(T_goal):
         (0.04, -0.04), (0.04, 0.04),
     )
     candidates = []
-    for height in (0.12, 0.16, 0.20):
+    # Prioritize vertical clearance for the observed forearm/table sweep collision.
+    for height in (0.20, 0.16, 0.12):
         for dx, dy in offsets:
             waypoint = np.asarray(T_goal, float).copy()
             waypoint[:3, 3] += np.array([dx, dy, height], dtype=float)
@@ -1808,7 +1809,9 @@ def put_down_two(node, model, T_obj_goal, tol_mm=PLACE_TOL_MM, steps=4,
             # elbow-out branch; this run's human branch had zero clear
             # endpoint seeds. Search both branches, but preflight and execute
             # each route with the exact same branch and unchanged safety gates.
-            _route_elbows = ([elbow, 'out'] if elbow == 'human'
+            # The elbow-out branch has historical full-E2E success; try it before the
+            # slower human-seed search so CI reaches the known viable branch.
+            _route_elbows = (['out', elbow] if elbow == 'human'
                              else [elbow])
             for _route_elbow in _route_elbows:
                 for _candidate in putback_route_candidates(T_right_goal):

@@ -2785,7 +2785,7 @@ class TestP104(unittest.TestCase):
         self.assertLess(execute_waypoint, retry_final)
         self.assertIn('PUTBACK_ROUTE_TRIAL', body)
         self.assertIn('PUTBACK_ROUTE_ACCEPTED', body)
-        self.assertIn("_route_elbows = ([elbow, 'out'] if elbow == 'human'", body)
+        self.assertIn("_route_elbows = (['out', elbow] if elbow == 'human'", body)
         preflight_start = motion.index('def preflight_table_route(')
         preflight_end = motion.index('def put_down_two(', preflight_start)
         preflight_body = motion[preflight_start:preflight_end]
@@ -2965,7 +2965,7 @@ class TestP104(unittest.TestCase):
         # The final support target remains the original rigidly-derived target;
         # only the intermediate approach waypoint is parameterized.
         self.assertIn("node, 'R', T_right_goal, tol_mm=6.0", source)
-        self.assertIn("_route_elbows = ([elbow, 'out'] if elbow == 'human'", source)
+        self.assertIn("_route_elbows = (['out', elbow] if elbow == 'human'", source)
         self.assertIn("elbow=_route_elbow, check_table=True", source)
         self.assertIn('max_ik_error_mm', source)
         goal = np.eye(4, dtype=float)
@@ -2976,11 +2976,11 @@ class TestP104(unittest.TestCase):
         self.assertTrue(np.array_equal(goal, original))
         self.assertEqual(
             [(c['height_m'], c['dx_m'], c['dy_m']) for c in candidates[:9]],
-            [(0.12, 0.0, 0.0), (0.12, 0.0, -0.04),
-             (0.12, 0.0, 0.04), (0.12, -0.04, 0.0),
-             (0.12, 0.04, 0.0), (0.12, -0.04, -0.04),
-             (0.12, -0.04, 0.04), (0.12, 0.04, -0.04),
-             (0.12, 0.04, 0.04)])
+            [(0.20, 0.0, 0.0), (0.20, 0.0, -0.04),
+             (0.20, 0.0, 0.04), (0.20, -0.04, 0.0),
+             (0.20, 0.04, 0.0), (0.20, -0.04, -0.04),
+             (0.20, -0.04, 0.04), (0.20, 0.04, -0.04),
+             (0.20, 0.04, 0.04)])
 
 
 
