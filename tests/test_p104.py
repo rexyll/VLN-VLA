@@ -2933,6 +2933,34 @@ class TestP104(unittest.TestCase):
         self.assertIn('diagnostic only', body)
 
 
+    def test_base_pose_hold_velocity_is_bounded_and_convergent(self):
+        self.assertEqual(M.base_pose_hold_velocity(
+            (0.0, 0.0, 0.0), (0.0, 0.0, 0.0)), (0.0, 0.0))
+        vx, wz = M.base_pose_hold_velocity(
+            (0.0, 0.0, 0.0), (0.0, 0.03, -0.12))
+        self.assertLessEqual(abs(vx), 0.04)
+        self.assertLessEqual(abs(wz), 0.12)
+        self.assertTrue(math.isfinite(vx) and math.isfinite(wz))
+        self.assertEqual(M.base_pose_hold_velocity(
+            (0.0, 0.0, 0.0), (float('nan'), 0.0, 0.0)), (0.0, 0.0))
+        self.assertEqual(M.base_pose_hold_velocity(
+            (0.0, 0.0, 0.0), (0.0, 0.0, 0.0),
+            max_linear=0.0), (0.0, 0.0))
+
+    def test_follow_base_hold_is_scoped_to_present_follow_hand(self):
+        task_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
+            'drink_task.py')
+        with open(task_path, encoding='utf-8') as stream:
+            source = stream.read()
+        self.assertIn('_follow_base_hold_target = tuple(_hold_snapshot[0])',
+                      source)
+        self.assertIn('base_pose_hold_velocity(', source)
+        self.assertIn('now_mono - snapshot[1] > 0.25', source)
+        self.assertIn('finally:', source)
+        self.assertIn('self._follow_base_hold_target = None', source)
+        self.assertIn('self.drive(0.0, 0.0)', source)
+
     def test_follow_hand_trace_captures_wheel_and_command_high_water(self):
         task_path = os.path.join(
             ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',

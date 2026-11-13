@@ -58,6 +58,7 @@ from vla_follow import scene_layout as L
 from vla_follow.carry import CarryBus
 from vla_follow.joint_servo import JointServo
 from vla_follow import liquid as _liquid_mod
+from vla_follow import drink_motion as _motion_mod
 from vla_follow.liquid import LiquidCtl
 
 # gz 真值(手掌位置): 用来做第三方比对。缺 gz 绑定时降级为"只比 FK"。
@@ -233,6 +234,7 @@ class DrinkTask(Node):
         self._truth_base_sample = None
         # Read-only high-water trace for chassis motion during arm follow.
         self._follow_base_trace = None
+        self._follow_base_hold_target = None
         self.truth_base_pose_snapshot = None
         self.truth_base_rpy_snapshot = None
         self._have_odom = False
@@ -982,8 +984,24 @@ class DrinkTask(Node):
                  np.round(np.asarray(pr['off_r'], float)[:3, 3], 5).tolist()
                  if pr.get('off_r') is not None else None,
                  np.round(self.base, 5).tolist(), _base_diag_pre))
-            ok_follow, follow_mm = M.follow_hand(
-                self, 'R', 'cup', pr['off_r'], check_table=True)
+            _hold_snapshot = self.truth_base_pose_snapshot
+            _hold_now = time.monotonic()
+            if (_hold_snapshot is not None
+                    and _hold_now - _hold_snapshot[1] <= 0.25):
+                self._follow_base_hold_target = tuple(_hold_snapshot[0])
+                self.get_logger().info(
+                    'PRESENT_BASE_HOLD start target=%s' %
+                    (list(self._follow_base_hold_target),))
+            else:
+                self._follow_base_hold_target = None
+                self.get_logger().warn(
+                    'PRESENT_BASE_HOLD unavailable: chassis truth stale')
+            try:
+                ok_follow, follow_mm = M.follow_hand(
+                    self, 'R', 'cup', pr['off_r'], check_table=True)
+            finally:
+                self._follow_base_hold_target = None
+                self.drive(0.0, 0.0)
             _cup_after_follow = M.object_pose(self, 'cup')
             _right_after_follow = M.wrist(self, 'R')
             _base_diag_post = _follow_base_diag()
@@ -1633,6 +1651,18 @@ class DrinkTask(Node):
         # 期间 base 被 odom 兜底; 真值一出现立即接管锁定(原来只在
         # _truth_base=True 后才同步, 而 boot 从不调用, 锁永远是 False)。
         self.sync_base_from_truth(quiet=True)
+        # During PRESENT follow_hand, counter bounded arm-reaction drift with
+        # a low-speed pose hold. Never run this while Nav2 owns the chassis.
+        hold_target = self._follow_base_hold_target
+        if hold_target is not None:
+            snapshot = self.truth_base_pose_snapshot
+            now_mono = time.monotonic()
+            if snapshot is None or now_mono - snapshot[1] > 0.25:
+                self.drive(0.0, 0.0)
+            else:
+                vx, wz = _motion_mod.base_pose_hold_velocity(
+                    hold_target, snapshot[0])
+                self.drive(vx, wz)
         self.bus.publish_all()
         now = time.time()
         # P98: 道具自愈 —— 壶/杯是自由体, 速度只增不减, 漂出场外后喝水

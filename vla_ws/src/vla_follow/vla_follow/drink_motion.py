@@ -1011,6 +1011,41 @@ def wrap_deg(a):
     return a
 
 
+def base_pose_hold_velocity(target, current, max_linear=0.04,
+                           max_angular=0.12):
+    """Bounded unicycle pose stabilizer for short arm-reaction disturbances.
+
+    target/current are (x, y, yaw) in world coordinates. Reverse motion is
+    allowed so the controller can return to the captured pose without making
+    a full turn. This is active only while the second hand follows the held cup.
+    """
+    values = tuple(float(v) for v in (*target, *current,
+                                      max_linear, max_angular))
+    if not all(math.isfinite(v) for v in values):
+        return 0.0, 0.0
+    tx, ty, tyaw, x, y, yaw, vlim, wlim = values
+    if vlim <= 0.0 or wlim <= 0.0:
+        return 0.0, 0.0
+    dx, dy = tx - x, ty - y
+    rho = math.hypot(dx, dy)
+    theta = math.atan2(math.sin(tyaw - yaw), math.cos(tyaw - yaw))
+    if rho <= 0.0015:
+        wz = max(-wlim, min(wlim, 1.2 * theta))
+        return 0.0, (0.0 if abs(theta) <= math.radians(0.15) else wz)
+    bearing = math.atan2(dy, dx)
+    alpha = math.atan2(math.sin(bearing - yaw), math.cos(bearing - yaw))
+    direction = 1.0
+    if abs(alpha) > math.pi / 2.0:
+        direction = -1.0
+        alpha = math.atan2(math.sin(alpha - math.pi),
+                           math.cos(alpha - math.pi))
+    vx = direction * min(vlim, 0.8 * rho) * max(0.0, math.cos(alpha))
+    wz = max(-wlim, min(wlim, 1.2 * alpha + 0.6 * theta))
+    if abs(alpha) <= math.radians(0.5):
+        wz = max(-wlim, min(wlim, 1.2 * theta))
+    return vx, wz
+
+
 def turn_base(node, yaw_goal, w_max=0.45, tol_deg=1.5, timeout=15.0,
               k=1.2):
     """原地转到 yaw_goal(弧度), 闭环看**真值 yaw**。
