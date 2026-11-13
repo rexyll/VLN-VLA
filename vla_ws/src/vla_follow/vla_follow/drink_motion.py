@@ -1029,6 +1029,18 @@ def base_pose_hold_velocity(target, current, max_linear=0.04,
     dx, dy = tx - x, ty - y
     rho = math.hypot(dx, dy)
     theta = math.atan2(math.sin(tyaw - yaw), math.cos(tyaw - yaw))
+    # Arm reaction normally displaces the free-rolling base only a few mm.
+    # In this near-pose regime, steering toward the XY bearing can command a
+    # reverse-turn that fights the captured yaw (and was observed to increase
+    # yaw error during PREPARE). First restore yaw in place; then correct only
+    # the longitudinal component while preserving the requested heading.
+    if rho <= 0.03:
+        if abs(theta) > math.radians(0.5):
+            wz = max(-wlim, min(wlim, 1.2 * theta))
+            return 0.0, wz
+        longitudinal = dx * math.cos(yaw) + dy * math.sin(yaw)
+        vx = max(-vlim, min(vlim, 0.8 * longitudinal))
+        return vx, 0.0
     if rho <= 0.0015:
         wz = max(-wlim, min(wlim, 1.2 * theta))
         return 0.0, (0.0 if abs(theta) <= math.radians(0.15) else wz)

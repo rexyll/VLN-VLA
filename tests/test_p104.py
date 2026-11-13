@@ -2941,6 +2941,17 @@ class TestP104(unittest.TestCase):
         self.assertLessEqual(abs(vx), 0.04)
         self.assertLessEqual(abs(wz), 0.12)
         self.assertTrue(math.isfinite(vx) and math.isfinite(wz))
+        # Near the captured pose, yaw is corrected first without the reverse
+        # bearing controller turning away from the requested heading.
+        vx_yaw, wz_yaw = M.base_pose_hold_velocity(
+            (0.0, 0.0, 0.0), (0.009, 0.002, 0.12))
+        self.assertEqual(vx_yaw, 0.0)
+        self.assertLess(wz_yaw, 0.0)
+        # Once yaw is aligned, longitudinal correction must not add yaw.
+        vx_xy, wz_xy = M.base_pose_hold_velocity(
+            (0.0, 0.0, 0.0), (0.009, 0.002, 0.0))
+        self.assertLess(vx_xy, 0.0)
+        self.assertEqual(wz_xy, 0.0)
         self.assertEqual(M.base_pose_hold_velocity(
             (0.0, 0.0, 0.0), (float('nan'), 0.0, 0.0)), (0.0, 0.0))
         self.assertEqual(M.base_pose_hold_velocity(
