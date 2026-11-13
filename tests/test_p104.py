@@ -2789,7 +2789,7 @@ class TestP104(unittest.TestCase):
         self.assertIn('elbow=_route_elbow)', body)
         self.assertIn('elbow=_route_elbow, check_table=True)', body)
         self.assertIn("'preflight=%s detail=%s'", body)
-        self.assertIn("'elbow=%s params=%s residual=%.1fmm'", body)
+        self.assertIn("'params=%s residual=%.1fmm'", body)
         self.assertIn("'PUTBACK_ROUTE_ACCEPTED step=%d trial=%d elbow=%s '", body)
         self.assertIn('PUTBACK_ROUTE_EXHAUSTED', body)
         self.assertIn('PUTBACK_ROUTE_SUMMARY', body)
