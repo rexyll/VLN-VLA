@@ -2419,17 +2419,28 @@ def pour_into_cup(node, fill=0.65, jet_len=0.16, ramp=True):
     Tcup_pour = P.cup_for_pour()
     # P103: 举杯要走"肘朝外"的解 —— 与捧杯/递杯同一套(P101 的经验)。默认的
     # KDL 种子解在这里会给出肘内收/前臂反向拧的分支, 画面上就是"肘拐进怀里"。
-    ok_l, res_l = place_held(node, 'L', 'cup', Tcup_pour, tol_mm=3.0)
+    # 这一步既要满足杯体严格 <3mm 的位置闭环，也要满足 P103 人体姿态规则。
+    # 近期实测最后一轮残差 3.1mm，人体姿态本身全部合格；因此只对本动作
+    # 收紧伺服角容差并增加有限补偿轮数，不放宽物体位置门槛。
+    ok_l, res_l = place_held(
+        node, 'L', 'cup', Tcup_pour, tol_mm=3.0,
+        reach_passes=8, reach_tol_deg=0.08)
     out['res']['lift_cup'] = res_l
     out['arm']['lift_cup'] = log_arm(node, '举杯', ('L',))
-    if not ok_l or not human_kinematics_ok(
-            out['arm']['lift_cup'],
-            min_out_line_mm={'L': 100.0},
-            max_abs_droop_mm={'L': 120.0},
-            max_abs_twist={'L': 2.2}, required_sides=('L',)):
+    lift_kin_ok = human_kinematics_ok(
+        out['arm']['lift_cup'],
+        min_out_line_mm={'L': 100.0},
+        max_abs_droop_mm={'L': 120.0},
+        max_abs_twist={'L': 2.2}, required_sides=('L',))
+    if not ok_l:
         node.get_logger().error(
-            'POUR 举杯阶段未达成或左肘外扩/下垂/扭转不符合 P103 判据'
-            '（外扩线≥100mm、|droop|≤120mm、|twist|≤2.2），停止后续倒水')
+            'POUR 举杯位置闭环失败: 杯体残差 %.1fmm，严格要求 <3.0mm；'
+            '保持抓持并停止后续倒水' % float(res_l))
+        return out
+    if not lift_kin_ok:
+        node.get_logger().error(
+            'POUR 举杯 P103 姿态判据失败: metrics=%s；保持抓持并停止后续倒水'
+            % out['arm']['lift_cup'].get('L'))
         return out
     ok_k, res_k = grasp(node, 'R', 'kettle', P.kettle_grasp_palm, K.GRIP_KETTLE)
     out['res']['grasp_kettle'] = res_k

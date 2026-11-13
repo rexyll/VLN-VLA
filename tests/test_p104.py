@@ -3132,6 +3132,25 @@ class TestP104(unittest.TestCase):
         self.assertIn("'max_abs_pitch_delta_deg': 0.0", source)
         self.assertIn("trace['end_rpy'] = list(rpy)", source)
 
+
+    def test_pour_lift_uses_strict_refinement_and_separates_failure_diagnostics(self):
+        motion_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
+            'drink_motion.py')
+        with open(motion_path, encoding='utf-8') as stream:
+            source = stream.read()
+        start = source.index('def pour_into_cup(')
+        end = source.index('def ', start + 5)
+        body = source[start:end]
+        self.assertIn('tol_mm=3.0,', body)
+        self.assertIn('reach_passes=8, reach_tol_deg=0.08', body)
+        self.assertIn('lift_kin_ok = human_kinematics_ok(', body)
+        self.assertIn('if not ok_l:', body)
+        self.assertIn('if not lift_kin_ok:', body)
+        self.assertIn('杯体残差 %.1fmm，严格要求 <3.0mm', body)
+        self.assertNotIn('或左肘外扩/下垂/扭转不符合 P103 判据', body)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)
 

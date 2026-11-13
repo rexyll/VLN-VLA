@@ -688,3 +688,11 @@
 - IK 迭代期间底盘 Gazebo 真值从约 `(1.78732,0.35055,0.08386)` 变化至 `(1.83739,0.35445,0.24270)`，XY 约移动 50mm、yaw 约 9.1°；各采样时轮速接近零，`/robot/cmd_vel` 为零。此前位姿保持仅限 PRESENT follow_hand，因此没有覆盖 PREPARE 的 arm-only pour 窗口。`in_band_pct` 不作为成功证据。
 - 新增 PREPARE 倒水动作窗口专用底盘保持：`prepare_present` 在 `pour_approach` 完成、服务位已到达后捕获新鲜 Gazebo 底盘位姿；仅在 `pour_into_cup` 机械臂动作窗口启用与 PRESENT 相同的限幅位姿保持（0.04m/s、0.12rad/s），真值过期则零命令；`finally` 清除保持目标并发零速度，之后底盘重新定位不受该控制器影响。PRESENT follow_hand 原控制窗口不变。
 - 新增纯测试检查 PREPARE 保持作用域、调用顺序和异常清理。没有放宽 IK ≤4mm、人体姿态规则、碰撞检测、关节限制、抓持或释放门控。该补偿仍属仿真收敛试验，必须由 Gazebo 观察底盘位姿高水位、右臂残差和正常底盘动作共同验证；不能仅凭静态测试判定成功。双轮完整 E2E 历史成功次数仍为 **1**；P104-07 继续正在进行中。
+
+
+### 8.351 PREPARE 举杯 3mm 精度收敛与失败原因拆分（2026-11-13）
+
+- Gazebo E2E run `43439531218`（commit `8327ddcf21f607e6a5b1df543bc83a475a7848b8`，artifact `14045753479`）确认 PREPARE 底盘保持目标已捕获；任务停在 `PREPARE → FAIL_PREPARE`，requested=2、completed=1、passed=0、failed=2、round2 missing、all_passed=false。Python syntax 与 CarryBus ROS 2 executor integration 均通过。
+- 逐行检查 `drink.log`：举杯最后一次 reach 残差 3.1mm，略高于 `place_held(... tol_mm=3.0)` 的严格门槛；实测左臂肘外扩线 210mm、droop 7mm、twist -1.66rad，均满足 P103 对应约束。因此旧错误日志把位置未收敛与 P103 姿态失败混写，造成误诊。底盘保持目标确实启动，但本轮没有完成后续完整举杯，不能据此宣称底盘保持 E2E 已验证。
+- 修正举杯闭环：仅对杯体举升调用 `place_held` 增加至最多 8 轮 reach，并把每轮关节伺服容差收紧到 0.08°；物体位置验收仍严格要求小于 3.0mm，姿态仍要求小于 2°，连续两轮确认逻辑不变。把位置闭环失败与 P103 人体姿态失败拆成独立分支日志，记录实际杯体残差或姿态指标。抓持、碰撞、IK 4mm 门槛、关节限位、持有状态和 release 条件均不放宽。
+- 新增纯测试覆盖严格精度参数与失败原因分支分离。待 Python、CarryBus 与 Gazebo E2E 验证；完整双轮 E2E 历史成功计数仍为 **1**，P104-07 继续正在进行中。
