@@ -2786,6 +2786,16 @@ class TestP104(unittest.TestCase):
         self.assertIn('PUTBACK_ROUTE_TRIAL', body)
         self.assertIn('PUTBACK_ROUTE_ACCEPTED', body)
         self.assertIn("_route_elbows = ([elbow, 'out'] if elbow == 'human'", body)
+        preflight_start = motion.index('def preflight_table_route(')
+        preflight_end = motion.index('def put_down_two(', preflight_start)
+        preflight_body = motion[preflight_start:preflight_end]
+        self.assertIn('K.HUMAN_SEEDS + K.HUMAN_SEEDS_EXTENDED', preflight_body)
+        self.assertIn('if not clear:', preflight_body)
+        self.assertIn('alt_clear, _alt_hit = arm_path_table_clear(', preflight_body)
+        reach_start = motion.index('def reach(')
+        reach_end = motion.index('def place_held(', reach_start)
+        reach_body = motion[reach_start:reach_end]
+        self.assertIn('K.HUMAN_SEEDS + K.HUMAN_SEEDS_EXTENDED', reach_body)
         self.assertIn('elbow=_route_elbow)', body)
         self.assertIn('elbow=_route_elbow, check_table=True)', body)
         self.assertIn("'preflight=%s detail=%s'", body)

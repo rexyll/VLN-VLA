@@ -613,3 +613,12 @@
 - `9b163d161400ba632f1abab64c852ffa98951dab` 的 112 项纯测试仅剩 1 项静态断言失败：Python 源码将 `PUTBACK_ROUTE_ACCEPTED` 的格式串拆成相邻字符串，测试按一个完整字面量匹配失败。该问题仍属于测试断言文本边界，不是运行时路径代码失败。
 - 将断言收敛为检查第二段稳定格式片段 `params=%s residual=%.1fmm`；保留分支名、预检日志和执行分支一致性的其它断言。生产逻辑不变。
 - 完整双轮 E2E 成功计数仍为 **1**；P104-07 继续正在进行中。
+
+### 8.343 PUT_BACK 预检精确 IK 但碰撞时未搜索冗余种子（2026-11-13）
+
+- `bd7f52507e36ae11af4833a6e72d90462c19e68f` 的 Python 编译、112 项纯测试、CarryBus 均通过。Gazebo E2E run `43415842424`，artifact `14032797080`：第一轮完成 PREPARE/PRESENT/HANDOVER/PERSON_DRINK/TAKE_BACK，随后 `FAIL_PUT_BACK`；requested=2、completed=1、passed=0、failed=2、round2 missing、all_passed=false。杯子保持附着，release 被阻止；无 RETREAT/HANDBACK/DONE，截图 6 张且归档不完整。
+- 本轮新增底盘诊断：follow_hand 62 个样本，底盘最大 XY 偏移 4.075mm、最大偏航 0.264°、最大速度 0.0214m/s；杯体世界漂移 4.13mm。左右轮速度通道均有 62 个样本，峰值 0.13785rad/s；follow_hand 期间 `/drink/cmd_vel` 0 条消息，`/robot/cmd_vel` 9 条且峰值线/角速度均为 0。该轮不支持“底盘偏航是本次 PUT_BACK 失败原因”。effort 通道峰值为 0，需结合 Gazebo JointState 实际 effort 语义看待，不单独作为驱动无力证据。
+- PUT_BACK 失败发生在右手第 4/4 步，目标掌心 `[2.21422, 0.36557, 0.773]m`，残差 58.2mm。右前臂与 `table_top` 扩张碰撞盒相交；human/out 两个分支共 54 个候选路点全部因最终下降段碰撞被拒绝，release 安全门控正确阻止松杯。
+- 进一步代码定位到收敛搜索缺口：`reach()` 的碰撞重规划种子集合只遍历 `HUMAN_SEEDS`，没有包含 `HUMAN_SEEDS_EXTENDED`；更关键的是 `preflight_table_route()` 对 IK/FK 精确但扫掠路径碰撞的解直接拒绝，没有像 `reach()` 那样搜索其它冗余种子。因此，增加高度/XY waypoint 仍会在末段被同一碰撞姿态卡住。问题是候选姿态搜索覆盖不完整，而不是 IK 精度不足或桌面碰撞模型可放宽。
+- 修复：`reach()` 碰撞回退同时搜索基础与扩展人体种子；`preflight_table_route()` 在主 IK 路径碰撞时，无动作遍历基础+扩展种子，逐一验证有限 IK 误差、FK ≤4mm、人体关节规则、完整关节插值扫掠碰撞，并按人体姿态代价/关节移动量/IK误差选最优安全解。只有整段 clear 的候选才进入执行；最终目标、桌面几何、碰撞半径、IK门槛、人体规则、抓持与 release 条件均不变。新增静态回归断言覆盖两处扩展种子搜索。
+- 本修复等待 Python、CarryBus 和双轮 Gazebo E2E 验证；完整双轮 E2E 成功计数仍为 **1**，P104-07 继续正在进行中。

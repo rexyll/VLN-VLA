@@ -661,7 +661,8 @@ def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
                 if not _clear:
                     _seed_candidates = []
                     _seen_q = set()
-                    for _seed_index, _seed in enumerate(K.HUMAN_SEEDS):
+                    for _seed_index, _seed in enumerate(
+                            K.HUMAN_SEEDS + K.HUMAN_SEEDS_EXTENDED):
                         _seed_q = K.human_seed_joints(_seed)
                         _q_seed, _e_seed, _how_seed = K.ik_world(
                             side, T_world, base_at_ik, _seed_q, elbow=None,
@@ -1654,6 +1655,60 @@ def preflight_table_route(node, side, targets, elbow='human',
         clear, hit = arm_path_table_clear(
             node, side, path, base=base, ignore_initial=True,
             q_start=q_seed)
+        # A numerically exact primary IK may still choose a forearm posture
+        # whose swept path intersects the table. Search the redundant human-
+        # valid seed set before rejecting the route; every alternative must
+        # independently pass IK/FK, joint-limit and identical swept collision
+        # checks. This is preflight only: no servo command is issued here.
+        if not clear:
+            _route_seed_candidates = []
+            _route_seen = set()
+            for seed_index, seed in enumerate(
+                    K.HUMAN_SEEDS + K.HUMAN_SEEDS_EXTENDED):
+                seed_q = K.human_seed_joints(seed)
+                alt_q, alt_error, alt_how = K.ik_world(
+                    side, np.asarray(target, float), base, seed_q,
+                    elbow=None, refine=False)
+                if (not np.all(np.isfinite(alt_q))
+                        or not math.isfinite(float(alt_error))
+                        or float(alt_error) > 4e-3
+                        or K.violation_list(side, alt_q)):
+                    continue
+                alt_fk = K.fk_world(side, alt_q, base)
+                alt_residual = pos_err_mm(alt_fk, target)
+                if (not math.isfinite(float(alt_residual))
+                        or alt_residual > float(max_ik_error_mm)):
+                    continue
+                key = tuple(np.round(alt_q, 3))
+                if key in _route_seen:
+                    continue
+                _route_seen.add(key)
+                alt_count = max(1, int(math.ceil(
+                    float(np.max(np.abs(alt_q - q_seed))) / 0.02)))
+                alt_path = [
+                    q_seed + (alt_q - q_seed) * (sample / float(alt_count))
+                    for sample in range(1, alt_count + 1)]
+                alt_clear, _alt_hit = arm_path_table_clear(
+                    node, side, alt_path, base=base,
+                    ignore_initial=True, q_start=q_seed)
+                if not alt_clear:
+                    continue
+                score = (K.human_penalty(side, alt_q)
+                         + 0.12 * float(np.max(np.abs(alt_q - q_seed)))
+                         + 2.0 * float(alt_error))
+                _route_seed_candidates.append(
+                    (score, seed_index, alt_q, alt_residual, alt_how,
+                     alt_count))
+            if _route_seed_candidates:
+                (_, seed_index, q_goal, residual, alt_how,
+                 count) = min(_route_seed_candidates, key=lambda item: item[0])
+                how = '%s/table-clear-seed-%d' % (alt_how, seed_index)
+                path = [
+                    q_seed + (q_goal - q_seed) * (sample / float(count))
+                    for sample in range(1, count + 1)]
+                clear, hit = arm_path_table_clear(
+                    node, side, path, base=base, ignore_initial=True,
+                    q_start=q_seed)
         segment_results.append({
             'segment': index, 'ik': how,
             'ik_fk_mm': round(float(residual), 3),
