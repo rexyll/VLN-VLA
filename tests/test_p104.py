@@ -2688,7 +2688,7 @@ class TestP104(unittest.TestCase):
         self.assertIn('if not ok or res > GRASP_TOL_MM * 3.0',
                       motion[grasp_start:grasp_end])
 
-    def test_put_down_two_routes_right_support_via_target_aligned_high_waypoint(self):
+    def test_put_down_two_uses_preflighted_convergent_waypoint_sweep(self):
         motion_path = os.path.join(
             ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
             'drink_motion.py')
@@ -2699,20 +2699,23 @@ class TestP104(unittest.TestCase):
                            start)
         body = motion[start:end]
         first_attempt = body.index("how_r == 'table-collision'")
-        stage_pose = body.index("T_right_stage = T_right_goal.copy()", first_attempt)
-        stage_raise = body.index("T_right_stage[2, 3] += 0.12", stage_pose)
-        stage_gate = body.index("elbow=elbow, check_table=True", stage_raise)
-        retry = body.index("node, 'R', T_right_goal", stage_gate)
-        self.assertLess(first_attempt, stage_pose)
-        self.assertLess(stage_pose, stage_raise)
-        self.assertLess(stage_raise, stage_gate)
-        self.assertLess(stage_gate, retry)
-        self.assertIn('PUT_DOWN_TWO 右手目标上方航点结果', body)
-        self.assertIn('np.round(T_right_stage[:3, 3], 4).tolist()', body)
-        self.assertIn('_stage_mm, _stage_how', body)
+        sweep = body.index('for _candidate in putback_route_candidates(T_right_goal):',
+                           first_attempt)
+        preflight = body.index(
+            'preflight_table_route(node, \'R\', [_route_waypoint, T_right_goal]',
+            sweep)
+        execute_waypoint = body.index("node, 'R', _route_waypoint", preflight)
+        retry_final = body.index("node, 'R', T_right_goal", execute_waypoint)
+        self.assertLess(first_attempt, sweep)
+        self.assertLess(sweep, preflight)
+        self.assertLess(preflight, execute_waypoint)
+        self.assertLess(execute_waypoint, retry_final)
+        self.assertIn('PUTBACK_ROUTE_TRIAL', body)
+        self.assertIn('PUTBACK_ROUTE_ACCEPTED', body)
+        self.assertIn('PUTBACK_ROUTE_EXHAUSTED', body)
         self.assertIn("release_block_reason='right_arm_path_failed'", body)
         self.assertIn("node.carry.release(model)", body)
-        right_failure = body.index("if not ok_r:", retry)
+        right_failure = body.index("if not ok_r:", retry_final)
         release = body.index("node.carry.release(model)")
         self.assertLess(right_failure, release)
 
