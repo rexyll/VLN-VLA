@@ -178,6 +178,24 @@ class TestP104(unittest.TestCase):
             float(np.linalg.norm(expected - np.array((1.2, 2.0, 0.98)))),
             1e-3)
 
+    def test_person_hand_midpoint_uses_measured_truth_when_already_at_target(self):
+        # Gazebo reports articulated palm links even when JointState omits
+        # person_arm_l_joint/person_arm_r_joint. An already-reached target uses
+        # the measured midpoint without requiring angle reconstruction.
+        left = K.trans((1.0, 2.0 - 0.092, 1.02))
+        right = K.trans((1.0, 2.0 + 0.092, 1.02))
+        midpoint = M.person_hand_midpoint_if_at_target(
+            left, right, L.PERSON_HAND_CLOSE)
+        self.assertIsNotNone(midpoint)
+        np.testing.assert_allclose(
+            midpoint[:3, 3], np.array((1.0, 2.0, 1.02)), atol=1e-9)
+        open_left = K.trans((1.0, 2.0 - 0.1725, 1.02))
+        open_right = K.trans((1.0, 2.0 + 0.1725, 1.02))
+        self.assertIsNone(M.person_hand_midpoint_if_at_target(
+            open_left, open_right, L.PERSON_HAND_CLOSE))
+        self.assertIsNotNone(M.person_hand_midpoint_if_at_target(
+            open_left, open_right, L.PERSON_HAND_OPEN))
+
     def test_present_target_prediction_rejects_missing_or_nonfinite_joint_state(self):
         valid = K.trans((0.0, 0.0, 0.0))
         self.assertIsNone(M.person_hand_midpoint_predict(

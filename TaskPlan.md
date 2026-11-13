@@ -463,3 +463,12 @@
 - 发现旧提交 `f94c609` 的 Gazebo E2E run `43373624732` 在 05:41 UTC 启动后长时间停留在完整 DrinkTask 脚本步骤，尚未结束；包含最新参数扫描的 run `43374833640` 因 workflow concurrency 的 `cancel-in-progress: false` 被排队，无法及时验证最新代码。
 - 将 headless E2E 的同一分支并发策略改为 `cancel-in-progress: true`：新 main 提交触发时自动取消旧版本 E2E，让最新代码优先运行。E2E 仍只在独立 runner 上执行，不影响 main 源码或任务安全逻辑。
 - 该设置用于 CI 迭代期间避免陈旧任务阻塞；完整 E2E 的验收规则、双轮运行和证据归档要求保持不变。
+
+
+### 8.326 HANDOVER 前置目标计算优先使用已到位的双掌真值（2026-11-13）
+
+- 最新 E2E run `43375067466` 在 `PREPARE → PRESENT → FAIL_HANDOVER_GEOMETRY` 处终止，未执行 PUT_BACK 参数扫描。Gazebo 真值显示合拢手心距 184.1mm（目标 184.0mm），但杯轴到左右手分别为 16.1/168.2mm；`person_hand_midpoint_world()` 返回空值后，PRESENT 目标退回名义位置，导致杯子相对双掌中点横向偏移 76.2mm。
+- 根因链路定位：当双手已经处于目标开合状态时，当前掌心真值本身就是目标掌心位置，不需要再从 parent/child 旋转重建关节角；此前实现却仍依赖该重建结果。当前 E2E 的 `/drink/joint_state` 未包含 `person_arm_l_joint/person_arm_r_joint`，因此角度重建失败。
+- 新增 `person_hand_midpoint_if_at_target()`：只有两只掌心真值均有效、实测手心间距与请求开合目标相差不超过 15mm 时，才直接返回实测中点；否则仍走原有关节角重建路径，缺失/异常数据继续 fail-closed。该逻辑不改变交接 92±25mm 判据、手部动作、IK、碰撞门控或 release 条件。
+- 新增纯函数回归：验证闭合/张开两种已到位状态直接采用真值中点，并验证开合状态不匹配时拒绝走直接真值分支。
+- 下一轮先验证 HANDOVER 是否恢复，再观察是否抵达 PUT_BACK 并输出 `PUTBACK_ROUTE_SUMMARY`；本次 E2E 未触达 PUT_BACK，不能宣称 27 候选扫描有效。

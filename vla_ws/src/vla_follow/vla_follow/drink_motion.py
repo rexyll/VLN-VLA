@@ -2720,6 +2720,36 @@ def person_hand_joint_angles_from_truth(T_arms_world, T_left_link_world,
         return None
 
 
+def person_hand_midpoint_if_at_target(T_left_palm, T_right_palm,
+                                         openness, tolerance_mm=15.0):
+    """Use measured palm truth directly when the measured gap matches target.
+
+    This avoids reconstructing a joint angle for a pose that is already at the
+    requested opening. It is especially important when Gazebo link truth is
+    available but /drink/joint_state omits the person's articulated joint names.
+    A different measured opening is never treated as the requested pose.
+    """
+    try:
+        Tl = np.asarray(T_left_palm, dtype=float)
+        Tr = np.asarray(T_right_palm, dtype=float)
+        target = person_hand_gap_expected_mm(openness)
+        tolerance = float(tolerance_mm)
+        if (Tl.shape != (4, 4) or Tr.shape != (4, 4)
+                or not np.all(np.isfinite(Tl))
+                or not np.all(np.isfinite(Tr))
+                or not math.isfinite(target)
+                or not math.isfinite(tolerance) or tolerance < 0.0):
+            return None
+        gap_mm = float(np.linalg.norm(Tl[:3, 3] - Tr[:3, 3])) * 1000.0
+        if not math.isfinite(gap_mm) or abs(gap_mm - target) > tolerance:
+            return None
+        midpoint = 0.5 * (Tl[:3, 3] + Tr[:3, 3])
+        if not np.all(np.isfinite(midpoint)):
+            return None
+        return K.trans(midpoint)
+    except (TypeError, ValueError, OverflowError):
+        return None
+
 def person_hand_midpoint_world(node, openness=None):
     """Predict closed-hand midpoint using measured Gazebo link-pose angles."""
     if openness is None:
@@ -2728,6 +2758,12 @@ def person_hand_midpoint_world(node, openness=None):
     Tl, Tr = person_hand_poses(node, T_person)
     if Tl is None or Tr is None:
         return None
+    # If Gazebo truth already shows the requested opening, its measured palm
+    # midpoint is authoritative; do not require a separate joint-state channel
+    # or reconstruct an unnecessary angle from parent/child orientations.
+    measured = person_hand_midpoint_if_at_target(Tl, Tr, openness)
+    if measured is not None:
+        return measured
     T_arms = person_hand_world(node, T_person, link='person_arms',
                                local_off=(0.0, 0.0, 0.0))
     T_left_link = person_hand_world(node, T_person, link='person_arm_l',
