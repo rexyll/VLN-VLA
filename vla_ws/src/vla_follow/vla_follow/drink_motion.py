@@ -702,6 +702,13 @@ def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
                     'REACH %s 碰撞候选重规划: fallback=%s ik_error=%.5f'
                     % (side, _fallback, float(e_alt)))
             if not _clear:
+                # Separate an intrinsically colliding IK endpoint from a
+                # collision that exists only along the current-to-target
+                # interpolation. This is diagnostic only: it never changes
+                # the fail-closed motion decision or collision geometry.
+                _endpoint_clear, _endpoint_hit = arm_path_table_clear(
+                    node, side, [q], base=base_at_ik,
+                    ignore_initial=True, q_start=q)
                 # 碰撞门控在执行前拒绝整段关节路径。这里的 res 仍是初始化
                 # 哨兵 9e9，不能作为实际末端误差；读取当前掌心并计算到本步
                 # 目标的真实距离，同时保留关节端点和首次碰撞几何证据。
@@ -722,7 +729,8 @@ def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
                     'current_xyz=%s target_xyz=%s residual=%.1fmm '
                     'q_now=%s q_target=%s base_at_ik=%s truth_base_at_ik=%s '
                     'base_truth_xy_mm_at_ik=%s base_truth_yaw_deg_at_ik=%s '
-                    'joint_age_at_ik_s=%s truth_age_at_ik_s=%s'
+                    'joint_age_at_ik_s=%s truth_age_at_ik_s=%s '
+                    'endpoint_clear=%s endpoint_hit=%s'
                     % (side, _hit, _fallback, current_xyz,
                        np.round(np.asarray(T_world)[:3, 3], 4).tolist(),
                        res, np.round(q_now, 3).tolist(),
@@ -737,7 +745,8 @@ def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
                        (round(_js_age_at_ik, 4)
                         if _js_age_at_ik is not None else None),
                        (round(_truth_age_at_ik, 4)
-                        if _truth_age_at_ik is not None else None)))
+                        if _truth_age_at_ik is not None else None),
+                       bool(_endpoint_clear), _endpoint_hit))
                 return False, res, 'table-collision'
         if preflight_only:
             preflight_res = pos_err_mm(
