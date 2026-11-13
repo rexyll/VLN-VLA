@@ -25,7 +25,8 @@ permissions:
 
 concurrency:
   group: p104-drinktask-headless-${{ github.ref }}
-  cancel-in-progress: false
+  # New main revisions supersede stale E2E runs; keep only the newest code under test.
+  cancel-in-progress: true
 
 jobs:
   drinktask-e2e:
