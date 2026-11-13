@@ -1286,7 +1286,17 @@ def grasp(node, side, model, palm_fn, grip, approach=0.10, verbose=True):
         return False, 9e9
     T_grasp = palm_fn(Tk)
     T_pre = T_grasp @ K.trans((0.0, 0.0, approach))
-    ok_pre, res_pre, _ = reach(node, side, T_pre, tol_mm=8.0)
+    # Both approach and final grasp are performed near tabletop objects. The
+    # old path omitted the table gate here, so an IK-valid arm posture could
+    # drive into the table edge and time out far from the target. Check the
+    # complete interpolated arm path before issuing any joint command.
+    ok_pre, res_pre, how_pre = reach(
+        node, side, T_pre, tol_mm=8.0, check_table=True)
+    node.get_logger().info(
+        'GRASP_APPROACH model=%s side=%s ok=%s residual_mm=%.1f ik=%s '
+        'target_xyz=%s' %
+        (model, side, ok_pre, float(res_pre), how_pre,
+         np.round(T_pre[:3, 3], 4).tolist()))
     if not ok_pre:
         node.get_logger().error(
             'grasp %s (%s): 接近位未到达 %.1fmm，禁止继续伸入' %
@@ -1294,8 +1304,11 @@ def grasp(node, side, model, palm_fn, grip, approach=0.10, verbose=True):
         return False, res_pre
     # A grasp may induce small chassis motion through arm reaction torque.
     # Keep the 5mm gate unchanged, but allow extra truth-refreshed correction
-    # passes after each post-servo settling interval.
-    ok, res, how = reach(node, side, T_grasp, tol_mm=GRASP_TOL_MM, passes=8)
+    # passes after each post-servo settling interval. The final grasp approach
+    # is independently collision-checked from the measured pre-grasp posture.
+    ok, res, how = reach(
+        node, side, T_grasp, tol_mm=GRASP_TOL_MM, passes=8,
+        check_table=True)
     # P98 补: reach 严重未到位还照旧 attach, 会把物体钉到 0.3m 外(实测把杯
     # 钉飞、场景全污)。阈值取 3x 容差: 边缘差几毫米照常抓(IK 已收敛, 手指
     # 闭合余量足够), 300mm 级的灾难失败才拒绝, 让上游走 FAIL 路径。

@@ -2982,6 +2982,28 @@ class TestP104(unittest.TestCase):
         self.assertLess(source.index('ok_person_grip = M.person_hands'), source.index('HANDOVER_POST_CLOSE'))
 
 
+    def test_grasp_approach_and_final_pose_require_table_path_gate(self):
+        motion_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
+            'drink_motion.py')
+        with open(motion_path, encoding='utf-8') as stream:
+            source = stream.read()
+        start = source.index('def grasp(')
+        end = source.index('def held_palm_target(', start)
+        body = source[start:end]
+        self.assertIn(
+            "node, side, T_pre, tol_mm=8.0, check_table=True", body)
+        self.assertIn(
+            "node, side, T_grasp, tol_mm=GRASP_TOL_MM, passes=8,\n        check_table=True",
+            body)
+        self.assertLess(body.index('ok_pre, res_pre, how_pre = reach('),
+                        body.index('if not ok_pre:'))
+        self.assertLess(body.index('if not ok_pre:'),
+                        body.index('ok, res, how = reach('))
+        self.assertLess(body.index('if not ok or res > GRASP_TOL_MM * 3.0:'),
+                        body.index('node.carry.grab(model, side)'))
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)
 
