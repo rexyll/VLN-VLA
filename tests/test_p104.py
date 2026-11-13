@@ -2713,9 +2713,13 @@ class TestP104(unittest.TestCase):
         body = source[start:end]
         self.assertLess(body.index('if not wait_base_stopped(node):'),
                         body.index("node.carry.place('robot', T_goal)"))
-        self.assertLess(body.index('settle_sim(node, settle)'),
-                        body.index('if not wait_base_stopped(node):', 1))
-        self.assertLess(body.index('if not wait_base_stopped(node):', 1),
+        settle_at = body.index('settle_sim(node, settle)')
+        post_wait_at = body.index(
+            'if not wait_base_stopped(node):', settle_at)
+        self.assertLess(body.index('if not wait_base_stopped(node):'),
+                        settle_at)
+        self.assertLess(settle_at, post_wait_at)
+        self.assertLess(post_wait_at,
                         body.index("T_now = object_pose(node, 'robot')"))
 
 if __name__ == '__main__':
