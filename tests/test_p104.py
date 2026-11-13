@@ -2706,7 +2706,7 @@ class TestP104(unittest.TestCase):
         helper = source[helper_start:helper_end]
         self.assertIn("node.drive(0.0, 0.0)", helper)
         self.assertIn("'left_wheel_joint', 'right_wheel_joint'", helper)
-        self.assertIn('truth_base_twist_age_s', helper)
+        self.assertIn('truth_twist_age_s', helper)
         self.assertIn('stable_since', helper)
         start = source.index('def place_robot(')
         end = source.index('def yaw_err_of(', start)
