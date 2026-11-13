@@ -864,7 +864,8 @@ class DrinkTask(Node):
                 self, 'R', 'cup', pr['off_r'], check_table=True)
             _cup_after_follow = M.object_pose(self, 'cup')
             _right_after_follow = M.wrist(self, 'R')
-            _base_diag_post = _follow_base_diag()\n            _follow_drift_mm = (
+            _base_diag_post = _follow_base_diag()
+            _follow_drift_mm = (
                 float(np.linalg.norm(_cup_after_follow[:3, 3] -
                                      _cup_before_follow[:3, 3])) * 1000.0
                 if (_cup_after_follow is not None and
