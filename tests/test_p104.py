@@ -2411,8 +2411,7 @@ class TestP104(unittest.TestCase):
         start = source.index('def reach(')
         end = source.index('def sim_now(', start)
         body = source[start:end]
-        self.assertIn('for _seed_index, _seed in enumerate(K.HUMAN_SEEDS):',
-                      body)
+        self.assertIn('K.HUMAN_SEEDS + K.HUMAN_SEEDS_EXTENDED', body)
         self.assertIn('_seed_q = K.human_seed_joints(_seed)', body)
         self.assertIn('base_at_ik, _seed_q, elbow=None', body)
         self.assertIn('refine=False', body)
@@ -2488,6 +2487,16 @@ class TestP104(unittest.TestCase):
         self.assertTrue(np.all(np.isfinite(expanded)))
         self.assertTrue(np.all(expanded >= K.LIM_LO))
         self.assertTrue(np.all(expanded <= K.LIM_HI))
+
+    def test_extended_human_seed_grid_is_bounded_and_valid(self):
+        self.assertEqual(len(K.HUMAN_SEEDS_EXTENDED), 72)
+        for seed in K.HUMAN_SEEDS_EXTENDED:
+            expanded = K.human_seed_joints(seed)
+            self.assertEqual(expanded.shape, (K.NJ,))
+            self.assertTrue(np.all(np.isfinite(expanded)))
+            self.assertTrue(np.all(expanded >= K.LIM_LO))
+            self.assertTrue(np.all(expanded <= K.LIM_HI))
+
 
     def test_human_posture_seed_expansion_rejects_invalid_input(self):
         invalid = (

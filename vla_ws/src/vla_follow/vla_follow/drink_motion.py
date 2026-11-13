@@ -590,7 +590,8 @@ def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
             if ik_fk_mm > 4.0:
                 _ik_seed_candidates = []
                 _ik_seed_hits = []
-                for _seed_index, _seed in enumerate(K.HUMAN_SEEDS):
+                for _seed_index, _seed in enumerate(
+                            K.HUMAN_SEEDS + K.HUMAN_SEEDS_EXTENDED):
                     _seed_q = K.human_seed_joints(_seed)
                     _q_seed, _e_seed, _how_seed = K.ik_world(
                         side, T_world, base_at_ik, _seed_q, elbow=None,
