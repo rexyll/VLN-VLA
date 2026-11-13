@@ -816,13 +816,41 @@ class DrinkTask(Node):
             # an inaccurate frozen offset from contact-induced cup displacement.
             _cup_before_follow = M.object_pose(self, 'cup')
             _right_before_follow = M.wrist(self, 'R')
+            # Snapshot command channels and independent chassis telemetry at
+            # both ends of follow_hand; a single BASE_STOP sample is not proof
+            # that the base remained stationary during arm motion.
+            def _follow_base_diag():
+                now = time.monotonic()
+                truth = self.truth_base_pose_snapshot
+                drink_cmd = self._drink_cmd_snapshot
+                robot_cmd = self._robot_cmd_snapshot
+                odom_age = (round(now - self.odom_twist_t, 3)
+                            if self.odom_twist_t else None)
+                truth_age = (round(now - self.truth_base_twist_t, 3)
+                             if self.truth_base_twist_t else None)
+                return {
+                    'truth_pose': (list(truth[0]) if truth else None),
+                    'truth_twist': (list(self.truth_base_twist)
+                                    if self.truth_base_twist is not None else None),
+                    'truth_twist_age_s': truth_age,
+                    'odom_twist': (list(self.odom_twist)
+                                   if self.odom_twist is not None else None),
+                    'odom_twist_age_s': odom_age,
+                    'drink_cmd': (list(drink_cmd[0]) if drink_cmd else None),
+                    'drink_cmd_age_s': (round(now - drink_cmd[1], 3)
+                                        if drink_cmd else None),
+                    'robot_cmd': (list(robot_cmd[0]) if robot_cmd else None),
+                    'robot_cmd_age_s': (round(now - robot_cmd[1], 3)
+                                        if robot_cmd else None),
+                }
+            _base_diag_pre = _follow_base_diag()
             _right_goal_follow = (
                 _cup_before_follow @ np.asarray(pr['off_r'], float)
                 if _cup_before_follow is not None and pr.get('off_r') is not None
                 else None)
             self.get_logger().info(
                 'PRESENT_FOLLOW_PRE cup_xyz=%s right_xyz=%s right_goal_xyz=%s '
-                'off_r_xyz=%s base=%s' %
+                'off_r_xyz=%s base=%s chassis=%s' %
                 (np.round(_cup_before_follow[:3, 3], 5).tolist()
                  if _cup_before_follow is not None else None,
                  np.round(_right_before_follow[:3, 3], 5).tolist()
@@ -831,12 +859,12 @@ class DrinkTask(Node):
                  if _right_goal_follow is not None else None,
                  np.round(np.asarray(pr['off_r'], float)[:3, 3], 5).tolist()
                  if pr.get('off_r') is not None else None,
-                 np.round(self.base, 5).tolist()))
+                 np.round(self.base, 5).tolist(), _base_diag_pre))
             ok_follow, follow_mm = M.follow_hand(
                 self, 'R', 'cup', pr['off_r'], check_table=True)
             _cup_after_follow = M.object_pose(self, 'cup')
             _right_after_follow = M.wrist(self, 'R')
-            _follow_drift_mm = (
+            _base_diag_post = _follow_base_diag()\n            _follow_drift_mm = (
                 float(np.linalg.norm(_cup_after_follow[:3, 3] -
                                      _cup_before_follow[:3, 3])) * 1000.0
                 if (_cup_after_follow is not None and
@@ -857,7 +885,7 @@ class DrinkTask(Node):
                  if _right_after_follow is not None else None,
                  (round(float(_follow_right_err_mm), 3)
                   if _follow_right_err_mm is not None else None),
-                 np.round(self.base, 5).tolist()))
+                 np.round(self.base, 5).tolist(), _base_diag_post))
             res['present'] = {'ok': ok_present, 'position_mm': present_mm,
                               'right_hand_ok': ok_follow,
                               'right_hand_mm': follow_mm}
