@@ -873,8 +873,23 @@ class DrinkTask(Node):
                 return False
             self._set_state('HANDOVER', {'approach': res['approach'],
                                          'hands': res['hands']})
+            # person_arms 是肩架，左右手却是独立关节子 link。使用当前
+            # Gazebo 真值手心中点反算肩架局部偏置，避免固定名义偏置
+            # 在不同底盘/人物朝向下造成杯轴偏到单侧。缺失观测时不交权。
+            _handover_off = (
+                M.person_hand_midpoint_offset(_tp @ _ta, _hl, _hr)
+                if (_tp is not None and _ta is not None
+                    and _hl is not None and _hr is not None) else None)
+            if _handover_off is None:
+                self._set_state('FAIL_HANDOVER_ANCHOR')
+                self.get_logger().error(
+                    'DRINK 无法从双手真值计算交接锚点；保持机器人持杯，不交权')
+                return False
+            self.get_logger().info(
+                'HANDOVER_ANCHOR local_m: %s'
+                % (np.round(_handover_off, 5).tolist(),))
             ok_h = self.carry.hand_to('cup', 'person', 'person_arms',
-                                      L.PERSON_HAND_IN_ARM)
+                                      _handover_off)
             if not ok_h:
                 self._set_state('FAIL_HANDOVER')
                 self.get_logger().error(

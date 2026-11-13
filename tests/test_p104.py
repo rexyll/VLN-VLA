@@ -150,6 +150,27 @@ class TestP104(unittest.TestCase):
         self.assertFalse(M.person_handover_geometry_ok(None))
         self.assertFalse(M.person_handover_geometry_ok((float('nan'), 92.0)))
 
+    def test_person_hand_midpoint_offset_tracks_measured_palms_in_rotated_arm_frame(self):
+        T_arms = K.trans((0.4, -0.2, 0.8)) @ K.frame(
+            K.rot((0.0, 0.0, 1.0), math.radians(37.0)))
+        T_left = K.trans((0.9, 0.1, 1.0))
+        T_right = K.trans((0.7, 0.3, 1.0))
+        offset = M.person_hand_midpoint_offset(T_arms, T_left, T_right)
+        self.assertIsNotNone(offset)
+        reconstructed = T_arms @ K.trans(offset)
+        expected = 0.5 * (T_left[:3, 3] + T_right[:3, 3])
+        np.testing.assert_allclose(reconstructed[:3, 3], expected, atol=1e-9)
+
+    def test_person_hand_midpoint_offset_rejects_missing_or_invalid_truth(self):
+        valid = np.eye(4)
+        self.assertIsNone(M.person_hand_midpoint_offset(None, valid, valid))
+        invalid = valid.copy()
+        invalid[0, 0] = np.nan
+        self.assertIsNone(M.person_hand_midpoint_offset(valid, invalid, valid))
+        singular = valid.copy()
+        singular[:3, :3] = 0.0
+        self.assertIsNone(M.person_hand_midpoint_offset(singular, valid, valid))
+
     def test_handover_geometry_gate_runs_before_host_ownership_transfer(self):
         task_path = os.path.join(
             ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
@@ -163,6 +184,9 @@ class TestP104(unittest.TestCase):
         self.assertLess(start, gate)
         self.assertLess(diagnostic, gate)
         self.assertLess(gate, transfer)
+        self.assertIn('M.person_hand_midpoint_offset(_tp @ _ta, _hl, _hr)', source)
+        self.assertIn('_handover_off)', source[transfer:transfer + 180])
+        self.assertIn('FAIL_HANDOVER_ANCHOR', source)
         self.assertIn('保持机器人持杯，不交权', source[start:transfer])
 
     def test_pose_history_interpolates_at_rgbd_capture_time_without_extrapolation(self):

@@ -2530,6 +2530,33 @@ def person_hand_poses(node, T_person=None):
     return Tl, Tr
 
 
+def person_hand_midpoint_offset(T_arms_world, T_left_world, T_right_world):
+    """Return the measured two-palm midpoint in the person_arms local frame.
+
+    The carry host is the shoulder/root link, while the palms belong to two
+    independently articulated child links. A fixed nominal offset is therefore
+    not guaranteed to coincide with their realized midpoint after articulation.
+    """
+    try:
+        T_arms = np.asarray(T_arms_world, dtype=float)
+        T_left = np.asarray(T_left_world, dtype=float)
+        T_right = np.asarray(T_right_world, dtype=float)
+        if (T_arms.shape != (4, 4) or T_left.shape != (4, 4)
+                or T_right.shape != (4, 4)
+                or not np.all(np.isfinite(T_arms))
+                or not np.all(np.isfinite(T_left))
+                or not np.all(np.isfinite(T_right))):
+            return None
+        midpoint = 0.5 * (T_left[:3, 3] + T_right[:3, 3])
+        local = np.linalg.inv(T_arms) @ np.append(midpoint, 1.0)
+        if not np.all(np.isfinite(local)) or abs(float(local[3])) < 1e-9:
+            return None
+        offset = local[:3] / local[3]
+        return tuple(float(v) for v in offset)
+    except (ValueError, TypeError, np.linalg.LinAlgError, OverflowError):
+        return None
+
+
 def hand_gap_mm(node, T_person=None):
     """两手心的间距(mm)，真值测量。合拢 ≈184mm，张开 ≈345mm。"""
     Tl, Tr = person_hand_poses(node, T_person)
