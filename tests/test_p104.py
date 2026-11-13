@@ -221,7 +221,7 @@ class TestP104(unittest.TestCase):
             left, wrong_gap, q_open, -q_open, q_close))
 
     def test_reach_servo_failure_diagnostic_captures_both_joint_caches(self):
-        source = (ROOT / 'vla_ws/src/vla_follow/vla_follow/drink_motion.py').read_text()
+        source = open(os.path.join(ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow', 'drink_motion.py'), encoding='utf-8').read()
         self.assertIn('q_servo_final = np.asarray(node.arm[side]._read()', source)
         self.assertIn("'servo_final_rad'", source)
         self.assertIn("'node_final_rad'", source)

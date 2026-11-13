@@ -495,3 +495,9 @@
 - 失败日志中 `q_target` 与随后的 `q_measured` 按 4 位小数完全相同，但 `joint_delta_deg` 却有最高 23.39°，这是内部 servo sample、node.js cache 与 move 返回误差之间的证据不一致，不能据此贸然放宽 3°伺服门槛或自动继续动作。
 - `reach()` 现在复制冻结 IK 目标，并在伺服返回后分别记录 `JointServo._read()` 内部采样、node.js 缓存采样、两者各自相对目标的误差以及 `move()` 原始返回误差；失败日志精确到 6 位小数并包含关节名称。该改动仅增强诊断，不改变伺服控制、timeout、IK、碰撞检查、release 或 fail-closed 决策。
 - 下一轮重点判定：若 servo sample 与 node cache 分歧，追查订阅/缓存时序；若两者均与目标一致但 move 返回误差仍不一致，追查 JointServo.move() 返回值生命周期；若两者均保留大误差，则分析对应关节执行/限位原因。第二轮在 PREPARE 释放水壶后终止，当前完整两轮 E2E 仍未通过。
+
+
+### 8.330 修正伺服诊断回归测试的路径拼接（2026-11-13）
+
+- `0bb80ff` 新增的静态诊断测试最初将字符串型 `ROOT` 当作 `pathlib.Path` 使用；在测试执行前静态复核发现该测试夹具自身会抛 `TypeError`。改为 `os.path.join()` 并显式 UTF-8 读取，生产代码未改。
+- 本项仅修复测试代码，后续以 Python workflow 结果为准。
