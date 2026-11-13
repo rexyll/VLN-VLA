@@ -1748,47 +1748,58 @@ def put_down_two(node, model, T_obj_goal, tol_mm=PLACE_TOL_MM, steps=4,
             _route_ok = False
             _route_trials = 0
             _route_reasons = {}
-            for _candidate in putback_route_candidates(T_right_goal):
-                _route_trials += 1
-                _route_waypoint = _candidate['waypoint']
-                _preflight_ok, _preflight = preflight_table_route(
-                    node, 'R', [_route_waypoint, T_right_goal], elbow=elbow)
-                _reason = ('preflight_clear' if _preflight_ok else
-                           str(_preflight.get('reason', 'preflight_rejected')))
-                _route_reasons[_reason] = _route_reasons.get(_reason, 0) + 1
-                node.get_logger().info(
-                    'PUTBACK_ROUTE_TRIAL step=%d trial=%d params=%s '
-                    'preflight=%s detail=%s'
-                    % (i, _route_trials,
-                       {k: _candidate[k] for k in ('height_m', 'dx_m', 'dy_m')},
-                       _preflight_ok, _preflight))
-                if not _preflight_ok:
-                    continue
-                _ok_stage, _stage_mm, _stage_how = reach(
-                    node, 'R', _route_waypoint, tol_mm=8.0,
-                    elbow=elbow, check_table=True)
-                if not _ok_stage:
-                    _reason = 'stage_' + str(_stage_how)
+            # The same support pose can have distinct collision-free IK
+            # branches. A prior full E2E reached this target through the
+            # elbow-out branch; this run's human branch had zero clear
+            # endpoint seeds. Search both branches, but preflight and execute
+            # each route with the exact same branch and unchanged safety gates.
+            _route_elbows = ([elbow, 'out'] if elbow == 'human'
+                             else [elbow])
+            for _route_elbow in _route_elbows:
+                for _candidate in putback_route_candidates(T_right_goal):
+                    _route_trials += 1
+                    _route_waypoint = _candidate['waypoint']
+                    _preflight_ok, _preflight = preflight_table_route(
+                        node, 'R', [_route_waypoint, T_right_goal],
+                        elbow=_route_elbow)
+                    _reason = ('preflight_clear' if _preflight_ok else
+                               str(_preflight.get('reason', 'preflight_rejected')))
                     _route_reasons[_reason] = _route_reasons.get(_reason, 0) + 1
-                    if _stage_how == 'table-collision':
-                        continue
-                    how_r, res_r = _stage_how, _stage_mm
-                    break
-                ok_r, res_r, how_r = reach(
-                    node, 'R', T_right_goal, tol_mm=6.0,
-                    elbow=elbow, check_table=True)
-                if ok_r:
-                    _route_ok = True
                     node.get_logger().info(
-                        'PUTBACK_ROUTE_ACCEPTED step=%d trial=%d params=%s '
-                        'residual=%.1fmm'
-                        % (i, _route_trials,
-                           {k: _candidate[k] for k in
-                            ('height_m', 'dx_m', 'dy_m')}, res_r))
-                    break
-                _reason = ('final_' + str(how_r))
-                _route_reasons[_reason] = _route_reasons.get(_reason, 0) + 1
-                if how_r != 'table-collision':
+                        'PUTBACK_ROUTE_TRIAL step=%d trial=%d elbow=%s params=%s '
+                        'preflight=%s detail=%s'
+                        % (i, _route_trials, _route_elbow,
+                           {k: _candidate[k] for k in ('height_m', 'dx_m', 'dy_m')},
+                           _preflight_ok, _preflight))
+                    if not _preflight_ok:
+                        continue
+                    _ok_stage, _stage_mm, _stage_how = reach(
+                        node, 'R', _route_waypoint, tol_mm=8.0,
+                        elbow=_route_elbow, check_table=True)
+                    if not _ok_stage:
+                        _reason = 'stage_' + str(_stage_how)
+                        _route_reasons[_reason] = _route_reasons.get(_reason, 0) + 1
+                        if _stage_how == 'table-collision':
+                            continue
+                        how_r, res_r = _stage_how, _stage_mm
+                        break
+                    ok_r, res_r, how_r = reach(
+                        node, 'R', T_right_goal, tol_mm=6.0,
+                        elbow=_route_elbow, check_table=True)
+                    if ok_r:
+                        _route_ok = True
+                        node.get_logger().info(
+                            'PUTBACK_ROUTE_ACCEPTED step=%d trial=%d elbow=%s '
+                            'params=%s residual=%.1fmm'
+                            % (i, _route_trials, _route_elbow,
+                               {k: _candidate[k] for k in
+                                ('height_m', 'dx_m', 'dy_m')}, res_r))
+                        break
+                    _reason = ('final_' + str(how_r))
+                    _route_reasons[_reason] = _route_reasons.get(_reason, 0) + 1
+                    if how_r != 'table-collision':
+                        break
+                if _route_ok or how_r != 'table-collision':
                     break
             node.get_logger().info(
                 'PUTBACK_ROUTE_SUMMARY step=%d trials=%d accepted=%s reasons=%s'

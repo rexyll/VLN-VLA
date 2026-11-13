@@ -580,3 +580,15 @@
 - 另纠正此前对伺服双缓存的解释：本次日志中 `JointServo.move()` 返回误差是在超时瞬间采样；顶层 `servo_error_deg` 是随后额外 `settle_sim(0.20)` 后再次采样，二者不同主要反映超时后控制器仍继续向目标运动的时间差，不是足以证明 servo sample 与 node cache 分裂的证据。后续应保留时间戳一致的采样对照。
 - 本次修复在 `grasp()` 的接近位与最终抓取位均启用现有 `check_table=True`：IK 目标仍须满足 4mm 收敛门槛，完整插值路径须通过现有桌面/桌腿碰撞检查，人体关节规则不变；未通过时不执行该段运动、不继续伸入、不 attach。新增 `GRASP_APPROACH` 诊断日志与纯静态回归测试。没有修改关节限位、伺服精度、碰撞几何、抓取容差或 release 条件。
 - 下一轮优先确认：抓壶接近路径是否被碰撞门控识别；若识别碰撞，基于真实碰撞几何设计安全路径；若门控通过但伺服仍超时，则继续检查目标姿态分支、控制命令和关节动态。完整双轮 E2E 成功批次计数仍为 **1**；P104-07 继续正在进行中。
+
+
+
+### 8.339 E2E #82 抓壶碰撞门控通过，PUT_BACK 人体式 IK 分支 27/27 碰撞拒绝；增加分支一致的安全重规划（2026-11-13）
+
+- 提交 `3ac71dc3ad79ad098d18ad1fe375e251481fc183` 的 Python 纯测试、编译和 CarryBus ROS 2 executor 集成均通过；Gazebo E2E run `43408247895`，artifact `14029261745`。第一轮仅到 `PREPARE → PRESENT → HANDOVER → PERSON_DRINK → TAKE_BACK → FAIL_PUT_BACK`；requested=2、completed=1、passed=0、failed=2、round2 缺失、all_passed=false。截图 6/8，observer exit 2。
+- 新增抓壶碰撞门控已在真实仿真生效：`GRASP_APPROACH model=kettle side=R ok=True residual_mm=4.2`，随后完成 HANDOVER、PERSON_DRINK、TAKE_BACK。未再复现此前 165.5mm 接近位残差。
+- PUT_BACK 时杯子目标仍为 [2.300,0.440,0.773]m，右掌目标 [2.215,0.357,0.773]m；桌面碰撞盒 expanded bounds x=[2.09,3.11], y=[-0.02,0.72], z=[0.63,0.76]m。右前臂段与桌面盒相交，当前掌心残差 57.7mm。27/27 waypoint 候选全部被现有 `table_top` 碰撞门控拒绝；其中多组 IK/FK 残差近 0，但几何碰撞仍然成立。系统阻止 release，杯子仍在 holding=['cup']，没有执行 RETREAT/HANDBACK。
+- 与此前完整通过的 run `43404656732` 对比：目标右掌位置几乎相同（约 2.214/0.359/0.773m），其成功日志显示右臂在放杯路径采用 `fallback=out`，之后 release ACK 成功。当前 PUT_BACK 的参数 sweep 仅用 `elbow='human'` 做 waypoint 与终点预检/执行；日志显示人体分支 `endpoint_clear_seeds=0`。因此问题不仅是 waypoint 高度/XY 偏移，还存在未被参数 sweep 覆盖的 IK 姿态分支差异。
+- 修复：对每个既有 waypoint 候选，先尝试原 `human` 分支，再尝试 `out` 分支；预检与实际 waypoint/终点执行均使用同一个分支，避免“用一个分支预检、另一个分支执行”。两分支都必须满足既有 4mm IK/FK、人体关节规则、全路径碰撞检查；只执行整段通过的候选。没有改目标杯位、桌面碰撞模型、碰撞半径、IK 阈值、关节限位、抓持或 release 条件。
+- 新增回归断言覆盖分支枚举、预检与执行分支一致、诊断日志带分支名；下一轮重点确认 `elbow=out` 是否找到全路径无碰撞的 waypoint，且后续仍完成落稳复核、双手张开、release ACK、撤离与交权。
+- 完整双轮 E2E 成功计数保持 **1**；P104-07 仍未完成。
