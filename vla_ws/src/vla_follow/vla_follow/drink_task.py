@@ -565,9 +565,10 @@ class DrinkTask(Node):
         self.sync_base_from_truth(quiet=True)
         bx, by, _byaw = self.base
         Tp = M.object_pose(self, 'person')
-        Th = M.person_hand_world(self, Tp)
+        Th = M.person_hand_midpoint_world(self, L.PERSON_HAND_CLOSE)
         if Th is None:
-            return {'ok': False, 'moved': False, 'why': '拿不到人手真值'}
+            return {'ok': False, 'moved': False,
+                    'why': '拿不到闭合姿态双手中点真值/关节状态'}
         dx, dy = Th[0, 3] - bx, Th[1, 3] - by
         d_hb = math.hypot(dx, dy)
         # P94: 三个点都打出来。只看"车→人手"这一个数没法区分"人站远了"和
@@ -624,8 +625,9 @@ class DrinkTask(Node):
         for i in range(3):
             self.sync_base_from_truth(quiet=True)
             bxn, byn, _ = self.base
-            Thn = M.person_hand_world(self, M.object_pose(self, 'person'))
+            Thn = M.person_hand_midpoint_world(self, L.PERSON_HAND_CLOSE)
             if Thn is None:
+                drive_ok_all = False
                 break
             dxn, dyn = Thn[0, 3] - bxn, Thn[1, 3] - byn
             dn = math.hypot(dxn, dyn)

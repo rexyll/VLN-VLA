@@ -150,6 +150,42 @@ class TestP104(unittest.TestCase):
         self.assertFalse(M.person_handover_geometry_ok(None))
         self.assertFalse(M.person_handover_geometry_ok((float('nan'), 92.0)))
 
+    def test_present_target_predicts_closed_articulated_palm_midpoint(self):
+        # Build current palm transforms from known shoulder frames at an open
+        # joint angle, then verify the predicted closed midpoint matches FK.
+        q_open = 0.42
+        q_close = 0.035
+        T_left_link = K.trans((1.0, 2.0, 1.0)) @ K.frame(
+            K.rot((0.0, 0.0, 1.0), q_open))
+        T_right_link = K.trans((1.0, 2.0, 1.0)) @ K.frame(
+            K.rot((0.0, 0.0, 1.0), -q_open))
+        T_left = T_left_link @ K.trans(L.PERSON_HAND_IN_ARML)
+        T_right = T_right_link @ K.trans(L.PERSON_HAND_IN_ARMR)
+        predicted = M.person_hand_midpoint_predict(
+            T_left, T_right, q_open, -q_open, q_close)
+        expected_left = (K.trans((1.0, 2.0, 1.0)) @ K.frame(
+            K.rot((0.0, 0.0, 1.0), q_close))
+            @ K.trans(L.PERSON_HAND_IN_ARML))
+        expected_right = (K.trans((1.0, 2.0, 1.0)) @ K.frame(
+            K.rot((0.0, 0.0, 1.0), -q_close))
+            @ K.trans(L.PERSON_HAND_IN_ARMR))
+        expected = 0.5 * (expected_left[:3, 3] + expected_right[:3, 3])
+        self.assertIsNotNone(predicted)
+        np.testing.assert_allclose(predicted[:3, 3], expected, atol=1e-9)
+        # The midpoint differs from the fixed shoulder-root nominal point;
+        # this is the offset that the PRESENT target must now account for.
+        self.assertGreater(
+            float(np.linalg.norm(expected - np.array((1.2, 2.0, 0.98)))),
+            1e-3)
+
+    def test_present_target_prediction_rejects_missing_or_nonfinite_joint_state(self):
+        valid = K.trans((0.0, 0.0, 0.0))
+        self.assertIsNone(M.person_hand_midpoint_predict(
+            valid, valid, None, 0.0, L.PERSON_HAND_CLOSE))
+        self.assertIsNone(M.person_hand_midpoint_predict(
+            valid, valid, 0.0, float('nan'), L.PERSON_HAND_CLOSE))
+
+
     def test_person_hand_midpoint_offset_tracks_measured_palms_in_rotated_arm_frame(self):
         T_arms = K.trans((0.4, -0.2, 0.8)) @ K.frame(
             K.rot((0.0, 0.0, 1.0), math.radians(37.0)))

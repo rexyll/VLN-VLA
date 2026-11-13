@@ -2429,7 +2429,10 @@ def present_target_at_hand(node):
     `cup_in_base` 跟着这个方向走, 仍然是"柄朝人"。
     """
     bx, by, byaw = node.base
-    Th = person_hand_world(node, object_pose(node, 'person'))
+    # Predict where both palms will actually be after the scripted close
+    # motion. The shoulder-root nominal point is not the midpoint of the
+    # articulated child palms and can be off by >40mm in a rotated scene.
+    Th = person_hand_midpoint_world(node, L.PERSON_HAND_CLOSE)
     if Th is None:
         return cup_present_target(node)
     dx, dy = Th[0, 3] - bx, Th[1, 3] - by
@@ -2528,6 +2531,57 @@ def person_hand_poses(node, T_person=None):
     Tr = person_hand_world(node, T_person, link='person_arm_r',
                            local_off=L.PERSON_HAND_IN_ARMR)
     return Tl, Tr
+
+
+def person_hand_midpoint_predict(T_left_palm, T_right_palm,
+                                 q_left, q_right, openness,
+                                 left_offset=None, right_offset=None):
+    """Predict the two palm world poses after both articulated hand joints move.
+
+    The person hand links rotate about their shoulder origins around local +Z.
+    Inputs are current palm world transforms and measured joint positions;
+    target right joint is the mirrored negative openness command.
+    """
+    try:
+        Tl = np.asarray(T_left_palm, dtype=float)
+        Tr = np.asarray(T_right_palm, dtype=float)
+        ql, qr, target = float(q_left), float(q_right), float(openness)
+        ol = (L.PERSON_HAND_IN_ARML if left_offset is None
+              else tuple(float(v) for v in left_offset))
+        or_ = (L.PERSON_HAND_IN_ARMR if right_offset is None
+               else tuple(float(v) for v in right_offset))
+        if (Tl.shape != (4, 4) or Tr.shape != (4, 4)
+                or not np.all(np.isfinite(Tl)) or not np.all(np.isfinite(Tr))
+                or not all(math.isfinite(v) for v in (ql, qr, target))
+                or len(ol) != 3 or len(or_) != 3
+                or not all(math.isfinite(v) for v in ol + or_)):
+            return None
+        # Recover each child-link frame from its measured palm frame, then
+        # apply only the commanded joint delta about that link's local origin.
+        Tll = Tl @ np.linalg.inv(K.trans(ol))
+        Trl = Tr @ np.linalg.inv(K.trans(or_))
+        Tlp = Tll @ K.rot_z(target - ql) @ K.trans(ol)
+        Trp = Trl @ K.rot_z(-target - qr) @ K.trans(or_)
+        midpoint = 0.5 * (Tlp[:3, 3] + Trp[:3, 3])
+        if not np.all(np.isfinite(midpoint)):
+            return None
+        return K.trans(midpoint)
+    except (ValueError, TypeError, np.linalg.LinAlgError, OverflowError):
+        return None
+
+
+def person_hand_midpoint_world(node, openness=None):
+    """Predicted world midpoint of both palms at the requested hand openness."""
+    if openness is None:
+        openness = L.PERSON_HAND_CLOSE
+    Tl, Tr = person_hand_poses(node)
+    if Tl is None or Tr is None:
+        return None
+    ql = getattr(node, 'js', {}).get('person_arm_l_joint')
+    qr = getattr(node, 'js', {}).get('person_arm_r_joint')
+    if ql is None or qr is None:
+        return None
+    return person_hand_midpoint_predict(Tl, Tr, ql, qr, openness)
 
 
 def person_hand_midpoint_offset(T_arms_world, T_left_world, T_right_world):
