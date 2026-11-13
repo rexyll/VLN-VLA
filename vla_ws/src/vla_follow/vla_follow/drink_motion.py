@@ -1676,11 +1676,15 @@ def put_down_two(node, model, T_obj_goal, tol_mm=PLACE_TOL_MM, steps=4,
             # attached and advance to the next parameter candidate.
             _route_ok = False
             _route_trials = 0
+            _route_reasons = {}
             for _candidate in putback_route_candidates(T_right_goal):
                 _route_trials += 1
                 _route_waypoint = _candidate['waypoint']
                 _preflight_ok, _preflight = preflight_table_route(
                     node, 'R', [_route_waypoint, T_right_goal], elbow=elbow)
+                _reason = ('preflight_clear' if _preflight_ok else
+                           str(_preflight.get('reason', 'preflight_rejected')))
+                _route_reasons[_reason] = _route_reasons.get(_reason, 0) + 1
                 node.get_logger().info(
                     'PUTBACK_ROUTE_TRIAL step=%d trial=%d params=%s '
                     'preflight=%s detail=%s'
@@ -1693,6 +1697,8 @@ def put_down_two(node, model, T_obj_goal, tol_mm=PLACE_TOL_MM, steps=4,
                     node, 'R', _route_waypoint, tol_mm=8.0,
                     elbow=elbow, check_table=True)
                 if not _ok_stage:
+                    _reason = 'stage_' + str(_stage_how)
+                    _route_reasons[_reason] = _route_reasons.get(_reason, 0) + 1
                     if _stage_how == 'table-collision':
                         continue
                     how_r, res_r = _stage_how, _stage_mm
@@ -1709,8 +1715,13 @@ def put_down_two(node, model, T_obj_goal, tol_mm=PLACE_TOL_MM, steps=4,
                            {k: _candidate[k] for k in
                             ('height_m', 'dx_m', 'dy_m')}, res_r))
                     break
+                _reason = ('final_' + str(how_r))
+                _route_reasons[_reason] = _route_reasons.get(_reason, 0) + 1
                 if how_r != 'table-collision':
                     break
+            node.get_logger().info(
+                'PUTBACK_ROUTE_SUMMARY step=%d trials=%d accepted=%s reasons=%s'
+                % (i, _route_trials, _route_ok, _route_reasons))
             if not _route_ok:
                 node.get_logger().warn(
                     'PUTBACK_ROUTE_EXHAUSTED step=%d trials=%d; '

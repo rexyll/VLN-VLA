@@ -2711,6 +2711,8 @@ class TestP104(unittest.TestCase):
         self.assertIn('PUTBACK_ROUTE_TRIAL', body)
         self.assertIn('PUTBACK_ROUTE_ACCEPTED', body)
         self.assertIn('PUTBACK_ROUTE_EXHAUSTED', body)
+        self.assertIn('PUTBACK_ROUTE_SUMMARY', body)
+        self.assertIn('_route_reasons', body)
         self.assertIn("release_block_reason='right_arm_path_failed'", body)
         self.assertIn("node.carry.release(model)", body)
         right_failure = body.index("if not ok_r:", retry_final)
