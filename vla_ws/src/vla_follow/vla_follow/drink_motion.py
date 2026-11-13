@@ -754,10 +754,26 @@ def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
             if not math.isfinite(float(preflight_res)):
                 return False, 9e9, 'preflight-ik-invalid'
             return True, float(preflight_res), how
+        q_commanded = np.asarray(q, dtype=float).copy()
         ok_move, joint_err = node.arm[side].move(
-            q, timeout=timeout,
+            q_commanded.copy(), timeout=timeout,
             tol_deg=(tol_deg if tol_deg is not None
                      else TOL_SCHED[min(it, len(TOL_SCHED) - 1)]))
+        # Capture the servo object's own final sample separately from the
+        # node-level joint cache. This detects callback/cache divergence and
+        # prevents a late cache update from being mistaken for servo success.
+        try:
+            q_servo_final = np.asarray(node.arm[side]._read(), dtype=float)
+        except Exception:
+            q_servo_final = np.full_like(q_commanded, np.nan)
+        q_node_final = q_meas(node, side)
+        servo_error_check = (q_commanded - q_servo_final
+                             if q_servo_final.shape == q_commanded.shape
+                             else np.full_like(q_commanded, np.nan))
+        node_error_check = (q_commanded - q_node_final
+                            if q_node_final is not None
+                            and q_node_final.shape == q_commanded.shape
+                            else np.full_like(q_commanded, np.nan))
         # Servo completion only means the joints entered tolerance; the arm
         # can still settle and transmit reaction torque into the mobile base.
         # Let Gazebo advance before measuring the world-frame palm so the next
@@ -852,26 +868,51 @@ def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
                 for name in ('left_wheel_joint', 'right_wheel_joint')
                 if name in getattr(node, 'js_velocity', {})},
             'servo_ok': bool(ok_move),
+'servo_names': list(getattr(node.arm[side], 'names', [])),
+'servo_target_rad': [round(float(v), 6) for v in q_commanded],
+'servo_final_rad': ([round(float(v), 6) for v in q_servo_final]
+                    if np.all(np.isfinite(q_servo_final)) else None),
+'node_final_rad': ([round(float(v), 6) for v in q_node_final]
+                   if q_node_final is not None
+                   and np.all(np.isfinite(q_node_final)) else None),
+'servo_error_rad': ([round(float(v), 6) for v in servo_error_check]
+                    if np.all(np.isfinite(servo_error_check)) else None),
+'node_error_rad': ([round(float(v), 6) for v in node_error_check]
+                   if np.all(np.isfinite(node_error_check)) else None),
+'reported_error_rad': ([round(float(v), 6) for v in joint_err]
+                       if np.all(np.isfinite(joint_err)) else None),
             'joint_err_deg': round(joint_err_deg, 2)})
         if not ok_move:
             # A failed servo pass returns before the ordinary convergence
             # summary below. Preserve the exact target/measurement and the
             # already-collected per-pass chassis/command evidence here.
             q_failed = q_meas(node, side)
+            q_servo_failed = np.asarray(node.arm[side]._read(), dtype=float)
             node.get_logger().warn(
                 'REACH %s 伺服未确认到位，停止补位: 残差 %.1fmm '
                 '最大关节误差 %.2f° target_xyz=%s actual_xyz=%s '
                 'base_at_ik=%s q_target=%s q_measured=%s '
-                'joint_delta_deg=%s trace=%s'
+                'servo_measured=%s servo_error_deg=%s node_error_deg=%s '
+                'reported_error_deg=%s joint_delta_deg=%s trace=%s'
                 % (side, res, joint_err_deg,
                    np.round(np.asarray(T_world)[:3, 3], 4).tolist(),
                    (np.round(T_after_move[:3, 3], 4).tolist()
                     if T_after_move is not None else None),
                    [round(float(v), 5) for v in base_at_ik],
-                   np.round(q, 4).tolist(),
-                   np.round(q_failed, 4).tolist()
+                   np.round(q_commanded, 6).tolist(),
+                   np.round(q_failed, 6).tolist()
                    if q_failed is not None else None,
-                   np.round(np.degrees(joint_err), 2).tolist()
+                   (np.round(q_servo_failed, 6).tolist()
+                    if np.all(np.isfinite(q_servo_failed)) else None),
+                   (np.round(np.degrees(q_commanded - q_servo_failed), 3).tolist()
+                    if q_servo_failed.shape == q_commanded.shape
+                    and np.all(np.isfinite(q_servo_failed)) else None),
+                   (np.round(np.degrees(q_commanded - q_failed), 3).tolist()
+                    if q_failed is not None
+                    and np.all(np.isfinite(q_failed)) else None),
+                   (np.round(np.degrees(joint_err), 3).tolist()
+                    if np.all(np.isfinite(joint_err)) else None),
+                   np.round(np.degrees(joint_err), 3).tolist()
                    if np.all(np.isfinite(joint_err)) else None,
                    pass_trace))
             return False, res, how

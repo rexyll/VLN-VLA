@@ -220,6 +220,17 @@ class TestP104(unittest.TestCase):
         self.assertIsNone(M.person_hand_midpoint_from_confirmed_command(
             left, wrong_gap, q_open, -q_open, q_close))
 
+    def test_reach_servo_failure_diagnostic_captures_both_joint_caches(self):
+        source = (ROOT / 'vla_ws/src/vla_follow/vla_follow/drink_motion.py').read_text()
+        self.assertIn('q_servo_final = np.asarray(node.arm[side]._read()', source)
+        self.assertIn("'servo_final_rad'", source)
+        self.assertIn("'node_final_rad'", source)
+        self.assertIn("'reported_error_rad'", source)
+        self.assertIn('servo_measured=%s servo_error_deg=%s node_error_deg=%s', source)
+        # Command arrays are copied before the servo call so downstream
+        # mutation cannot rewrite the reference target in the failure record.
+        self.assertIn('q_commanded = np.asarray(q, dtype=float).copy()', source)
+
     def test_present_target_prediction_rejects_missing_or_nonfinite_joint_state(self):
         valid = K.trans((0.0, 0.0, 0.0))
         self.assertIsNone(M.person_hand_midpoint_predict(
