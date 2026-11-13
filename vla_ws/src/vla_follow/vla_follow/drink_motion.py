@@ -2570,18 +2570,57 @@ def person_hand_midpoint_predict(T_left_palm, T_right_palm,
         return None
 
 
+def person_hand_joint_angles_from_truth(T_arms_world, T_left_link_world,
+                                           T_right_link_world):
+    """Recover revolute joint angles from Gazebo parent/child link poses."""
+    try:
+        parent = np.asarray(T_arms_world, dtype=float)
+        left = np.asarray(T_left_link_world, dtype=float)
+        right = np.asarray(T_right_link_world, dtype=float)
+        if any(T.shape != (4, 4) or not np.all(np.isfinite(T))
+               for T in (parent, left, right)):
+            return None
+        Rp = parent[:3, :3]
+        rel_l = Rp.T @ left[:3, :3]
+        rel_r = Rp.T @ right[:3, :3]
+        # SDF declares both child joints revolute about parent-local +Z.
+        for rel in (rel_l, rel_r):
+            if (abs(float(rel[2, 2]) - 1.0) > 0.02
+                    or abs(float(rel[0, 2])) > 0.02
+                    or abs(float(rel[1, 2])) > 0.02):
+                return None
+        ql = math.atan2(float(rel_l[1, 0]), float(rel_l[0, 0]))
+        qr = math.atan2(float(rel_r[1, 0]), float(rel_r[0, 0]))
+        if (not math.isfinite(ql) or not math.isfinite(qr)
+                or abs(ql) > 0.65 or abs(qr) > 0.65):
+            return None
+        return ql, qr
+    except (TypeError, ValueError, np.linalg.LinAlgError, OverflowError):
+        return None
+
+
 def person_hand_midpoint_world(node, openness=None):
-    """Predicted world midpoint of both palms at the requested hand openness."""
+    """Predict closed-hand midpoint using measured Gazebo link-pose angles."""
     if openness is None:
         openness = L.PERSON_HAND_CLOSE
-    Tl, Tr = person_hand_poses(node)
+    T_person = object_pose(node, 'person')
+    Tl, Tr = person_hand_poses(node, T_person)
     if Tl is None or Tr is None:
         return None
-    ql = getattr(node, 'js', {}).get('person_arm_l_joint')
-    qr = getattr(node, 'js', {}).get('person_arm_r_joint')
-    if ql is None or qr is None:
+    T_arms = person_hand_world(node, T_person, link='person_arms',
+                               local_off=(0.0, 0.0, 0.0))
+    T_left_link = person_hand_world(node, T_person, link='person_arm_l',
+                                    local_off=(0.0, 0.0, 0.0))
+    T_right_link = person_hand_world(node, T_person, link='person_arm_r',
+                                     local_off=(0.0, 0.0, 0.0))
+    if T_arms is None or T_left_link is None or T_right_link is None:
         return None
-    return person_hand_midpoint_predict(Tl, Tr, ql, qr, openness)
+    angles = person_hand_joint_angles_from_truth(
+        T_arms, T_left_link, T_right_link)
+    if angles is None:
+        return None
+    return person_hand_midpoint_predict(Tl, Tr, angles[0], angles[1],
+                                        openness)
 
 
 def person_hand_midpoint_offset(T_arms_world, T_left_world, T_right_world):

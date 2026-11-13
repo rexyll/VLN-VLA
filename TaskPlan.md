@@ -384,3 +384,12 @@
 - 新增 `person_hand_midpoint_offset`：将 Gazebo 真值左右手心中点变换到当前 `person_arms` 世界坐标系的局部坐标，作为本次 `hand_to` 的局部平移锚点。保留原杯物体姿态相对宿主的冻结偏移机制；不瞬移杯子，不更改手部动作或人物行走。
 - 缺失、非有限或奇异变换时触发 `FAIL_HANDOVER_ANCHOR` 并保持机器人持杯；交权前 92±25mm 双手到杯轴门槛仍原样执行，交权后手心与杯轴真值验证仍保留。
 - 新增旋转坐标系中点反算与缺失/非法真值 fail-closed 单元测试。Python/编译、CarryBus、Gazebo 双轮 E2E 待验证；E2E #71 失败不计成功轮，完整 E2E 成功轮数仍为 **1**，P104-07 保持“正在进行中”。
+
+
+### 8.316 从 Gazebo 父子连杆真值反算人体双手关节角（2026-11-13）
+
+- E2E #73（run `43364601318`，提交 `116f73064ff1dcc411d00482f28419f1827e047b`）在 PREPARE→PRESENT 后以 `FAIL_PRESENT_APPROACH` fail-closed 停止。日志显示闭合双手中点预测返回 None，错误为“拿不到闭合姿态双手中点真值/关节状态”；该轮仅归档 2/7 张截图，未进入交接，双轮 repeat 不通过。
+- 根因：预测器从 `/drink/joint_state` 读取人体左右手关节角，但当前仿真节点没有收到这两个关节字段。Gazebo `dynamic_pose/info` 已提供 `person_arms`、`person_arm_l`、`person_arm_r` 三个连杆的真值位姿；工作区 SDF 明确规定左右子连杆相对 `person_arms` 绕父坐标系 +Z 轴转动。
+- 修复：新增 `person_hand_joint_angles_from_truth()`，从父连杆和左右子连杆真值旋转矩阵计算相对关节角；要求矩阵有限、旋转符合绕 Z 轴的平面转动且角度处于 SDF 限位范围。PRESENT 闭合中点预测改用这些实测角度，不以缺失的 JointState 字段或命令目标冒充反馈。
+- 任一连杆缺失、矩阵异常、非平面旋转或角度越限仍返回 None，维持 fail-closed；未放宽 92±25mm 交接几何门槛、67–117mm 双侧相切范围、4mm IK/FK 门槛、碰撞约束或交权顺序。
+- 新增纯函数测试覆盖父连杆旋转叠加、左右关节角恢复、异常旋转与缺失真值拒绝。等待 Python/编译、CarryBus 与双轮 Gazebo E2E 验证；历史完整 E2E 成功轮数仍为 **1**，P104-07 保持“正在进行中”。

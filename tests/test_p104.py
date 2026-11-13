@@ -2787,6 +2787,42 @@ class TestP104(unittest.TestCase):
         self.assertLess(post_wait_at,
                         body.index("T_now = object_pose(node, 'robot')"))
 
+
+    def test_person_hand_joint_angles_recovered_from_parent_child_truth(self):
+        from vla_follow import drink_motion as M
+        parent = np.eye(4)
+        parent[:3, :3] = M.K.rot_z(0.37)
+        left = parent.copy()
+        right = parent.copy()
+        left[:3, :3] = parent[:3, :3] @ M.K.rot_z(0.42)
+        right[:3, :3] = parent[:3, :3] @ M.K.rot_z(-0.31)
+        angles = M.person_hand_joint_angles_from_truth(parent, left, right)
+        self.assertIsNotNone(angles)
+        self.assertAlmostEqual(angles[0], 0.42, places=6)
+        self.assertAlmostEqual(angles[1], -0.31, places=6)
+        invalid = right.copy()
+        invalid[:3, :3] = parent[:3, :3] @ M.K.rot_x(0.1)
+        self.assertIsNone(
+            M.person_hand_joint_angles_from_truth(parent, left, invalid))
+        self.assertIsNone(
+            M.person_hand_joint_angles_from_truth(parent, left, None))
+
+    def test_person_hand_midpoint_world_uses_link_truth_not_joint_state_topic(self):
+        motion_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
+            'drink_motion.py')
+        with open(motion_path, encoding='utf-8') as stream:
+            source = stream.read()
+        start = source.index('def person_hand_midpoint_world(')
+        end = source.index('def person_hand_midpoint_offset(', start)
+        body = source[start:end]
+        self.assertIn('person_hand_joint_angles_from_truth(', body)
+        self.assertIn("link='person_arms'", body)
+        self.assertIn("link='person_arm_l'", body)
+        self.assertIn("link='person_arm_r'", body)
+        self.assertNotIn("getattr(node, 'js'", body)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)
 
