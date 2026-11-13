@@ -215,6 +215,8 @@ class DrinkTask(Node):
         self.truth_base_twist = None
         self.truth_base_twist_t = 0.0
         self._truth_base_sample = None
+        # Read-only high-water trace for chassis motion during arm follow.
+        self._follow_base_trace = None
         self.truth_base_pose_snapshot = None
         self._have_odom = False
         self._truth_base = False
@@ -369,6 +371,31 @@ class DrinkTask(Node):
                 self._truth_base_sample = (
                     sample_t, pose[0], pose[1], pose[2])
                 self.truth_base_pose_snapshot = (pose, sample_t)
+                # Track peak chassis excursion while follow_hand is active;
+                # endpoint-only twist samples can be zero after the chassis settles.
+                trace = self._follow_base_trace
+                if trace is not None:
+                    origin = trace.get('origin')
+                    if origin is not None:
+                        dx = pose[0] - origin[0]
+                        dy = pose[1] - origin[1]
+                        dyaw = math.atan2(
+                            math.sin(pose[2] - origin[2]),
+                            math.cos(pose[2] - origin[2]))
+                        speed = (math.hypot(*self.truth_base_twist[:2])
+                                 if self.truth_base_twist is not None else 0.0)
+                        yaw_rate = (abs(self.truth_base_twist[2])
+                                    if self.truth_base_twist is not None else 0.0)
+                        trace['samples'] += 1
+                        trace['max_xy_mm'] = max(
+                            trace['max_xy_mm'], math.hypot(dx, dy) * 1000.0)
+                        trace['max_abs_yaw_deg'] = max(
+                            trace['max_abs_yaw_deg'], abs(math.degrees(dyaw)))
+                        trace['max_speed_m_s'] = max(
+                            trace['max_speed_m_s'], speed)
+                        trace['max_yaw_rate_deg_s'] = max(
+                            trace['max_yaw_rate_deg_s'], math.degrees(yaw_rate))
+                        trace['end'] = list(pose)
         self.links = updated
         # P98 排查: 道具键会间歇性从 links 里"消失"(抓取时在、place_held
         # 时变 None → FAIL_PREPARE)。节流打印真值流的关键键存在性, 定位
@@ -844,6 +871,17 @@ class DrinkTask(Node):
                                         if robot_cmd else None),
                 }
             _base_diag_pre = _follow_base_diag()
+            _trace_origin = (_base_diag_pre.get('truth_pose')
+                             if _base_diag_pre else None)
+            self._follow_base_trace = ({
+                'origin': tuple(_trace_origin),
+                'end': list(_trace_origin),
+                'samples': 0,
+                'max_xy_mm': 0.0,
+                'max_abs_yaw_deg': 0.0,
+                'max_speed_m_s': 0.0,
+                'max_yaw_rate_deg_s': 0.0,
+            } if _trace_origin is not None else None)
             _right_goal_follow = (
                 _cup_before_follow @ np.asarray(pr['off_r'], float)
                 if _cup_before_follow is not None and pr.get('off_r') is not None
@@ -865,6 +903,11 @@ class DrinkTask(Node):
             _cup_after_follow = M.object_pose(self, 'cup')
             _right_after_follow = M.wrist(self, 'R')
             _base_diag_post = _follow_base_diag()
+            _base_trace_result = self._follow_base_trace
+            self._follow_base_trace = None
+            if _base_trace_result is not None:
+                _base_trace_result = dict(_base_trace_result)
+                _base_trace_result.pop('origin', None)
             _follow_drift_mm = (
                 float(np.linalg.norm(_cup_after_follow[:3, 3] -
                                      _cup_before_follow[:3, 3])) * 1000.0
@@ -876,7 +919,7 @@ class DrinkTask(Node):
                     _right_goal_follow is not None) else None)
             self.get_logger().info(
                 'PRESENT_FOLLOW_POST ok=%s reported_mm=%.3f cup_xyz=%s '
-                'cup_drift_mm=%s right_xyz=%s right_goal_err_mm=%s base=%s chassis=%s' %
+                'cup_drift_mm=%s right_xyz=%s right_goal_err_mm=%s base=%s chassis=%s peak_trace=%s' %
                 (ok_follow, float(follow_mm),
                  np.round(_cup_after_follow[:3, 3], 5).tolist()
                  if _cup_after_follow is not None else None,
@@ -886,7 +929,8 @@ class DrinkTask(Node):
                  if _right_after_follow is not None else None,
                  (round(float(_follow_right_err_mm), 3)
                   if _follow_right_err_mm is not None else None),
-                 np.round(self.base, 5).tolist(), _base_diag_post))
+                 np.round(self.base, 5).tolist(), _base_diag_post,
+                 _base_trace_result))
             res['present'] = {'ok': ok_present, 'position_mm': present_mm,
                               'right_hand_ok': ok_follow,
                               'right_hand_mm': follow_mm}
