@@ -2860,6 +2860,19 @@ class TestP104(unittest.TestCase):
         # only the intermediate approach waypoint is parameterized.
         self.assertIn("reach(\n                    node, 'R', T_right_goal", source)
         self.assertIn('max_ik_error_mm', source)
+        goal = np.eye(4, dtype=float)
+        goal[:3, 3] = [2.2, 0.36, 0.773]
+        original = goal.copy()
+        candidates = M.putback_route_candidates(goal)
+        self.assertEqual(len(candidates), 27)
+        self.assertTrue(np.array_equal(goal, original))
+        self.assertEqual(
+            [(c['height_m'], c['dx_m'], c['dy_m']) for c in candidates[:9]],
+            [(0.12, 0.0, 0.0), (0.12, 0.0, -0.04),
+             (0.12, 0.0, 0.04), (0.12, -0.04, 0.0),
+             (0.12, 0.04, 0.0), (0.12, -0.04, -0.04),
+             (0.12, -0.04, 0.04), (0.12, 0.04, -0.04),
+             (0.12, 0.04, 0.04)])
 
 
 
