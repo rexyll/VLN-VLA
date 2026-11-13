@@ -2702,7 +2702,7 @@ class TestP104(unittest.TestCase):
         sweep = body.index('for _candidate in putback_route_candidates(T_right_goal):',
                            first_attempt)
         preflight = body.index(
-            'preflight_table_route(node, \'R\', [_route_waypoint, T_right_goal]',
+            'preflight_table_route(\n                    node, \'R\', [_route_waypoint, T_right_goal]',
             sweep)
         execute_waypoint = body.index("node, 'R', _route_waypoint", preflight)
         retry_final = body.index("node, 'R', T_right_goal", execute_waypoint)
