@@ -75,6 +75,21 @@ HAND_TOL_DEG = 4.0         # 手指到位判据(指骨短、限位软, 放宽)
 CK_POS_TOL = 0.010         # 自检: FK 与真值位置容差 10mm
 CK_ROT_TOL = math.radians(3.0)
 
+def quaternion_rpy(x, y, z, w):
+    """Normalize quaternion and return roll/pitch/yaw; reject invalid truth."""
+    values = tuple(float(v) for v in (x, y, z, w))
+    if not all(math.isfinite(v) for v in values): return None
+    norm = math.sqrt(sum(v * v for v in values))
+    if norm < 1e-9: return None
+    x, y, z, w = (v / norm for v in values)
+    roll = math.atan2(2.0 * (w*x + y*z), 1.0 - 2.0 * (x*x + y*y))
+    pitch = math.asin(max(-1.0, min(1.0, 2.0 * (w*y - z*x))))
+    yaw = math.atan2(2.0 * (w*z + x*y), 1.0 - 2.0 * (y*y + z*z))
+    return (roll, pitch, yaw)
+
+def _wrapped_angle_delta(a, b):
+    return math.atan2(math.sin(a - b), math.cos(a - b))
+
 
 # ---------------------------------------------------------------- 通道清单
 def all_cmd_names():
@@ -219,6 +234,7 @@ class DrinkTask(Node):
         # Read-only high-water trace for chassis motion during arm follow.
         self._follow_base_trace = None
         self.truth_base_pose_snapshot = None
+        self.truth_base_rpy_snapshot = None
         self._have_odom = False
         self._truth_base = False
         # Wheel odometry pose is not authoritative after Gazebo teleport, but
@@ -357,8 +373,12 @@ class DrinkTask(Node):
         for p in msg.pose:
             updated[p.name] = p
             if p.name == 'robot':
-                pose = (float(p.position.x), float(p.position.y),
-                        float(yaw_of(p.orientation)))
+                rpy = quaternion_rpy(p.orientation.x, p.orientation.y,
+                                    p.orientation.z, p.orientation.w)
+                if rpy is None:
+                    continue
+                pose = (float(p.position.x), float(p.position.y), float(rpy[2]))
+                self.truth_base_rpy_snapshot = (rpy, sample_t)
                 previous = self._truth_base_sample
                 if previous is not None:
                     prev_t, prev_x, prev_y, prev_yaw = previous
@@ -383,9 +403,12 @@ class DrinkTask(Node):
                     if origin is not None:
                         dx = pose[0] - origin[0]
                         dy = pose[1] - origin[1]
-                        dyaw = math.atan2(
-                            math.sin(pose[2] - origin[2]),
-                            math.cos(pose[2] - origin[2]))
+                        dyaw = _wrapped_angle_delta(pose[2], origin[2])
+                        origin_rpy = trace.get('origin_rpy')
+                        if origin_rpy is not None:
+                            trace['max_abs_roll_delta_deg'] = max(trace['max_abs_roll_delta_deg'], abs(math.degrees(_wrapped_angle_delta(rpy[0], origin_rpy[0]))))
+                            trace['max_abs_pitch_delta_deg'] = max(trace['max_abs_pitch_delta_deg'], abs(math.degrees(_wrapped_angle_delta(rpy[1], origin_rpy[1]))))
+                        trace['end_rpy'] = list(rpy)
                         speed = (math.hypot(*self.truth_base_twist[:2])
                                  if self.truth_base_twist is not None else 0.0)
                         yaw_rate = (abs(self.truth_base_twist[2])
@@ -899,6 +922,8 @@ class DrinkTask(Node):
                              if self.truth_base_twist_t else None)
                 return {
                     'truth_pose': (list(truth[0]) if truth else None),
+                    'truth_rpy': (list(self.truth_base_rpy_snapshot[0]) if self.truth_base_rpy_snapshot else None),
+                    'truth_rpy_age_s': (round(now - self.truth_base_rpy_snapshot[1], 3) if self.truth_base_rpy_snapshot else None),
                     'truth_twist': (list(self.truth_base_twist)
                                     if self.truth_base_twist is not None else None),
                     'truth_twist_age_s': truth_age,
@@ -917,6 +942,10 @@ class DrinkTask(Node):
                              if _base_diag_pre else None)
             self._follow_base_trace = ({
                 'origin': tuple(_trace_origin),
+                'origin_rpy': (_base_diag_pre.get('truth_rpy') if _base_diag_pre else None),
+                'end_rpy': None,
+                'max_abs_roll_delta_deg': 0.0,
+                'max_abs_pitch_delta_deg': 0.0,
                 'end': list(_trace_origin),
                 'samples': 0,
                 'max_xy_mm': 0.0,

@@ -3066,6 +3066,17 @@ class TestP104(unittest.TestCase):
             self.assertIn('<dynamics><damping>0.5</damping></dynamics>', block)
 
 
+    def test_follow_hand_trace_records_full_chassis_rpy_and_rejects_invalid_quaternion(self):
+        task_path = os.path.join(ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow', 'drink_task.py')
+        with open(task_path, encoding='utf-8') as stream:
+            source = stream.read()
+        self.assertIn('def quaternion_rpy(x, y, z, w):', source)
+        self.assertIn('if norm < 1e-9: return None', source)
+        self.assertIn("'truth_rpy':", source)
+        self.assertIn("'max_abs_roll_delta_deg': 0.0", source)
+        self.assertIn("'max_abs_pitch_delta_deg': 0.0", source)
+        self.assertIn("trace['end_rpy'] = list(rpy)", source)
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)
 
