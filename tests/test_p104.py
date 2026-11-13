@@ -2947,6 +2947,33 @@ class TestP104(unittest.TestCase):
             (0.0, 0.0, 0.0), (0.0, 0.0, 0.0),
             max_linear=0.0), (0.0, 0.0))
 
+    def test_prepare_base_hold_is_scoped_to_arm_only_pour_window(self):
+        task_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
+            'drink_task.py')
+        motion_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
+            'drink_motion.py')
+        with open(task_path, encoding='utf-8') as stream:
+            task_source = stream.read()
+        with open(motion_path, encoding='utf-8') as stream:
+            motion_source = stream.read()
+        self.assertIn('_prepare_base_hold_target', task_source)
+        self.assertIn('or self._prepare_base_hold_target', task_source)
+        start = motion_source.index('def prepare_present(')
+        end = motion_source.index('\ndef ', start + 5)
+        body = motion_source[start:end]
+        self.assertIn('PREPARE_BASE_HOLD start target=', body)
+        self.assertIn('node._prepare_base_hold_target = tuple(_base_hold_snapshot[0])',
+                      body)
+        self.assertIn('try:', body)
+        self.assertIn('finally:', body)
+        self.assertIn('node._prepare_base_hold_target = None', body)
+        self.assertLess(body.index("out['entry'] = pour_approach(node)"),
+                        body.index('node._prepare_base_hold_target = tuple'))
+        self.assertLess(body.index('node._prepare_base_hold_target = tuple'),
+                        body.index('pour = pour_into_cup(node, fill=fill)'))
+
     def test_follow_base_hold_is_scoped_to_present_follow_hand(self):
         task_path = os.path.join(
             ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',

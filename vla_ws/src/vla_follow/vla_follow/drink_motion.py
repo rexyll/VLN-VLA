@@ -2585,7 +2585,26 @@ def prepare_present(node, fill=0.65, verbose=True):
         out['reason'] = 'kettle_pose_missing'
         node.get_logger().error('PREPARE 缺少水壶真值位姿，停止倒水')
         return out
-    pour = pour_into_cup(node, fill=fill)
+    # The arm-only pour sequence can push the free-rolling chassis even when
+    # both velocity command channels are zero. Hold the measured service pose
+    # only across this arm-motion window; release it before base repositioning.
+    _base_hold_snapshot = getattr(node, 'truth_base_pose_snapshot', None)
+    _base_hold_now = time.monotonic()
+    if (_base_hold_snapshot is not None
+            and _base_hold_now - _base_hold_snapshot[1] <= 0.25):
+        node._prepare_base_hold_target = tuple(_base_hold_snapshot[0])
+        node.get_logger().info(
+            'PREPARE_BASE_HOLD start target=%s' %
+            (list(node._prepare_base_hold_target),))
+    else:
+        node._prepare_base_hold_target = None
+        node.get_logger().warn(
+            'PREPARE_BASE_HOLD unavailable: chassis truth stale')
+    try:
+        pour = pour_into_cup(node, fill=fill)
+    finally:
+        node._prepare_base_hold_target = None
+        node.drive(0.0, 0.0)
     out.update(pour)
     if not pour['ok']:
         out['ok'] = False

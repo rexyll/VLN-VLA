@@ -235,6 +235,7 @@ class DrinkTask(Node):
         # Read-only high-water trace for chassis motion during arm follow.
         self._follow_base_trace = None
         self._follow_base_hold_target = None
+        self._prepare_base_hold_target = None
         self.truth_base_pose_snapshot = None
         self.truth_base_rpy_snapshot = None
         self._have_odom = False
@@ -1653,7 +1654,8 @@ class DrinkTask(Node):
         self.sync_base_from_truth(quiet=True)
         # During PRESENT follow_hand, counter bounded arm-reaction drift with
         # a low-speed pose hold. Never run this while Nav2 owns the chassis.
-        hold_target = self._follow_base_hold_target
+        hold_target = (self._follow_base_hold_target
+                       or self._prepare_base_hold_target)
         if hold_target is not None:
             snapshot = self.truth_base_pose_snapshot
             now_mono = time.monotonic()
