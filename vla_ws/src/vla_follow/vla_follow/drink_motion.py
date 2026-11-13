@@ -2750,6 +2750,38 @@ def person_hand_midpoint_if_at_target(T_left_palm, T_right_palm,
     except (TypeError, ValueError, OverflowError):
         return None
 
+def person_hand_midpoint_from_confirmed_command(T_left_palm, T_right_palm,
+                                                q_left, q_right, openness,
+                                                tolerance_mm=15.0):
+    """Predict a new opening from the commanded pose only after truth confirms it.
+
+    The person joint names are not always present in JointState. The symmetric
+    command is accepted as the current angle only when both command values are
+    finite, mirrored, within the configured range, and the measured palm gap
+    independently matches the gap expected at that command.
+    """
+    try:
+        ql, qr = float(q_left), float(q_right)
+        close, open_ = float(L.PERSON_HAND_CLOSE), float(L.PERSON_HAND_OPEN)
+        if (not math.isfinite(ql) or not math.isfinite(qr)
+                or ql < close - 0.02 or ql > open_ + 0.02
+                or abs(qr + ql) > 0.02):
+            return None
+        Tl = np.asarray(T_left_palm, dtype=float)
+        Tr = np.asarray(T_right_palm, dtype=float)
+        if (Tl.shape != (4, 4) or Tr.shape != (4, 4)
+                or not np.all(np.isfinite(Tl))
+                or not np.all(np.isfinite(Tr))):
+            return None
+        gap_mm = float(np.linalg.norm(Tl[:3, 3] - Tr[:3, 3])) * 1000.0
+        expected = person_hand_gap_expected_mm(ql)
+        if (not math.isfinite(gap_mm) or not math.isfinite(expected)
+                or abs(gap_mm - expected) > float(tolerance_mm)):
+            return None
+        return person_hand_midpoint_predict(Tl, Tr, ql, qr, openness)
+    except (TypeError, ValueError, OverflowError):
+        return None
+
 def person_hand_midpoint_world(node, openness=None):
     """Predict closed-hand midpoint using measured Gazebo link-pose angles."""
     if openness is None:
@@ -2764,6 +2796,16 @@ def person_hand_midpoint_world(node, openness=None):
     measured = person_hand_midpoint_if_at_target(Tl, Tr, openness)
     if measured is not None:
         return measured
+    # When the requested pose differs (PRESENT asks for closed palms after
+    # the person has opened them), use the mirrored command as the current
+    # angle only after Gazebo palm-gap truth validates that commanded pose.
+    bus = getattr(node, 'bus', None)
+    if bus is not None:
+        commanded = person_hand_midpoint_from_confirmed_command(
+            Tl, Tr, bus.get('person_arm_l_joint'),
+            bus.get('person_arm_r_joint'), openness)
+        if commanded is not None:
+            return commanded
     T_arms = person_hand_world(node, T_person, link='person_arms',
                                local_off=(0.0, 0.0, 0.0))
     T_left_link = person_hand_world(node, T_person, link='person_arm_l',
