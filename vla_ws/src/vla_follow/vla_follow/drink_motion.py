@@ -1518,6 +1518,88 @@ def _blend_pose(Ta, Tb, a):
     return T
 
 
+
+def putback_route_candidates(T_goal):
+    """Deterministic, bounded waypoint parameter sweep for PUT_BACK preflight.
+
+    Offsets are world-frame XY offsets from the final support palm pose. The
+    final support pose itself is never changed. Only the collision-checked
+    approach waypoint varies between trials.
+    """
+    offsets = (
+        (0.0, 0.0), (0.0, -0.04), (0.0, 0.04),
+        (-0.04, 0.0), (0.04, 0.0),
+        (-0.04, -0.04), (-0.04, 0.04),
+        (0.04, -0.04), (0.04, 0.04),
+    )
+    candidates = []
+    for height in (0.12, 0.16, 0.20):
+        for dx, dy in offsets:
+            waypoint = np.asarray(T_goal, float).copy()
+            waypoint[:3, 3] += np.array([dx, dy, height], dtype=float)
+            candidates.append({
+                'height_m': height, 'dx_m': dx, 'dy_m': dy,
+                'waypoint': waypoint,
+            })
+    return candidates
+
+
+def preflight_table_route(node, side, targets, elbow='human',
+                          max_ik_error_mm=4.0):
+    """No-motion sequential IK/FK and full swept-path preflight.
+
+    Each segment is solved from the preceding segment's predicted joint
+    endpoint, under one frozen base snapshot. No servo command is sent.
+    Missing state, invalid IK, human joint violations, or any collision rejects
+    the entire candidate route.
+    """
+    q_start = q_meas(node, side)
+    if q_start is None:
+        return False, {'reason': 'joint_state_missing'}
+    base = tuple(_base_pose(node))
+    q_seed = np.asarray(q_start, float).copy()
+    segment_results = []
+    for index, target in enumerate(targets):
+        mode = elbow if index == 0 else None
+        q_goal, _ik_error, how = K.ik_world(
+            side, np.asarray(target, float), base, q_seed, elbow=mode)
+        fk = K.fk_world(side, q_goal, base)
+        residual = pos_err_mm(fk, target)
+        violations = K.violation_list(side, q_goal)
+        if not math.isfinite(residual) or residual > float(max_ik_error_mm):
+            return False, {
+                'reason': 'ik_fk_error', 'segment': index,
+                'residual_mm': round(float(residual), 3),
+                'ik': how, 'segments': segment_results}
+        if violations:
+            return False, {
+                'reason': 'human_joint_limit', 'segment': index,
+                'violations': list(violations), 'ik': how,
+                'segments': segment_results}
+        count = max(1, int(math.ceil(
+            float(np.max(np.abs(q_goal - q_seed))) / 0.02)))
+        path = [q_seed + (q_goal - q_seed) * (step / float(count))
+                for step in range(1, count + 1)]
+        clear, hit = arm_path_table_clear(
+            node, side, path, base=base, ignore_initial=True,
+            q_start=q_seed)
+        segment_results.append({
+            'segment': index, 'ik': how,
+            'ik_fk_mm': round(float(residual), 3),
+            'samples': count, 'collision_clear': bool(clear),
+            'collision': hit,
+        })
+        if not clear:
+            return False, {
+                'reason': 'table_collision', 'segment': index,
+                'collision': hit, 'segments': segment_results}
+        q_seed = np.asarray(q_goal, float)
+    return True, {
+        'reason': 'clear', 'base': [round(float(v), 6) for v in base],
+        'segments': segment_results,
+    }
+
+
 def put_down_two(node, model, T_obj_goal, tol_mm=PLACE_TOL_MM, steps=4,
                  retreat=0.10, elbow='human', info=None):
     """**双手一起**把杯子放回桌面: 全程谁都不许先松, 落稳后才同时张开。
@@ -1587,33 +1669,52 @@ def put_down_two(node, model, T_obj_goal, tol_mm=PLACE_TOL_MM, steps=4,
             node, 'R', T_right_goal, tol_mm=6.0, elbow=elbow,
             check_table=True)
         if not ok_r and how_r == 'table-collision':
-            # A direct joint interpolation can collide even when the final
-            # support pose is geometrically reachable. Route the free support
-            # hand through a waypoint directly above its *final target* so the
-            # last descent is predominantly vertical, rather than merely
-            # lifting the current wrist and then making a long diagonal move.
-            # Both legs are independently IK/FK-, joint-limit-, and
-            # table-collision-checked. The cup remains attached to the left
-            # hand throughout; no collision margin or release rule is relaxed.
-            T_right_stage = T_right_goal.copy()
-            T_right_stage[2, 3] += 0.12
-            ok_stage, _stage_mm, _stage_how = reach(
-                node, 'R', T_right_stage, tol_mm=8.0,
-                elbow=elbow, check_table=True)
-            node.get_logger().info(
-                'PUT_DOWN_TWO 右手目标上方航点结果 '
-                '(step=%d, ok=%s, residual=%.1fmm, how=%s, '
-                'target_xyz=%s)'
-                % (i, ok_stage, _stage_mm, _stage_how,
-                   np.round(T_right_stage[:3, 3], 4).tolist()))
-            if ok_stage:
+            # Fast convergent search: test bounded XY/Z waypoint parameters
+            # without motion, then execute only a route whose every segment
+            # passed the same IK/FK, human-joint, and full swept-path checks.
+            # If execution exposes a state-dependent collision, keep the cup
+            # attached and advance to the next parameter candidate.
+            _route_ok = False
+            _route_trials = 0
+            for _candidate in putback_route_candidates(T_right_goal):
+                _route_trials += 1
+                _route_waypoint = _candidate['waypoint']
+                _preflight_ok, _preflight = preflight_table_route(
+                    node, 'R', [_route_waypoint, T_right_goal], elbow=elbow)
+                node.get_logger().info(
+                    'PUTBACK_ROUTE_TRIAL step=%d trial=%d params=%s '
+                    'preflight=%s detail=%s'
+                    % (i, _route_trials,
+                       {k: _candidate[k] for k in ('height_m', 'dx_m', 'dy_m')},
+                       _preflight_ok, _preflight))
+                if not _preflight_ok:
+                    continue
+                _ok_stage, _stage_mm, _stage_how = reach(
+                    node, 'R', _route_waypoint, tol_mm=8.0,
+                    elbow=elbow, check_table=True)
+                if not _ok_stage:
+                    if _stage_how == 'table-collision':
+                        continue
+                    how_r, res_r = _stage_how, _stage_mm
+                    break
                 ok_r, res_r, how_r = reach(
                     node, 'R', T_right_goal, tol_mm=6.0,
                     elbow=elbow, check_table=True)
                 if ok_r:
+                    _route_ok = True
                     node.get_logger().info(
-                        'PUT_DOWN_TWO 右手经目标上方安全航点到位 '
-                        '(step=%d, residual=%.1fmm)' % (i, res_r))
+                        'PUTBACK_ROUTE_ACCEPTED step=%d trial=%d params=%s '
+                        'residual=%.1fmm'
+                        % (i, _route_trials,
+                           {k: _candidate[k] for k in
+                            ('height_m', 'dx_m', 'dy_m')}, res_r))
+                    break
+                if how_r != 'table-collision':
+                    break
+            if not _route_ok:
+                node.get_logger().warn(
+                    'PUTBACK_ROUTE_EXHAUSTED step=%d trials=%d; '
+                    '保持双手持杯并阻止 release' % (i, _route_trials))
         if not ok_r:
             node.get_logger().error(
                 'PUT_DOWN_TWO 第%d/%d步右手未到位 %.1fmm，停止下降并保持抓持'

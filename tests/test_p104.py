@@ -2839,6 +2839,29 @@ class TestP104(unittest.TestCase):
         self.assertIn('diagnostic only', body)
 
 
+    def test_putback_route_sweep_is_bounded_and_varies_only_approach_waypoint(self):
+        motion_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
+            'drink_motion.py')
+        with open(motion_path, encoding='utf-8') as stream:
+            source = stream.read()
+        self.assertIn('def putback_route_candidates(T_goal):', source)
+        self.assertIn('def preflight_table_route(', source)
+        self.assertIn('max_ik_error_mm=4.0', source)
+        self.assertIn('arm_path_table_clear(', source)
+        self.assertIn('PUTBACK_ROUTE_TRIAL', source)
+        self.assertIn('PUTBACK_ROUTE_ACCEPTED', source)
+        self.assertIn('PUTBACK_ROUTE_EXHAUSTED', source)
+        self.assertIn('保持双手持杯并阻止 release', source)
+        self.assertIn('putback_route_candidates(T_right_goal)', source)
+        self.assertIn('[_route_waypoint, T_right_goal]', source)
+        # The final support target remains the original rigidly-derived target;
+        # only the intermediate approach waypoint is parameterized.
+        self.assertIn("reach(\n                    node, 'R', T_right_goal", source)
+        self.assertIn('max_ik_error_mm', source)
+
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)
 
