@@ -1871,7 +1871,48 @@ class TestP104(unittest.TestCase):
             source = stream.read()
 
         main_start = source.index('def main():')
-        main_end = source.index("\n\nif __name__ == '__main__':", main_start)
+        main_end = source.index("\n\n    def test_base_motion_snapshot_requires_fresh_stationary_wheels_and_truth(self):
+        from vla_follow import drink_motion as M
+        self.assertTrue(M.base_motion_snapshot_ok(
+            {'left_wheel_joint': 0.01, 'right_wheel_joint': -0.02},
+            0.10, (0.002, -0.001, 0.004), 0.12))
+        self.assertFalse(M.base_motion_snapshot_ok(
+            {'left_wheel_joint': -0.986, 'right_wheel_joint': 0.0},
+            0.10, (0.0, 0.0, 0.0), 0.10))
+        self.assertFalse(M.base_motion_snapshot_ok(
+            {'left_wheel_joint': 0.0, 'right_wheel_joint': 0.0},
+            0.10, (0.0, 0.0, 0.02), 0.10))
+        self.assertFalse(M.base_motion_snapshot_ok(
+            {'left_wheel_joint': 0.0, 'right_wheel_joint': 0.0},
+            0.30, (0.0, 0.0, 0.0), 0.10))
+        self.assertFalse(M.base_motion_snapshot_ok(
+            {'left_wheel_joint': 0.0},
+            0.10, (0.0, 0.0, 0.0), 0.10))
+
+    def test_place_robot_stops_and_verifies_base_before_accepting_teleport(self):
+        motion_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
+            'drink_motion.py')
+        with open(motion_path, encoding='utf-8') as stream:
+            source = stream.read()
+        helper_start = source.index('def base_motion_snapshot_ok(')
+        helper_end = source.index('def place_robot(', helper_start)
+        helper = source[helper_start:helper_end]
+        self.assertIn("node.drive(0.0, 0.0)", helper)
+        self.assertIn("'left_wheel_joint', 'right_wheel_joint'", helper)
+        self.assertIn('truth_base_twist_age_s', helper)
+        self.assertIn('stable_since', helper)
+        start = source.index('def place_robot(')
+        end = source.index('def yaw_err_of(', start)
+        body = source[start:end]
+        self.assertLess(body.index('if not wait_base_stopped(node):'),
+                        body.index("node.carry.place('robot', T_goal)"))
+        self.assertLess(body.index('settle_sim(node, settle)'),
+                        body.index('if not wait_base_stopped(node):', 1))
+        self.assertLess(body.index('if not wait_base_stopped(node):', 1),
+                        body.index("T_now = object_pose(node, 'robot')"))
+
+if __name__ == '__main__':", main_start)
         main_body = source[main_start:main_end]
         self.assertIn('try:', main_body)
         self.assertIn('finally:', main_body)

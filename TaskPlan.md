@@ -283,3 +283,15 @@
 - 拒绝交权后的错误日志格式化存在独立 Python 缺陷：单个 `%s` 右侧传入二元 tuple，格式化操作把 tuple 当作多个参数，触发 `TypeError: not all arguments converted during string formatting`，导致任务异常退出。此异常不是几何检查通过，也不是交接动作执行失败后的状态误报；交接安全门仍然拒绝了不合格几何。
 - 修复：先将双手测量值明确格式化为单个字符串（`L=...mm, R=...mm`，缺失时显示“不可用”），再传给单个 `%s`；保留原相切带阈值、fail-closed 状态和不交权行为。新增静态回归测试，检查二元组不再直接作为格式参数。
 - 验证待本提交触发的 Python/编译、CarryBus 和 Gazebo 双轮 E2E。完整 E2E 成功轮数仍为 **1**；P104-07 保持“正在进行中”。本轮的 3 张截图、任务失败与不完整归档均不得计入成功轮数。
+
+
+
+### 8.305 E2E #68 定位 teleport 后残余轮速导致底盘在 IK 收敛窗口漂移（2026-11-13）
+
+- 基于提交 `252d45241f09d7346002302665e425e4e10cc995` 运行 E2E #68（run `43349392086`）。Python 测试/编译通过，CarryBus ROS 2 executor 集成通过；Gazebo 双轮 E2E 失败。
+- Repeat 汇总：requested=2、completed=2、passed=1、failed=1、missing=0、unknown=0，`all_passed=false`、`runner_failed=true`。第 1 轮完整通过 PREPARE 至 DONE/IDLE，observer exit 0，8 张截图全部归档；杯子回位误差 1.3mm、倾斜 0.05°，跟随行程 4.15m、末段距离 0.94m、带内占比 74.5%。第 2 轮仅完成 PREPARE，observer exit 2，仅 2 张早期截图，归档失败；不得计为完整成功轮次。
+- 第 2 轮故障位于倒水/捧杯阶段末端的一次右臂 reach：目标掌心约 `[2.2551, 0.2450, 1.2008]`，5 轮残差为 78.7、31.2、20.6、19.6、5.4mm，仍高于既定 4.0mm 门槛，故正确拒绝后续动作。各轮 IK/FK 自洽、关节状态新鲜；但首轮采样时 `/robot/cmd_vel=[0,0]`，左轮真值速度仍为 `-0.986rad/s`，Gazebo 底盘 twist 非零，底座 yaw 从约 `-0.100rad` 漂至 `+0.172rad`。这是底盘实际运动而非仅 IK 残差或 stale joint state。
+- 根因定位：`CarryBus.place` 的 Gazebo teleport 不清除差速轮关节速度；现有 `place_robot()` 只按固定仿真时间等待并检查位置/yaw，没有验证两个轮子的实测速度和 Gazebo 真值 twist 是否已连续稳定。连续 E2E 的上一轮跟随/底盘驱动残余因此可能跨越 teleport，随后污染世界系 reach 的基座快照。
+- 修复：新增纯判定 `base_motion_snapshot_ok()`，要求左右轮速度均 ≤0.05rad/s、Gazebo 真值平面速度 ≤0.01m/s、角速度 ≤0.015rad/s，且 joint state 与真值 twist 年龄均 ≤0.25s；新增 `wait_base_stopped()`，先发布零速度，再要求上述证据连续稳定至少 0.25 仿真秒，最多等待 4.0 仿真秒，缺数据/超时即 fail-closed。所有 `place_robot()` 在 teleport 前等待停稳，teleport 后再次等待停稳，再读取并验收位姿；原有位置 8mm、yaw 2° 门槛保持不变。
+- 新增回归测试覆盖轮速超限、真值角速度超限、遥测陈旧、缺失轮速以及 teleport 前后停稳检查顺序。未修改 4mm IK 门槛、机械臂伺服精度、人体关节约束或桌面碰撞检查。
+- 验证状态：等待本提交的 Python/编译、CarryBus 与连续双轮 Gazebo E2E。完整 Gazebo E2E 成功轮数仍为 **1**；P104-07 保持“正在进行中”。

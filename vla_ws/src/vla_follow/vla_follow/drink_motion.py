@@ -1056,19 +1056,94 @@ def base_pose_converged(position_err_mm, yaw_err_rad, tol_mm=8.0,
             and pos < pos_tol and yaw < yaw_tol)
 
 
+def base_motion_snapshot_ok(wheel_velocity, joint_age_s, truth_twist,
+                             twist_age_s, wheel_tol=0.05,
+                             linear_tol=0.01, angular_tol=0.015,
+                             max_age_s=0.25):
+    """Require fresh wheel and Gazebo truth velocity evidence before arm IK."""
+    try:
+        wheels = {
+            name: float(wheel_velocity[name])
+            for name in ('left_wheel_joint', 'right_wheel_joint')}
+        twist = tuple(float(v) for v in truth_twist)
+        ages = (float(joint_age_s), float(twist_age_s))
+        limits = (float(wheel_tol), float(linear_tol),
+                  float(angular_tol), float(max_age_s))
+    except (KeyError, TypeError, ValueError, OverflowError):
+        return False
+    values = list(wheels.values()) + list(twist) + list(ages) + list(limits)
+    if (len(twist) != 3 or not all(math.isfinite(v) for v in values)
+            or any(v < 0.0 for v in ages + limits)):
+        return False
+    return (max(abs(v) for v in wheels.values()) <= limits[0]
+            and math.hypot(twist[0], twist[1]) <= limits[1]
+            and abs(twist[2]) <= limits[2]
+            and max(ages) <= limits[3])
+
+
+def wait_base_stopped(node, timeout=4.0, stable_s=0.25):
+    """Command zero and require fresh wheel+Gazebo velocities to stay quiet."""
+    node.drive(0.0, 0.0)
+    start_sim = sim_now(node)
+    start_wall = time.monotonic()
+    stable_since = None
+    last = None
+    while (sim_now(node) - start_sim < float(timeout)
+           and time.monotonic() - start_wall < float(timeout) * 6.0 + 1.0):
+        spin = getattr(node, 'spin_sim', None)
+        if spin is None:
+            node.spin_for(0.05)
+        else:
+            spin(0.05)
+        now = time.monotonic()
+        js_t = float(getattr(node, 'js_sample_t', 0.0) or 0.0)
+        twist_t = float(getattr(node, 'truth_base_twist_t', 0.0) or 0.0)
+        twist = getattr(node, 'truth_base_twist', None)
+        wheels = getattr(node, 'js_velocity', {})
+        last = {
+            'wheel_rad_s': {
+                name: wheels.get(name)
+                for name in ('left_wheel_joint', 'right_wheel_joint')},
+            'truth_twist_m_s_rad_s': twist,
+            'joint_age_s': (max(0.0, now - js_t) if js_t else 9e9),
+            'truth_twist_age_s': (
+                max(0.0, now - twist_t) if twist_t else 9e9),
+        }
+        quiet = base_motion_snapshot_ok(
+            wheels, last['joint_age_s'], twist,
+            last['truth_twist_age_s'])
+        if quiet:
+            if stable_since is None:
+                stable_since = sim_now(node)
+            if sim_now(node) - stable_since >= float(stable_s):
+                node.get_logger().info(
+                    'BASE_STOP 已稳定: wheel=%s truth_twist=%s'
+                    % (last['wheel_rad_s'], last['truth_twist_m_s_rad_s']))
+                return True
+        else:
+            stable_since = None
+    node.get_logger().error(
+        'BASE_STOP 未在 %.1fs 内稳定，拒绝继续桌边 IK/动作: %s'
+        % (float(timeout), last))
+    return False
+
+
 def place_robot(node, T_goal, tol_mm=8.0, tries=3, settle=0.25):
     """把底盘 teleport 到 T_goal, 用真值核对, 不够就重放。
 
     `CarryBus.place` 是"下一帧 SetWorldPoseCmd", 但 gz 的 teleport **不清零
-    速度**, 残留量实测 0.0~18.4mm 浮动(写死 20mm 阈值会贴边假 NG)。多放两针
-    就收敛; base 由真值锁定, 重放不会污染 FK。
+    速度**。因此摆位前先发送零速度并等待轮速与 Gazebo 真值 twist 连续稳定；
+    teleport 后再次确认底盘静止，再检查位置/yaw。缺少新鲜速度证据或超时均
+    fail-closed，避免残余轮速在机械臂 IK 期间继续改变底座。
 
     返回最终位置残差 mm。
     """
-    # P98 补: 收敛判据原来**只查位置**。teleport 不清零速度(§6.4 #35 同源),
-    # follower 正在驱动时被传送到服务位, 车会带着残余角速度继续转 —— 实测
-    # yaw 漂 0.182rad(10.4°), IK 在偏转后的基座系里解到限位, reach 差 318mm
-    # 假性失败。这里把 yaw 一并卡进收敛判据。
+    # 先清除 follower/上一轮 drive 残留的轮速。不能只看 cmd_vel=0：
+    # E2E #68 第二轮实测 cmd_vel=0 时左轮仍为 -0.986rad/s，底盘 yaw
+    # 在 5 轮 IK 中漂移约 15.6°，将 5.4mm 的末轮残差推过 4mm 门槛。
+    if not wait_base_stopped(node):
+        return 9e9
+    # P98 原有位置+yaw 收敛判据继续保留。
     res = 9e9
     yaw_err = 9e9
     ack_ok = False
@@ -1079,6 +1154,10 @@ def place_robot(node, T_goal, tol_mm=8.0, tries=3, settle=0.25):
                 'PLACE_ROBOT 无 ACK，停止重试并拒绝继续桌边动作')
             break
         settle_sim(node, settle)
+        # Teleport 本身不清除 wheel velocity；确认实际底盘已停稳后才采信 pose。
+        if not wait_base_stopped(node):
+            ack_ok = False
+            break
         T_now = object_pose(node, 'robot')
         if T_now is None:
             node.get_logger().error('PLACE_ROBOT 收到 ACK 但缺少 robot 真值位姿')
