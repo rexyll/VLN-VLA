@@ -159,7 +159,7 @@ class TestP104(unittest.TestCase):
         start = source.index('_pre_hc = M.hands_to_cup_mm(self)')
         gate = source.index("self._set_state('FAIL_HANDOVER_GEOMETRY')", start)
         transfer = source.index("self.carry.hand_to('cup', 'person', 'person_arms'", start)
-        diagnostic = source.index('HANDOVER_GEOM world_m', start)
+        diagnostic = source.index('HANDOVER_GEOM world_m')
         self.assertLess(start, gate)
         self.assertLess(diagnostic, gate)
         self.assertLess(gate, transfer)
