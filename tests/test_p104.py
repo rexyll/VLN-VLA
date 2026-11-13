@@ -2947,6 +2947,14 @@ class TestP104(unittest.TestCase):
             (0.0, 0.0, 0.0), (0.009, 0.002, 0.12))
         self.assertEqual(vx_yaw, 0.0)
         self.assertLess(wz_yaw, 0.0)
+        # The PREPARE E2E drift crossed the old 30mm mode boundary. Keep
+        # yaw correction active at 34mm so reverse-bearing steering cannot
+        # command a turn away from the captured heading.
+        vx_drift, wz_drift = M.base_pose_hold_velocity(
+            (0.0, 0.0, 0.0), (0.034, -0.005, -0.09))
+        self.assertEqual(vx_drift, 0.0)
+        self.assertGreater(wz_drift, 0.0)
+        self.assertLessEqual(abs(wz_drift), 0.12)
         # Once yaw is aligned, longitudinal correction must not add yaw.
         vx_xy, wz_xy = M.base_pose_hold_velocity(
             (0.0, 0.0, 0.0), (0.009, 0.002, 0.0))

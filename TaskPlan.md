@@ -26,7 +26,7 @@
 - 状态：**正在进行中**
 - 完整真实 Gazebo DrinkTask E2E 成功轮数：**1（E2E #60，单轮通过；连续多轮稳定性仍未验收）**
 - 已稳定通过的部分：ROS 2 工作区构建、Python 单元回归、CarryBus 回归；E2E #60 首次完整通过任务、观察器进程、8 张截图归档及交权后视觉跟随指标。
-- 当前阻塞：最新 E2E #71（run `43358864151`）在交权前因杯轴到左右手分别为 50.9/135.0mm，触发 `FAIL_HANDOVER_GEOMETRY`。世界坐标诊断显示杯轴偏离双手中点 44.1mm。已将交接锚点改为根据两条独立手臂 link 的实时手心真值反算到 `person_arms` 肩架坐标系；待回归与 E2E 验证。PUT_BACK 目标上方航点修复仍未获端到端验证。不得放宽 92±25mm 门槛。
+- 当前阻塞：最新 Gazebo E2E run `43443794416`（commit `ec6ea2e`）在 `PREPARE → FAIL_PREPARE` 停止。artifact `14047628413` 显示右臂倒水位形 reach 5/5 后掌心残差 11.5mm、物体残差 13.2mm，超过原 4mm IK 门槛；过程中底盘偏航从约 -0.015rad 扩大到 -0.10rad。诊断发现位姿保持控制在 XY 误差越过 30mm 时切回 reverse-bearing 控制，可能产生与 yaw 恢复相反的转向。已将分阶段 yaw/纵向控制区间扩大到 60mm，并增加 34mm 偏移回归测试；待 CI 与 Gazebo E2E 验证。不得放宽 IK、掌心、人体姿态、碰撞或 release 门槛。
 
 ## 任务章节
 
@@ -705,3 +705,12 @@
 - 更深层原因：PREPARE_BASE_HOLD 目标 yaw=0，实测底盘 yaw 从约 0.123rad 漂至 0.237rad；在距目标 XY 约 9mm 的近目标区域，旧 unicycle 控制器仍按 XY bearing 选择倒车转向，可能给出与目标 yaw 相反的角速度。trace 中控制指令角速度为正，和 yaw 误差应回零的方向不一致。这是底盘保持控制律的问题，不是单纯 IK 迭代数不足。
 - 修正近目标控制为分阶段：XY 偏差 ≤30mm 时先原地把 yaw 拉回目标（角速度限幅仍 0.12rad/s）；yaw 误差 ≤0.5° 后仅做沿当前朝向的纵向位移，不叠加转向。较大位移仍走原有有界控制；无碰撞/IK/关节限位/抓持/释放阈值变更。新增测试验证 yaw 修正符号及对齐后的纵向校正不产生附加角速度。
 - 本修复待 CI/Gazebo 验证。P104-07 继续进行中；完整双轮 E2E 历史成功数仍为 **1**。
+
+
+### 8.353 PREPARE 位姿保持模式切换边界扩大（2026-11-13）
+
+- E2E run `43443794416`（commit `ec6ea2e42e4248a3269c707d6435f2e2b5c1de5d`，artifact `14047628413`）的 Python 语法/纯测试与 CarryBus ROS 2 executor 均通过，Gazebo 双轮 E2E 失败。第一轮仅到 `PREPARE → FAIL_PREPARE`，第二轮未运行；requested=2、completed=1、passed=0、failed=2、missing round 2、`all_passed=false`。
+- `drink.log` 显示 PREPARE_BASE_HOLD 已启动。右臂倒水位形 reach 5/5 后掌心残差 11.5mm、物体残差 13.2mm，超过既有 4mm IK 门槛；系统保持水壶抓持并禁止水柱启动。IK/FK 自洽、关节伺服误差为 0，但底盘 yaw 从约 -0.015rad 漂至 -0.10rad，期间出现非零底盘角速度命令。
+- 根因定位：近目标分阶段保持控制此前仅在 XY 偏差 ≤30mm 时启用；本轮机械臂反作用将底盘推过该边界后，控制器切回 reverse-bearing 分支，重新允许倒车转向逻辑改变 yaw。该模式切换与 yaw 误差扩大、后续 IK 世界目标残差恶化在时间上吻合。
+- 修正：将 yaw 优先、对齐后仅纵向校正的分阶段控制区间扩大至 60mm；在 34mm XY 偏移、-0.09rad yaw 的回归样本中，必须输出零线速度和正向 yaw 修正，避免切回 reverse-bearing 分支。较大位移仍使用原有有界控制；线/角速度上限不变。
+- 未修改 4mm IK 门槛、3mm 杯体放置精度、人体关节规则、碰撞检测、关节限位、抓持或 release 条件。新修复尚待 Python/CarryBus/Gazebo 验证；完整双轮 E2E 成功次数仍为 **1**，P104-07 继续正在进行中。

@@ -1017,7 +1017,7 @@ def base_pose_hold_velocity(target, current, max_linear=0.04,
 
     target/current are (x, y, yaw) in world coordinates. Reverse motion is
     allowed so the controller can return to the captured pose without making
-    a full turn. This is active only while the second hand follows the held cup.
+    a full turn. This is active only during bounded arm-reaction windows (PREPARE pour and PRESENT follow_hand).
     """
     values = tuple(float(v) for v in (*target, *current,
                                       max_linear, max_angular))
@@ -1034,7 +1034,10 @@ def base_pose_hold_velocity(target, current, max_linear=0.04,
     # reverse-turn that fights the captured yaw (and was observed to increase
     # yaw error during PREPARE). First restore yaw in place; then correct only
     # the longitudinal component while preserving the requested heading.
-    if rho <= 0.03:
+    # The PREPARE trace crossed 30mm during arm reaction; dropping back to
+    # the reverse-bearing controller there reintroduced yaw-opposing turns.
+    # Keep the staged yaw/longitudinal controller through a 60mm recovery band.
+    if rho <= 0.06:
         if abs(theta) > math.radians(0.5):
             wz = max(-wlim, min(wlim, 1.2 * theta))
             return 0.0, wz
