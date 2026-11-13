@@ -2788,7 +2788,8 @@ class TestP104(unittest.TestCase):
         self.assertIn("_route_elbows = ([elbow, 'out'] if elbow == 'human'", body)
         self.assertIn('elbow=_route_elbow)', body)
         self.assertIn('elbow=_route_elbow, check_table=True)', body)
-        self.assertIn("'elbow=%s params=%s'", body)
+        self.assertIn("'elbow=%s params=%s preflight=%s detail=%s'", body)
+        self.assertIn("'PUTBACK_ROUTE_ACCEPTED step=%d trial=%d elbow=%s '", body)
         self.assertIn('PUTBACK_ROUTE_EXHAUSTED', body)
         self.assertIn('PUTBACK_ROUTE_SUMMARY', body)
         self.assertIn('_route_reasons', body)
@@ -2921,6 +2922,19 @@ class TestP104(unittest.TestCase):
         self.assertIn('diagnostic only', body)
 
 
+    def test_follow_hand_trace_captures_wheel_and_command_high_water(self):
+        task_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
+            'drink_task.py')
+        with open(task_path, encoding='utf-8') as stream:
+            source = stream.read()
+        self.assertIn("wheel_names = ('left_wheel_joint', 'right_wheel_joint')", source)
+        self.assertIn("wheel_max_abs_rad_s", source)
+        self.assertIn("wheel_max_abs_effort_nm", source)
+        self.assertIn("def _record_follow_cmd_trace(self, channel, msg):", source)
+        self.assertIn("drink_cmd_peak_angular", source)
+        self.assertIn("robot_cmd_peak_angular", source)
+
     def test_putback_route_sweep_is_bounded_and_varies_only_approach_waypoint(self):
         motion_path = os.path.join(
             ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
@@ -2939,7 +2953,9 @@ class TestP104(unittest.TestCase):
         self.assertIn('[_route_waypoint, T_right_goal]', source)
         # The final support target remains the original rigidly-derived target;
         # only the intermediate approach waypoint is parameterized.
-        self.assertIn("reach(\n                    node, 'R', T_right_goal", source)
+        self.assertIn("node, 'R', T_right_goal, tol_mm=6.0", source)
+        self.assertIn("_route_elbows = ([elbow, 'out'] if elbow == 'human'", source)
+        self.assertIn("elbow=_route_elbow, check_table=True", source)
         self.assertIn('max_ik_error_mm', source)
         goal = np.eye(4, dtype=float)
         goal[:3, 3] = [2.2, 0.36, 0.773]

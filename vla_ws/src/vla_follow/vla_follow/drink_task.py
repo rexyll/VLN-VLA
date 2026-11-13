@@ -208,6 +208,7 @@ class DrinkTask(Node):
         # ---- 输入: 关节实测 / 底盘位姿 / gz 真值
         self.js = {}
         self.js_velocity = {}
+        self.js_effort = {}
         self.js_sample_t = 0.0
         self.links = {}
         self.base = (0.0, 0.0, 0.0)
@@ -325,6 +326,9 @@ class DrinkTask(Node):
         velocity = dict(getattr(self, 'js_velocity', {}))
         velocity.update(zip(msg.name, getattr(msg, 'velocity', ())))
         self.js_velocity = velocity
+        effort = dict(getattr(self, 'js_effort', {}))
+        effort.update(zip(msg.name, getattr(msg, 'effort', ())))
+        self.js_effort = effort
 
     def _odom_cb(self, msg):
         # 踩坑记录(P86): gz 的 diff-drive 里程计是**轮子积分**, 底盘被
@@ -395,6 +399,27 @@ class DrinkTask(Node):
                             trace['max_speed_m_s'], speed)
                         trace['max_yaw_rate_deg_s'] = max(
                             trace['max_yaw_rate_deg_s'], math.degrees(yaw_rate))
+                        # Read-only wheel telemetry distinguishes passive chassis
+                        # reaction from an unobserved drive command. Missing channels
+                        # remain explicit (zero samples), never zero-filled.
+                        wheel_names = ('left_wheel_joint', 'right_wheel_joint')
+                        wheel_v = [self.js_velocity.get(name) for name in wheel_names]
+                        if all(v is not None and math.isfinite(float(v))
+                               for v in wheel_v):
+                            wheel_v = [float(v) for v in wheel_v]
+                            trace['wheel_samples'] += 1
+                            trace['wheel_max_abs_rad_s'] = max(
+                                trace['wheel_max_abs_rad_s'],
+                                max(abs(v) for v in wheel_v))
+                            if trace['wheel_start'] is None:
+                                trace['wheel_start'] = wheel_v
+                            trace['wheel_end'] = wheel_v
+                        wheel_eff = [self.js_effort.get(name) for name in wheel_names]
+                        if all(v is not None and math.isfinite(float(v))
+                               for v in wheel_eff):
+                            trace['wheel_max_abs_effort_nm'] = max(
+                                trace['wheel_max_abs_effort_nm'],
+                                max(abs(float(v)) for v in wheel_eff))
                         trace['end'] = list(pose)
         self.links = updated
         # P98 排查: 道具键会间歇性从 links 里"消失"(抓取时在、place_held
@@ -438,13 +463,30 @@ class DrinkTask(Node):
                     or el > s * cap:
                 return
 
+    def _record_follow_cmd_trace(self, channel, msg):
+        trace = self._follow_base_trace
+        if trace is None:
+            return
+        value = (float(msg.linear.x), float(msg.angular.z))
+        if not all(math.isfinite(v) for v in value):
+            trace[channel + '_cmd_nonfinite'] = True
+            return
+        trace[channel + '_cmd_samples'] += 1
+        trace[channel + '_cmd_peak_linear'] = max(
+            trace[channel + '_cmd_peak_linear'], abs(value[0]))
+        trace[channel + '_cmd_peak_angular'] = max(
+            trace[channel + '_cmd_peak_angular'], abs(value[1]))
+        trace[channel + '_cmd_last'] = value
+
     def _drink_cmd_cb(self, msg):
         self._drink_cmd_snapshot = (
             (float(msg.linear.x), float(msg.angular.z)), time.monotonic())
+        self._record_follow_cmd_trace('drink', msg)
 
     def _robot_cmd_cb(self, msg):
         self._robot_cmd_snapshot = (
             (float(msg.linear.x), float(msg.angular.z)), time.monotonic())
+        self._record_follow_cmd_trace('robot', msg)
 
     def drive(self, vx=0.0, wz=0.0):
         """发一帧底盘速度。gz 的 DiffDrive 会锁存最后一条, 但仍按 20Hz 补发。
@@ -881,6 +923,19 @@ class DrinkTask(Node):
                 'max_abs_yaw_deg': 0.0,
                 'max_speed_m_s': 0.0,
                 'max_yaw_rate_deg_s': 0.0,
+                'wheel_samples': 0,
+                'wheel_start': None,
+                'wheel_end': None,
+                'wheel_max_abs_rad_s': 0.0,
+                'wheel_max_abs_effort_nm': 0.0,
+                'drink_cmd_samples': 0,
+                'drink_cmd_peak_linear': 0.0,
+                'drink_cmd_peak_angular': 0.0,
+                'drink_cmd_last': None,
+                'robot_cmd_samples': 0,
+                'robot_cmd_peak_linear': 0.0,
+                'robot_cmd_peak_angular': 0.0,
+                'robot_cmd_last': None,
             } if _trace_origin is not None else None)
             _right_goal_follow = (
                 _cup_before_follow @ np.asarray(pr['off_r'], float)
