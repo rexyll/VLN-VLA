@@ -3035,6 +3035,23 @@ class TestP104(unittest.TestCase):
                         body.index('node.carry.grab(model, side)'))
 
 
+
+    def test_present_follow_cup_drift_fails_closed_before_person_close(self):
+        task_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
+            'drink_task.py')
+        with open(task_path, encoding='utf-8') as stream:
+            source = stream.read()
+        self.assertIn('PRESENT_POST_FOLLOW_TARGET', source)
+        self.assertIn("self._set_state('FAIL_PRESENT_FOLLOW_DRIFT')", source)
+        self.assertIn('保持机器人持杯，不请求人手合拢、不交权', source)
+        guard = source.index("self._set_state('FAIL_PRESENT_FOLLOW_DRIFT')")
+        close = source.index('ok_person_grip = M.person_hands')
+        self.assertLess(source.index('_post_follow_pos_mm > 6.0'), guard)
+        self.assertLess(guard, close)
+        self.assertIn('_post_follow_axis_deg > 0.5', source)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)
 

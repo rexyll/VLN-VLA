@@ -996,6 +996,39 @@ class DrinkTask(Node):
                     '不交给人、不松开杯子'
                     % (ok_present, present_mm, ok_follow, follow_mm))
                 return False
+            # follow_hand may move the mobile base under arm reaction. The cup
+            # is attached to the left palm, so a successful right-palm servo does
+            # not prove that the cup stayed at the human handover target. Recheck
+            # the independently observed cup pose before asking the person to close.
+            _cup_after_follow_check = M.object_pose(self, 'cup')
+            _post_follow_pos_mm = (
+                M.pos_err_mm(_cup_after_follow_check, Tp)
+                if _cup_after_follow_check is not None and Tp is not None
+                else None)
+            _post_follow_axis_deg = (
+                M.axis_angle_deg(_cup_after_follow_check, Tp)
+                if _cup_after_follow_check is not None and Tp is not None
+                else None)
+            self.get_logger().info(
+                'PRESENT_POST_FOLLOW_TARGET cup_xyz=%s target_xyz=%s '
+                'position_mm=%s axis_deg=%s' %
+                (np.round(_cup_after_follow_check[:3, 3], 5).tolist()
+                 if _cup_after_follow_check is not None else None,
+                 np.round(Tp[:3, 3], 5).tolist() if Tp is not None else None,
+                 (round(float(_post_follow_pos_mm), 3)
+                  if _post_follow_pos_mm is not None else None),
+                 (round(float(_post_follow_axis_deg), 3)
+                  if _post_follow_axis_deg is not None else None)))
+            if (_post_follow_pos_mm is None or _post_follow_axis_deg is None
+                    or _post_follow_pos_mm > 6.0
+                    or _post_follow_axis_deg > 0.5):
+                self._set_state('FAIL_PRESENT_FOLLOW_DRIFT')
+                self.get_logger().error(
+                    'DRINK follow_hand 后杯位偏离交接目标: position=%.1fmm '
+                    'axis=%.2fdeg；保持机器人持杯，不请求人手合拢、不交权'
+                    % (float(_post_follow_pos_mm or 9e9),
+                       float(_post_follow_axis_deg or 9e9)))
+                return False
             self.spin_for(0.5)
             _cup_before_person_close = M.object_pose(self, 'cup')
             _hl_before_close, _hr_before_close = M.person_hand_poses(self)
