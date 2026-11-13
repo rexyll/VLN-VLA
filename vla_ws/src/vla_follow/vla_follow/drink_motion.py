@@ -1306,7 +1306,12 @@ def place_held(node, side, model, T_obj_goal, tol_mm=PLACE_TOL_MM,
 def put_down(node, side, model, T_obj_goal, retreat=0.10,
              tol_mm=PLACE_TOL_MM, info=None):
     """松手放回；未落稳或张手后复核失败时保持附着，绝不提前 release。"""
-    ok1, res = place_held(node, side, model, T_obj_goal, tol_mm)
+    # Placement reaches often approach monotonically while the mobile base
+    # settles under arm reaction. Give the same strict 3mm reach gate up to
+    # eight IK/servo refinements rather than failing after the default five.
+    # This adds convergence opportunities; it does not relax pose or safety gates.
+    ok1, res = place_held(
+        node, side, model, T_obj_goal, tol_mm, reach_passes=8)
     if not ok1:
         node.get_logger().error(
             'PUT_DOWN %s 落位闭环失败 %.1fmm，保持抓持，不松手' % (model, res))
@@ -1317,7 +1322,8 @@ def put_down(node, side, model, T_obj_goal, retreat=0.10,
         return False, res
     node.spin_for(0.2)
     # 张手后再对一次位：此时手指已离开物体，收敛到的是"无接触"状态
-    ok2, res2 = place_held(node, side, model, T_obj_goal, tol_mm)
+    ok2, res2 = place_held(
+        node, side, model, T_obj_goal, tol_mm, reach_passes=8)
     if not ok2:
         node.get_logger().error(
             'PUT_DOWN %s 张手后复核失败 %.1fmm，保持附着' % (model, res2))

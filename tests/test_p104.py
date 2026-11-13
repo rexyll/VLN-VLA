@@ -2500,6 +2500,9 @@ class TestP104(unittest.TestCase):
         self.assertIn("object_state='still_attached'", body)
         self.assertIn("failure_stage='arm_withdraw_after_release'", body)
         self.assertIn('已确认释放并落桌，但撤手未到位', body)
+        # Both pre-release placement and post-open verification retain the
+        # strict reach tolerance while allowing additional refinement passes.
+        self.assertEqual(body.count('reach_passes=8'), 2)
 
         prepare = motion[motion.index('def prepare_present('):]
         self.assertIn("kettle_putdown.get('release_confirmed')", prepare)
