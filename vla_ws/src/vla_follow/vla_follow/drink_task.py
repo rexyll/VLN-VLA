@@ -450,6 +450,47 @@ class DrinkTask(Node):
                                 trace['wheel_max_abs_effort_nm'],
                                 max(abs(float(v)) for v in wheel_eff))
                         trace['end'] = list(pose)
+                        # Keep a bounded 5Hz synchronized trace, not just
+                        # high-water marks, so command/odom/wheel/truth timing
+                        # can be compared without changing control behavior.
+                        last_detail = trace.get('detail_last_t', 0.0)
+                        if sample_t - last_detail >= 0.20:
+                            now_mono = time.monotonic()
+                            wheel_detail = [
+                                self.js_velocity.get('left_wheel_joint'),
+                                self.js_velocity.get('right_wheel_joint')]
+                            drink_cmd = self._drink_cmd_snapshot
+                            robot_cmd = self._robot_cmd_snapshot
+                            odom_detail = self.odom_twist
+                            trace.setdefault('detail_samples', []).append({
+                                't_s': round(sample_t - trace['start_t'], 3),
+                                'base_dx_mm': round(dx * 1000.0, 2),
+                                'base_dy_mm': round(dy * 1000.0, 2),
+                                'base_dyaw_deg': round(math.degrees(dyaw), 3),
+                                'truth_twist': (
+                                    [round(float(v), 5) for v in self.truth_base_twist]
+                                    if self.truth_base_twist is not None else None),
+                                'wheel_vel': [
+                                    round(float(v), 4)
+                                    if v is not None and math.isfinite(float(v))
+                                    else None for v in wheel_detail],
+                                'drink_cmd': (
+                                    [round(float(v), 5) for v in drink_cmd[0]]
+                                    if drink_cmd else None),
+                                'drink_cmd_age_s': (
+                                    round(now_mono - drink_cmd[1], 3)
+                                    if drink_cmd else None),
+                                'robot_cmd': (
+                                    [round(float(v), 5) for v in robot_cmd[0]]
+                                    if robot_cmd else None),
+                                'robot_cmd_age_s': (
+                                    round(now_mono - robot_cmd[1], 3)
+                                    if robot_cmd else None),
+                                'odom_twist': (
+                                    [round(float(v), 5) for v in odom_detail]
+                                    if odom_detail is not None else None),
+                            })
+                            trace['detail_last_t'] = sample_t
         self.links = updated
         # P98 排查: 道具键会间歇性从 links 里"消失"(抓取时在、place_held
         # 时变 None → FAIL_PREPARE)。节流打印真值流的关键键存在性, 定位
@@ -947,6 +988,9 @@ class DrinkTask(Node):
             _trace_origin = (_base_diag_pre.get('truth_pose')
                              if _base_diag_pre else None)
             self._follow_base_trace = ({
+                'start_t': time.monotonic(),
+                'detail_last_t': 0.0,
+                'detail_samples': [],
                 'origin': tuple(_trace_origin),
                 'origin_rpy': (_base_diag_pre.get('truth_rpy') if _base_diag_pre else None),
                 'end_rpy': None,
