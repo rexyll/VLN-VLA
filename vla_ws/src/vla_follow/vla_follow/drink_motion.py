@@ -1037,6 +1037,17 @@ def _cup_lift_reach_tol_mm():
     return max(0.5, min(1.5, requested))
 
 
+def _kettle_pour_reach_tol_deg():
+    """Tunable per-joint servo tolerance for kettle pour; never looser than 0.08deg."""
+    try:
+        requested = float(os.environ.get('VLA_KETTLE_POUR_REACH_TOL_DEG', '0.08'))
+    except (TypeError, ValueError, OverflowError):
+        requested = 0.08
+    if not math.isfinite(requested):
+        requested = 0.08
+    return max(0.04, min(0.08, requested))
+
+
 def base_pose_hold_velocity(target, current, max_linear=0.04,
                            max_angular=0.12, current_twist=(0.0, 0.0, 0.0)):
     """Bounded unicycle pose stabilizer for short arm-reaction disturbances.
@@ -2509,7 +2520,13 @@ def pour_into_cup(node, fill=0.65, jet_len=0.16, ramp=True):
             'POUR 抓壶阶段未达成或手臂违反人体关节规则，停止后续倒水')
         return out
     Tk_pour, tip_tgt = P.kettle_for_pour(object_pose(node, 'cup'))
-    ok_p, res_p = place_held(node, 'R', 'kettle', Tk_pour, tol_mm=4.0)
+    # The default 0.25deg servo deadband left a repeatable 5–8mm palm
+    # residual in the kettle-pour pose. Use the same tight refinement strategy
+    # already exercised for cup lift; only the internal servo stop criterion
+    # changes. Object acceptance remains strictly <4mm and <2deg.
+    ok_p, res_p = place_held(
+        node, 'R', 'kettle', Tk_pour, tol_mm=4.0, reach_passes=8,
+        reach_tol_deg=_kettle_pour_reach_tol_deg())
     out['res']['kettle_pour'] = res_p
     out['arm']['pour'] = log_arm(node, '倒水', ('L', 'R'))
     pour_kin_ok = human_kinematics_ok(

@@ -3236,6 +3236,23 @@ class TestP104(unittest.TestCase):
         self.assertNotIn('或左肘外扩/下垂/扭转不符合 P103 判据', body)
 
 
+    def test_kettle_pour_uses_tight_bounded_reach_refinement(self):
+        motion_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
+            'drink_motion.py')
+        with open(motion_path, encoding='utf-8') as stream:
+            source = stream.read()
+        self.assertIn("VLA_KETTLE_POUR_REACH_TOL_DEG', '0.08'", source)
+        self.assertIn('return max(0.04, min(0.08, requested))', source)
+        start = source.index('def pour_into_cup(')
+        end = source.index('def ', start + 5)
+        body = source[start:end]
+        self.assertIn('reach_passes=8,', body)
+        self.assertIn('reach_tol_deg=_kettle_pour_reach_tol_deg()', body)
+        self.assertIn("node, 'R', 'kettle', Tk_pour, tol_mm=4.0", body)
+        self.assertIn('严格要求 <4.0mm', body)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)
 

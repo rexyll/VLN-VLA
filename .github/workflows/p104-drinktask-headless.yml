@@ -19,6 +19,16 @@ on:
       - "vla_demo/maps/**"
       - "vla_demo/vision_config.json"
   workflow_dispatch:
+    inputs:
+      kettle_pour_reach_tol_deg:
+        description: "Kettle pour per-joint reach tolerance (deg); bounded to 0.04–0.08"
+        required: false
+        type: choice
+        default: "0.08"
+        options:
+          - "0.08"
+          - "0.06"
+          - "0.04"
 
 permissions:
   contents: read
@@ -38,6 +48,7 @@ jobs:
       P91_WARMUP: "25"
       P91_FOLLOW_WATCH: "75"
       PW_SEED: "7"
+      VLA_KETTLE_POUR_REACH_TOL_DEG: ${{ inputs.kettle_pour_reach_tol_deg || '0.08' }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
