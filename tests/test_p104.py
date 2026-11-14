@@ -233,6 +233,30 @@ class TestP104(unittest.TestCase):
                     'R', np.eye(4), seed=K.Q_REST.copy(),
                     seeds=[(0.0, -0.55, 0.0, -1.0)])
 
+    def test_human_ik_uses_extended_seeds_without_relaxing_posture_rules(self):
+        invalid = K.Q_REST.copy()
+        invalid[3] = -2.30
+        valid = K.Q_REST.copy()
+        extended = [tuple(v) for v in K.HUMAN_SEEDS_EXTENDED]
+        calls = {'n': 0}
+
+        def fake_ik_best(side, target, seed, refine=False):
+            calls['n'] += 1
+            if calls['n'] == 1:  # current-pose hysteresis probe
+                return valid.copy(), 1.0, 'probe'
+            is_extended = any(
+                np.allclose(np.asarray(seed)[:4], np.asarray(v))
+                for v in extended)
+            if is_extended:
+                return valid.copy(), 1e-3, 'extended-valid'
+            return invalid.copy(), 1e-3, 'nominal-invalid'
+
+        with patch.object(K, 'ik_best', side_effect=fake_ik_best):
+            q, err, how = K.ik_human('R', np.eye(4), seed=valid)
+        self.assertIn('extended-valid', how)
+        self.assertLessEqual(err, 4e-3)
+        self.assertEqual(K.violation_list('R', q), [])
+
     def test_human_ik_refinement_cannot_reintroduce_posture_violation(self):
         # A valid selected branch must remain valid after numerical polishing.
         source = open(os.path.join(
