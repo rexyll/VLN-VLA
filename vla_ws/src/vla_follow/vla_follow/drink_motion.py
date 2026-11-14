@@ -617,7 +617,7 @@ def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
         # 挑"最像人"的那个会让手臂在两个分支之间来回跳 —— 实测抓杯时两轮各
         # 选一边, 掌心在中间不动, 残差 115mm 一直不下去。分支是姿态策略,
         # 补位是精度问题, 两件事分开: 第一轮定分支, 后面只用种子做局部修正。
-        _mode = elbow if it == 0 else None
+        _mode = elbow if elbow == 'human' or it == 0 else None
         # Freeze the exact receive-side evidence used by this IK iteration.
         # The later post-servo ages alone cannot prove that the base pose used
         # by FK/IK was aligned with the latest Gazebo truth snapshot.
@@ -664,7 +664,7 @@ def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
                 % (side, exc, _target_xyz, _target_rpy,
                    [round(float(v), 5) for v in base_at_ik], _q_diag))
             return False, 9e9, 'human-ik-no-valid-solution'
-        if elbow == 'human':
+        if _mode == 'human':
             _posture_bad = K.violation_list(side, q)
             if _posture_bad:
                 node.get_logger().warn(
