@@ -3468,3 +3468,22 @@ class TestPrepareBaseHoldNeutralization(unittest.TestCase):
         self.assertIn("self.drive(0.0, 0.0)", source)
         self.assertIn("VLA_PREPARE_BASE_HOLD_ZERO_DURING_POUR", source)
         self.assertNotIn('_prepare_base_reach_active', source)
+
+
+class TestReleasedArmRetreatFallback(unittest.TestCase):
+    def test_vertical_clearance_retry_covers_human_ik_infeasibility(self):
+        motion_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
+            'drink_motion.py')
+        with open(motion_path, encoding='utf-8') as stream:
+            source = stream.read()
+        start = source.index('def put_down(')
+        end = source.index('\n\ndef _blend_pose(', start)
+        body = source[start:end]
+        self.assertIn("how_back in ('table-collision',", body)
+        self.assertIn("'human-ik-no-valid-solution')", body)
+        self.assertIn('T_stage[2, 3] += 0.12', body)
+        self.assertIn('reach(\n                node, side, T_stage, tol_mm=8.0, check_table=True)', body)
+        self.assertIn('reach(\n                    node, side, T_back, tol_mm=8.0, check_table=True)', body)
+        self.assertIn('if not ok_back:', body)
+        self.assertIn('withdraw_failed=True', body)
