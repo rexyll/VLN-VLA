@@ -836,3 +836,13 @@
 - 修正测试夹具：将构造的旧时间戳下限钳制为 1e-6，保证它始终是有效正时间戳且远早于当前采样时间；不改变生产逻辑。
 - PR 的 pull_request Gazebo E2E 专门以 VLA_PREPARE_KETTLE_BASE_STILL=1 执行 B 组；workflow_dispatch 仍可显式选择 0/1，main push 默认保持 0。A 组参考基线为 main 的 #115 原始控制路径；比较时必须同时注明提交差异与运行数据，不能将历史 run 当成严格同提交随机化实验。
 - 修正后重新等待 Python、CarryBus 和 Gazebo CI。当前没有任何阈值或安全门控被放宽，PR 保持 draft，不合并 main。
+
+
+### 8.367 PREPARE 底盘静止门控失败归因与保持控制命令遥测（2026-11-14）
+
+- PR #2 的 B 组 Gazebo run 43584995057（commit baa2b11edee2951028331b79949433483535ff61，artifact 14110790795）Python #1000 与 CarryBus #740 均通过；Gazebo E2E 失败。首轮停在 PREPARE → FAIL_PREPARE，第二轮未生成；requested=2、completed=1、passed=0、failed=2、all_passed=false。水壶仍保持抓持，水柱未启动，截图仅 2 张。
+- drink.log 证据：倒水前底盘先停止；右臂抓壶后，静止门控连续两次通过（真值线速度约 0.2/0.1mm/s，角速度约 0.44/0.31°/s），随后在 3s 窗口内出现 7.545mm/s 平移，门控超时并安全中止。此时掌心残差 24.8mm、物体残差 24.2mm/1.43°；该数值是中止瞬间状态，不能作为静止门控改善/恶化 IK 精度的独立结论。
+- 代码审查确认 PREPARE 期间 _prepare_base_hold_target 仍由 20Hz _tick() 持续执行 base_pose_hold_velocity()，而 _wait_base_still() 在机械臂 reach 内部等待。当前日志没有同步记录保持控制器输出 cmd_v、底盘相对保持目标的位移/偏航误差，因而尚不能判断 7.545mm/s 是保持控制器主动纠偏、机械臂反作用、还是二者耦合。
+- 本次只增加 PREPARE 保持控制遥测：每秒记录目标相对位移/偏航误差、Gazebo truth vx/vy/wz 与实际下发 cmd vx/wz；不改变控制器输出、速度上限、等待时长、4mm IK、碰撞、关节限位、抓持或释放门槛。PR CI 继续启用静止门控以采集可归因日志。
+- 下一步依据 PREPARE_BASE_HOLD_TRACE 的命令/真值时序做判断：若命令与速度同向且持续，检查保持控制律/控制权；若命令为零或反向仍出现速度峰值，重点查轮地动力学与机械臂反作用。只允许针对证据设计下一项隔离实验，不直接关闭保持或放宽门槛。
+- 完整双轮 Gazebo E2E 历史成功次数仍为 1；P104-07 继续进行中。

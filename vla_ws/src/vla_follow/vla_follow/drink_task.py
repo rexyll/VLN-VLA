@@ -236,6 +236,7 @@ class DrinkTask(Node):
         self._follow_base_trace = None
         self._follow_base_hold_target = None
         self._prepare_base_hold_target = None
+        self._last_prepare_hold_trace_t = 0.0
         self.truth_base_pose_snapshot = None
         self.truth_base_rpy_snapshot = None
         self._have_odom = False
@@ -1677,6 +1678,28 @@ class DrinkTask(Node):
                         current_twist=self.truth_base_twist,
                         translate_during_yaw=_present_follow_hold)
                     self.drive(vx, wz)
+                    # P104 diagnostic only: correlate PREPARE hold command
+                    # with Gazebo truth motion once per wall-clock second.
+                    # This does not alter controller output or acceptance gates.
+                    if self._prepare_base_hold_target is not None:
+                        trace_now = time.monotonic()
+                        if trace_now - self._last_prepare_hold_trace_t >= 1.0:
+                            tx, ty, tyaw = self._prepare_base_hold_target
+                            cx, cy, cyaw = snapshot[0]
+                            dx, dy = tx - cx, ty - cy
+                            yaw_err = math.atan2(
+                                math.sin(tyaw - cyaw), math.cos(tyaw - cyaw))
+                            tvx, tvy, twz = self.truth_base_twist
+                            self.get_logger().info(
+                                'PREPARE_BASE_HOLD_TRACE '
+                                'rho_mm=%.1f dx_mm=%.1f dy_mm=%.1f '
+                                'yaw_err_deg=%.3f truth_v=(%.5f,%.5f,%.5f) '
+                                'cmd_v=(%.5f,%.5f)'
+                                % (math.hypot(dx, dy) * 1000.0,
+                                   dx * 1000.0, dy * 1000.0,
+                                   math.degrees(yaw_err), tvx, tvy, twz,
+                                   vx, wz))
+                            self._last_prepare_hold_trace_t = trace_now
         self.bus.publish_all()
         now = time.time()
         # P98: 道具自愈 —— 壶/杯是自由体, 速度只增不减, 漂出场外后喝水
