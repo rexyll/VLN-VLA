@@ -905,24 +905,36 @@ def ik_human(side, T_tgt, seed=None, tol=2e-3, seeds=None):
     # 吃掉), 而"宁可要一个越限的精确解"毫无道理: 实测张开手指后那次压实,
     # 按 2mm 闸一个合规解都没进来, 于是回退成种子原解, 左臂被挑到
     # `q=[−1.53,−1.30,+1.90,−2.42,…]`(up_roll 顶 R4、肘折 2.42 越 R7)。
-    for gate in (tol, max(tol, 4e-3)):
-        for v in (seeds or HUMAN_SEEDS):
-            s = human_seed_joints(v, base=base_q)
-            q, err, how = ik_best(side, T_tgt, s, refine=False)
-            if not math.isfinite(float(err)) or err > gate:
-                continue
-            q = np.clip(q, LIM_LO, LIM_HI)
-            # Hard posture rules are constraints, not a soft ranking penalty.
-            # Never keep an over-limit candidate merely because every sampled
-            # seed is bad; that was the fail-open path seen in E2E round 2.
-            if violation_list(side, q):
-                continue
-            cands.append((q, err, how))
+    # First use the dense nominal seed set. If it has no compliant solution,
+    # try the separately reviewed extended boundary seeds (P104-07). This is
+    # additional search coverage only: every candidate still passes the same
+    # residual gate and the same hard R1-R7 checks.
+    seed_sets = [seeds or HUMAN_SEEDS]
+    if seeds is None:
+        seed_sets.append(HUMAN_SEEDS_EXTENDED)
+    for seed_set in seed_sets:
+        for gate in (tol, max(tol, 4e-3)):
+            for v in seed_set:
+                s = human_seed_joints(v, base=base_q)
+                q, err, how = ik_best(side, T_tgt, s, refine=False)
+                if not math.isfinite(float(err)) or err > gate:
+                    continue
+                q = np.clip(q, LIM_LO, LIM_HI)
+                # Hard posture rules are constraints, not a soft ranking penalty.
+                # Never keep an over-limit candidate merely because every sampled
+                # seed is bad; that was the fail-open path seen in E2E round 2.
+                if violation_list(side, q):
+                    continue
+                cands.append((q, err, how))
+            if cands:
+                break
         if cands:
             break
     if not cands:
         raise HumanIKNoValidSolution(
-            "no residual-valid IK candidate satisfies R1-R7 for %s" % side)
+            "no residual-valid IK candidate satisfies R1-R7 for %s "
+            "(nominal=%d extended=%d)" %
+            (side, len(seed_sets[0]), len(seed_sets[-1]) if len(seed_sets)>1 else 0))
 
     def cost(c):
         q, e, _h = c
