@@ -654,9 +654,15 @@ def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
             q, _e, how = K.ik_world(
                 side, T_world, base_at_ik, q_now, elbow=_mode)
         except K.HumanIKNoValidSolution as exc:
+            _target_xyz = np.round(np.asarray(T_world)[:3, 3], 4).tolist()
+            _target_rpy = np.round(
+                K.mat_to_rpy(np.asarray(T_world)[:3, :3]), 3).tolist()
+            _q_diag = np.round(np.asarray(q_now, float), 3).tolist()
             node.get_logger().warn(
-                'REACH %s 人体约束 IK 无合规候选，拒绝下发关节目标: %s'
-                % (side, exc))
+                'REACH %s 人体约束 IK 无合规候选，拒绝下发关节目标: %s; '
+                'target_xyz=%s target_rpy_rad=%s base=%s measured_q=%s'
+                % (side, exc, _target_xyz, _target_rpy,
+                   [round(float(v), 5) for v in base_at_ik], _q_diag))
             return False, 9e9, 'human-ik-no-valid-solution'
         if elbow == 'human':
             _posture_bad = K.violation_list(side, q)
