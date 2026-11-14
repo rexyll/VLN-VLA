@@ -1787,13 +1787,18 @@ def put_down(node, side, model, T_obj_goal, retreat=0.10,
     ok_back, res_back, how_back = reach(
         node, side, T_back, tol_mm=8.0, check_table=True)
     withdraw_stage = None
+    # A released kettle can leave the wrist at a pose whose short direct
+    # retreat target has no R1-R7-compliant IK branch. Try a collision-checked
+    # world-Z clearance waypoint for both table blockage and posture-IK
+    # infeasibility; never relax posture, residual, or collision gates.
     # The cup's two-hand put-down already uses this exact, collision-checked
     # 120mm world-Z waypoint when the free support arm cannot reach around the
     # table lip. Reuse that proven staged retreat for a released kettle: first
     # lift the empty hand above the lip, then retry the original retreat target.
     # Every segment still passes the full table/leg path gate; a blocked lift
     # or blocked second segment remains fail-closed.
-    if not ok_back and how_back == 'table-collision':
+    if not ok_back and how_back in ('table-collision',
+                                      'human-ik-no-valid-solution'):
         T_stage_now = wrist(node, side)
         if T_stage_now is not None:
             T_stage = T_stage_now.copy()
