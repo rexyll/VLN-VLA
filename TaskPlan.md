@@ -904,3 +904,12 @@
 - 本轮没有启动 HANDOVER，不发生人手闭合、所有权转移或后续放杯；安全门控按预期拒绝不合格状态。杯子 home 偏移 603.6mm 是任务中止后的观测，不作为已完成安全放置的证据。
 - 下一步诊断拆分为两条：①PREPARE 采用更高频、紧凑的同步采样，记录 base truth pose/twist、轮速、当前关节速度峰值及活跃关节、命令源/时间戳；明确 joint effort 是否由 Gazebo joint-state 通道提供，若未提供则标记 unavailable，不把 0 当成真实零力矩。②PRESENT follow 单独检查 hold target、底盘速度反馈、命令与真值时序及杯体漂移；每次只改一个控制参数或结构，不以 PREPARE 实验结果推断 PRESENT。
 - 不修改任何控制输出、物理参数、4mm IK、5mm grasp、6mm/0.5°递杯、碰撞、关节限位、抓持/释放条件。完整双轮 Gazebo E2E 历史成功次数仍为 **1**；PR #2 保持 draft/open，main `1acfa3785283c227ee9f3e351140b3d601f7d85f` 未修改。
+
+
+### 8.374 将 PREPARE 机械臂/底盘相关性诊断提升至 5Hz（2026-11-14）
+
+- 基于 #43593553628 的证据，原 1Hz trace 可能漏掉短时关节速度、Gazebo 真值 twist 与底盘偏移之间的先后关系；同时 `JointState.effort` 的空数组被 max(default=0) 误显示成“零力矩”，存在把“未提供”误读为“真实为零”的风险。
+- 仅调整实验分支诊断输出：PREPARE zero-during-pour trace 从 1Hz 提高到 5Hz；逐关节速度改为最多输出 4 个绝对速度最大的活跃关节（阈值 0.05rad/s）；增加 wheel/arm effort 样本数，若无有效样本则输出 `arm_eff_max=na`，不再把缺失数据显示为 0。保留 base truth pose/twist、命令源、odom、wheel velocity 与姿态数据。
+- 本次不改变 `_tick()` 控制输出、零指令作用域、静止门控、Gazebo 物理参数或任何运动/验收阈值；5Hz 仅增加日志分辨率。
+- 提交 `6ee486d84a3363d1f53840f6689e568bc6b180ca` 的 Python syntax run `43595286034` 已通过；CarryBus run `43595286041` 与 Gazebo E2E run `43595286039` 正在执行，结果待复核。后续必须用高频 trace 判断 arm motion 与 truth base displacement 的时序关系，不能仅凭相关性断言因果。
+- PR #2 继续 draft/open，所有实验仅在 `experiment/prepare-base-stillness-ab`；main 未修改，完整双轮成功数仍为 **1**。
