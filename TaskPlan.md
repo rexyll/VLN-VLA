@@ -894,3 +894,13 @@
 - PRESENT follow 是另一个独立失败：在 FOLLOW_BASE_HOLD 主动控制期间，cmd 达到 angular 0.04rad/s，底盘位姿变化峰值约 23.75mm/7.46°，杯子交接目标残差 62.916mm/6.447°；fail-closed 拒绝交权。不要将 PRESENT 主动保持漂移和 PREPARE 零指令漂移混为一谈。
 - 下一轮只补充 PREPARE 同步遥测：机械臂关节速度/力矩峰值与逐关节速度、驱动轮 effort，并修正 trace mode 标签。用时间相关性进一步区分机械臂反作用与底盘接触/动力学；不改控制输出和任何验收门槛。
 - 完整双轮成功数仍为 1，PR #2 草稿未合并，main 不变。
+
+
+### 8.373 B3 机械臂动态遥测复核与 PRESENT 跟随漂移分离（2026-11-14）
+
+- Run `43593553628`（commit `5bccc3ba4318d489f9ced9b6b9258d125df9fc51`，artifact `14114080591`）Python #43593553634、CarryBus #43593553646 均通过；Gazebo 双轮 E2E 失败。round1 仅执行到 `PREPARE → PRESENT → FAIL_PRESENT_FOLLOW_DRIFT`，round2 未启动；JSON 为 requested=2、completed=1、passed=0、failed=2、all_passed=false，关键截图 3/7。
+- PREPARE 零指令模式下，底盘相对 hold target 偏移从 0 增至 65.3mm，yaw 误差达到 5.171°；`drink_cmd`/`robot_cmd` 均为零，驱动轮速度多数采样接近零。关节遥测出现 2.5/4.0 的速度峰值，但采样频率仅约 1Hz，且关节 effort 始终为 0；无法据此确认关节力矩或建立机械臂运动与底盘位移的因果关系。部分时刻 Gazebo truth twist 有明显尖峰而轮速/odom 不一致，需继续确认动态 pose 差分、轮地动力学及模型根位姿变化来源。
+- PREPARE 结束后，`PRESENT_EXEC_RESULT` 通过（报告末端位置误差 0.593mm、姿态误差 0.03°）；但 follow_hand 后杯漂移 19.368mm，超过严格 6mm/0.5°交接门槛，进入 `FAIL_PRESENT_FOLLOW_DRIFT`。该轮在 PRESENT follow post 的底盘峰值 XY 位移 11.13mm、yaw 2.112°、速度 0.0477m/s；末端右掌跟随误差仍为 1.878mm。该阶段属于独立的主动保持控制问题，不与 PREPARE 零指令漂移合并归因。
+- 本轮没有启动 HANDOVER，不发生人手闭合、所有权转移或后续放杯；安全门控按预期拒绝不合格状态。杯子 home 偏移 603.6mm 是任务中止后的观测，不作为已完成安全放置的证据。
+- 下一步诊断拆分为两条：①PREPARE 采用更高频、紧凑的同步采样，记录 base truth pose/twist、轮速、当前关节速度峰值及活跃关节、命令源/时间戳；明确 joint effort 是否由 Gazebo joint-state 通道提供，若未提供则标记 unavailable，不把 0 当成真实零力矩。②PRESENT follow 单独检查 hold target、底盘速度反馈、命令与真值时序及杯体漂移；每次只改一个控制参数或结构，不以 PREPARE 实验结果推断 PRESENT。
+- 不修改任何控制输出、物理参数、4mm IK、5mm grasp、6mm/0.5°递杯、碰撞、关节限位、抓持/释放条件。完整双轮 Gazebo E2E 历史成功次数仍为 **1**；PR #2 保持 draft/open，main `1acfa3785283c227ee9f3e351140b3d601f7d85f` 未修改。
