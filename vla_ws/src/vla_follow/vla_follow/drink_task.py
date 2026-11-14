@@ -1671,7 +1671,7 @@ class DrinkTask(Node):
                 snapshot = self.truth_base_pose_snapshot
                 if snapshot is not None:
                     trace_now = time.monotonic()
-                    if trace_now - self._last_prepare_hold_trace_t >= 1.0:
+                    if trace_now - self._last_prepare_hold_trace_t >= 0.2:
                         tx, ty, tyaw = self._prepare_base_hold_target
                         cx, cy, cyaw = snapshot[0]
                         dx, dy = tx - cx, ty - cy
@@ -1696,22 +1696,33 @@ class DrinkTask(Node):
                             n for n in self.js_velocity if 'wheel' in n.lower())
                         wheel_v = ','.join(
                             '%s:%.3f' % (n, float(self.js_velocity[n]))
-                            for n in wheel_names)
+                            for n in wheel_names
+                            if math.isfinite(float(self.js_velocity[n])))
                         arm_names = sorted(
                             n for n in self.js_velocity
                             if n.startswith(('L_', 'R_')) and 'wheel' not in n.lower())
-                        arm_v = ','.join(
-                            '%s:%.3f' % (n, float(self.js_velocity[n]))
-                            for n in arm_names)
+                        arm_velocity_samples = [
+                            (n, float(self.js_velocity[n])) for n in arm_names
+                            if math.isfinite(float(self.js_velocity[n]))]
                         arm_v_max = max(
-                            (abs(float(self.js_velocity[n])) for n in arm_names),
-                            default=0.0)
+                            (abs(v) for _, v in arm_velocity_samples), default=0.0)
+                        arm_active = ','.join(
+                            '%s:%.3f' % (n, v) for n, v in sorted(
+                                ((n, v) for n, v in arm_velocity_samples
+                                 if abs(v) >= 0.05),
+                                key=lambda item: abs(item[1]), reverse=True)[:4])
+                        wheel_eff_samples = [
+                            (n, float(self.js_effort[n])) for n in wheel_names
+                            if n in self.js_effort
+                            and math.isfinite(float(self.js_effort[n]))]
+                        arm_eff_samples = [
+                            (n, float(self.js_effort[n])) for n in arm_names
+                            if n in self.js_effort
+                            and math.isfinite(float(self.js_effort[n]))]
                         wheel_eff = ','.join(
-                            '%s:%.3f' % (n, float(self.js_effort[n]))
-                            for n in wheel_names if n in self.js_effort)
-                        arm_eff_max = max(
-                            (abs(float(self.js_effort[n])) for n in arm_names
-                             if n in self.js_effort), default=0.0)
+                            '%s:%.3f' % (n, v) for n, v in wheel_eff_samples)
+                        arm_eff_max = (max((abs(v) for _, v in arm_eff_samples))
+                                       if arm_eff_samples else None)
                         self.get_logger().info(
                             'PREPARE_BASE_HOLD_TRACE mode=zero-during-pour '
                             'rho_mm=%.1f dx_mm=%.1f dy_mm=%.1f '
@@ -1721,8 +1732,9 @@ class DrinkTask(Node):
                             'robot_cmd=(%s,%s age=%.3f) '
                             'odom_v=(%s,%s,%s age=%.3f) '
                             'rpy_deg=(%s,%s,%s) wheel_vel={%s} '
-                            'wheel_effort={%s} arm_v_max=%.3f arm_eff_max=%.3f '
-                            'arm_vel={%s}'
+                            'wheel_effort_samples=%d wheel_effort={%s} '
+                            'arm_v_max=%.3f arm_effort_samples=%d arm_eff_max=%s '
+                            'arm_active={%s}'
                             % (math.hypot(dx, dy) * 1000.0,
                                dx * 1000.0, dy * 1000.0,
                                math.degrees(yaw_err), *twist,
@@ -1739,7 +1751,10 @@ class DrinkTask(Node):
                                'na' if rpy[0] is None else '%.3f' % math.degrees(rpy[0]),
                                'na' if rpy[1] is None else '%.3f' % math.degrees(rpy[1]),
                                'na' if rpy[2] is None else '%.3f' % math.degrees(rpy[2]),
-                               wheel_v, wheel_eff, arm_v_max, arm_eff_max, arm_v))
+                               wheel_v, len(wheel_eff_samples), wheel_eff,
+                               arm_v_max, len(arm_eff_samples),
+                               'na' if arm_eff_max is None else '%.3f' % arm_eff_max,
+                               arm_active))
                         self._last_prepare_hold_trace_t = trace_now
                 # Keep the shared freshness branch in stop mode; do not fall
                 # through to pose correction after issuing the zero command.
