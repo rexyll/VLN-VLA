@@ -509,10 +509,49 @@ def _wait_fresh_joint_state(node, timeout=2.0, max_age=0.5):
             time.sleep(min(0.01, remaining))
 
 
+def _wait_base_still(node, timeout=3.0, max_age=0.25,
+                     linear_mps=0.005, angular_rps=math.radians(0.5),
+                     stable_for=0.20):
+    """Wait for fresh Gazebo chassis twist to remain below strict stillness limits."""
+    started, stable_since, last = time.monotonic(), None, None
+    while True:
+        now = time.monotonic()
+        twist = getattr(node, 'truth_base_twist', None)
+        sample_t = float(getattr(node, 'truth_base_twist_t', 0.0) or 0.0)
+        age = now - sample_t if sample_t > 0.0 else float('inf')
+        if twist is not None and 0.0 <= age <= max_age:
+            try:
+                vx, vy, wz = (float(v) for v in twist[:3])
+                linear, angular = math.hypot(vx, vy), abs(wz)
+                if all(math.isfinite(v) for v in (linear, angular)):
+                    last = {'age_s': age, 'linear_mps': linear, 'angular_rps': angular}
+                    if linear <= linear_mps and angular <= angular_rps:
+                        if stable_since is None:
+                            stable_since = now
+                        if now - stable_since >= stable_for:
+                            return True, last
+                    else:
+                        stable_since = None
+                else:
+                    stable_since = None
+            except (TypeError, ValueError, OverflowError, IndexError):
+                stable_since = None
+        else:
+            stable_since = None
+        remaining = timeout - (now - started)
+        if remaining <= 0.0:
+            return False, last
+        spin_for = getattr(node, 'spin_for', None)
+        if callable(spin_for):
+            spin_for(min(0.02, remaining))
+        else:
+            time.sleep(min(0.01, remaining))
+
+
 # ---------------------------------------------------------------- 到位
 def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
           timeout=10.0, elbow='human', tol_deg=None, check_table=False,
-          preflight_only=False):
+          preflight_only=False, require_base_still=False):
     """闭环把 side 侧手臂的**掌心**移到世界位形 T_world。
 
     每轮 IK 和伺服后掌心测量均优先刷新同一接收端时钟下的新鲜 Gazebo
@@ -550,6 +589,17 @@ def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
     pass_trace = []
     q_target_last = None
     for it in range(passes):
+        if require_base_still:
+            still, base_motion = _wait_base_still(node)
+            if not still:
+                node.get_logger().warn(
+                    'REACH %s 底盘未在 3.0s 内稳定；停止精调，保持抓持；last_twist=%s'
+                    % (side, base_motion))
+                return False, res, 'base-not-still'
+            node.get_logger().info(
+                'REACH %s BASE_STILL pass=%d linear=%.4fm/s yaw_rate=%.4fdeg/s truth_age=%.3fs'
+                % (side, it + 1, base_motion['linear_mps'],
+                   math.degrees(base_motion['angular_rps']), base_motion['age_s']))
         # Never derive a redundant-arm IK branch from cached joint values.
         # In E2E run #114 the second-round joint cache was 60.654s old while
         # Gazebo base truth continued updating; the stale seed led to a
@@ -1518,7 +1568,8 @@ def held_palm_target(node, model, T_obj_goal):
 def place_held(node, side, model, T_obj_goal, tol_mm=PLACE_TOL_MM,
                tol_deg=2.0, iters=8, settle=0.30, reach_tol_mm=None,
                elbow='human', budget=60.0, reach_tol_deg=None,
-               reach_passes=None, check_table=False):
+               reach_passes=None, check_table=False,
+               reach_require_base_still=False):
     """把手里抓住的物体闭环送到世界位姿 T_obj_goal(**位置 + 姿态**)。
 
     返回 (是否到位, 位置残差 mm)。
@@ -1600,7 +1651,8 @@ def place_held(node, side, model, T_obj_goal, tol_mm=PLACE_TOL_MM,
                     else reach_tol_mm), elbow=elbow,
             tol_deg=reach_tol_deg,
             passes=(len(TOL_SCHED) if reach_passes is None
-                    else int(reach_passes)), check_table=check_table)
+                    else int(reach_passes)), check_table=check_table,
+            require_base_still=reach_require_base_still)
         if not ok_reach:
             # reach() 失败时，前一轮的物体残差可能仍是大位移旧值；伺服
             # 已经移动到目标附近后，不能把这个过期值作为最终失败残差上报。
@@ -2609,7 +2661,9 @@ def pour_into_cup(node, fill=0.65, jet_len=0.16, ramp=True):
     # changes. Object acceptance remains strictly <4mm and <2deg.
     ok_p, res_p = place_held(
         node, 'R', 'kettle', Tk_pour, tol_mm=4.0, reach_passes=8,
-        reach_tol_deg=_kettle_pour_reach_tol_deg())
+        reach_tol_deg=_kettle_pour_reach_tol_deg(),
+        reach_require_base_still=(
+            os.environ.get('VLA_PREPARE_KETTLE_BASE_STILL', '0') == '1'))
     out['res']['kettle_pour'] = res_p
     out['arm']['pour'] = log_arm(node, '倒水', ('L', 'R'))
     pour_kin_ok = human_kinematics_ok(

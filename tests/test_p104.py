@@ -2260,6 +2260,40 @@ class TestP104(unittest.TestCase):
         self.assertFalse(ok)
         self.assertGreater(age, 0.01)
 
+    def test_wait_base_still_requires_fresh_low_twist(self):
+        import time
+        import types
+        node = types.SimpleNamespace(
+            truth_base_twist=(0.001, -0.001, math.radians(0.1)),
+            truth_base_twist_t=time.monotonic(), spin_for=lambda _duration: None)
+        ok, evidence = M._wait_base_still(node, timeout=0.02, stable_for=0.0)
+        self.assertTrue(ok)
+        self.assertLessEqual(evidence['linear_mps'], 0.005)
+        self.assertLessEqual(evidence['angular_rps'], math.radians(0.5))
+        moving = types.SimpleNamespace(
+            truth_base_twist=(0.02, 0.0, math.radians(2.0)),
+            truth_base_twist_t=time.monotonic(), spin_for=lambda _duration: None)
+        ok, evidence = M._wait_base_still(moving, timeout=0.02, stable_for=0.0)
+        self.assertFalse(ok)
+        self.assertIsNotNone(evidence)
+        stale = types.SimpleNamespace(
+            truth_base_twist=(0.0, 0.0, 0.0),
+            truth_base_twist_t=time.monotonic() - 5.0,
+            spin_for=lambda _duration: None)
+        ok, evidence = M._wait_base_still(stale, timeout=0.02, stable_for=0.0)
+        self.assertFalse(ok)
+        self.assertIsNone(evidence)
+
+    def test_kettle_base_still_gate_is_opt_in_and_scoped_to_kettle_pour(self):
+        motion_path = os.path.join(ROOT, 'vla_ws', 'src', 'vla_follow',
+                                   'vla_follow', 'drink_motion.py')
+        with open(motion_path, encoding='utf-8') as stream:
+            source = stream.read()
+        self.assertIn('VLA_PREPARE_KETTLE_BASE_STILL', source)
+        self.assertIn('reach_require_base_still=(', source)
+        self.assertIn('require_base_still=False', source)
+        self.assertIn('if require_base_still:', source)
+
     def test_reach_checks_joint_state_freshness_before_reading_ik_seed(self):
         motion_path = os.path.join(
             ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',

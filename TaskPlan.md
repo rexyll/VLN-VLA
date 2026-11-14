@@ -819,3 +819,12 @@
 - 新增离线回归测试：验证旧样本可在等待后刷新、无新样本时超时失败，以及 freshness 检查必须先于 `q_meas`/IK 种子读取。该修复待 Python/CarryBus/Gazebo 再验证；下一轮重点看第二轮 joint-state 年龄是否持续 ≤0.5s、是否触发明确的 stale fail-closed，及第一轮/第二轮重复执行稳定性。
 - 完整双轮 E2E 历史成功次数仍为 **1**；P104-07 继续进行中。
 
+
+
+### 8.365 PREPARE 水壶末端精调前底盘静止门控 A/B 实验（2026-11-14）
+
+- 当前基线：main 1acfa3785283c227ee9f3e351140b3d601f7d85f 的 Python syntax 与 CarryBus CI 通过，Gazebo E2E #115 在 PREPARE 水壶倒水位姿失败；掌心残差约 4.2mm、物体残差约 4.5mm，严格 4mm IK 门槛未通过。关节状态年龄约 8–45ms，说明本轮 stale joint-state 已不是直接阻塞。
+- 新建隔离分支 experiment/prepare-base-stillness-ab，不直接修改 main。增加可选 _wait_base_still()：仅接受新鲜 Gazebo twist（≤0.25s），要求线速度 ≤0.005m/s、角速度 ≤0.5°/s 连续稳定 0.20s；最多等待 3s，真值缺失/过期或未稳定时 fail-closed。该门控按每个 reach pass 检查，且只通过 VLA_PREPARE_KETTLE_BASE_STILL=1 对 PREPARE 水壶倒水 reach 生效；默认 0，原流程保持不变。
+- Workflow dispatch 增加 prepare_kettle_base_still=0/1 实验开关，默认 0。A 组用 0（当前基线）；B 组用 1（底盘静止门控）。其余参数、场景 seed、动作流程和所有精度/安全阈值保持一致。
+- 新增纯测试覆盖：新鲜低速真值允许通过、超速拒绝、过期真值拒绝，以及门控默认关闭且只挂接水壶倒水精调路径。
+- 验收：先通过 Python syntax、P104 纯测试与 CarryBus；再分别运行 A/B Gazebo 双轮 E2E，比较 reach 每轮 BASE_STILL、base twist、掌心残差、物体残差和耗时。若 B 组等待超时，则保持抓持并 fail-closed，不得通过放宽阈值绕过。该实验尚未证明静止门控能改善精度，不合并 main，完整双轮成功次数仍为 1；P104-07 继续进行中。
