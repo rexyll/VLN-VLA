@@ -270,9 +270,15 @@ class TestP104(unittest.TestCase):
         source = open(os.path.join(
             ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
             'drink_motion.py'), encoding='utf-8').read()
-        self.assertIn("if elbow == 'human':", source)
+        self.assertIn(
+            "_mode = elbow if elbow == 'human' or it == 0 else None",
+            source)
+        self.assertIn("if _mode == 'human':", source)
         self.assertIn("_posture_bad = K.violation_list(side, q)", source)
         self.assertIn("return False, 9e9, 'human-posture-violation'", source)
+        # Human-constrained reaches must not fall back to unconstrained KDL
+        # after pass 0; ik_human's compliant hold branch preserves continuity.
+        self.assertNotIn("_mode = elbow if it == 0 else None", source)
 
     def test_reach_servo_failure_diagnostic_captures_both_joint_caches(self):
         source = open(os.path.join(ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow', 'drink_motion.py'), encoding='utf-8').read()
