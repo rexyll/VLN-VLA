@@ -236,6 +236,7 @@ class DrinkTask(Node):
         # Read-only high-water trace for chassis motion during arm follow.
         self._follow_base_trace = None
         self._follow_base_hold_target = None
+        self._follow_base_hold_zero_logged = False
         self._prepare_base_hold_target = None
         self._prepare_base_reach_active = False
         self._last_prepare_hold_trace_t = 0.0
@@ -1768,7 +1769,22 @@ class DrinkTask(Node):
         hold_target = (self._follow_base_hold_target
                        or self._prepare_base_hold_target)
         if hold_target is not None:
-            if (self._prepare_base_hold_target is not None
+            if (self._follow_base_hold_target is not None
+                    and os.environ.get(
+                        'VLA_PRESENT_BASE_HOLD_ZERO_DURING_FOLLOW', '0') == '1'):
+                # A/B diagnostic: suppress active pose corrections only during
+                # PRESENT follow_hand. This isolates controller-induced chassis
+                # motion from passive arm-reaction drift; the independent cup
+                # target gate (6mm / 0.5deg) remains unchanged and fail-closed.
+                self.drive(0.0, 0.0)
+                snapshot = None
+                if not getattr(self, '_follow_base_hold_zero_logged', False):
+                    self.get_logger().info(
+                        'PRESENT_BASE_HOLD_MODE zero-during-follow: '
+                        'active chassis pose correction suppressed; '
+                        'cup handover gate remains strict')
+                    self._follow_base_hold_zero_logged = True
+            elif (self._prepare_base_hold_target is not None
                     and os.environ.get(
                         'VLA_PREPARE_BASE_HOLD_ZERO_DURING_POUR', '0') == '1'):
                 # Isolated experiment: suppress active pose corrections only
