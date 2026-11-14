@@ -549,7 +549,7 @@ def _wait_base_still(node, timeout=3.0, max_age=0.25,
 
 
 # ---------------------------------------------------------------- 到位
-def _reach_impl(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
+def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
           timeout=10.0, elbow='human', tol_deg=None, check_table=False,
           preflight_only=False, require_base_still=False):
     """闭环把 side 侧手臂的**掌心**移到世界位形 T_world。
@@ -1052,6 +1052,9 @@ def _reach_impl(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
                 if q_target_last is not None else None),
                truth_diag))
     return res < tol_mm, res, how
+
+
+_reach_impl = reach
 
 
 def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
