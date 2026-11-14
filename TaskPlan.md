@@ -942,3 +942,13 @@
 - 此变更不修改关节目标、控制器 P/D 增益、±2.5rad/s 上下限、底盘命令、Gazebo 物理参数或任何安全门槛；也不把 effort=0 当作物理零力矩。日志将用于区分“速度触限但目标误差迅速收敛”与“速度触限且目标误差长期不收敛”，并检查其与底盘 pose 偏移的时间相关性。
 - 后续仍需单独核验 `dynamic_pose/info` 中模型级 `robot` pose 的采样时间/坐标帧与回调差分；不能把 truth twist 的瞬时尖峰、wheel odom 或轮速任一单独作为底盘真实运动的充分证据。
 - 本次诊断提交 `6b5a2b1182237b659579bd901c64949799c8c892`，待 Python/CarryBus/Gazebo CI 验证。PR #2 保持 draft/open，实验仅在隔离分支；main 未修改，完整双轮成功次数仍为 **1**。
+
+
+### 8.378 PREPARE 零指令复测与 PRESENT follow 门槛复核（2026-11-14）
+
+- 实验分支提交 `f1ec32b38e946cd4bc96d60dd4690768682d9d32` 的 CI：Python run `43600146353` 成功、CarryBus run `43600146372` 成功；Gazebo 双轮 E2E run `43600146364` 失败，artifact `14116805586`。本轮仅完成第一轮，阶段为 `PREPARE → PRESENT → FAIL_PRESENT_FOLLOW_DRIFT`；requested=2、completed=1、passed=0、failed=2，第二轮缺失，截图3/7，不能计为全流程成功。
+- PREPARE 的 5Hz trace 显示底盘相对 hold target 偏移由0增长至约56.6mm，yaw误差峰值约3.585°；零底盘模式下 `drink_cmd/robot_cmd=(0,0))，驱动轮速度多数为0，位移增长后长时间保持在约56.6mm。期间 truth twist 偶有尖峰，但与轮速/odom 不一致。关节状态显示短时机械臂关节速度触及±2.5rad/s，手指关节出现4.0rad/s；对应关节目标误差有变化但未建立与底盘位移的确定因果关系。该证据仍不足以判定机械臂反作用、轮地接触、模型状态更新或其他动力学因素中的哪一项为根因。
+- SDF 确认机器人模型声明 `canonical_link="chassis"`；当前 `_gt_cb` 使用 `dynamic_pose/info` 中名称为 `robot` 的模型级 pose 作为底盘 truth pose，并以回调到达的 monotonic 时间差分 twist。下一步应只读地同时采样 `robot` 与 `robot::chassis`（若消息中存在该 link 实体），并记录 Gazebo 仿真时间/消息时间戳、回调到达间隔及模型/底盘 link 相对变换；核实 SceneBroadcaster 输出实体名称、坐标语义与快照更新节奏，避免把回调间隔尖峰误判为真实瞬时速度。
+- PRESENT 执行本身通过（末端位置误差0.378mm、姿态误差0.032°）；follow_hand 后杯漂移9.232mm，仍超过严格6mm/0.5°交接门槛。follow trace 底盘最大XY位移8.286mm、最大yaw偏差0.924°，最大角速度命令0.04rad/s；安全门控正确阻止 HANDOVER，未发生人员接触/交权及后续动作。in_band_pct=100%仅是诊断指标，不代表 follow 成功。杯 home 偏差616.9mm为中止后观测，不作为已安全放置的证据。
+- 本轮没有调整任何控制参数或物理参数。下一步优先完成 dynamic_pose/model-vs-link pose 只读核验；PRESENT follow 保持独立分析命令—轮速—truth 响应链，只有获得可重复、单变量证据后才设计参数实验。所有4mm IK、5mm grasp、6mm/0.5°交接、碰撞、关节限位、fail-closed 与释放条件均保持不变。
+- Python 与 CarryBus 检查通过不代表 Gazebo E2E 通过。PR #2 继续 draft/open；main 仍为 `1acfa3785283c227ee9f3e351140b3d601f7d85f`，未修改；完整双轮成功次数仍为 **1**。
