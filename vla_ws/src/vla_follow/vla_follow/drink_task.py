@@ -1755,6 +1755,20 @@ class DrinkTask(Node):
                                 ((n, v) for n, v in arm_velocity_samples
                                  if abs(v) >= 0.05),
                                 key=lambda item: abs(item[1]), reverse=True)[:4])
+                        arm_joint_detail = []
+                        for n, v in sorted(arm_velocity_samples,
+                                           key=lambda item: abs(item[1]),
+                                           reverse=True)[:4]:
+                            measured = self.js.get(n)
+                            target = self.bus.get(n)
+                            if measured is not None and math.isfinite(float(measured)):
+                                error = float(target) - float(measured)
+                                arm_joint_detail.append(
+                                    '%s:cmd=%.3f,pos=%.3f,err=%.3f,vel=%.3f,sat=%d'
+                                    % (n, float(target), float(measured), error, v,
+                                       int(abs(v) >= 2.45)))
+                        arm_sat_count = sum(
+                            1 for _, v in arm_velocity_samples if abs(v) >= 2.45)
                         wheel_eff_samples = [
                             (n, float(self.js_effort[n])) for n in wheel_names
                             if n in self.js_effort
@@ -1777,8 +1791,8 @@ class DrinkTask(Node):
                             'odom_v=(%s,%s,%s age=%.3f) '
                             'rpy_deg=(%s,%s,%s) wheel_vel={%s} '
                             'wheel_effort_samples=%d wheel_effort={%s} '
-                            'arm_v_max=%.3f arm_effort_samples=%d arm_eff_max=%s '
-                            'arm_active={%s}'
+                            'arm_v_max=%.3f arm_sat_count=%d arm_effort_samples=%d arm_eff_max=%s '
+                            'arm_active={%s} arm_joint_detail={%s}'
                             % (math.hypot(dx, dy) * 1000.0,
                                dx * 1000.0, dy * 1000.0,
                                math.degrees(yaw_err), *twist,
@@ -1796,9 +1810,9 @@ class DrinkTask(Node):
                                'na' if rpy[1] is None else '%.3f' % math.degrees(rpy[1]),
                                'na' if rpy[2] is None else '%.3f' % math.degrees(rpy[2]),
                                wheel_v, len(wheel_eff_samples), wheel_eff,
-                               arm_v_max, len(arm_eff_samples),
+                               arm_v_max, arm_sat_count, len(arm_eff_samples),
                                'na' if arm_eff_max is None else '%.3f' % arm_eff_max,
-                               arm_active))
+                               arm_active, ';'.join(arm_joint_detail)))
                         self._last_prepare_hold_trace_t = trace_now
                 # Keep the shared freshness branch in stop mode; do not fall
                 # through to pose correction after issuing the zero command.
