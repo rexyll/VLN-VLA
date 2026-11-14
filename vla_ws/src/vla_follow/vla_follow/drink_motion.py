@@ -2488,12 +2488,19 @@ def pour_into_cup(node, fill=0.65, jet_len=0.16, ramp=True):
     ok_p, res_p = place_held(node, 'R', 'kettle', Tk_pour, tol_mm=4.0)
     out['res']['kettle_pour'] = res_p
     out['arm']['pour'] = log_arm(node, '倒水', ('L', 'R'))
-    if not ok_p or not human_kinematics_ok(
-            out['arm']['pour'], min_out_line_mm={'R': 60.0},
-            required_sides=('L', 'R')):
+    pour_kin_ok = human_kinematics_ok(
+        out['arm']['pour'], min_out_line_mm={'R': 60.0},
+        required_sides=('L', 'R'))
+    if not ok_p:
         node.get_logger().error(
-            'POUR 倒水位形未达成、左右臂违反人体关节规则或右肘外扩线小于60mm；'
-            '禁止启动水柱')
+            'POUR 倒水位置闭环失败: 水壶目标残差 %.1fmm（严格要求 <4.0mm）；'
+            '保持抓持并禁止启动水柱；arm=%s'
+            % (float(res_p), out['arm']['pour']))
+        return out
+    if not pour_kin_ok:
+        node.get_logger().error(
+            'POUR 倒水 P103 姿态判据失败: metrics=%s；'
+            '保持抓持并禁止启动水柱' % out['arm']['pour'])
         return out
     # 水柱先伸出并确认目标指令已被插件接收，再启动水量积分。
     # ramp ACK 丢失时用一次性 joint ACK 重试；两条都失败就不启动水流，
