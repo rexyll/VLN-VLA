@@ -900,6 +900,10 @@ def ik_human(side, T_tgt, seed=None, tol=2e-3, seeds=None):
     # 于是"没有更好的" —— 越陷越深。中立体形起解才能把整族等价解都摆出来。
     base_q = Q_REST.copy()
     cands = []
+    # Read-only failure diagnostics: distinguish geometric residual failure
+    # from candidates that reach the pose but violate a specific R1-R7 rule.
+    best_any = None
+    best_compliant = None
     # 两档残差闸: 先按 tol 找; 一个合规解都没有就放宽到 4mm 再找一遍。
     # 为什么要放宽 —— 收敛了但差几毫米的解**照样能执行**(伺服会把剩下的毫米
     # 吃掉), 而"宁可要一个越限的精确解"毫无道理: 实测张开手指后那次压实,
@@ -917,9 +921,19 @@ def ik_human(side, T_tgt, seed=None, tol=2e-3, seeds=None):
             for v in seed_set:
                 s = human_seed_joints(v, base=base_q)
                 q, err, how = ik_best(side, T_tgt, s, refine=False)
-                if not math.isfinite(float(err)) or err > gate:
+                if not math.isfinite(float(err)):
                     continue
                 q = np.clip(q, LIM_LO, LIM_HI)
+                violations = violation_list(side, q)
+                metric = (float(err), tuple(float(x) for x in q),
+                          tuple(violations), str(how))
+                if best_any is None or metric[0] < best_any[0]:
+                    best_any = metric
+                if not violations and (best_compliant is None
+                                        or metric[0] < best_compliant[0]):
+                    best_compliant = metric
+                if err > gate:
+                    continue
                 # Hard posture rules are constraints, not a soft ranking penalty.
                 # Never keep an over-limit candidate merely because every sampled
                 # seed is bad; that was the fail-open path seen in E2E round 2.
@@ -931,10 +945,21 @@ def ik_human(side, T_tgt, seed=None, tol=2e-3, seeds=None):
         if cands:
             break
     if not cands:
+        def _diag(candidate):
+            if candidate is None:
+                return 'none'
+            err_m, joints, violations, _source = candidate
+            return 'residual_mm=%.2f violations=%s q=%s' % (
+                err_m * 1000.0, list(violations),
+                [round(float(v), 3) for v in joints])
         raise HumanIKNoValidSolution(
             "no residual-valid IK candidate satisfies R1-R7 for %s "
-            "(nominal=%d extended=%d)" %
-            (side, len(seed_sets[0]), len(seed_sets[-1]) if len(seed_sets)>1 else 0))
+            "(nominal=%d extended=%d; best_any={%s}; "
+            "best_compliant={%s}; seed_q=%s)" %
+            (side, len(seed_sets[0]),
+             len(seed_sets[-1]) if len(seed_sets)>1 else 0,
+             _diag(best_any), _diag(best_compliant),
+             [round(float(v), 3) for v in q0]))
 
     def cost(c):
         q, e, _h = c
