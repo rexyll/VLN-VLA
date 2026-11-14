@@ -881,3 +881,6 @@
 - 明确证据：零模式窗口间隙记录到 cmd_v=(0,0.04)；同步采样也记录到 drink_cmd=(0,0.02357)、robot_cmd=(0,0.02357) 和左右轮反向速度约 ±0.059rad/s。该时段仍有主动底盘命令，B2 不是纯零指令实验。
 - 新实验 B3 将零指令范围扩大到 _prepare_base_hold_target 整个有效窗口（覆盖全部 reach、迭代和 settle 间隙），使用独立开关 VLA_PREPARE_BASE_HOLD_ZERO_DURING_POUR，默认关闭；仅在 PR CI / 显式 workflow_dispatch 开启。未修改 IK、速度阈值、碰撞、抓持或交权门槛。
 - B3 目的：先消除控制器间隙重接管，再用真值位姿/命令源/轮速数据判断零指令下的剩余底盘运动。双轮完整成功数保持 1；main 不变；PR #2 仍草稿。
+
+
+- B3 首轮 Python CI 发现包装函数重构留下空 finally，触发 IndentationError（run 43591645765）。该语法缺陷已定位，改为无状态直通 wrapper，零指令范围只由 _tick() 在 PREPARE hold target 生命周期内统一控制；重新运行 CI 验证。

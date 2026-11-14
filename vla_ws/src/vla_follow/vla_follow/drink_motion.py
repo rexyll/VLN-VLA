@@ -1060,23 +1060,20 @@ _reach_impl = reach
 def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
           timeout=10.0, elbow='human', tol_deg=None, check_table=False,
           preflight_only=False, require_base_still=False):
-    """Public reach wrapper for the isolated PREPARE hold-neutralization experiment."""
-    suspend_prepare_hold = bool(
+    """Public reach wrapper for the isolated PREPARE pour-window neutralization experiment."""
+    zero_prepare_hold = bool(
         require_base_still
         and os.environ.get('VLA_PREPARE_BASE_HOLD_ZERO_DURING_POUR', '0') == '1'
         and getattr(node, '_prepare_base_hold_target', None) is not None)
-    if suspend_prepare_hold:
+    if zero_prepare_hold:
         node.get_logger().info(
             'PREPARE_BASE_HOLD_MODE zero-during-pour: '
-            'keep chassis command at zero throughout the PREPARE pour hold window')
-    try:
-        return _reach_impl(
-            node, side, T_world, tol_mm=tol_mm, passes=passes,
-            timeout=timeout, elbow=elbow, tol_deg=tol_deg,
-            check_table=check_table, preflight_only=preflight_only,
-            require_base_still=require_base_still)
-    finally:
-
+            'chassis zero command remains active across the full pour hold window')
+    return _reach_impl(
+        node, side, T_world, tol_mm=tol_mm, passes=passes,
+        timeout=timeout, elbow=elbow, tol_deg=tol_deg,
+        check_table=check_table, preflight_only=preflight_only,
+        require_base_still=require_base_still)
 
 
 def sim_now(node):
