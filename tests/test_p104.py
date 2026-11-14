@@ -2235,6 +2235,45 @@ class TestP104(unittest.TestCase):
         self.assertGreater(local_diag['fk_to_palm_raw_mm'], 100.0)
         self.assertLess(local_diag['fk_to_palm_model_mm'], 1e-6)
 
+    def test_reach_waits_for_fresh_joint_state_before_ik(self):
+        import time
+        import types
+
+        refreshed = types.SimpleNamespace(
+            js_sample_t=time.monotonic() - 60.0, calls=0)
+
+        def refresh(_duration):
+            refreshed.calls += 1
+            refreshed.js_sample_t = time.monotonic()
+
+        refreshed.spin_for = refresh
+        ok, age = M._wait_fresh_joint_state(refreshed, timeout=0.1)
+        self.assertTrue(ok)
+        self.assertGreater(refreshed.calls, 0)
+        self.assertLessEqual(age, 0.5)
+
+        stale = types.SimpleNamespace(
+            js_sample_t=time.monotonic() - 60.0,
+            spin_for=lambda _duration: None)
+        ok, age = M._wait_fresh_joint_state(
+            stale, timeout=0.02, max_age=0.01)
+        self.assertFalse(ok)
+        self.assertGreater(age, 0.01)
+
+    def test_reach_checks_joint_state_freshness_before_reading_ik_seed(self):
+        motion_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
+            'drink_motion.py')
+        with open(motion_path, encoding='utf-8') as stream:
+            source = stream.read()
+        start = source.index('def reach(')
+        end = source.index('def sim_now(', start)
+        body = source[start:end]
+        self.assertLess(
+            body.index('fresh_js, js_age = _wait_fresh_joint_state(node)'),
+            body.index('q_now = q_meas(node, side)'))
+        self.assertIn("return False, res, 'joint-state-stale'", body)
+
     def test_reach_trace_records_ik_fk_and_base_truth_diagnostics(self):
         motion_path = os.path.join(
             ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',

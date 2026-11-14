@@ -484,6 +484,31 @@ def arm_path_table_clear(node, side, path_q, base=None,
     return True, None
 
 
+def _wait_fresh_joint_state(node, timeout=2.0, max_age=0.5):
+    """Wait for a recent joint-state sample before using it as an IK seed.
+
+    Cached finite joint values are not sufficient: a stale sample can select
+    an obsolete redundant-arm branch and send the servo toward an unsafe pose.
+    Wait briefly for the ROS callback to refresh; if it does not, fail closed.
+    """
+    t0 = time.monotonic()
+    age = None
+    while True:
+        sample_t = float(getattr(node, 'js_sample_t', 0.0) or 0.0)
+        now = time.monotonic()
+        age = max(0.0, now - sample_t) if sample_t > 0.0 else None
+        if age is not None and age <= max_age:
+            return True, age
+        remaining = timeout - (now - t0)
+        if remaining <= 0.0:
+            return False, age
+        spin_for = getattr(node, 'spin_for', None)
+        if callable(spin_for):
+            spin_for(min(0.05, remaining))
+        else:
+            time.sleep(min(0.01, remaining))
+
+
 # ---------------------------------------------------------------- 到位
 def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
           timeout=10.0, elbow='human', tol_deg=None, check_table=False,
@@ -525,6 +550,16 @@ def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
     pass_trace = []
     q_target_last = None
     for it in range(passes):
+        # Never derive a redundant-arm IK branch from cached joint values.
+        # In E2E run #114 the second-round joint cache was 60.654s old while
+        # Gazebo base truth continued updating; the stale seed led to a
+        # 100.51deg servo miss. Refresh first, otherwise preserve the grasp.
+        fresh_js, js_age = _wait_fresh_joint_state(node)
+        if not fresh_js:
+            node.get_logger().warn(
+                'REACH %s joint_state 过期 %.3fs，等待刷新超时；拒绝使用旧关节状态求 IK'
+                % (side, js_age if js_age is not None else float('inf')))
+            return False, res, 'joint-state-stale'
         q_now = q_meas(node, side)
         if q_now is None:
             return False, res, how

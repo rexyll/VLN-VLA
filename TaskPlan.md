@@ -809,3 +809,13 @@
 - Gazebo 日志显示任务在 PREPARE 倒水位姿失败：水壶最终位置残差 4.3mm，严格门槛仍为 <4.0mm；未启动水柱，保持水壶抓持。PREPARE 没有启用 PRESENT-only PD，故本轮不能评价 PD 对递杯漂移的作用，也不能把该 PREPARE 误差归因于本次 PD 修改。
 - 不调整水壶 4mm 门槛，不改变倒水 reach/IK/姿态/碰撞/抓持与 release 条件。本次仅校准单元测试断言；后续重新跑 Python、CarryBus、Gazebo。若 PREPARE 再次阻塞，应按水壶 reach trace 单独定位；只有进入 PRESENT 后，才评估纵向 PD 的杯体漂移和速度响应。
 - 完整双轮 E2E 历史成功次数仍为 **1**；P104-07 继续进行中。
+
+### 8.364 PRESENT 第二轮旧关节状态保护与 IK 种子新鲜度门控（2026-11-14）
+
+- Run #114（43580021639，commit 878f0da2da13c7064b6fc400c28e597cc6d18f6b，artifact 14109035762）Python #998 与 CarryBus #738 均通过；Gazebo 双轮 E2E 失败。第一轮完整通过 9 阶段并归档 8 张截图；第二轮只到 `PREPARE → PRESENT → FAIL_PRESENT`，requested=2、completed=2、passed=1、failed=1、`all_passed=false`、`runner_failed=true`。双轮完整成功次数不变，仍为 **1**。
+- 第二轮失败不是 PRESENT 底盘 PD 漂移：PRESENT 执行前左臂伺服目标与实测关节最大偏差 100.51°（其中 elbow 74.152°），左掌残差 275.2mm，杯体残差 304.2mm；右臂跟随后掌心误差 5.735mm。系统保持抓持，不执行人手合拢/交权/松杯。该轮仅 3 张截图，后续阶段缺失。
+- 最关键的时序证据：左臂 IK 取样时 `joint_state_age_at_ik_s=60.654`，`drink_cmd_age_at_ik_s=62.6763`，而 Gazebo 底盘真值仅约 2.7ms 新鲜；随后伺服等待期间关节状态恢复为新鲜（最终 age 0.05s）。现有 `reach()` 只检查关节值是否存在/有限，不检查样本年龄，因而可能用一分钟前的旧关节角选择 7 轴冗余 IK 分支。证据支持“旧 joint-state cache 被用于 IK 种子”是本轮直接风险；尚不能断言上游 joint-state 发布中断的根因。
+- 最小安全修复：每次 `reach()` 在读取 `q_now` 和执行 IK 前，最多等待 2s 获取年龄 ≤0.5s 的新鲜 joint-state；若超时则返回 `joint-state-stale` 并 fail-closed，不发 IK/关节动作，继续保持物体抓持。每轮迭代都执行该检查。没有修改 IK 4mm 收敛门槛、5mm grasp、6mm/0.5°交接、碰撞检测、关节限位、底盘速度上限或释放条件。
+- 新增离线回归测试：验证旧样本可在等待后刷新、无新样本时超时失败，以及 freshness 检查必须先于 `q_meas`/IK 种子读取。该修复待 Python/CarryBus/Gazebo 再验证；下一轮重点看第二轮 joint-state 年龄是否持续 ≤0.5s、是否触发明确的 stale fail-closed，及第一轮/第二轮重复执行稳定性。
+- 完整双轮 E2E 历史成功次数仍为 **1**；P104-07 继续进行中。
+
