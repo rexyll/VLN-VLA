@@ -1679,14 +1679,51 @@ class DrinkTask(Node):
                         yaw_err = math.atan2(
                             math.sin(tyaw - cyaw), math.cos(tyaw - cyaw))
                         twist = self.truth_base_twist or (0.0, 0.0, 0.0)
+                        robot_cmd = self._robot_cmd_snapshot
+                        drink_cmd = self._drink_cmd_snapshot
+                        odom = self.odom_twist
+                        rpy_snapshot = self.truth_base_rpy_snapshot
+                        robot_cmd_v = (robot_cmd[0] if robot_cmd else (None, None))
+                        drink_cmd_v = (drink_cmd[0] if drink_cmd else (None, None))
+                        robot_cmd_age = (time.monotonic() - robot_cmd[1]
+                                         if robot_cmd else float('inf'))
+                        drink_cmd_age = (time.monotonic() - drink_cmd[1]
+                                         if drink_cmd else float('inf'))
+                        odom_age = (time.monotonic() - self.odom_twist_t
+                                    if odom is not None and self.odom_twist_t
+                                    else float('inf'))
+                        rpy = (rpy_snapshot[0] if rpy_snapshot else (None, None, None))
+                        wheel_names = sorted(
+                            n for n in self.js_velocity if 'wheel' in n.lower())
+                        wheel_v = ','.join(
+                            '%s:%.3f' % (n, float(self.js_velocity[n]))
+                            for n in wheel_names)
                         self.get_logger().info(
                             'PREPARE_BASE_HOLD_TRACE mode=zero-during-reach '
                             'rho_mm=%.1f dx_mm=%.1f dy_mm=%.1f '
                             'yaw_err_deg=%.3f truth_v=(%.5f,%.5f,%.5f) '
-                            'cmd_v=(0.00000,0.00000)'
+                            'cmd_v=(0.00000,0.00000) '
+                            'drink_cmd=(%s,%s age=%.3f) '
+                            'robot_cmd=(%s,%s age=%.3f) '
+                            'odom_v=(%s,%s,%s age=%.3f) '
+                            'rpy_deg=(%s,%s,%s) wheel_vel={%s}'
                             % (math.hypot(dx, dy) * 1000.0,
                                dx * 1000.0, dy * 1000.0,
-                               math.degrees(yaw_err), *twist))
+                               math.degrees(yaw_err), *twist,
+                               'na' if drink_cmd_v[0] is None else '%.5f' % drink_cmd_v[0],
+                               'na' if drink_cmd_v[1] is None else '%.5f' % drink_cmd_v[1],
+                               drink_cmd_age,
+                               'na' if robot_cmd_v[0] is None else '%.5f' % robot_cmd_v[0],
+                               'na' if robot_cmd_v[1] is None else '%.5f' % robot_cmd_v[1],
+                               robot_cmd_age,
+                               'na' if odom is None else '%.5f' % odom[0],
+                               'na' if odom is None else '%.5f' % odom[1],
+                               'na' if odom is None else '%.5f' % odom[2],
+                               odom_age,
+                               'na' if rpy[0] is None else '%.3f' % math.degrees(rpy[0]),
+                               'na' if rpy[1] is None else '%.3f' % math.degrees(rpy[1]),
+                               'na' if rpy[2] is None else '%.3f' % math.degrees(rpy[2]),
+                               wheel_v))
                         self._last_prepare_hold_trace_t = trace_now
                 # Keep the shared freshness branch in stop mode; do not fall
                 # through to pose correction after issuing the zero command.

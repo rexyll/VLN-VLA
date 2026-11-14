@@ -863,3 +863,12 @@
 - `drink.log` traceback 定位为 `drink_task.py::_tick()` 使用 `os.environ.get()` 时触发 `NameError: name 'os' is not defined`。这是 B2 实验开关实现缺陷，不能作为底盘静止实验结论。
 - 同次运行中杯子补位掌心残差 1.6mm（辅助 reach 门槛 1.5mm 未达到），物体残差 1.9mm/0.20°；系统保持抓持，没有进入倒水/交接阶段。该次 E2E 不通过，连续双轮成功数仍为 1。
 - 本次仅补充标准库 `import os`，不改变控制器、速度、IK、碰撞、抓持或释放阈值。修复后重跑 B2 原配置，再判断底盘零指令期间的真实位姿变化。
+
+
+### 8.370 B2 零底盘指令仍发生显著位姿漂移；增加命令源/里程计/姿态遥测（2026-11-14）
+
+- 修复 `os` 导入后的 B2 E2E run `43588751718`：Python #43588751687、CarryBus #43588751693 通过；Gazebo E2E 失败，artifact `14112002708`。
+- 第一次 PREPARE kettle reach 的零速度模式中，底盘真值相对 hold target 的平移偏差由约 10.1mm 增至 69.1mm，yaw 误差峰值约 7.303°；日志明确显示该模式发出的 `cmd_v=(0,0)`。之后倒水目标残差 4.4mm，严格要求 <4.0mm，安全保持抓持并禁止水柱。
+- 单凭现有日志还不能断定漂移由机械臂反作用力引起；必须排除 `/drink/cmd_vel` 与 mux 输出 `/robot/cmd_vel` 的竞争、轮式里程计与模型真值差异，以及 chassis roll/pitch。
+- 本次只扩展诊断日志：在零速模式同时记录 drink_cmd、robot_cmd、odom twist、新鲜度、Gazebo roll/pitch 与可用 wheel joint velocity；不改任何控制输出、运动阈值或验收门槛。
+- 下一步依据这些同步观测决定是否进入 chassis 反作用力/轮地动力学隔离实验。完整双轮成功数保持 1，PR #2 仍为草稿，main 不变。
