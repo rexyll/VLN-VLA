@@ -1078,8 +1078,6 @@ def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
             node._prepare_base_reach_active = False
 
 
- how
-
 
 def sim_now(node):
     """当前**逻辑时间**(秒): 仿真时钟可用时给仿真时间, 否则退回墙上时间。
