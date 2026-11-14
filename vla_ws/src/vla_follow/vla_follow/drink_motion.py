@@ -1051,7 +1051,8 @@ def _reach_impl(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
                (np.round(q_target_last, 3).tolist()
                 if q_target_last is not None else None),
                truth_diag))
-    return res < tol_mm, res,
+    return res < tol_mm, res, how
+
 
 def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
           timeout=10.0, elbow='human', tol_deg=None, check_table=False,
