@@ -1687,6 +1687,9 @@ class DrinkTask(Node):
                                dx * 1000.0, dy * 1000.0,
                                math.degrees(yaw_err), *twist))
                         self._last_prepare_hold_trace_t = trace_now
+                # Keep the shared freshness branch in stop mode; do not fall
+                # through to pose correction after issuing the zero command.
+                snapshot = None
             else:
                 snapshot = self.truth_base_pose_snapshot
             now_mono = time.monotonic()
