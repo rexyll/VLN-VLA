@@ -244,6 +244,9 @@ class DrinkTask(Node):
         self.truth_chassis_link_snapshot = None
         self._gt_callback_meta = None
         self._gt_last_arrival_t = None
+        self._pose_info_chassis_snapshot = None
+        self._pose_info_callback_meta = None
+        self._pose_info_last_arrival_t = None
         self._have_odom = False
         self._truth_base = False
         # Wheel odometry pose is not authoritative after Gazebo teleport, but
@@ -258,6 +261,9 @@ class DrinkTask(Node):
             self._gz.subscribe(GzPose_V,
                                '/world/follow_world/dynamic_pose/info',
                                self._gt_cb)
+            self._gz.subscribe(GzPose_V,
+                               '/world/follow_world/pose/info',
+                               self._gt_pose_info_cb)
 
         # ---- 输出: 39 路指令总线(唯一发布者)
         self.bus = CmdBus(self)
@@ -373,6 +379,40 @@ class DrinkTask(Node):
         p = msg.pose.pose.position
         self.base = (p.x, p.y, yaw_of(msg.pose.pose.orientation))
         self._have_odom = True
+
+    def _gt_pose_info_cb(self, msg):
+        """Read-only complete pose stream used to locate canonical chassis link."""
+        sample_t = time.monotonic()
+        previous_arrival = self._pose_info_last_arrival_t
+        callback_dt = (sample_t - previous_arrival
+                       if previous_arrival is not None else None)
+        self._pose_info_last_arrival_t = sample_t
+        sim_stamp = None
+        try:
+            stamp = msg.header.stamp
+            sim_stamp = (float(stamp.sec)
+                         + float(getattr(stamp, 'nsec', 0)) * 1e-9)
+        except Exception:
+            pass
+        found = None
+        names = []
+        for p in msg.pose:
+            name = p.name
+            if name == 'robot::chassis' or (
+                    name.startswith('robot::') and name.endswith('::chassis')):
+                rpy = quaternion_rpy(
+                    p.orientation.x, p.orientation.y,
+                    p.orientation.z, p.orientation.w)
+                if rpy is not None:
+                    found = ((float(p.position.x), float(p.position.y),
+                              float(rpy[2])), sample_t, name)
+            if name == 'robot' or name.startswith('robot::'):
+                names.append(name)
+        if found is not None:
+            self._pose_info_chassis_snapshot = found
+        self._pose_info_callback_meta = (
+            sample_t, callback_dt, sim_stamp, len(msg.pose),
+            tuple(names[:24]), found[2] if found else None)
 
     def _gt_cb(self, msg):
         # dynamic_pose/info is a stream of complete-ish snapshots. Build the
@@ -1766,7 +1806,16 @@ class DrinkTask(Node):
                         gt_cb_dt = (gt_meta[1] if gt_meta and gt_meta[1] is not None
                                     else None)
                         gt_sim_stamp = gt_meta[2] if gt_meta else None
-                        chassis_link = self.truth_chassis_link_snapshot
+                        chassis_link = self._pose_info_chassis_snapshot
+                        pose_meta = self._pose_info_callback_meta
+                        pose_age = (time.monotonic() - pose_meta[0]
+                                    if pose_meta else float('inf'))
+                        pose_dt = (pose_meta[1] if pose_meta and pose_meta[1] is not None
+                                   else None)
+                        pose_sim_stamp = pose_meta[2] if pose_meta else None
+                        pose_count = pose_meta[3] if pose_meta else None
+                        pose_names = pose_meta[4] if pose_meta else ()
+                        pose_chassis_name = pose_meta[5] if pose_meta else None
                         link_delta_mm = link_delta_yaw_deg = None
                         chassis_link_name = 'na'
                         if (chassis_link is not None
@@ -1827,6 +1876,7 @@ class DrinkTask(Node):
                             'yaw_err_deg=%.3f truth_v=(%.5f,%.5f,%.5f) '
                             'gt_cb_age_s=%.3f gt_cb_dt_s=%s gt_sim_s=%s '
                             'model_chassis_delta_mm=%s model_chassis_delta_yaw_deg=%s chassis_link=%s '
+                            'pose_info_age_s=%.3f pose_info_dt_s=%s pose_info_sim_s=%s pose_info_count=%s pose_info_chassis=%s pose_info_names=%s '
                             'cmd_v=(0.00000,0.00000) '
                             'drink_cmd=(%s,%s age=%.3f) '
                             'robot_cmd=(%s,%s age=%.3f) '
@@ -1844,6 +1894,12 @@ class DrinkTask(Node):
                                'na' if link_delta_mm is None else '%.3f' % link_delta_mm,
                                'na' if link_delta_yaw_deg is None else '%.3f' % link_delta_yaw_deg,
                                chassis_link_name,
+                               pose_age,
+                               'na' if pose_dt is None else '%.4f' % pose_dt,
+                               'na' if pose_sim_stamp is None else '%.6f' % pose_sim_stamp,
+                               'na' if pose_count is None else str(pose_count),
+                               'na' if pose_chassis_name is None else pose_chassis_name,
+                               ','.join(pose_names) if pose_names else 'na',
                                'na' if drink_cmd_v[0] is None else '%.5f' % drink_cmd_v[0],
                                'na' if drink_cmd_v[1] is None else '%.5f' % drink_cmd_v[1],
                                drink_cmd_age,
