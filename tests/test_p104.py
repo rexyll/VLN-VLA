@@ -242,6 +242,14 @@ class TestP104(unittest.TestCase):
         self.assertIn('raise HumanIKNoValidSolution(', source)
         self.assertIn('if violation_list(side, q):', source)
 
+    def test_reach_rechecks_human_posture_rules_on_every_ik_pass(self):
+        source = open(os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
+            'drink_motion.py'), encoding='utf-8').read()
+        self.assertIn("if elbow == 'human':", source)
+        self.assertIn("_posture_bad = K.violation_list(side, q)", source)
+        self.assertIn("return False, 9e9, 'human-posture-violation'", source)
+
     def test_reach_servo_failure_diagnostic_captures_both_joint_caches(self):
         source = open(os.path.join(ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow', 'drink_motion.py'), encoding='utf-8').read()
         self.assertIn('q_servo_final = np.asarray(node.arm[side]._read()', source)
