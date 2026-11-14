@@ -859,6 +859,10 @@ def human_seed_joints(seed, base=None):
     return q
 
 
+class HumanIKNoValidSolution(RuntimeError):
+    """No IK candidate satisfies the hard human-joint posture rules."""
+
+
 def ik_human(side, T_tgt, seed=None, tol=2e-3, seeds=None):
     """在残差合格的解里挑**最像人**的那个(整个人形动作链的默认策略)。
 
@@ -905,14 +909,20 @@ def ik_human(side, T_tgt, seed=None, tol=2e-3, seeds=None):
         for v in (seeds or HUMAN_SEEDS):
             s = human_seed_joints(v, base=base_q)
             q, err, how = ik_best(side, T_tgt, s, refine=False)
-            if err > gate:
+            if not math.isfinite(float(err)) or err > gate:
                 continue
             q = np.clip(q, LIM_LO, LIM_HI)
+            # Hard posture rules are constraints, not a soft ranking penalty.
+            # Never keep an over-limit candidate merely because every sampled
+            # seed is bad; that was the fail-open path seen in E2E round 2.
+            if violation_list(side, q):
+                continue
             cands.append((q, err, how))
-        if any(not violation_list(side, q) for q, _e, _h in cands):
+        if cands:
             break
     if not cands:
-        return ik_best(side, T_tgt, seed)
+        raise HumanIKNoValidSolution(
+            "no residual-valid IK candidate satisfies R1-R7 for %s" % side)
 
     def cost(c):
         q, e, _h = c
@@ -925,7 +935,8 @@ def ik_human(side, T_tgt, seed=None, tol=2e-3, seeds=None):
                 + 0.12 * float(np.max(np.abs(q - q0))))
     q, err, how = min(cands, key=cost)
     q_refined, e_refined = ik_refine(side, T_tgt, q)
-    if e_refined < err:
+    if (math.isfinite(float(e_refined)) and e_refined < err
+            and not violation_list(side, q_refined)):
         q, err, how = q_refined, e_refined, how + '/polish'
     return q, err, how + '/human'
 
