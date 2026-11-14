@@ -855,3 +855,11 @@
 - 新增 B2 隔离模式 `VLA_PREPARE_BASE_HOLD_ZERO_DURING_REACH=1`：仅当 PREPARE 水壶路径启用 `require_base_still` 且 `_prepare_base_hold_target` 存在时，在 reach 执行期间暂时下发零底盘速度命令，避免主动 pose-hold 偏航纠偏与机械臂 reach 同时闭环；reach 前仍等待同一新鲜真值静止门槛，reach 后自动恢复原保持控制。默认关闭，非 PREPARE reach、PRESENT 和其他任务路径不受影响。
 - B2 不更改 4mm IK、5mm grasp、6mm/0.5°交接、碰撞、关节限位、人体姿态、抓持/释放条件；如果零命令期间真值仍不静止，照样超时 fail-closed，不启动水柱。PR CI 以静止门控+B2 模式运行，比较底盘位移/偏航、reach 前后误差与等待耗时；只有证据支持后再考虑控制器结构调整。
 - 完整双轮 Gazebo E2E 历史成功次数仍为 1；P104-07 继续进行中。
+
+
+### 8.369 B2 E2E 失败定位与修复：缺失 os 导入（2026-11-14）
+
+- B2 E2E run `43587601235`（commit `f18fe75210b42a7b5586fcc8e6a0649546380a7b`）中，Python 与 CarryBus 均通过，Gazebo E2E 在 PREPARE 中止。
+- `drink.log` traceback 定位为 `drink_task.py::_tick()` 使用 `os.environ.get()` 时触发 `NameError: name 'os' is not defined`。这是 B2 实验开关实现缺陷，不能作为底盘静止实验结论。
+- 同次运行中杯子补位掌心残差 1.6mm（辅助 reach 门槛 1.5mm 未达到），物体残差 1.9mm/0.20°；系统保持抓持，没有进入倒水/交接阶段。该次 E2E 不通过，连续双轮成功数仍为 1。
+- 本次仅补充标准库 `import os`，不改变控制器、速度、IK、碰撞、抓持或释放阈值。修复后重跑 B2 原配置，再判断底盘零指令期间的真实位姿变化。
