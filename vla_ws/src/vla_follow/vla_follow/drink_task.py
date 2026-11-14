@@ -241,6 +241,9 @@ class DrinkTask(Node):
         self._last_prepare_hold_trace_t = 0.0
         self.truth_base_pose_snapshot = None
         self.truth_base_rpy_snapshot = None
+        self.truth_chassis_link_snapshot = None
+        self._gt_callback_meta = None
+        self._gt_last_arrival_t = None
         self._have_odom = False
         self._truth_base = False
         # Wheel odometry pose is not authoritative after Gazebo teleport, but
@@ -376,8 +379,29 @@ class DrinkTask(Node):
         # next map off-thread and publish it with one reference assignment.
         updated = dict(self.links)
         sample_t = time.monotonic()
+        previous_arrival = self._gt_last_arrival_t
+        callback_dt = (sample_t - previous_arrival
+                       if previous_arrival is not None else None)
+        self._gt_last_arrival_t = sample_t
+        sim_stamp = None
+        try:
+            stamp = msg.header.stamp
+            sim_stamp = (float(stamp.sec)
+                         + float(getattr(stamp, 'nsec', 0)) * 1e-9)
+        except Exception:
+            pass
+        self._gt_callback_meta = (sample_t, callback_dt, sim_stamp)
         for p in msg.pose:
             updated[p.name] = p
+            if (p.name == 'robot::chassis'
+                    or (p.name.startswith('robot::') and p.name.endswith('::chassis'))):
+                link_rpy = quaternion_rpy(
+                    p.orientation.x, p.orientation.y,
+                    p.orientation.z, p.orientation.w)
+                if link_rpy is not None:
+                    self.truth_chassis_link_snapshot = (
+                        (float(p.position.x), float(p.position.y),
+                         float(link_rpy[2])), sample_t, p.name)
             if p.name == 'robot':
                 rpy = quaternion_rpy(p.orientation.x, p.orientation.y,
                                     p.orientation.z, p.orientation.w)
@@ -1736,6 +1760,22 @@ class DrinkTask(Node):
                                     if odom is not None and self.odom_twist_t
                                     else float('inf'))
                         rpy = (rpy_snapshot[0] if rpy_snapshot else (None, None, None))
+                        gt_meta = self._gt_callback_meta
+                        gt_cb_age = (time.monotonic() - gt_meta[0]
+                                     if gt_meta else float('inf'))
+                        gt_cb_dt = (gt_meta[1] if gt_meta and gt_meta[1] is not None
+                                    else None)
+                        gt_sim_stamp = gt_meta[2] if gt_meta else None
+                        chassis_link = self.truth_chassis_link_snapshot
+                        link_delta_mm = link_delta_yaw_deg = None
+                        chassis_link_name = 'na'
+                        if (chassis_link is not None
+                                and snapshot[1] - chassis_link[1] <= 0.25):
+                            lx, ly, lyaw = chassis_link[0]
+                            link_delta_mm = math.hypot(cx - lx, cy - ly) * 1000.0
+                            link_delta_yaw_deg = math.degrees(math.atan2(
+                                math.sin(cyaw - lyaw), math.cos(cyaw - lyaw)))
+                            chassis_link_name = chassis_link[2]
                         wheel_names = sorted(
                             n for n in self.js_velocity if 'wheel' in n.lower())
                         wheel_v = ','.join(
@@ -1785,6 +1825,8 @@ class DrinkTask(Node):
                             'PREPARE_BASE_HOLD_TRACE mode=zero-during-pour '
                             'rho_mm=%.1f dx_mm=%.1f dy_mm=%.1f '
                             'yaw_err_deg=%.3f truth_v=(%.5f,%.5f,%.5f) '
+                            'gt_cb_age_s=%.3f gt_cb_dt_s=%s gt_sim_s=%s '
+                            'model_chassis_delta_mm=%s model_chassis_delta_yaw_deg=%s chassis_link=%s '
                             'cmd_v=(0.00000,0.00000) '
                             'drink_cmd=(%s,%s age=%.3f) '
                             'robot_cmd=(%s,%s age=%.3f) '
@@ -1796,6 +1838,12 @@ class DrinkTask(Node):
                             % (math.hypot(dx, dy) * 1000.0,
                                dx * 1000.0, dy * 1000.0,
                                math.degrees(yaw_err), *twist,
+                               gt_cb_age,
+                               'na' if gt_cb_dt is None else '%.4f' % gt_cb_dt,
+                               'na' if gt_sim_stamp is None else '%.6f' % gt_sim_stamp,
+                               'na' if link_delta_mm is None else '%.3f' % link_delta_mm,
+                               'na' if link_delta_yaw_deg is None else '%.3f' % link_delta_yaw_deg,
+                               chassis_link_name,
                                'na' if drink_cmd_v[0] is None else '%.5f' % drink_cmd_v[0],
                                'na' if drink_cmd_v[1] is None else '%.5f' % drink_cmd_v[1],
                                drink_cmd_age,
