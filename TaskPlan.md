@@ -762,3 +762,12 @@
 - 新增 `VLA_CUP_LIFT_REACH_TOL_MM` 参数，默认 1.5mm、有效范围 0.5–1.5mm；默认只收紧单轮掌心 reach，不允许通过此参数放宽。举杯最多 8 轮、伺服角容差 0.08°不变；杯体最终位置仍严格 `<3.0mm`、姿态仍严格 `<2°`，IK 4mm、P103、碰撞、关节限位、抓持与 release 门槛均不变。
 - 增加参数默认、有效值、非法值与上下限回归测试，并更新举杯调用明确使用该参数。下一轮先核对 Python/CarryBus，再以默认 1.5mm 执行 Gazebo 双轮 E2E；若残差仍停滞，只在 0.5–1.5mm 区间做单变量对照，并同时检查 reach trace、杯体误差和姿态，不能仅凭单轮 PREPARE 成功计入完整 E2E。
 - 完整 Gazebo E2E 历史成功轮数仍为 **1**；P104-07 继续进行中。
+
+
+### 8.359 修复 reach 辅助容差失败时提前终止物体位姿确认（2026-11-14）
+
+- Run 43571405385（commit dbd9dbdcd385a459f0824e0ec134d8f56a44b363，artifact 14105225500）Python syntax 与 CarryBus ROS 2 集成通过，Gazebo 双轮 E2E 失败。第 1 轮 PREPARE → FAIL_PREPARE，第 2 轮缺失，observer exit 2。
+- drink.log 的举杯 trace：reach 8/8 轮，掌心误差最低约 1.8mm（末轮），杯体最终位置误差 2.4mm、姿态误差 0.25°。杯体两项均满足最终 <3.0mm 与 <2.0° 门槛；失败来自内部 reach 辅助容差 1.5mm 未满足，place_held() 在 reach 返回 false 后立即 return，未给已经达标的物体位姿第二次停稳复测机会。
+- 修复 place_held()：reach 辅助容差失败后重新读取物体真值；仅当物体位置和姿态均满足最终门槛且循环尚有下一次迭代时，才把当前读数记为第 1 次达标观测，并继续到下一轮 settle/复测。第二次读数仍须达标才能按原有连续两轮规则返回成功；若漂移则重新补位，若无剩余复测轮次或物体任一最终门槛不满足，仍 fail-closed。没有降低任何阈值，也不改变 release 流程。
+- 新增静态回归测试，锁定辅助 reach 失败后须检查物体双门槛、只记第 1 次、必须经过下一轮 settle、不能直接 return 成功的控制顺序。下一轮先跑 Python 与 CarryBus，再跑 Gazebo 双轮 E2E，重点确认第二次停稳观测及杯体姿态/位置；不把单轮 PREPARE 成功计入双轮验收。
+- 完整 Gazebo E2E 历史成功次数仍为 1；P104-07 继续进行中。

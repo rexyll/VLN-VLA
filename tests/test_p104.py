@@ -3197,6 +3197,26 @@ class TestP104(unittest.TestCase):
         self.assertIn("trace['end_rpy'] = list(rpy)", source)
 
 
+    def test_place_held_rechecks_object_gate_after_reach_auxiliary_failure(self):
+        motion_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
+            'drink_motion.py')
+        with open(motion_path, encoding='utf-8') as stream:
+            source = stream.read()
+        start = source.index('def place_held(')
+        end = source.index('def put_down(', start)
+        body = source[start:end]
+        branch = body.index('if not ok_reach:')
+        block = body[branch:]
+        self.assertIn('res_after < tol_mm and ang_after < tol_deg', block)
+        self.assertIn('and _ + 1 < iters', block)
+        self.assertIn('good = 1', block)
+        self.assertIn('continue', block)
+        self.assertLess(block.index('good = 1'), block.index('continue'))
+        self.assertLess(block.index('continue'), block.index('return False, res_after'))
+        self.assertIn('if good >= 2:', body)
+        self.assertIn('settle_sim(node, settle)', body)
+
     def test_pour_lift_uses_strict_refinement_and_separates_failure_diagnostics(self):
         motion_path = os.path.join(
             ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',

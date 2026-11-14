@@ -1540,6 +1540,17 @@ def place_held(node, side, model, T_obj_goal, tol_mm=PLACE_TOL_MM,
                    palm_res_after,
                    np.round(np.asarray(T_obj_goal)[:3, 3], 4).tolist(),
                    object_xyz, res_after, ang_after, q_text, res))
+            # reach 的掌心容差是内部迭代停止条件，不替代物体最终验收。
+            # 若伺服动作后物体位置/姿态已达标，只允许把本轮作为第 1 次
+            # 稳定观测；必须再 settle 并独立复测第 2 次，不能单次放行。
+            if (res_after < tol_mm and ang_after < tol_deg
+                    and _ + 1 < iters):
+                good = 1
+                node.get_logger().info(
+                    'PLACE %s: reach辅助容差未达，但物体位姿已达最终门槛 '
+                    '(%.1fmm/%.2f°)；进入第二次停稳确认，不再补位'
+                    % (model, res_after, ang_after))
+                continue
             return False, res_after
     return (res < tol_mm and ang < tol_deg), res
 
