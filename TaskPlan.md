@@ -923,3 +923,13 @@
 - 为解决当前 peak-only trace 缺少时序的问题，实验分支新增 `_follow_base_trace.detail_samples`：Gazebo pose callback 以约5Hz记录相对 hold target 的 base dx/dy/yaw、truth twist、wheel velocities、drink/robot command 及其 age、odom twist；保留已有 peak metrics。该采样只读、不改变控制输出与门槛，样本随本次 follow trace 生命周期销毁，预计约20-40行/轮。
 - 新提交 `ef25ec76395f256d4dc41b37ec5b8d032a07a6fd`；待 CI 验证。下一步用 detail_samples 判断是命令先行还是 chassis truth/轮速先行，以及 odom 与 Gazebo 真值是否一致；同时另行核查 joint_state velocity/effort 的发布源。禁止根据单轮相关性调整速度限值、物理参数或放宽任何安全阈值。
 - main 仍保持 `1acfa3785283c227ee9f3e351140b3d601f7d85f`，PR #2 draft/open，双轮完整成功数仍为 **1**。
+
+
+### 8.376 JointState 发布源核验与 PREPARE/PRESENT 同步时序结论（2026-11-14）
+
+- 最新提交 `4b6313eef492b950f9e8f1b3b58c46203492af6f` 的 CI：Python run `43596915470` 成功、CarryBus run `43596915474` 成功、Gazebo E2E run `43596915440` 失败；artifact `14114819493`。E2E 只执行到 `PREPARE → PRESENT → FAIL_PRESENT_FOLLOW_DRIFT`，requested=2、completed=1、passed=0、failed=2，第二轮缺失，截图3/7，不能计为双轮成功。
+- 核查源码确认 `/drink/joint_state` 由 `work_area.sdf` 中的 `gz-sim-joint-state-publisher-system` 发布（SDF 2373-2375），`drink_task._js_cb` 直接读取 `sensor_msgs/JointState.velocity`。因此此前 trace 中的 ±2.5 是 Gazebo JointStatePublisher 报告的关节速度状态值（单位 rad/s），不是单纯把命令参数误读成状态值；但它与关节位置控制器的 `cmd_max=2.5` 数值相同，说明存在速度限幅/饱和的可能。仍需通过对应关节的目标误差、指令值和状态变化进一步验证，不能仅凭数值相同断言关节正在持续饱和或其反作用导致底盘位移。
+- 本次 PREPARE 5Hz 日志中，底盘命令 `drink_cmd/robot_cmd=(0,0)`、驱动轮速度多数接近0时，底盘目标相对偏移从0逐步增长至约70.1mm，yaw误差约12.55°。部分样本出现 truth twist 尖峰，wheel/odom 未同步反映同等运动；这说明单靠轮式里程计不能解释 Gazebo 真值位姿变化，仍需检查动态 pose 回调的实体/坐标定义、模型根位姿、接触约束和机械臂关节动态。JointState effort 样本虽然存在且读数为0，但在确认 Gazebo 该发布器对 effort 字段的物理语义前，不把0作为“真实零力矩”的证据。
+- 同一 run 的 PRESENT 执行本身通过（末端误差0.222mm、姿态0.024°）；follow 结束杯漂移9.174mm，底盘 trace 最大XY 2.784mm、最大偏航0.919°。detail_samples 显示 follow 期间先有非零底盘命令，随后出现轮速/真值响应；该 run 的 PRESENT 偏移显著小于前几轮，但仍超过严格 6mm/0.5°交接门槛，故安全拒绝 HANDOVER。不能把该次改善归因于某一未隔离控制变量。
+- 下一步转为只读源头核验：①检查 Gazebo dynamic_pose/info 中 chassis pose 与 twist 的生成/坐标帧，验证差分是否由实体重置、模型姿态或仿真时间跳变引起；②按 PREPARE 关键关节同步记录目标位置、实测位置、速度、命令与样本时间，验证±2.5出现时的关节误差和持续时间；③单独保留 PRESENT follow 命令—轮速—真值序列。证据充分前不修改物理参数、关节控制器增益/限速、底盘保持控制或任何安全阈值。
+- main 仍为 `1acfa3785283c227ee9f3e351140b3d601f7d85f`，PR #2 保持 draft/open，实验仅在 `experiment/prepare-base-stillness-ab`；完整双轮成功次数仍为 **1**。
