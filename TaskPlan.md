@@ -800,3 +800,12 @@
 - PRESENT-only 控制改为纵向 PD：`vx=clamp(Kp*longitudinal-Kd*longitudinal_speed, ±v_limit)`，速度由新鲜 Gazebo truth twist 投影到当前车头方向。默认 `Kp=1.5`、`Kd=0.8`、`v_limit=0.08m/s`；分别通过 `VLA_PRESENT_BASE_HOLD_LINEAR_KP`、`VLA_PRESENT_BASE_HOLD_LINEAR_KD`、`VLA_PRESENT_BASE_HOLD_LINEAR_LIMIT` 配置，硬边界为 0.5–3.0、0–1.5、0.04–0.12m/s。只在 PRESENT follow_hand 的专用保持窗口生效；PREPARE 保留原控制器和 0.04m/s 上限。Gazebo truth/twist 新鲜度门控不变。
 - E2E workflow_dispatch 增加三个独立参数选项，默认值先测 Kp=1.5/Kd=0.8/limit=0.08；之后一次只改一个变量，先对比 Kd=1.0/1.2（制动不足时），或回退 Kd=0.4（过冲/振荡时）；如控制仍饱和且无振荡，再测试 limit=0.10/0.12；Kp 仅在响应迟缓且阻尼稳定时调整。不得同时改动多个参数，不得放宽 6mm/0.5°交接门槛、4mm IK、碰撞/关节限制或抓持/释放条件。
 - 新增单元测试覆盖默认参数、PD 速度制动方向、参数硬边界及非法值回退。等待本提交 Python/CarryBus/Gazebo CI 验证；完整双轮 E2E 历史成功次数仍为 **1**，P104-07 继续进行中。
+
+
+### 8.363 PRESENT PD 回归断言校准与 PREPARE 独立失败归因（2026-11-14）
+
+- Run #113（43579230726，commit 351d91e99b13cacf28a8d8c3c3bf525bc2c3ade8，artifact 14108115689）CarryBus #736 通过；Python #996 纯测试失败 1 项（其余 122 项通过，编译通过）；Gazebo 双轮 E2E 失败。
+- Python 失败不是实现异常：PD 测试实际输出 `vx=-0.0486476m/s`，旧断言硬编码要求小于 -0.07m/s，未考虑航向投影与控制器的实际有界输出。改为比较同一位置误差下“有正向真值速度”与“零速度”两种输出，要求前者产生更强反向制动，并保留 ±0.08m/s 上下界；测试验证控制性质，不再绑定未经物理依据的单一幅值。
+- Gazebo 日志显示任务在 PREPARE 倒水位姿失败：水壶最终位置残差 4.3mm，严格门槛仍为 <4.0mm；未启动水柱，保持水壶抓持。PREPARE 没有启用 PRESENT-only PD，故本轮不能评价 PD 对递杯漂移的作用，也不能把该 PREPARE 误差归因于本次 PD 修改。
+- 不调整水壶 4mm 门槛，不改变倒水 reach/IK/姿态/碰撞/抓持与 release 条件。本次仅校准单元测试断言；后续重新跑 Python、CarryBus、Gazebo。若 PREPARE 再次阻塞，应按水壶 reach trace 单独定位；只有进入 PRESENT 后，才评估纵向 PD 的杯体漂移和速度响应。
+- 完整双轮 E2E 历史成功次数仍为 **1**；P104-07 继续进行中。

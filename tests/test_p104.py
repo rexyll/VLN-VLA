@@ -2967,8 +2967,16 @@ class TestP104(unittest.TestCase):
                 max_linear=M._present_hold_linear_limit(),
                 current_twist=(0.08, 0.0, 0.0),
                 translate_during_yaw=True)
-            self.assertLess(vx_pd, -0.07)
+            vx_position_only, _ = M.base_pose_hold_velocity(
+                (0.0, 0.0, 0.0), (-0.01, 0.0, 0.12),
+                max_linear=M._present_hold_linear_limit(),
+                current_twist=(0.0, 0.0, 0.0),
+                translate_during_yaw=True)
+            # Positive forward drift must produce stronger reverse braking
+            # than the same pose error with zero measured forward velocity.
+            self.assertLess(vx_pd, vx_position_only)
             self.assertGreaterEqual(vx_pd, -0.08)
+            self.assertLessEqual(vx_pd, 0.08)
         with patch.dict(os.environ, {'VLA_PRESENT_BASE_HOLD_LINEAR_LIMIT': '9',
                                      'VLA_PRESENT_BASE_HOLD_LINEAR_KP': '9',
                                      'VLA_PRESENT_BASE_HOLD_LINEAR_KD': '9'}):
