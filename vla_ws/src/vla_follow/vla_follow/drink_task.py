@@ -1697,15 +1697,32 @@ class DrinkTask(Node):
                         wheel_v = ','.join(
                             '%s:%.3f' % (n, float(self.js_velocity[n]))
                             for n in wheel_names)
+                        arm_names = sorted(
+                            n for n in self.js_velocity
+                            if n.startswith(('L_', 'R_')) and 'wheel' not in n.lower())
+                        arm_v = ','.join(
+                            '%s:%.3f' % (n, float(self.js_velocity[n]))
+                            for n in arm_names)
+                        arm_v_max = max(
+                            (abs(float(self.js_velocity[n])) for n in arm_names),
+                            default=0.0)
+                        wheel_eff = ','.join(
+                            '%s:%.3f' % (n, float(self.js_effort[n]))
+                            for n in wheel_names if n in self.js_effort)
+                        arm_eff_max = max(
+                            (abs(float(self.js_effort[n])) for n in arm_names
+                             if n in self.js_effort), default=0.0)
                         self.get_logger().info(
-                            'PREPARE_BASE_HOLD_TRACE mode=zero-during-reach '
+                            'PREPARE_BASE_HOLD_TRACE mode=zero-during-pour '
                             'rho_mm=%.1f dx_mm=%.1f dy_mm=%.1f '
                             'yaw_err_deg=%.3f truth_v=(%.5f,%.5f,%.5f) '
                             'cmd_v=(0.00000,0.00000) '
                             'drink_cmd=(%s,%s age=%.3f) '
                             'robot_cmd=(%s,%s age=%.3f) '
                             'odom_v=(%s,%s,%s age=%.3f) '
-                            'rpy_deg=(%s,%s,%s) wheel_vel={%s}'
+                            'rpy_deg=(%s,%s,%s) wheel_vel={%s} '
+                            'wheel_effort={%s} arm_v_max=%.3f arm_eff_max=%.3f '
+                            'arm_vel={%s}'
                             % (math.hypot(dx, dy) * 1000.0,
                                dx * 1000.0, dy * 1000.0,
                                math.degrees(yaw_err), *twist,
@@ -1722,7 +1739,7 @@ class DrinkTask(Node):
                                'na' if rpy[0] is None else '%.3f' % math.degrees(rpy[0]),
                                'na' if rpy[1] is None else '%.3f' % math.degrees(rpy[1]),
                                'na' if rpy[2] is None else '%.3f' % math.degrees(rpy[2]),
-                               wheel_v))
+                               wheel_v, wheel_eff, arm_v_max, arm_eff_max, arm_v))
                         self._last_prepare_hold_trace_t = trace_now
                 # Keep the shared freshness branch in stop mode; do not fall
                 # through to pose correction after issuing the zero command.

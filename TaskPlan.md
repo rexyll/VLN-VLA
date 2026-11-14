@@ -884,3 +884,13 @@
 
 
 - B3 首轮 Python CI 发现包装函数重构留下空 finally，触发 IndentationError（run 43591645765）。该语法缺陷已定位，改为无状态直通 wrapper，零指令范围只由 _tick() 在 PREPARE hold target 生命周期内统一控制；重新运行 CI 验证。
+
+
+### 8.372 B3 E2E 结果：零指令仍出现底盘漂移；补充机械臂关节动态遥测（2026-11-14）
+
+- B3 E2E run \`43591943839\`：Python #43591943811、CarryBus #43591943827 通过；Gazebo E2E 失败。artifact \`14113176998\`，round1 only，round2 缺失，passed_rounds=0/2，screenshots=3/7，archive_ok=false。
+- PREPARE 零指令模式中，drink_cmd 与 robot_cmd 均为 (0,0)，轮关节速度约为 0；底盘相对 hold target 位移增至约 58.9mm，yaw 偏差约 4.205°。瞬时 Gazebo truth twist 有尖峰，但里程计/轮速没有对应运动，说明不能把 odom 当真值；现有证据支持“机械臂运动/物理约束导致的底盘模型位姿变化”假设，但尚不足以区分机械臂反作用、接触力、轮地约束/模型动力学。
+- SDF 中底盘质量 13kg、两驱动轮各 1.2kg、轮地摩擦系数 1.2、两个 caster 摩擦系数 0.05、驱动轮 joint effort 上限 5Nm；这些配置可能影响反作用运动。当前不改物理参数。
+- PRESENT follow 是另一个独立失败：在 FOLLOW_BASE_HOLD 主动控制期间，cmd 达到 angular 0.04rad/s，底盘位姿变化峰值约 23.75mm/7.46°，杯子交接目标残差 62.916mm/6.447°；fail-closed 拒绝交权。不要将 PRESENT 主动保持漂移和 PREPARE 零指令漂移混为一谈。
+- 下一轮只补充 PREPARE 同步遥测：机械臂关节速度/力矩峰值与逐关节速度、驱动轮 effort，并修正 trace mode 标签。用时间相关性进一步区分机械臂反作用与底盘接触/动力学；不改控制输出和任何验收门槛。
+- 完整双轮成功数仍为 1，PR #2 草稿未合并，main 不变。
