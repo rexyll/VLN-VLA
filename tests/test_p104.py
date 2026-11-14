@@ -3475,3 +3475,32 @@ class TestPrepareBaseHoldNeutralization(unittest.TestCase):
         self.assertIn("self.drive(0.0, 0.0)", source)
         self.assertIn("VLA_PREPARE_BASE_HOLD_ZERO_DURING_POUR", source)
         self.assertNotIn('_prepare_base_reach_active', source)
+
+
+class TestPresentBaseHoldAblation(unittest.TestCase):
+    def test_zero_command_ablation_is_opt_in_and_scoped_to_present_follow(self):
+        task_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
+            'drink_task.py')
+        workflow_path = os.path.join(
+            ROOT, '.github', 'workflows', 'p104-drinktask-headless.yml')
+        with open(task_path, encoding='utf-8') as stream:
+            task_source = stream.read()
+        with open(workflow_path, encoding='utf-8') as stream:
+            workflow_source = stream.read()
+        self.assertIn(
+            "VLA_PRESENT_BASE_HOLD_ZERO_DURING_FOLLOW', '0') == '1'",
+            task_source)
+        self.assertIn("self._follow_base_hold_target is not None", task_source)
+        self.assertIn("self.drive(0.0, 0.0)", task_source)
+        self.assertIn("snapshot = None", task_source)
+        self.assertIn("PRESENT_BASE_HOLD_MODE zero-during-follow", task_source)
+        self.assertIn(
+            "VLA_PRESENT_BASE_HOLD_ZERO_DURING_FOLLOW: ${{ github.event_name == 'pull_request' && '1'",
+            workflow_source)
+        # The independent handover target gate remains hard and fail-closed.
+        self.assertIn("_post_follow_pos_mm > 6.0", task_source)
+        self.assertIn("_post_follow_axis_deg > 0.5", task_source)
+        guard = task_source.index("self._set_state('FAIL_PRESENT_FOLLOW_DRIFT')")
+        close = task_source.index("ok_person_grip = M.person_hands")
+        self.assertLess(guard, close)
