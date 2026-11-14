@@ -933,3 +933,12 @@
 - 同一 run 的 PRESENT 执行本身通过（末端误差0.222mm、姿态0.024°）；follow 结束杯漂移9.174mm，底盘 trace 最大XY 2.784mm、最大偏航0.919°。detail_samples 显示 follow 期间先有非零底盘命令，随后出现轮速/真值响应；该 run 的 PRESENT 偏移显著小于前几轮，但仍超过严格 6mm/0.5°交接门槛，故安全拒绝 HANDOVER。不能把该次改善归因于某一未隔离控制变量。
 - 下一步转为只读源头核验：①检查 Gazebo dynamic_pose/info 中 chassis pose 与 twist 的生成/坐标帧，验证差分是否由实体重置、模型姿态或仿真时间跳变引起；②按 PREPARE 关键关节同步记录目标位置、实测位置、速度、命令与样本时间，验证±2.5出现时的关节误差和持续时间；③单独保留 PRESENT follow 命令—轮速—真值序列。证据充分前不修改物理参数、关节控制器增益/限速、底盘保持控制或任何安全阈值。
 - main 仍为 `1acfa3785283c227ee9f3e351140b3d601f7d85f`，PR #2 保持 draft/open，实验仅在 `experiment/prepare-base-stillness-ab`；完整双轮成功次数仍为 **1**。
+
+
+### 8.377 PREPARE 关节目标—实测误差—速度限幅同步诊断（2026-11-14）
+
+- 源码复核：左右臂 14 个关节均使用 Gazebo `JointPositionController` 的 `use_velocity_commands=true` 模式，SDF 为每个关节设置 `cmd_min=-2.5`、`cmd_max=2.5`；`/drink/joint_state` 由 Gazebo `JointStatePublisher` 以 50Hz 发布，bridge 将 `gz.msgs.Model` 转成 `sensor_msgs/JointState`。因此 trace 中精确 ±2.5 rad/s 是状态消息中的关节速度读数，并与控制器速度命令限幅相同，具有“可能触及限幅”的诊断意义；但单看速度值无法判断持续饱和、目标误差大小或对底盘的因果作用。
+- 新增只读 PREPARE 诊断：在既有 5Hz hold trace 中，对速度绝对值最大的 4 个机械臂关节同时记录 CmdBus 目标角、JointState 实测角、目标误差、实测速度，并统计速度绝对值 ≥2.45rad/s 的关节数。该阈值只用于日志标记“接近 ±2.5 限幅”，不参与控制或验收；原有 active velocity、effort 样本与底盘 truth/odom/wheel 数据保留。
+- 此变更不修改关节目标、控制器 P/D 增益、±2.5rad/s 上下限、底盘命令、Gazebo 物理参数或任何安全门槛；也不把 effort=0 当作物理零力矩。日志将用于区分“速度触限但目标误差迅速收敛”与“速度触限且目标误差长期不收敛”，并检查其与底盘 pose 偏移的时间相关性。
+- 后续仍需单独核验 `dynamic_pose/info` 中模型级 `robot` pose 的采样时间/坐标帧与回调差分；不能把 truth twist 的瞬时尖峰、wheel odom 或轮速任一单独作为底盘真实运动的充分证据。
+- 本次诊断提交 `6b5a2b1182237b659579bd901c64949799c8c892`，待 Python/CarryBus/Gazebo CI 验证。PR #2 保持 draft/open，实验仅在隔离分支；main 未修改，完整双轮成功次数仍为 **1**。
