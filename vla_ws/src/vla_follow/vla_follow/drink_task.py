@@ -1669,7 +1669,9 @@ class DrinkTask(Node):
                 else:
                     vx, wz = _motion_mod.base_pose_hold_velocity(
                         hold_target, snapshot[0],
-                        current_twist=self.truth_base_twist)
+                        current_twist=self.truth_base_twist,
+                        translate_during_yaw=(
+                            self._follow_base_hold_target is not None))
                     self.drive(vx, wz)
         self.bus.publish_all()
         now = time.time()

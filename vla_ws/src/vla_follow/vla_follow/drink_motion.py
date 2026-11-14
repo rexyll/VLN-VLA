@@ -1049,7 +1049,8 @@ def _kettle_pour_reach_tol_deg():
 
 
 def base_pose_hold_velocity(target, current, max_linear=0.04,
-                           max_angular=0.12, current_twist=(0.0, 0.0, 0.0)):
+                           max_angular=0.12, current_twist=(0.0, 0.0, 0.0),
+                           translate_during_yaw=False):
     """Bounded unicycle pose stabilizer for short arm-reaction disturbances.
 
     target/current are (x, y, yaw) in world coordinates. Reverse motion is
@@ -1069,8 +1070,9 @@ def base_pose_hold_velocity(target, current, max_linear=0.04,
     # Arm reaction normally displaces the free-rolling base only a few mm.
     # In this near-pose regime, steering toward the XY bearing can command a
     # reverse-turn that fights the captured yaw (and was observed to increase
-    # yaw error during PREPARE). First restore yaw in place; then correct only
-    # the longitudinal component while preserving the requested heading.
+    # yaw error during PREPARE). Keep heading correction independent; during
+    # PRESENT follow_hand only, permit bounded longitudinal correction at the
+    # same time so yaw recovery does not leave translation drift unopposed.
     # The PREPARE trace crossed 30mm during arm reaction; dropping back to
     # the reverse-bearing controller there reintroduced yaw-opposing turns.
     # Keep the staged yaw/longitudinal controller through a 60mm recovery band.
@@ -1082,6 +1084,10 @@ def base_pose_hold_velocity(target, current, max_linear=0.04,
             hold_wlim = min(wlim, _arm_hold_yaw_limit())
             wz = max(-hold_wlim, min(
                 hold_wlim, 1.2 * theta - 1.5 * yaw_rate))
+            if translate_during_yaw:
+                longitudinal = dx * math.cos(yaw) + dy * math.sin(yaw)
+                vx = max(-vlim, min(vlim, 0.8 * longitudinal))
+                return vx, wz
             return 0.0, wz
         longitudinal = dx * math.cos(yaw) + dy * math.sin(yaw)
         vx = max(-vlim, min(vlim, 0.8 * longitudinal))

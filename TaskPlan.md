@@ -780,3 +780,13 @@
 - 最小单变量修正：水壶倒水 reach 改用已在举杯路径采用的精细伺服收敛方式，固定最多 8 次 reach pass，并新增 VLA_KETTLE_POUR_REACH_TOL_DEG，默认 0.08°、有效范围 0.04–0.08°；只收紧每轴伺服停止容差，不改 4mm 水壶最终位置门槛、2°姿态门槛、IK 4mm、人体姿态、碰撞、关节限位、抓持或 release 条件。
 - E2E workflow_dispatch 增加 0.08/0.06/0.04°三档参数选择，默认 0.08°；push CI 使用同一默认值。首轮先测 0.08°，只有 Gazebo 证据显示仍存在伺服死区且没有其他安全/碰撞阻塞时，才按单变量顺序测试 0.06°、0.04°；不得同时调整底盘 yaw cap、IK 阈值或其他动作参数。
 - 本修正尚未经过 CI/Gazebo 验证。完整双轮 E2E 历史成功次数仍为 1；P104-07 继续进行中。
+
+
+### 8.361 PRESENT 跟随期间偏航恢复与纵向漂移并行补偿（2026-11-14）
+
+- Run #111（43576329131，commit e5647481b387bf662837efc78d9e47432e6fee0f，artifact 14107206518）Python 纯测试与 CarryBus 均通过，Gazebo E2E 失败。首轮到 `PREPARE → PRESENT → FAIL_PRESENT_FOLLOW_DRIFT`，第二轮未启动；requested=2、completed=1、passed=0、failed=2、`all_passed=false`。
+- 证据：PRESENT 初始杯位误差 0.383mm/0.038°；follow_hand 后杯漂移 31.585mm，相对交接目标位置误差 31.968mm、轴误差 2.167°，安全门控正确阻止人手合拢和交权。底盘 XY 最大位移 31.662mm、偏航峰值 2.753°、峰值速度 0.1265m/s；hold 命令角速度峰值 0.04rad/s。杯位不是初始放置误差，而是在底盘姿态保持窗口中受臂-底盘耦合影响产生的漂移。
+- 代码审查发现近目标区 `abs(yaw_error)>0.5°` 时控制器只输出偏航修正 `vx=0`，把纵向恢复完全延后。PRESENT 过程中偏航恢复期间仍允许手臂反作用造成纵向位移，导致恢复窗口内没有纵向抵消。
+- 最小范围修正：`base_pose_hold_velocity` 新增默认关闭的 `translate_during_yaw` 选项；只有 PRESENT follow_hand 持有专用底盘保持目标时启用，偏航修正同时叠加沿当前车头方向的有界纵向补偿（仍受原 max_linear 限制）；PREPARE 保持旧 yaw-first 行为。未改变偏航增益/上限、速度上限、6mm/0.5°递杯门槛、IK、碰撞、人体姿态或抓持/释放条件。新增回归测试验证默认行为不变，PRESENT 并行补偿方向和速度边界正确。
+- 先执行 Python、CarryBus 和 Gazebo 双轮 E2E。若 PRESENT 仍超限，必须根据新 truth/command trace 再决定是否需要下一项单变量实验；不得放宽交接安全门槛。
+- 完整双轮 E2E 历史成功次数仍为 1；P104-07 继续进行中。
