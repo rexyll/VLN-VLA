@@ -236,6 +236,7 @@ class DrinkTask(Node):
         self._follow_base_trace = None
         self._follow_base_hold_target = None
         self._prepare_base_hold_target = None
+        self._prepare_base_reach_active = False
         self._last_prepare_hold_trace_t = 0.0
         self.truth_base_pose_snapshot = None
         self.truth_base_rpy_snapshot = None
@@ -1658,7 +1659,36 @@ class DrinkTask(Node):
         hold_target = (self._follow_base_hold_target
                        or self._prepare_base_hold_target)
         if hold_target is not None:
-            snapshot = self.truth_base_pose_snapshot
+            if (self._prepare_base_hold_target is not None
+                    and getattr(self, '_prepare_base_reach_active', False)
+                    and os.environ.get(
+                        'VLA_PREPARE_BASE_HOLD_ZERO_DURING_REACH', '0') == '1'):
+                # Isolated experiment: suppress active pose corrections only
+                # while PREPARE kettle reach is running. Zero command keeps
+                # the chassis controller in its stop state; truth stillness
+                # gate remains authoritative and fail-closed.
+                self.drive(0.0, 0.0)
+                snapshot = self.truth_base_pose_snapshot
+                if snapshot is not None:
+                    trace_now = time.monotonic()
+                    if trace_now - self._last_prepare_hold_trace_t >= 1.0:
+                        tx, ty, tyaw = self._prepare_base_hold_target
+                        cx, cy, cyaw = snapshot[0]
+                        dx, dy = tx - cx, ty - cy
+                        yaw_err = math.atan2(
+                            math.sin(tyaw - cyaw), math.cos(tyaw - cyaw))
+                        twist = self.truth_base_twist or (0.0, 0.0, 0.0)
+                        self.get_logger().info(
+                            'PREPARE_BASE_HOLD_TRACE mode=zero-during-reach '
+                            'rho_mm=%.1f dx_mm=%.1f dy_mm=%.1f '
+                            'yaw_err_deg=%.3f truth_v=(%.5f,%.5f,%.5f) '
+                            'cmd_v=(0.00000,0.00000)'
+                            % (math.hypot(dx, dy) * 1000.0,
+                               dx * 1000.0, dy * 1000.0,
+                               math.degrees(yaw_err), *twist))
+                        self._last_prepare_hold_trace_t = trace_now
+            else:
+                snapshot = self.truth_base_pose_snapshot
             now_mono = time.monotonic()
             if snapshot is None or now_mono - snapshot[1] > 0.25:
                 self.drive(0.0, 0.0)

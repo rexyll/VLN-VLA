@@ -54,6 +54,12 @@ on:
         type: choice
         default: "0"
         options: ["0", "1"]
+      prepare_base_hold_zero_during_reach:
+        description: "B2 experiment: issue zero chassis command during PREPARE kettle reach instead of active pose correction"
+        required: false
+        type: choice
+        default: "0"
+        options: ["0", "1"]
       present_base_hold_linear_limit:
         description: "PRESENT-only chassis hold linear cap (m/s), bounded to 0.04–0.12"
         required: false
@@ -93,6 +99,7 @@ jobs:
       PW_SEED: "7"
       VLA_KETTLE_POUR_REACH_TOL_DEG: ${{ inputs.kettle_pour_reach_tol_deg || '0.08' }}
       VLA_PREPARE_KETTLE_BASE_STILL: ${{ github.event_name == 'pull_request' && '1' || inputs.prepare_kettle_base_still || '0' }}
+      VLA_PREPARE_BASE_HOLD_ZERO_DURING_REACH: ${{ github.event_name == 'pull_request' && '1' || inputs.prepare_base_hold_zero_during_reach || '0' }}
       VLA_PRESENT_BASE_HOLD_LINEAR_LIMIT: ${{ inputs.present_base_hold_linear_limit || '0.08' }}
       VLA_PRESENT_BASE_HOLD_LINEAR_KP: ${{ inputs.present_base_hold_linear_kp || '1.5' }}
       VLA_PRESENT_BASE_HOLD_LINEAR_KD: ${{ inputs.present_base_hold_linear_kd || '0.8' }}

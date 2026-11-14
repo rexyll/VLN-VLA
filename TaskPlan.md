@@ -846,3 +846,12 @@
 - 本次只增加 PREPARE 保持控制遥测：每秒记录目标相对位移/偏航误差、Gazebo truth vx/vy/wz 与实际下发 cmd vx/wz；不改变控制器输出、速度上限、等待时长、4mm IK、碰撞、关节限位、抓持或释放门槛。PR CI 继续启用静止门控以采集可归因日志。
 - 下一步依据 PREPARE_BASE_HOLD_TRACE 的命令/真值时序做判断：若命令与速度同向且持续，检查保持控制律/控制权；若命令为零或反向仍出现速度峰值，重点查轮地动力学与机械臂反作用。只允许针对证据设计下一项隔离实验，不直接关闭保持或放宽门槛。
 - 完整双轮 Gazebo E2E 历史成功次数仍为 1；P104-07 继续进行中。
+
+
+### 8.368 PREPARE 保持控制器主动纠偏与机械臂 reach 耦合隔离实验（2026-11-14）
+
+- Run `43586076293`（commit `8dd0f4762600b9795ce0338c97434ebb9e3ed11b`，artifact `14110068129`）Python #1001 与 CarryBus #741 均通过；Gazebo E2E 失败，首轮 PREPARE 中止、第二轮未启动。`PREPARE_BASE_HOLD_TRACE` 显示保持目标 XY 偏移由 0 增至 17.8mm，之后短暂回落至 4.3mm，又扩大至 35.1mm；偏航误差峰值 6.175°，控制器角速度命令触及 +0.04rad/s 上限。部分采样中 cmd_vx=0，但 Gazebo truth vx 达 +0.0363m/s，说明底盘平移并非来自控制器纵向命令；偏航纠偏、轮地/底盘耦合及机械臂反作用仍需区分。
+- B 组仍在严格静止门控下 fail-closed：reach 期间底盘未能持续满足 ≤5mm/s、≤0.5°/s；最终掌心/水壶残差分别约 25.3mm/41.3mm/46.0mm，水壶姿态差 4.00°；保持抓持，水柱未启动。该终止残差不是精度改善/恶化的公平对照值。
+- 新增 B2 隔离模式 `VLA_PREPARE_BASE_HOLD_ZERO_DURING_REACH=1`：仅当 PREPARE 水壶路径启用 `require_base_still` 且 `_prepare_base_hold_target` 存在时，在 reach 执行期间暂时下发零底盘速度命令，避免主动 pose-hold 偏航纠偏与机械臂 reach 同时闭环；reach 前仍等待同一新鲜真值静止门槛，reach 后自动恢复原保持控制。默认关闭，非 PREPARE reach、PRESENT 和其他任务路径不受影响。
+- B2 不更改 4mm IK、5mm grasp、6mm/0.5°交接、碰撞、关节限位、人体姿态、抓持/释放条件；如果零命令期间真值仍不静止，照样超时 fail-closed，不启动水柱。PR CI 以静止门控+B2 模式运行，比较底盘位移/偏航、reach 前后误差与等待耗时；只有证据支持后再考虑控制器结构调整。
+- 完整双轮 Gazebo E2E 历史成功次数仍为 1；P104-07 继续进行中。
