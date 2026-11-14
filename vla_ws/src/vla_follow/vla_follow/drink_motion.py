@@ -1063,13 +1063,12 @@ def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
     """Public reach wrapper for the isolated PREPARE hold-neutralization experiment."""
     suspend_prepare_hold = bool(
         require_base_still
-        and os.environ.get('VLA_PREPARE_BASE_HOLD_ZERO_DURING_REACH', '0') == '1'
+        and os.environ.get('VLA_PREPARE_BASE_HOLD_ZERO_DURING_POUR', '0') == '1'
         and getattr(node, '_prepare_base_hold_target', None) is not None)
     if suspend_prepare_hold:
-        node._prepare_base_reach_active = True
         node.get_logger().info(
-            'PREPARE_BASE_HOLD_MODE zero-during-reach: '
-            'send zero chassis command while arm reach is active')
+            'PREPARE_BASE_HOLD_MODE zero-during-pour: '
+            'keep chassis command at zero throughout the PREPARE pour hold window')
     try:
         return _reach_impl(
             node, side, T_world, tol_mm=tol_mm, passes=passes,
@@ -1077,8 +1076,6 @@ def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
             check_table=check_table, preflight_only=preflight_only,
             require_base_still=require_base_still)
     finally:
-        if suspend_prepare_hold:
-            node._prepare_base_reach_active = False
 
 
 

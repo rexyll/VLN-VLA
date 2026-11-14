@@ -872,3 +872,12 @@
 - 单凭现有日志还不能断定漂移由机械臂反作用力引起；必须排除 `/drink/cmd_vel` 与 mux 输出 `/robot/cmd_vel` 的竞争、轮式里程计与模型真值差异，以及 chassis roll/pitch。
 - 本次只扩展诊断日志：在零速模式同时记录 drink_cmd、robot_cmd、odom twist、新鲜度、Gazebo roll/pitch 与可用 wheel joint velocity；不改任何控制输出、运动阈值或验收门槛。
 - 下一步依据这些同步观测决定是否进入 chassis 反作用力/轮地动力学隔离实验。完整双轮成功数保持 1，PR #2 仍为草稿，main 不变。
+
+
+### 8.371 B2 实验作用域缺陷定位；改为整个 PREPARE 倒水保持窗口零指令（2026-11-14）
+
+- B2 E2E run \`43589983740\` 失败：仅到 PREPARE/PRESENT，follow_hand 后杯位偏差 19.0mm/0.75°，系统 fail-closed，不交权；双轮验收 0/2，截图 3/7。
+- 诊断日志显示，B2 只在每次 reach(require_base_still=True) 的调用栈内置零；reach() 返回到 place_held()/pour_into_cup() 的迭代/settle 间隙，_prepare_base_reach_active 被清除，20Hz tick 又执行原底盘保持控制并输出角速度最高 0.04rad/s。由此可见，先前把底盘位移全部归因于机械臂反作用力是不成立的。
+- 明确证据：零模式窗口间隙记录到 cmd_v=(0,0.04)；同步采样也记录到 drink_cmd=(0,0.02357)、robot_cmd=(0,0.02357) 和左右轮反向速度约 ±0.059rad/s。该时段仍有主动底盘命令，B2 不是纯零指令实验。
+- 新实验 B3 将零指令范围扩大到 _prepare_base_hold_target 整个有效窗口（覆盖全部 reach、迭代和 settle 间隙），使用独立开关 VLA_PREPARE_BASE_HOLD_ZERO_DURING_POUR，默认关闭；仅在 PR CI / 显式 workflow_dispatch 开启。未修改 IK、速度阈值、碰撞、抓持或交权门槛。
+- B3 目的：先消除控制器间隙重接管，再用真值位姿/命令源/轮速数据判断零指令下的剩余底盘运动。双轮完整成功数保持 1；main 不变；PR #2 仍草稿。

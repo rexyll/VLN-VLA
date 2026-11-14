@@ -1661,9 +1661,8 @@ class DrinkTask(Node):
                        or self._prepare_base_hold_target)
         if hold_target is not None:
             if (self._prepare_base_hold_target is not None
-                    and getattr(self, '_prepare_base_reach_active', False)
                     and os.environ.get(
-                        'VLA_PREPARE_BASE_HOLD_ZERO_DURING_REACH', '0') == '1'):
+                        'VLA_PREPARE_BASE_HOLD_ZERO_DURING_POUR', '0') == '1'):
                 # Isolated experiment: suppress active pose corrections only
                 # while PREPARE kettle reach is running. Zero command keeps
                 # the chassis controller in its stop state; truth stillness

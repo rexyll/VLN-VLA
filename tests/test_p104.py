@@ -3390,7 +3390,7 @@ if __name__ == '__main__':
 
 
 class TestPrepareBaseHoldNeutralization(unittest.TestCase):
-    def test_zero_during_reach_is_opt_in_and_scoped_to_stillness_reach(self):
+    def test_zero_during_pour_is_opt_in_and_uses_prepare_hold_window(self):
         motion_path = os.path.join(
             ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
             'drink_motion.py')
@@ -3399,19 +3399,18 @@ class TestPrepareBaseHoldNeutralization(unittest.TestCase):
         start = source.index('def reach(')
         end = source.index('def sim_now(', start)
         wrapper = source[start:end]
-        self.assertIn("VLA_PREPARE_BASE_HOLD_ZERO_DURING_REACH', '0') == '1'", wrapper)
-        self.assertIn('and require_base_still', wrapper)
+        self.assertIn("VLA_PREPARE_BASE_HOLD_ZERO_DURING_POUR', '0') == '1'", wrapper)
         self.assertIn("getattr(node, '_prepare_base_hold_target', None) is not None", wrapper)
-        self.assertIn('finally:', wrapper)
-        self.assertIn('node._prepare_base_reach_active = False', wrapper)
+        self.assertIn('zero-during-pour', wrapper)
+        self.assertNotIn('_prepare_base_reach_active', wrapper)
 
-    def test_tick_zeroes_prepare_hold_only_during_opted_in_reach(self):
+    def test_tick_zeros_chassis_for_entire_prepare_pour_hold_window(self):
         task_path = os.path.join(
             ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
             'drink_task.py')
         with open(task_path, encoding='utf-8') as stream:
             source = stream.read()
-        self.assertIn('PREPARE_BASE_HOLD_MODE zero-during-reach', source)
+        self.assertIn('PREPARE_BASE_HOLD_MODE zero-during-pour', source)
         self.assertIn("self.drive(0.0, 0.0)", source)
-        self.assertIn("VLA_PREPARE_BASE_HOLD_ZERO_DURING_REACH", source)
-        self.assertIn('getattr(self, \'_prepare_base_reach_active\', False)', source)
+        self.assertIn("VLA_PREPARE_BASE_HOLD_ZERO_DURING_POUR", source)
+        self.assertNotIn('_prepare_base_reach_active', source)
