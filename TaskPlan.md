@@ -23,7 +23,7 @@
 
 - 当前工作分支：`experiment/prepare-base-stillness-ab`
 - PR：[#2](https://github.com/rexyll/VLN-VLA/pull/2)，draft/open，base `main`，未合并
-- 当前任务节点：**P104-07：修复 PREPARE 放置后右臂撤离阶段的人体约束 IK 闭环，并恢复双轮 E2E 验收**
+- 当前任务节点：**P104-07：验证 human IK 持续约束修复，并隔离 PRESENT follow_hand 底盘主动保持引起的杯位漂移**
 - 状态：**正在进行中**
 - 完整真实 Gazebo DrinkTask E2E 成功轮数：**1（E2E #60，单轮通过；连续多轮稳定性仍未验收）**
 - 已稳定通过的部分：ROS 2 工作区构建、Python 单元回归、CarryBus 回归；E2E #60 首次完整通过任务、观察器进程、8 张截图归档及交权后视觉跟随指标。
@@ -1002,3 +1002,13 @@
 - 回归断言提交 `f7e3cf4297068122a661d43d17e4fe49b8b95c51`：验证 human 策略后续迭代不会退回普通 IK，且姿态硬规则仍在下发前检查。旧提交 `66c0b76` 的 Python 测试因原断言仍要求旧模式字符串而失败（不是生产模块编译失败）；断言已在 `f7e3cf4` 更新，必须等待该最新 HEAD 的 CI 重新验证。该提交的修复后 Gazebo E2E 也尚未完成。
 - 下一步：先确认 `f7e3cf4` 的 Python/CarryBus/Gazebo 工作流均以最新 head 运行；若没有自动触发，显式重跑工作流。重点检查撤手阶段是否通过 human IK、R7 与 4mm 门槛，随后再看完整九阶段和连续双轮结果。不得使用普通 IK 绕过人体规则，也不得放宽任何安全门槛。
 - 完整连续双轮 Gazebo E2E 成功次数仍为 **1**；PR #2 保持 draft/open；main `1acfa3785283c227ee9f3e351140b3d601f7d85f` 未修改。
+
+
+
+### 8.384 E2E # 修复 human IK 后推进至 PRESENT，发现 follow_hand 底盘主动保持导致杯位漂移（2026-11-14）
+
+- 最新可复现 run `43612409409`（commit `7c07a47d998a057aecea49950d24a53342e1253b`，artifact `14121137956`）：Python #run `43612409458` 与 CarryBus #run `43612409452` 均通过；Gazebo E2E 失败。round1 阶段序列为 `PREPARE → PRESENT → FAIL_PRESENT_FOLLOW_DRIFT`，round2 缺失，requested=2、completed=1、passed=0、failed=2、all_passed=false。
+- 重要进展：本次没有再次出现前一轮 `reach()` 后续迭代退回普通 KDL IK 的 R7 错误；PREPARE 与初始 PRESENT 动作已通过。递杯初始目标误差为 1.148mm / 0.075°，右手 follow_hand 终点误差 3.255mm，说明右手伺服本身到位；但杯子真值从 `[2.03015, 0.93941, 1.0]` 漂至 `[2.09969, 0.91340, 1.0]`，相对交接目标偏差 75.039mm / 7.319°。系统按既有 6mm / 0.5°硬门槛拒绝 HANDOVER，继续由机器人持杯；没有请求人手合拢，也没有交权。
+- `PRESENT_FOLLOW_POST` trace：约 4.5s 内底盘最大 XY 位移 23.19mm、最大 yaw 偏移 7.667°、最大真值速度 0.07395m/s、最大 yaw rate 32.78°/s。主动保持命令峰值线速度 0.06538m/s、角速度 0.04rad/s；wheel 速度峰值 2.763rad/s，wheel effort 最大采样 0.0Nm。当前证据表明底盘保持控制与大幅位姿变化同时发生，但尚不足以断定全部漂移由主动命令导致，需做隔离实验。
+- 实验修复提交 `4feaf3a716a3ec10cb4e6ab6df22eff5eb610118`：增加 `VLA_PRESENT_BASE_HOLD_ZERO_DURING_FOLLOW=1` 分支，只在 `_follow_base_hold_target` 存在的 PRESENT follow_hand 窗口发布零底盘命令并跳过主动位姿修正；该开关默认关闭，不影响其他任务阶段。PR E2E workflow 在 pull_request 触发时启用此 A/B 模式，手动 dispatch 可选择开/关（提交 `20a8dba`）；新增测试提交 `8bebb29` 验证开关作用域和严格门控。
+- 下一步以新 E2E trace 判定：若底盘 yaw/杯漂移显著收敛且杯位进入 6mm / 0.5°，说明主动 pose hold 是主要诱因，再设计带速率/位移上限的受控方案；若仍漂移，则进一步分离被动臂反作用、wheel dynamics 与命令链路。任何情况下 6mm / 0.5°门槛不变，未通过不得 HANDOVER。此轮未到 DONE，不计入成功轮数。
