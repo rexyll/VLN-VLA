@@ -10,6 +10,7 @@ on:
       - "tests/drink_repeat.sh"
       - "tests/drink_evidence.py"
       - "tests/test_drink.py"
+      - "tests/test_p104.py"
       - "vla_ws/src/vla_follow/**"
       - "tools/start_scene.sh"
       - "tools/start_drink_demo.sh"
