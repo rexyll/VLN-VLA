@@ -828,3 +828,11 @@
 - Workflow dispatch 增加 prepare_kettle_base_still=0/1 实验开关，默认 0。A 组用 0（当前基线）；B 组用 1（底盘静止门控）。其余参数、场景 seed、动作流程和所有精度/安全阈值保持一致。
 - 新增纯测试覆盖：新鲜低速真值允许通过、超速拒绝、过期真值拒绝，以及门控默认关闭且只挂接水壶倒水精调路径。
 - 验收：先通过 Python syntax、P104 纯测试与 CarryBus；再分别运行 A/B Gazebo 双轮 E2E，比较 reach 每轮 BASE_STILL、base twist、掌心残差、物体残差和耗时。若 B 组等待超时，则保持抓持并 fail-closed，不得通过放宽阈值绕过。该实验尚未证明静止门控能改善精度，不合并 main，完整双轮成功次数仍为 1；P104-07 继续进行中。
+
+
+### 8.366 静止门控 A/B 首轮 CI 结果与测试夹具稳健性修正（2026-11-14）
+
+- PR #2 首轮 Python 编译通过，但纯测试 1 项失败：旧测试 test_reach_waits_for_fresh_joint_state_before_ik 用 monotonic()-60 构造过期样本；GitHub runner 单调时钟运行时长不足 60 秒时得到负时间戳，生产代码按设计将其视为无效样本并返回 age=None，导致测试断言自身不成立。该失败与静止门控实现无关。
+- 修正测试夹具：将构造的旧时间戳下限钳制为 1e-6，保证它始终是有效正时间戳且远早于当前采样时间；不改变生产逻辑。
+- PR 的 pull_request Gazebo E2E 专门以 VLA_PREPARE_KETTLE_BASE_STILL=1 执行 B 组；workflow_dispatch 仍可显式选择 0/1，main push 默认保持 0。A 组参考基线为 main 的 #115 原始控制路径；比较时必须同时注明提交差异与运行数据，不能将历史 run 当成严格同提交随机化实验。
+- 修正后重新等待 Python、CarryBus 和 Gazebo CI。当前没有任何阈值或安全门控被放宽，PR 保持 draft，不合并 main。

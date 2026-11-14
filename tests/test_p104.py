@@ -2240,7 +2240,7 @@ class TestP104(unittest.TestCase):
         import types
 
         refreshed = types.SimpleNamespace(
-            js_sample_t=time.monotonic() - 60.0, calls=0)
+            js_sample_t=max(1e-6, time.monotonic() - 60.0), calls=0)
 
         def refresh(_duration):
             refreshed.calls += 1
@@ -2253,7 +2253,7 @@ class TestP104(unittest.TestCase):
         self.assertLessEqual(age, 0.5)
 
         stale = types.SimpleNamespace(
-            js_sample_t=time.monotonic() - 60.0,
+            js_sample_t=max(1e-6, time.monotonic() - 60.0),
             spin_for=lambda _duration: None)
         ok, age = M._wait_fresh_joint_state(
             stale, timeout=0.02, max_age=0.01)

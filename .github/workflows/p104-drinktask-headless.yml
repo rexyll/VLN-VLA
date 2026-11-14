@@ -92,7 +92,7 @@ jobs:
       P91_FOLLOW_WATCH: "75"
       PW_SEED: "7"
       VLA_KETTLE_POUR_REACH_TOL_DEG: ${{ inputs.kettle_pour_reach_tol_deg || '0.08' }}
-      VLA_PREPARE_KETTLE_BASE_STILL: ${{ inputs.prepare_kettle_base_still || '0' }}
+      VLA_PREPARE_KETTLE_BASE_STILL: ${{ github.event_name == 'pull_request' && '1' || inputs.prepare_kettle_base_still || '0' }}
       VLA_PRESENT_BASE_HOLD_LINEAR_LIMIT: ${{ inputs.present_base_hold_linear_limit || '0.08' }}
       VLA_PRESENT_BASE_HOLD_LINEAR_KP: ${{ inputs.present_base_hold_linear_kp || '1.5' }}
       VLA_PRESENT_BASE_HOLD_LINEAR_KD: ${{ inputs.present_base_hold_linear_kd || '0.8' }}
