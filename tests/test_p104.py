@@ -2993,7 +2993,9 @@ class TestP104(unittest.TestCase):
                 (0.0, 0.0, 0.0), (0.0, 0.0, 0.20))
             self.assertAlmostEqual(wz, -0.08)
         with patch.dict(os.environ, {'VLA_ARM_HOLD_YAW_LIMIT': 'invalid'}):
-            self.assertAlmostEqual(M._arm_hold_yaw_limit(), 0.06)
+            self.assertAlmostEqual(M._arm_hold_yaw_limit(), 0.04)
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertAlmostEqual(M._arm_hold_yaw_limit(), 0.04)
         with patch.dict(os.environ, {'VLA_ARM_HOLD_YAW_LIMIT': '0.001'}):
             self.assertAlmostEqual(M._arm_hold_yaw_limit(), 0.02)
 

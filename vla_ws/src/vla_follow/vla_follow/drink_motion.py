@@ -1015,14 +1015,14 @@ def _arm_hold_yaw_limit():
     """Runtime-tunable yaw cap for bounded arm-reaction pose hold.
 
     The setting is intentionally bounded: values below 0.02 rad/s or above
-    0.08 rad/s are clamped. Invalid values fall back to 0.06 rad/s.
+    0.08 rad/s are clamped. Invalid values fall back to the conservative 0.04 rad/s default.
     """
     try:
-        requested = float(os.environ.get('VLA_ARM_HOLD_YAW_LIMIT', '0.06'))
+        requested = float(os.environ.get('VLA_ARM_HOLD_YAW_LIMIT', '0.04'))
     except (TypeError, ValueError, OverflowError):
-        requested = 0.06
+        requested = 0.04
     if not math.isfinite(requested):
-        requested = 0.06
+        requested = 0.04
     return max(0.02, min(0.08, requested))
 
 
