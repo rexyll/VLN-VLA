@@ -55,7 +55,7 @@ on:
         default: "0"
         options: ["0", "1"]
       prepare_base_hold_zero_during_pour:
-        description: "B2 experiment: issue zero chassis command during PREPARE kettle reach instead of active pose correction"
+        description: "B3 experiment: keep zero chassis command throughout the full PREPARE pour hold window"
         required: false
         type: choice
         default: "0"
