@@ -617,6 +617,9 @@ def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
         # 挑"最像人"的那个会让手臂在两个分支之间来回跳 —— 实测抓杯时两轮各
         # 选一边, 掌心在中间不动, 残差 115mm 一直不下去。分支是姿态策略,
         # 补位是精度问题, 两件事分开: 第一轮定分支, 后面只用种子做局部修正。
+        # Human-constrained motion must keep the same hard posture solver on
+        # every refinement pass; ik_human()'s compliant hold branch provides
+        # continuity without letting later KDL iterations violate R1-R7.
         _mode = elbow if elbow == 'human' or it == 0 else None
         # Freeze the exact receive-side evidence used by this IK iteration.
         # The later post-servo ages alone cannot prove that the base pose used
