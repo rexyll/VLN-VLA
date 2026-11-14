@@ -22,6 +22,7 @@ on:
   push:
     branches:
       - main
+      - experiment/prepare-base-stillness-ab
     paths:
       - ".github/workflows/p104-drinktask-headless.yml"
       - "tests/run_drink_headless.sh"
