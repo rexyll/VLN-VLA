@@ -29,6 +29,24 @@ on:
           - "0.08"
           - "0.06"
           - "0.04"
+      present_base_hold_linear_limit:
+        description: "PRESENT-only chassis hold linear cap (m/s), bounded to 0.04–0.12"
+        required: false
+        type: choice
+        default: "0.08"
+        options: ["0.04", "0.06", "0.08", "0.10", "0.12"]
+      present_base_hold_linear_kp:
+        description: "PRESENT-only longitudinal position gain, bounded to 0.5–3.0"
+        required: false
+        type: choice
+        default: "1.5"
+        options: ["0.5", "1.0", "1.5", "2.0", "2.5", "3.0"]
+      present_base_hold_linear_kd:
+        description: "PRESENT-only longitudinal velocity damping, bounded to 0–1.5"
+        required: false
+        type: choice
+        default: "0.8"
+        options: ["0", "0.4", "0.8", "1.0", "1.2", "1.5"]
 
 permissions:
   contents: read
@@ -49,6 +67,9 @@ jobs:
       P91_FOLLOW_WATCH: "75"
       PW_SEED: "7"
       VLA_KETTLE_POUR_REACH_TOL_DEG: ${{ inputs.kettle_pour_reach_tol_deg || '0.08' }}
+      VLA_PRESENT_BASE_HOLD_LINEAR_LIMIT: ${{ inputs.present_base_hold_linear_limit || '0.08' }}
+      VLA_PRESENT_BASE_HOLD_LINEAR_KP: ${{ inputs.present_base_hold_linear_kp || '1.5' }}
+      VLA_PRESENT_BASE_HOLD_LINEAR_KD: ${{ inputs.present_base_hold_linear_kd || '0.8' }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4

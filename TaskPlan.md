@@ -790,3 +790,13 @@
 - 最小范围修正：`base_pose_hold_velocity` 新增默认关闭的 `translate_during_yaw` 选项；只有 PRESENT follow_hand 持有专用底盘保持目标时启用，偏航修正同时叠加沿当前车头方向的有界纵向补偿（仍受原 max_linear 限制）；PREPARE 保持旧 yaw-first 行为。未改变偏航增益/上限、速度上限、6mm/0.5°递杯门槛、IK、碰撞、人体姿态或抓持/释放条件。新增回归测试验证默认行为不变，PRESENT 并行补偿方向和速度边界正确。
 - 先执行 Python、CarryBus 和 Gazebo 双轮 E2E。若 PRESENT 仍超限，必须根据新 truth/command trace 再决定是否需要下一项单变量实验；不得放宽交接安全门槛。
 - 完整双轮 E2E 历史成功次数仍为 1；P104-07 继续进行中。
+
+
+### 8.362 PRESENT 底盘纵向 PD 保持与单变量参数试验（2026-11-14）
+
+- Run #112（43577753678，commit 524fefb74be0266272eafd1853777f66ad242f68，artifact 14107643075）Python #995 与 CarryBus #735 均通过，Gazebo 双轮 E2E 失败。第一轮执行到 `PREPARE → PRESENT → FAIL_PRESENT_FOLLOW_DRIFT`，第二轮未启动；requested=2、completed=1、passed=0、failed=2、`all_passed=false`。
+- 真值证据：follow_hand 后右掌跟随误差 3.269mm，但杯体漂移 20.857mm、相对交接目标位置误差 19.75mm/轴误差 1.165°；底盘 XY 高水位 20.65mm、航向变化 1.306°，峰值线速度 0.1014m/s。严格 6mm/0.5°门控正确阻止人手合拢与交权。相较 #111 的杯位误差约 31.97mm 有改善，但仍未通过。
+- 根因进一步收敛：原 PRESENT 纵向补偿仅使用位置比例项 `0.8*longitudinal`，且线速度上限仍为 0.04m/s；虽已把纵向修正与偏航恢复并行，但没有使用真值纵向速度做制动项。手臂反作用造成的底盘瞬态速度峰值 0.1014m/s 高于补偿上限，控制只能在位移形成后缓慢追赶。
+- PRESENT-only 控制改为纵向 PD：`vx=clamp(Kp*longitudinal-Kd*longitudinal_speed, ±v_limit)`，速度由新鲜 Gazebo truth twist 投影到当前车头方向。默认 `Kp=1.5`、`Kd=0.8`、`v_limit=0.08m/s`；分别通过 `VLA_PRESENT_BASE_HOLD_LINEAR_KP`、`VLA_PRESENT_BASE_HOLD_LINEAR_KD`、`VLA_PRESENT_BASE_HOLD_LINEAR_LIMIT` 配置，硬边界为 0.5–3.0、0–1.5、0.04–0.12m/s。只在 PRESENT follow_hand 的专用保持窗口生效；PREPARE 保留原控制器和 0.04m/s 上限。Gazebo truth/twist 新鲜度门控不变。
+- E2E workflow_dispatch 增加三个独立参数选项，默认值先测 Kp=1.5/Kd=0.8/limit=0.08；之后一次只改一个变量，先对比 Kd=1.0/1.2（制动不足时），或回退 Kd=0.4（过冲/振荡时）；如控制仍饱和且无振荡，再测试 limit=0.10/0.12；Kp 仅在响应迟缓且阻尼稳定时调整。不得同时改动多个参数，不得放宽 6mm/0.5°交接门槛、4mm IK、碰撞/关节限制或抓持/释放条件。
+- 新增单元测试覆盖默认参数、PD 速度制动方向、参数硬边界及非法值回退。等待本提交 Python/CarryBus/Gazebo CI 验证；完整双轮 E2E 历史成功次数仍为 **1**，P104-07 继续进行中。

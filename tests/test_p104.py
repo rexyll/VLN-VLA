@@ -2956,6 +2956,31 @@ class TestP104(unittest.TestCase):
         self.assertLess(wz_follow_yaw, 0.0)
         self.assertLessEqual(abs(vx_follow_yaw), 0.04)
         self.assertLessEqual(abs(wz_follow_yaw), 0.12)
+        # PRESENT-only longitudinal PD uses fresh Gazebo truth velocity to
+        # brake arm-reaction drift before the position error accumulates.
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertAlmostEqual(M._present_hold_linear_limit(), 0.08)
+            self.assertAlmostEqual(M._present_hold_linear_kp(), 1.5)
+            self.assertAlmostEqual(M._present_hold_linear_kd(), 0.8)
+            vx_pd, _ = M.base_pose_hold_velocity(
+                (0.0, 0.0, 0.0), (-0.01, 0.0, 0.12),
+                max_linear=M._present_hold_linear_limit(),
+                current_twist=(0.08, 0.0, 0.0),
+                translate_during_yaw=True)
+            self.assertLess(vx_pd, -0.07)
+            self.assertGreaterEqual(vx_pd, -0.08)
+        with patch.dict(os.environ, {'VLA_PRESENT_BASE_HOLD_LINEAR_LIMIT': '9',
+                                     'VLA_PRESENT_BASE_HOLD_LINEAR_KP': '9',
+                                     'VLA_PRESENT_BASE_HOLD_LINEAR_KD': '9'}):
+            self.assertAlmostEqual(M._present_hold_linear_limit(), 0.12)
+            self.assertAlmostEqual(M._present_hold_linear_kp(), 3.0)
+            self.assertAlmostEqual(M._present_hold_linear_kd(), 1.5)
+        with patch.dict(os.environ, {'VLA_PRESENT_BASE_HOLD_LINEAR_LIMIT': 'bad',
+                                     'VLA_PRESENT_BASE_HOLD_LINEAR_KP': 'bad',
+                                     'VLA_PRESENT_BASE_HOLD_LINEAR_KD': 'bad'}):
+            self.assertAlmostEqual(M._present_hold_linear_limit(), 0.08)
+            self.assertAlmostEqual(M._present_hold_linear_kp(), 1.5)
+            self.assertAlmostEqual(M._present_hold_linear_kd(), 0.8)
         # The PREPARE E2E drift crossed the old 30mm mode boundary. Keep
         # yaw correction active at 34mm so reverse-bearing steering cannot
         # command a turn away from the captured heading.

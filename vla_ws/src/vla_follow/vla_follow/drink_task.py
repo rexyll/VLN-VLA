@@ -1667,11 +1667,15 @@ class DrinkTask(Node):
                 if (self.truth_base_twist is None or twist_age > 0.25):
                     self.drive(0.0, 0.0)
                 else:
+                    _present_follow_hold = (
+                        self._follow_base_hold_target is not None)
                     vx, wz = _motion_mod.base_pose_hold_velocity(
                         hold_target, snapshot[0],
+                        max_linear=(
+                            _motion_mod._present_hold_linear_limit()
+                            if _present_follow_hold else 0.04),
                         current_twist=self.truth_base_twist,
-                        translate_during_yaw=(
-                            self._follow_base_hold_target is not None))
+                        translate_during_yaw=_present_follow_hold)
                     self.drive(vx, wz)
         self.bus.publish_all()
         now = time.time()

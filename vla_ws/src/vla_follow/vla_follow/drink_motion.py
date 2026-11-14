@@ -1011,6 +1011,39 @@ def wrap_deg(a):
     return a
 
 
+def _present_hold_linear_limit():
+    """Runtime-tunable PRESENT-only linear velocity cap; bounded to 0.04–0.12m/s."""
+    try:
+        requested = float(os.environ.get('VLA_PRESENT_BASE_HOLD_LINEAR_LIMIT', '0.08'))
+    except (TypeError, ValueError, OverflowError):
+        requested = 0.08
+    if not math.isfinite(requested):
+        requested = 0.08
+    return max(0.04, min(0.12, requested))
+
+
+def _present_hold_linear_kp():
+    """Runtime-tunable PRESENT longitudinal position gain, bounded to 0.5–3.0."""
+    try:
+        requested = float(os.environ.get('VLA_PRESENT_BASE_HOLD_LINEAR_KP', '1.5'))
+    except (TypeError, ValueError, OverflowError):
+        requested = 1.5
+    if not math.isfinite(requested):
+        requested = 1.5
+    return max(0.5, min(3.0, requested))
+
+
+def _present_hold_linear_kd():
+    """Runtime-tunable PRESENT longitudinal velocity damping, bounded to 0–1.5."""
+    try:
+        requested = float(os.environ.get('VLA_PRESENT_BASE_HOLD_LINEAR_KD', '0.8'))
+    except (TypeError, ValueError, OverflowError):
+        requested = 0.8
+    if not math.isfinite(requested):
+        requested = 0.8
+    return max(0.0, min(1.5, requested))
+
+
 def _arm_hold_yaw_limit():
     """Runtime-tunable yaw cap for bounded arm-reaction pose hold.
 
@@ -1086,11 +1119,20 @@ def base_pose_hold_velocity(target, current, max_linear=0.04,
                 hold_wlim, 1.2 * theta - 1.5 * yaw_rate))
             if translate_during_yaw:
                 longitudinal = dx * math.cos(yaw) + dy * math.sin(yaw)
-                vx = max(-vlim, min(vlim, 0.8 * longitudinal))
+                longitudinal_speed = _tvx * math.cos(yaw) + _tvy * math.sin(yaw)
+                vx = max(-vlim, min(
+                    vlim, _present_hold_linear_kp() * longitudinal
+                    - _present_hold_linear_kd() * longitudinal_speed))
                 return vx, wz
             return 0.0, wz
         longitudinal = dx * math.cos(yaw) + dy * math.sin(yaw)
-        vx = max(-vlim, min(vlim, 0.8 * longitudinal))
+        if translate_during_yaw:
+            longitudinal_speed = _tvx * math.cos(yaw) + _tvy * math.sin(yaw)
+            vx = max(-vlim, min(
+                vlim, _present_hold_linear_kp() * longitudinal
+                - _present_hold_linear_kd() * longitudinal_speed))
+        else:
+            vx = max(-vlim, min(vlim, 0.8 * longitudinal))
         return vx, 0.0
     if rho <= 0.0015:
         wz = max(-wlim, min(wlim, 1.2 * theta))
