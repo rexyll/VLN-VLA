@@ -40,6 +40,7 @@ P84 曾记录"dynamic_pose/info 里 link 位姿名字错位一位(R_L1 的 pose 
 """
 import json
 import math
+import os
 import sys
 import time
 import threading
@@ -235,9 +236,18 @@ class DrinkTask(Node):
         # Read-only high-water trace for chassis motion during arm follow.
         self._follow_base_trace = None
         self._follow_base_hold_target = None
+        self._follow_base_hold_zero_logged = False
         self._prepare_base_hold_target = None
+        self._prepare_base_reach_active = False
+        self._last_prepare_hold_trace_t = 0.0
         self.truth_base_pose_snapshot = None
         self.truth_base_rpy_snapshot = None
+        self.truth_chassis_link_snapshot = None
+        self._gt_callback_meta = None
+        self._gt_last_arrival_t = None
+        self._pose_info_chassis_snapshot = None
+        self._pose_info_callback_meta = None
+        self._pose_info_last_arrival_t = None
         self._have_odom = False
         self._truth_base = False
         # Wheel odometry pose is not authoritative after Gazebo teleport, but
@@ -252,6 +262,9 @@ class DrinkTask(Node):
             self._gz.subscribe(GzPose_V,
                                '/world/follow_world/dynamic_pose/info',
                                self._gt_cb)
+            self._gz.subscribe(GzPose_V,
+                               '/world/follow_world/pose/info',
+                               self._gt_pose_info_cb)
 
         # ---- 输出: 39 路指令总线(唯一发布者)
         self.bus = CmdBus(self)
@@ -368,13 +381,68 @@ class DrinkTask(Node):
         self.base = (p.x, p.y, yaw_of(msg.pose.pose.orientation))
         self._have_odom = True
 
+    def _gt_pose_info_cb(self, msg):
+        """Read-only complete pose stream used to locate canonical chassis link."""
+        sample_t = time.monotonic()
+        previous_arrival = self._pose_info_last_arrival_t
+        callback_dt = (sample_t - previous_arrival
+                       if previous_arrival is not None else None)
+        self._pose_info_last_arrival_t = sample_t
+        sim_stamp = None
+        try:
+            stamp = msg.header.stamp
+            sim_stamp = (float(stamp.sec)
+                         + float(getattr(stamp, 'nsec', 0)) * 1e-9)
+        except Exception:
+            pass
+        found = None
+        names = []
+        for p in msg.pose:
+            name = p.name
+            if name == 'robot::chassis' or (
+                    name.startswith('robot::') and name.endswith('::chassis')):
+                rpy = quaternion_rpy(
+                    p.orientation.x, p.orientation.y,
+                    p.orientation.z, p.orientation.w)
+                if rpy is not None:
+                    found = ((float(p.position.x), float(p.position.y),
+                              float(rpy[2])), sample_t, name)
+            if name == 'robot' or name.startswith('robot::'):
+                names.append(name)
+        if found is not None:
+            self._pose_info_chassis_snapshot = found
+        self._pose_info_callback_meta = (
+            sample_t, callback_dt, sim_stamp, len(msg.pose),
+            tuple(names[:24]), found[2] if found else None)
+
     def _gt_cb(self, msg):
         # dynamic_pose/info is a stream of complete-ish snapshots. Build the
         # next map off-thread and publish it with one reference assignment.
         updated = dict(self.links)
         sample_t = time.monotonic()
+        previous_arrival = self._gt_last_arrival_t
+        callback_dt = (sample_t - previous_arrival
+                       if previous_arrival is not None else None)
+        self._gt_last_arrival_t = sample_t
+        sim_stamp = None
+        try:
+            stamp = msg.header.stamp
+            sim_stamp = (float(stamp.sec)
+                         + float(getattr(stamp, 'nsec', 0)) * 1e-9)
+        except Exception:
+            pass
+        self._gt_callback_meta = (sample_t, callback_dt, sim_stamp)
         for p in msg.pose:
             updated[p.name] = p
+            if (p.name == 'robot::chassis'
+                    or (p.name.startswith('robot::') and p.name.endswith('::chassis'))):
+                link_rpy = quaternion_rpy(
+                    p.orientation.x, p.orientation.y,
+                    p.orientation.z, p.orientation.w)
+                if link_rpy is not None:
+                    self.truth_chassis_link_snapshot = (
+                        (float(p.position.x), float(p.position.y),
+                         float(link_rpy[2])), sample_t, p.name)
             if p.name == 'robot':
                 rpy = quaternion_rpy(p.orientation.x, p.orientation.y,
                                     p.orientation.z, p.orientation.w)
@@ -447,6 +515,47 @@ class DrinkTask(Node):
                                 trace['wheel_max_abs_effort_nm'],
                                 max(abs(float(v)) for v in wheel_eff))
                         trace['end'] = list(pose)
+                        # Keep a bounded 5Hz synchronized trace, not just
+                        # high-water marks, so command/odom/wheel/truth timing
+                        # can be compared without changing control behavior.
+                        last_detail = trace.get('detail_last_t', 0.0)
+                        if sample_t - last_detail >= 0.20:
+                            now_mono = time.monotonic()
+                            wheel_detail = [
+                                self.js_velocity.get('left_wheel_joint'),
+                                self.js_velocity.get('right_wheel_joint')]
+                            drink_cmd = self._drink_cmd_snapshot
+                            robot_cmd = self._robot_cmd_snapshot
+                            odom_detail = self.odom_twist
+                            trace.setdefault('detail_samples', []).append({
+                                't_s': round(sample_t - trace['start_t'], 3),
+                                'base_dx_mm': round(dx * 1000.0, 2),
+                                'base_dy_mm': round(dy * 1000.0, 2),
+                                'base_dyaw_deg': round(math.degrees(dyaw), 3),
+                                'truth_twist': (
+                                    [round(float(v), 5) for v in self.truth_base_twist]
+                                    if self.truth_base_twist is not None else None),
+                                'wheel_vel': [
+                                    round(float(v), 4)
+                                    if v is not None and math.isfinite(float(v))
+                                    else None for v in wheel_detail],
+                                'drink_cmd': (
+                                    [round(float(v), 5) for v in drink_cmd[0]]
+                                    if drink_cmd else None),
+                                'drink_cmd_age_s': (
+                                    round(now_mono - drink_cmd[1], 3)
+                                    if drink_cmd else None),
+                                'robot_cmd': (
+                                    [round(float(v), 5) for v in robot_cmd[0]]
+                                    if robot_cmd else None),
+                                'robot_cmd_age_s': (
+                                    round(now_mono - robot_cmd[1], 3)
+                                    if robot_cmd else None),
+                                'odom_twist': (
+                                    [round(float(v), 5) for v in odom_detail]
+                                    if odom_detail is not None else None),
+                            })
+                            trace['detail_last_t'] = sample_t
         self.links = updated
         # P98 排查: 道具键会间歇性从 links 里"消失"(抓取时在、place_held
         # 时变 None → FAIL_PREPARE)。节流打印真值流的关键键存在性, 定位
@@ -944,6 +1053,9 @@ class DrinkTask(Node):
             _trace_origin = (_base_diag_pre.get('truth_pose')
                              if _base_diag_pre else None)
             self._follow_base_trace = ({
+                'start_t': time.monotonic(),
+                'detail_last_t': 0.0,
+                'detail_samples': [],
                 'origin': tuple(_trace_origin),
                 'origin_rpy': (_base_diag_pre.get('truth_rpy') if _base_diag_pre else None),
                 'end_rpy': None,
@@ -1657,7 +1769,176 @@ class DrinkTask(Node):
         hold_target = (self._follow_base_hold_target
                        or self._prepare_base_hold_target)
         if hold_target is not None:
-            snapshot = self.truth_base_pose_snapshot
+            if (self._follow_base_hold_target is not None
+                    and os.environ.get(
+                        'VLA_PRESENT_BASE_HOLD_ZERO_DURING_FOLLOW', '0') == '1'):
+                # A/B diagnostic: suppress active pose corrections only during
+                # PRESENT follow_hand. This isolates controller-induced chassis
+                # motion from passive arm-reaction drift; the independent cup
+                # target gate (6mm / 0.5deg) remains unchanged and fail-closed.
+                self.drive(0.0, 0.0)
+                snapshot = None
+                if not getattr(self, '_follow_base_hold_zero_logged', False):
+                    self.get_logger().info(
+                        'PRESENT_BASE_HOLD_MODE zero-during-follow: '
+                        'active chassis pose correction suppressed; '
+                        'cup handover gate remains strict')
+                    self._follow_base_hold_zero_logged = True
+            elif (self._prepare_base_hold_target is not None
+                    and os.environ.get(
+                        'VLA_PREPARE_BASE_HOLD_ZERO_DURING_POUR', '0') == '1'):
+                # Isolated experiment: suppress active pose corrections only
+                # while PREPARE kettle reach is running. Zero command keeps
+                # the chassis controller in its stop state; truth stillness
+                # gate remains authoritative and fail-closed.
+                self.drive(0.0, 0.0)
+                snapshot = self.truth_base_pose_snapshot
+                if snapshot is not None:
+                    trace_now = time.monotonic()
+                    if trace_now - self._last_prepare_hold_trace_t >= 0.2:
+                        tx, ty, tyaw = self._prepare_base_hold_target
+                        cx, cy, cyaw = snapshot[0]
+                        dx, dy = tx - cx, ty - cy
+                        yaw_err = math.atan2(
+                            math.sin(tyaw - cyaw), math.cos(tyaw - cyaw))
+                        twist = self.truth_base_twist or (0.0, 0.0, 0.0)
+                        robot_cmd = self._robot_cmd_snapshot
+                        drink_cmd = self._drink_cmd_snapshot
+                        odom = self.odom_twist
+                        rpy_snapshot = self.truth_base_rpy_snapshot
+                        robot_cmd_v = (robot_cmd[0] if robot_cmd else (None, None))
+                        drink_cmd_v = (drink_cmd[0] if drink_cmd else (None, None))
+                        robot_cmd_age = (time.monotonic() - robot_cmd[1]
+                                         if robot_cmd else float('inf'))
+                        drink_cmd_age = (time.monotonic() - drink_cmd[1]
+                                         if drink_cmd else float('inf'))
+                        odom_age = (time.monotonic() - self.odom_twist_t
+                                    if odom is not None and self.odom_twist_t
+                                    else float('inf'))
+                        rpy = (rpy_snapshot[0] if rpy_snapshot else (None, None, None))
+                        gt_meta = self._gt_callback_meta
+                        gt_cb_age = (time.monotonic() - gt_meta[0]
+                                     if gt_meta else float('inf'))
+                        gt_cb_dt = (gt_meta[1] if gt_meta and gt_meta[1] is not None
+                                    else None)
+                        gt_sim_stamp = gt_meta[2] if gt_meta else None
+                        chassis_link = self._pose_info_chassis_snapshot
+                        pose_meta = self._pose_info_callback_meta
+                        pose_age = (time.monotonic() - pose_meta[0]
+                                    if pose_meta else float('inf'))
+                        pose_dt = (pose_meta[1] if pose_meta and pose_meta[1] is not None
+                                   else None)
+                        pose_sim_stamp = pose_meta[2] if pose_meta else None
+                        pose_count = pose_meta[3] if pose_meta else None
+                        pose_names = pose_meta[4] if pose_meta else ()
+                        pose_chassis_name = pose_meta[5] if pose_meta else None
+                        link_delta_mm = link_delta_yaw_deg = None
+                        chassis_link_name = 'na'
+                        if (chassis_link is not None
+                                and snapshot[1] - chassis_link[1] <= 0.25):
+                            lx, ly, lyaw = chassis_link[0]
+                            link_delta_mm = math.hypot(cx - lx, cy - ly) * 1000.0
+                            link_delta_yaw_deg = math.degrees(math.atan2(
+                                math.sin(cyaw - lyaw), math.cos(cyaw - lyaw)))
+                            chassis_link_name = chassis_link[2]
+                        wheel_names = sorted(
+                            n for n in self.js_velocity if 'wheel' in n.lower())
+                        wheel_v = ','.join(
+                            '%s:%.3f' % (n, float(self.js_velocity[n]))
+                            for n in wheel_names
+                            if math.isfinite(float(self.js_velocity[n])))
+                        arm_names = sorted(
+                            n for n in self.js_velocity
+                            if n.startswith(('L_', 'R_')) and 'wheel' not in n.lower())
+                        arm_velocity_samples = [
+                            (n, float(self.js_velocity[n])) for n in arm_names
+                            if math.isfinite(float(self.js_velocity[n]))]
+                        arm_v_max = max(
+                            (abs(v) for _, v in arm_velocity_samples), default=0.0)
+                        arm_active = ','.join(
+                            '%s:%.3f' % (n, v) for n, v in sorted(
+                                ((n, v) for n, v in arm_velocity_samples
+                                 if abs(v) >= 0.05),
+                                key=lambda item: abs(item[1]), reverse=True)[:4])
+                        arm_joint_detail = []
+                        for n, v in sorted(arm_velocity_samples,
+                                           key=lambda item: abs(item[1]),
+                                           reverse=True)[:4]:
+                            measured = self.js.get(n)
+                            target = self.bus.get(n)
+                            if measured is not None and math.isfinite(float(measured)):
+                                error = float(target) - float(measured)
+                                arm_joint_detail.append(
+                                    '%s:cmd=%.3f,pos=%.3f,err=%.3f,vel=%.3f,sat=%d'
+                                    % (n, float(target), float(measured), error, v,
+                                       int(abs(v) >= 2.45)))
+                        arm_sat_count = sum(
+                            1 for _, v in arm_velocity_samples if abs(v) >= 2.45)
+                        wheel_eff_samples = [
+                            (n, float(self.js_effort[n])) for n in wheel_names
+                            if n in self.js_effort
+                            and math.isfinite(float(self.js_effort[n]))]
+                        arm_eff_samples = [
+                            (n, float(self.js_effort[n])) for n in arm_names
+                            if n in self.js_effort
+                            and math.isfinite(float(self.js_effort[n]))]
+                        wheel_eff = ','.join(
+                            '%s:%.3f' % (n, v) for n, v in wheel_eff_samples)
+                        arm_eff_max = (max((abs(v) for _, v in arm_eff_samples))
+                                       if arm_eff_samples else None)
+                        self.get_logger().info(
+                            'PREPARE_BASE_HOLD_TRACE mode=zero-during-pour '
+                            'rho_mm=%.1f dx_mm=%.1f dy_mm=%.1f '
+                            'yaw_err_deg=%.3f truth_v=(%.5f,%.5f,%.5f) '
+                            'gt_cb_age_s=%.3f gt_cb_dt_s=%s gt_sim_s=%s '
+                            'model_chassis_delta_mm=%s model_chassis_delta_yaw_deg=%s chassis_link=%s '
+                            'pose_info_age_s=%.3f pose_info_dt_s=%s pose_info_sim_s=%s pose_info_count=%s pose_info_chassis=%s pose_info_names=%s '
+                            'cmd_v=(0.00000,0.00000) '
+                            'drink_cmd=(%s,%s age=%.3f) '
+                            'robot_cmd=(%s,%s age=%.3f) '
+                            'odom_v=(%s,%s,%s age=%.3f) '
+                            'rpy_deg=(%s,%s,%s) wheel_vel={%s} '
+                            'wheel_effort_samples=%d wheel_effort={%s} '
+                            'arm_v_max=%.3f arm_sat_count=%d arm_effort_samples=%d arm_eff_max=%s '
+                            'arm_active={%s} arm_joint_detail={%s}'
+                            % (math.hypot(dx, dy) * 1000.0,
+                               dx * 1000.0, dy * 1000.0,
+                               math.degrees(yaw_err), *twist,
+                               gt_cb_age,
+                               'na' if gt_cb_dt is None else '%.4f' % gt_cb_dt,
+                               'na' if gt_sim_stamp is None else '%.6f' % gt_sim_stamp,
+                               'na' if link_delta_mm is None else '%.3f' % link_delta_mm,
+                               'na' if link_delta_yaw_deg is None else '%.3f' % link_delta_yaw_deg,
+                               chassis_link_name,
+                               pose_age,
+                               'na' if pose_dt is None else '%.4f' % pose_dt,
+                               'na' if pose_sim_stamp is None else '%.6f' % pose_sim_stamp,
+                               'na' if pose_count is None else str(pose_count),
+                               'na' if pose_chassis_name is None else pose_chassis_name,
+                               ','.join(pose_names) if pose_names else 'na',
+                               'na' if drink_cmd_v[0] is None else '%.5f' % drink_cmd_v[0],
+                               'na' if drink_cmd_v[1] is None else '%.5f' % drink_cmd_v[1],
+                               drink_cmd_age,
+                               'na' if robot_cmd_v[0] is None else '%.5f' % robot_cmd_v[0],
+                               'na' if robot_cmd_v[1] is None else '%.5f' % robot_cmd_v[1],
+                               robot_cmd_age,
+                               'na' if odom is None else '%.5f' % odom[0],
+                               'na' if odom is None else '%.5f' % odom[1],
+                               'na' if odom is None else '%.5f' % odom[2],
+                               odom_age,
+                               'na' if rpy[0] is None else '%.3f' % math.degrees(rpy[0]),
+                               'na' if rpy[1] is None else '%.3f' % math.degrees(rpy[1]),
+                               'na' if rpy[2] is None else '%.3f' % math.degrees(rpy[2]),
+                               wheel_v, len(wheel_eff_samples), wheel_eff,
+                               arm_v_max, arm_sat_count, len(arm_eff_samples),
+                               'na' if arm_eff_max is None else '%.3f' % arm_eff_max,
+                               arm_active, ';'.join(arm_joint_detail)))
+                        self._last_prepare_hold_trace_t = trace_now
+                # Keep the shared freshness branch in stop mode; do not fall
+                # through to pose correction after issuing the zero command.
+                snapshot = None
+            else:
+                snapshot = self.truth_base_pose_snapshot
             now_mono = time.monotonic()
             if snapshot is None or now_mono - snapshot[1] > 0.25:
                 self.drive(0.0, 0.0)
@@ -1677,6 +1958,28 @@ class DrinkTask(Node):
                         current_twist=self.truth_base_twist,
                         translate_during_yaw=_present_follow_hold)
                     self.drive(vx, wz)
+                    # P104 diagnostic only: correlate PREPARE hold command
+                    # with Gazebo truth motion once per wall-clock second.
+                    # This does not alter controller output or acceptance gates.
+                    if self._prepare_base_hold_target is not None:
+                        trace_now = time.monotonic()
+                        if trace_now - self._last_prepare_hold_trace_t >= 1.0:
+                            tx, ty, tyaw = self._prepare_base_hold_target
+                            cx, cy, cyaw = snapshot[0]
+                            dx, dy = tx - cx, ty - cy
+                            yaw_err = math.atan2(
+                                math.sin(tyaw - cyaw), math.cos(tyaw - cyaw))
+                            tvx, tvy, twz = self.truth_base_twist
+                            self.get_logger().info(
+                                'PREPARE_BASE_HOLD_TRACE '
+                                'rho_mm=%.1f dx_mm=%.1f dy_mm=%.1f '
+                                'yaw_err_deg=%.3f truth_v=(%.5f,%.5f,%.5f) '
+                                'cmd_v=(%.5f,%.5f)'
+                                % (math.hypot(dx, dy) * 1000.0,
+                                   dx * 1000.0, dy * 1000.0,
+                                   math.degrees(yaw_err), tvx, tvy, twz,
+                                   vx, wz))
+                            self._last_prepare_hold_trace_t = trace_now
         self.bus.publish_all()
         now = time.time()
         # P98: 道具自愈 —— 壶/杯是自由体, 速度只增不减, 漂出场外后喝水

@@ -859,6 +859,10 @@ def human_seed_joints(seed, base=None):
     return q
 
 
+class HumanIKNoValidSolution(RuntimeError):
+    """No IK candidate satisfies the hard human-joint posture rules."""
+
+
 def ik_human(side, T_tgt, seed=None, tol=2e-3, seeds=None):
     """在残差合格的解里挑**最像人**的那个(整个人形动作链的默认策略)。
 
@@ -896,23 +900,66 @@ def ik_human(side, T_tgt, seed=None, tol=2e-3, seeds=None):
     # 于是"没有更好的" —— 越陷越深。中立体形起解才能把整族等价解都摆出来。
     base_q = Q_REST.copy()
     cands = []
+    # Read-only failure diagnostics: distinguish geometric residual failure
+    # from candidates that reach the pose but violate a specific R1-R7 rule.
+    best_any = None
+    best_compliant = None
     # 两档残差闸: 先按 tol 找; 一个合规解都没有就放宽到 4mm 再找一遍。
     # 为什么要放宽 —— 收敛了但差几毫米的解**照样能执行**(伺服会把剩下的毫米
     # 吃掉), 而"宁可要一个越限的精确解"毫无道理: 实测张开手指后那次压实,
     # 按 2mm 闸一个合规解都没进来, 于是回退成种子原解, 左臂被挑到
     # `q=[−1.53,−1.30,+1.90,−2.42,…]`(up_roll 顶 R4、肘折 2.42 越 R7)。
-    for gate in (tol, max(tol, 4e-3)):
-        for v in (seeds or HUMAN_SEEDS):
-            s = human_seed_joints(v, base=base_q)
-            q, err, how = ik_best(side, T_tgt, s, refine=False)
-            if err > gate:
-                continue
-            q = np.clip(q, LIM_LO, LIM_HI)
-            cands.append((q, err, how))
-        if any(not violation_list(side, q) for q, _e, _h in cands):
+    # First use the dense nominal seed set. If it has no compliant solution,
+    # try the separately reviewed extended boundary seeds (P104-07). This is
+    # additional search coverage only: every candidate still passes the same
+    # residual gate and the same hard R1-R7 checks.
+    seed_sets = [seeds or HUMAN_SEEDS]
+    if seeds is None:
+        seed_sets.append(HUMAN_SEEDS_EXTENDED)
+    for seed_set in seed_sets:
+        for gate in (tol, max(tol, 4e-3)):
+            for v in seed_set:
+                s = human_seed_joints(v, base=base_q)
+                q, err, how = ik_best(side, T_tgt, s, refine=False)
+                if not math.isfinite(float(err)):
+                    continue
+                q = np.clip(q, LIM_LO, LIM_HI)
+                violations = violation_list(side, q)
+                metric = (float(err), tuple(float(x) for x in q),
+                          tuple(violations), str(how))
+                if best_any is None or metric[0] < best_any[0]:
+                    best_any = metric
+                if not violations and (best_compliant is None
+                                        or metric[0] < best_compliant[0]):
+                    best_compliant = metric
+                if err > gate:
+                    continue
+                # Hard posture rules are constraints, not a soft ranking penalty.
+                # Never keep an over-limit candidate merely because every sampled
+                # seed is bad; that was the fail-open path seen in E2E round 2.
+                if violation_list(side, q):
+                    continue
+                cands.append((q, err, how))
+            if cands:
+                break
+        if cands:
             break
     if not cands:
-        return ik_best(side, T_tgt, seed)
+        def _diag(candidate):
+            if candidate is None:
+                return 'none'
+            err_m, joints, violations, _source = candidate
+            return 'residual_mm=%.2f violations=%s q=%s' % (
+                err_m * 1000.0, list(violations),
+                [round(float(v), 3) for v in joints])
+        raise HumanIKNoValidSolution(
+            "no residual-valid IK candidate satisfies R1-R7 for %s "
+            "(nominal=%d extended=%d; best_any={%s}; "
+            "best_compliant={%s}; seed_q=%s)" %
+            (side, len(seed_sets[0]),
+             len(seed_sets[-1]) if len(seed_sets)>1 else 0,
+             _diag(best_any), _diag(best_compliant),
+             [round(float(v), 3) for v in q0]))
 
     def cost(c):
         q, e, _h = c
@@ -925,7 +972,8 @@ def ik_human(side, T_tgt, seed=None, tol=2e-3, seeds=None):
                 + 0.12 * float(np.max(np.abs(q - q0))))
     q, err, how = min(cands, key=cost)
     q_refined, e_refined = ik_refine(side, T_tgt, q)
-    if e_refined < err:
+    if (math.isfinite(float(e_refined)) and e_refined < err
+            and not violation_list(side, q_refined)):
         q, err, how = q_refined, e_refined, how + '/polish'
     return q, err, how + '/human'
 

@@ -220,6 +220,66 @@ class TestP104(unittest.TestCase):
         self.assertIsNone(M.person_hand_midpoint_from_confirmed_command(
             left, wrong_gap, q_open, -q_open, q_close))
 
+    def test_human_ik_fails_closed_when_all_candidates_violate_posture_rules(self):
+        # E2E round 2 exposed a KDL solution with |elbow|=2.317rad (>R7 2.25).
+        # If every residual-valid seed violates a hard rule, IK must not return
+        # the least-bad invalid pose as an executable target.
+        invalid = K.Q_REST.copy()
+        invalid[3] = -2.30
+        with patch.object(K, 'ik_best',
+                          return_value=(invalid, 1e-3, 'mock-invalid')):
+            with self.assertRaises(K.HumanIKNoValidSolution):
+                K.ik_human(
+                    'R', np.eye(4), seed=K.Q_REST.copy(),
+                    seeds=[(0.0, -0.55, 0.0, -1.0)])
+
+    def test_human_ik_uses_extended_seeds_without_relaxing_posture_rules(self):
+        invalid = K.Q_REST.copy()
+        invalid[3] = -2.30
+        valid = K.Q_REST.copy()
+        extended = [tuple(v) for v in K.HUMAN_SEEDS_EXTENDED]
+        calls = {'n': 0}
+
+        def fake_ik_best(side, target, seed, refine=False):
+            calls['n'] += 1
+            if calls['n'] == 1:  # current-pose hysteresis probe
+                return valid.copy(), 1.0, 'probe'
+            is_extended = any(
+                np.allclose(np.asarray(seed)[:4], np.asarray(v))
+                for v in extended)
+            if is_extended:
+                return valid.copy(), 1e-3, 'extended-valid'
+            return invalid.copy(), 1e-3, 'nominal-invalid'
+
+        with patch.object(K, 'ik_best', side_effect=fake_ik_best):
+            q, err, how = K.ik_human('R', np.eye(4), seed=valid)
+        self.assertIn('extended-valid', how)
+        self.assertLessEqual(err, 4e-3)
+        self.assertEqual(K.violation_list('R', q), [])
+
+    def test_human_ik_refinement_cannot_reintroduce_posture_violation(self):
+        # A valid selected branch must remain valid after numerical polishing.
+        source = open(os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
+            'arm_kin.py'), encoding='utf-8').read()
+        self.assertIn('and not violation_list(side, q_refined)', source)
+        self.assertIn('raise HumanIKNoValidSolution(', source)
+        self.assertIn('if violation_list(side, q):', source)
+
+    def test_reach_rechecks_human_posture_rules_on_every_ik_pass(self):
+        source = open(os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
+            'drink_motion.py'), encoding='utf-8').read()
+        self.assertIn(
+            "_mode = elbow if elbow == 'human' or it == 0 else None",
+            source)
+        self.assertIn("if _mode == 'human':", source)
+        self.assertIn("_posture_bad = K.violation_list(side, q)", source)
+        self.assertIn("return False, 9e9, 'human-posture-violation'", source)
+        # Human-constrained reaches must not fall back to unconstrained KDL
+        # after pass 0; ik_human's compliant hold branch preserves continuity.
+        self.assertNotIn("_mode = elbow if it == 0 else None", source)
+
     def test_reach_servo_failure_diagnostic_captures_both_joint_caches(self):
         source = open(os.path.join(ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow', 'drink_motion.py'), encoding='utf-8').read()
         self.assertIn('q_servo_final = np.asarray(node.arm[side]._read()', source)
@@ -2240,7 +2300,7 @@ class TestP104(unittest.TestCase):
         import types
 
         refreshed = types.SimpleNamespace(
-            js_sample_t=time.monotonic() - 60.0, calls=0)
+            js_sample_t=max(1e-6, time.monotonic() - 60.0), calls=0)
 
         def refresh(_duration):
             refreshed.calls += 1
@@ -2253,12 +2313,46 @@ class TestP104(unittest.TestCase):
         self.assertLessEqual(age, 0.5)
 
         stale = types.SimpleNamespace(
-            js_sample_t=time.monotonic() - 60.0,
+            js_sample_t=max(1e-6, time.monotonic() - 60.0),
             spin_for=lambda _duration: None)
         ok, age = M._wait_fresh_joint_state(
             stale, timeout=0.02, max_age=0.01)
         self.assertFalse(ok)
         self.assertGreater(age, 0.01)
+
+    def test_wait_base_still_requires_fresh_low_twist(self):
+        import time
+        import types
+        node = types.SimpleNamespace(
+            truth_base_twist=(0.001, -0.001, math.radians(0.1)),
+            truth_base_twist_t=time.monotonic(), spin_for=lambda _duration: None)
+        ok, evidence = M._wait_base_still(node, timeout=0.02, stable_for=0.0)
+        self.assertTrue(ok)
+        self.assertLessEqual(evidence['linear_mps'], 0.005)
+        self.assertLessEqual(evidence['angular_rps'], math.radians(0.5))
+        moving = types.SimpleNamespace(
+            truth_base_twist=(0.02, 0.0, math.radians(2.0)),
+            truth_base_twist_t=time.monotonic(), spin_for=lambda _duration: None)
+        ok, evidence = M._wait_base_still(moving, timeout=0.02, stable_for=0.0)
+        self.assertFalse(ok)
+        self.assertIsNotNone(evidence)
+        stale = types.SimpleNamespace(
+            truth_base_twist=(0.0, 0.0, 0.0),
+            truth_base_twist_t=time.monotonic() - 5.0,
+            spin_for=lambda _duration: None)
+        ok, evidence = M._wait_base_still(stale, timeout=0.02, stable_for=0.0)
+        self.assertFalse(ok)
+        self.assertIsNone(evidence)
+
+    def test_kettle_base_still_gate_is_opt_in_and_scoped_to_kettle_pour(self):
+        motion_path = os.path.join(ROOT, 'vla_ws', 'src', 'vla_follow',
+                                   'vla_follow', 'drink_motion.py')
+        with open(motion_path, encoding='utf-8') as stream:
+            source = stream.read()
+        self.assertIn('VLA_PREPARE_KETTLE_BASE_STILL', source)
+        self.assertIn('reach_require_base_still=(', source)
+        self.assertIn('require_base_still=False', source)
+        self.assertIn('if require_base_still:', source)
 
     def test_reach_checks_joint_state_freshness_before_reading_ik_seed(self):
         motion_path = os.path.join(
@@ -2696,7 +2790,8 @@ class TestP104(unittest.TestCase):
         end = motion.index('# ---------------------------------------------------------------- 双手捧', start)
         body = motion[start:end]
         first = body.index('ok_back, res_back, how_back = reach(')
-        gate = body.index("if not ok_back and how_back == 'table-collision':")
+        gate = body.index("if not ok_back and how_back in ('table-collision',")
+        self.assertIn("'human-ik-no-valid-solution')", body[gate:])
         lift = body.index('T_stage[2, 3] += 0.12', gate)
         stage_reach = body.index(
             'node, side, T_stage, tol_mm=8.0, check_table=True', lift)
@@ -3353,3 +3448,59 @@ if __name__ == '__main__':
         self.assertIn("self._set_state('FAIL_HANDOVER_GEOMETRY')", body)
         self.assertIn('保持机器人持杯，不交权', body)
 
+
+
+class TestPrepareBaseHoldNeutralization(unittest.TestCase):
+    def test_zero_during_pour_is_opt_in_and_uses_prepare_hold_window(self):
+        motion_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
+            'drink_motion.py')
+        with open(motion_path, encoding='utf-8') as stream:
+            source = stream.read()
+        start = source.index('def reach(')
+        end = source.index('def sim_now(', start)
+        wrapper = source[start:end]
+        self.assertIn("VLA_PREPARE_BASE_HOLD_ZERO_DURING_POUR', '0') == '1'", wrapper)
+        self.assertIn("getattr(node, '_prepare_base_hold_target', None) is not None", wrapper)
+        self.assertIn('zero-during-pour', wrapper)
+        self.assertNotIn('_prepare_base_reach_active', wrapper)
+
+    def test_tick_zeros_chassis_for_entire_prepare_pour_hold_window(self):
+        task_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
+            'drink_task.py')
+        with open(task_path, encoding='utf-8') as stream:
+            source = stream.read()
+        self.assertIn('PREPARE_BASE_HOLD_MODE zero-during-pour', source)
+        self.assertIn("self.drive(0.0, 0.0)", source)
+        self.assertIn("VLA_PREPARE_BASE_HOLD_ZERO_DURING_POUR", source)
+        self.assertNotIn('_prepare_base_reach_active', source)
+
+
+class TestPresentBaseHoldAblation(unittest.TestCase):
+    def test_zero_command_ablation_is_opt_in_and_scoped_to_present_follow(self):
+        task_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
+            'drink_task.py')
+        workflow_path = os.path.join(
+            ROOT, '.github', 'workflows', 'p104-drinktask-headless.yml')
+        with open(task_path, encoding='utf-8') as stream:
+            task_source = stream.read()
+        with open(workflow_path, encoding='utf-8') as stream:
+            workflow_source = stream.read()
+        self.assertIn(
+            "VLA_PRESENT_BASE_HOLD_ZERO_DURING_FOLLOW', '0') == '1'",
+            task_source)
+        self.assertIn("self._follow_base_hold_target is not None", task_source)
+        self.assertIn("self.drive(0.0, 0.0)", task_source)
+        self.assertIn("snapshot = None", task_source)
+        self.assertIn("PRESENT_BASE_HOLD_MODE zero-during-follow", task_source)
+        self.assertIn(
+            "VLA_PRESENT_BASE_HOLD_ZERO_DURING_FOLLOW: ${{ github.event_name == 'pull_request' && '1'",
+            workflow_source)
+        # The independent handover target gate remains hard and fail-closed.
+        self.assertIn("_post_follow_pos_mm > 6.0", task_source)
+        self.assertIn("_post_follow_axis_deg > 0.5", task_source)
+        guard = task_source.index("self._set_state('FAIL_PRESENT_FOLLOW_DRIFT')")
+        close = task_source.index("ok_person_grip = M.person_hands")
+        self.assertLess(guard, close)

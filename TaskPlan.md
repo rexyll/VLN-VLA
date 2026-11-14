@@ -6,7 +6,7 @@
 
 ## Guide（允许执行）
 
-- 在 `main` 分支直接推进实现、测试、CI、仿真证据和文档；每次提交前读取最新 main head，避免覆盖并发更新。
+- 当前用户授权范围：仅在 `experiment/prepare-base-stillness-ab` 隔离分支修改实现、测试、CI、仿真证据和文档；不得直接修改或合并 `main`。每次提交前核对实验分支 HEAD 与 PR base/head。
 - 可以修复代码、测试、工作流和 TaskPlan；可增加诊断日志、快照和回归测试。
 - 对失败记录必须追溯日志、JSON、截图和代码路径，区分环境失败、测试观察器失败与产品功能失败。
 - 每次更新记录提交 SHA、CI 结果、E2E 阶段和验收指标；不确定的结论标注为待验证。
@@ -21,12 +21,13 @@
 
 ## 当前进度
 
-- 当前分支：`main`
-- 当前任务节点：**P104-07：DrinkTask 完整闭环与交权后视觉跟随**
+- 当前工作分支：`experiment/prepare-base-stillness-ab`
+- PR：[#2](https://github.com/rexyll/VLN-VLA/pull/2)，draft/open，base `main`，未合并
+- 当前任务节点：**P104-07：验证 human IK 持续约束修复，并隔离 PRESENT follow_hand 底盘主动保持引起的杯位漂移**
 - 状态：**正在进行中**
 - 完整真实 Gazebo DrinkTask E2E 成功轮数：**1（E2E #60，单轮通过；连续多轮稳定性仍未验收）**
 - 已稳定通过的部分：ROS 2 工作区构建、Python 单元回归、CarryBus 回归；E2E #60 首次完整通过任务、观察器进程、8 张截图归档及交权后视觉跟随指标。
-- 当前阻塞：最新 Gazebo E2E run `43447334486`（commit `06c0bbe`）在 `PREPARE → FAIL_PREPARE` 停止。artifact `14049327143` 显示倒水位形 reach 5/5 后掌心残差 10.6mm、物体残差 11.1mm，超过原 4mm IK 门槛。时间序列显示底盘 yaw 从 -0.010rad 超调至 +0.126rad，随后控制器反向制动；这是底盘角速度惯性导致的 pose-only P 控制超调，不是角度误差符号错误。已在 arm-reaction 保持窗口引入 Gazebo 真值 yaw-rate 阻尼、0.04rad/s 角速度上限，并在 twist 真值过期时 fail-safe 输出零；待 CI 与 Gazebo E2E 验证。不得放宽 IK、掌心、人体姿态、碰撞或 release 门槛。
+- 当前阻塞：E2E run `43611293910`（commit `ded695624c593c48a0535323150d5beefee13e3e`）在 `PREPARE → FAIL_PREPARE` 停止。artifact `14120835977` 的日志显示水壶 release ACK 已确认，随后右臂撤离的第二轮 reach 因切换到普通 KDL IK 得到违反 R7（肘过折）的候选而拒绝；这不是已证实的几何无解。已在提交 `66c0b76` 修复：只要动作策略为 `human`，每一轮 reach 都继续调用人体约束 IK，由 `ik_human` 合规保持分支维持连续性；并在 `f7e3cf4` 更新 P104 回归断言。代码编译已通过；`66c0b76` 对应 Python 测试因旧断言未同步而失败，修正后的 `f7e3cf4` 测试尚待新 CI 验证，Gazebo 修复后 E2E 尚未完成。
 
 ## 任务章节
 
@@ -819,3 +820,195 @@
 - 新增离线回归测试：验证旧样本可在等待后刷新、无新样本时超时失败，以及 freshness 检查必须先于 `q_meas`/IK 种子读取。该修复待 Python/CarryBus/Gazebo 再验证；下一轮重点看第二轮 joint-state 年龄是否持续 ≤0.5s、是否触发明确的 stale fail-closed，及第一轮/第二轮重复执行稳定性。
 - 完整双轮 E2E 历史成功次数仍为 **1**；P104-07 继续进行中。
 
+
+
+### 8.365 PREPARE 水壶末端精调前底盘静止门控 A/B 实验（2026-11-14）
+
+- 当前基线：main 1acfa3785283c227ee9f3e351140b3d601f7d85f 的 Python syntax 与 CarryBus CI 通过，Gazebo E2E #115 在 PREPARE 水壶倒水位姿失败；掌心残差约 4.2mm、物体残差约 4.5mm，严格 4mm IK 门槛未通过。关节状态年龄约 8–45ms，说明本轮 stale joint-state 已不是直接阻塞。
+- 新建隔离分支 experiment/prepare-base-stillness-ab，不直接修改 main。增加可选 _wait_base_still()：仅接受新鲜 Gazebo twist（≤0.25s），要求线速度 ≤0.005m/s、角速度 ≤0.5°/s 连续稳定 0.20s；最多等待 3s，真值缺失/过期或未稳定时 fail-closed。该门控按每个 reach pass 检查，且只通过 VLA_PREPARE_KETTLE_BASE_STILL=1 对 PREPARE 水壶倒水 reach 生效；默认 0，原流程保持不变。
+- Workflow dispatch 增加 prepare_kettle_base_still=0/1 实验开关，默认 0。A 组用 0（当前基线）；B 组用 1（底盘静止门控）。其余参数、场景 seed、动作流程和所有精度/安全阈值保持一致。
+- 新增纯测试覆盖：新鲜低速真值允许通过、超速拒绝、过期真值拒绝，以及门控默认关闭且只挂接水壶倒水精调路径。
+- 验收：先通过 Python syntax、P104 纯测试与 CarryBus；再分别运行 A/B Gazebo 双轮 E2E，比较 reach 每轮 BASE_STILL、base twist、掌心残差、物体残差和耗时。若 B 组等待超时，则保持抓持并 fail-closed，不得通过放宽阈值绕过。该实验尚未证明静止门控能改善精度，不合并 main，完整双轮成功次数仍为 1；P104-07 继续进行中。
+
+
+### 8.366 静止门控 A/B 首轮 CI 结果与测试夹具稳健性修正（2026-11-14）
+
+- PR #2 首轮 Python 编译通过，但纯测试 1 项失败：旧测试 test_reach_waits_for_fresh_joint_state_before_ik 用 monotonic()-60 构造过期样本；GitHub runner 单调时钟运行时长不足 60 秒时得到负时间戳，生产代码按设计将其视为无效样本并返回 age=None，导致测试断言自身不成立。该失败与静止门控实现无关。
+- 修正测试夹具：将构造的旧时间戳下限钳制为 1e-6，保证它始终是有效正时间戳且远早于当前采样时间；不改变生产逻辑。
+- PR 的 pull_request Gazebo E2E 专门以 VLA_PREPARE_KETTLE_BASE_STILL=1 执行 B 组；workflow_dispatch 仍可显式选择 0/1，main push 默认保持 0。A 组参考基线为 main 的 #115 原始控制路径；比较时必须同时注明提交差异与运行数据，不能将历史 run 当成严格同提交随机化实验。
+- 修正后重新等待 Python、CarryBus 和 Gazebo CI。当前没有任何阈值或安全门控被放宽，PR 保持 draft，不合并 main。
+
+
+### 8.367 PREPARE 底盘静止门控失败归因与保持控制命令遥测（2026-11-14）
+
+- PR #2 的 B 组 Gazebo run 43584995057（commit baa2b11edee2951028331b79949433483535ff61，artifact 14110790795）Python #1000 与 CarryBus #740 均通过；Gazebo E2E 失败。首轮停在 PREPARE → FAIL_PREPARE，第二轮未生成；requested=2、completed=1、passed=0、failed=2、all_passed=false。水壶仍保持抓持，水柱未启动，截图仅 2 张。
+- drink.log 证据：倒水前底盘先停止；右臂抓壶后，静止门控连续两次通过（真值线速度约 0.2/0.1mm/s，角速度约 0.44/0.31°/s），随后在 3s 窗口内出现 7.545mm/s 平移，门控超时并安全中止。此时掌心残差 24.8mm、物体残差 24.2mm/1.43°；该数值是中止瞬间状态，不能作为静止门控改善/恶化 IK 精度的独立结论。
+- 代码审查确认 PREPARE 期间 _prepare_base_hold_target 仍由 20Hz _tick() 持续执行 base_pose_hold_velocity()，而 _wait_base_still() 在机械臂 reach 内部等待。当前日志没有同步记录保持控制器输出 cmd_v、底盘相对保持目标的位移/偏航误差，因而尚不能判断 7.545mm/s 是保持控制器主动纠偏、机械臂反作用、还是二者耦合。
+- 本次只增加 PREPARE 保持控制遥测：每秒记录目标相对位移/偏航误差、Gazebo truth vx/vy/wz 与实际下发 cmd vx/wz；不改变控制器输出、速度上限、等待时长、4mm IK、碰撞、关节限位、抓持或释放门槛。PR CI 继续启用静止门控以采集可归因日志。
+- 下一步依据 PREPARE_BASE_HOLD_TRACE 的命令/真值时序做判断：若命令与速度同向且持续，检查保持控制律/控制权；若命令为零或反向仍出现速度峰值，重点查轮地动力学与机械臂反作用。只允许针对证据设计下一项隔离实验，不直接关闭保持或放宽门槛。
+- 完整双轮 Gazebo E2E 历史成功次数仍为 1；P104-07 继续进行中。
+
+
+### 8.368 PREPARE 保持控制器主动纠偏与机械臂 reach 耦合隔离实验（2026-11-14）
+
+- Run `43586076293`（commit `8dd0f4762600b9795ce0338c97434ebb9e3ed11b`，artifact `14110068129`）Python #1001 与 CarryBus #741 均通过；Gazebo E2E 失败，首轮 PREPARE 中止、第二轮未启动。`PREPARE_BASE_HOLD_TRACE` 显示保持目标 XY 偏移由 0 增至 17.8mm，之后短暂回落至 4.3mm，又扩大至 35.1mm；偏航误差峰值 6.175°，控制器角速度命令触及 +0.04rad/s 上限。部分采样中 cmd_vx=0，但 Gazebo truth vx 达 +0.0363m/s，说明底盘平移并非来自控制器纵向命令；偏航纠偏、轮地/底盘耦合及机械臂反作用仍需区分。
+- B 组仍在严格静止门控下 fail-closed：reach 期间底盘未能持续满足 ≤5mm/s、≤0.5°/s；最终掌心/水壶残差分别约 25.3mm/41.3mm/46.0mm，水壶姿态差 4.00°；保持抓持，水柱未启动。该终止残差不是精度改善/恶化的公平对照值。
+- 新增 B2 隔离模式 `VLA_PREPARE_BASE_HOLD_ZERO_DURING_REACH=1`：仅当 PREPARE 水壶路径启用 `require_base_still` 且 `_prepare_base_hold_target` 存在时，在 reach 执行期间暂时下发零底盘速度命令，避免主动 pose-hold 偏航纠偏与机械臂 reach 同时闭环；reach 前仍等待同一新鲜真值静止门槛，reach 后自动恢复原保持控制。默认关闭，非 PREPARE reach、PRESENT 和其他任务路径不受影响。
+- B2 不更改 4mm IK、5mm grasp、6mm/0.5°交接、碰撞、关节限位、人体姿态、抓持/释放条件；如果零命令期间真值仍不静止，照样超时 fail-closed，不启动水柱。PR CI 以静止门控+B2 模式运行，比较底盘位移/偏航、reach 前后误差与等待耗时；只有证据支持后再考虑控制器结构调整。
+- 完整双轮 Gazebo E2E 历史成功次数仍为 1；P104-07 继续进行中。
+
+
+### 8.369 B2 E2E 失败定位与修复：缺失 os 导入（2026-11-14）
+
+- B2 E2E run `43587601235`（commit `f18fe75210b42a7b5586fcc8e6a0649546380a7b`）中，Python 与 CarryBus 均通过，Gazebo E2E 在 PREPARE 中止。
+- `drink.log` traceback 定位为 `drink_task.py::_tick()` 使用 `os.environ.get()` 时触发 `NameError: name 'os' is not defined`。这是 B2 实验开关实现缺陷，不能作为底盘静止实验结论。
+- 同次运行中杯子补位掌心残差 1.6mm（辅助 reach 门槛 1.5mm 未达到），物体残差 1.9mm/0.20°；系统保持抓持，没有进入倒水/交接阶段。该次 E2E 不通过，连续双轮成功数仍为 1。
+- 本次仅补充标准库 `import os`，不改变控制器、速度、IK、碰撞、抓持或释放阈值。修复后重跑 B2 原配置，再判断底盘零指令期间的真实位姿变化。
+
+
+### 8.370 B2 零底盘指令仍发生显著位姿漂移；增加命令源/里程计/姿态遥测（2026-11-14）
+
+- 修复 `os` 导入后的 B2 E2E run `43588751718`：Python #43588751687、CarryBus #43588751693 通过；Gazebo E2E 失败，artifact `14112002708`。
+- 第一次 PREPARE kettle reach 的零速度模式中，底盘真值相对 hold target 的平移偏差由约 10.1mm 增至 69.1mm，yaw 误差峰值约 7.303°；日志明确显示该模式发出的 `cmd_v=(0,0)`。之后倒水目标残差 4.4mm，严格要求 <4.0mm，安全保持抓持并禁止水柱。
+- 单凭现有日志还不能断定漂移由机械臂反作用力引起；必须排除 `/drink/cmd_vel` 与 mux 输出 `/robot/cmd_vel` 的竞争、轮式里程计与模型真值差异，以及 chassis roll/pitch。
+- 本次只扩展诊断日志：在零速模式同时记录 drink_cmd、robot_cmd、odom twist、新鲜度、Gazebo roll/pitch 与可用 wheel joint velocity；不改任何控制输出、运动阈值或验收门槛。
+- 下一步依据这些同步观测决定是否进入 chassis 反作用力/轮地动力学隔离实验。完整双轮成功数保持 1，PR #2 仍为草稿，main 不变。
+
+
+### 8.371 B2 实验作用域缺陷定位；改为整个 PREPARE 倒水保持窗口零指令（2026-11-14）
+
+- B2 E2E run \`43589983740\` 失败：仅到 PREPARE/PRESENT，follow_hand 后杯位偏差 19.0mm/0.75°，系统 fail-closed，不交权；双轮验收 0/2，截图 3/7。
+- 诊断日志显示，B2 只在每次 reach(require_base_still=True) 的调用栈内置零；reach() 返回到 place_held()/pour_into_cup() 的迭代/settle 间隙，_prepare_base_reach_active 被清除，20Hz tick 又执行原底盘保持控制并输出角速度最高 0.04rad/s。由此可见，先前把底盘位移全部归因于机械臂反作用力是不成立的。
+- 明确证据：零模式窗口间隙记录到 cmd_v=(0,0.04)；同步采样也记录到 drink_cmd=(0,0.02357)、robot_cmd=(0,0.02357) 和左右轮反向速度约 ±0.059rad/s。该时段仍有主动底盘命令，B2 不是纯零指令实验。
+- 新实验 B3 将零指令范围扩大到 _prepare_base_hold_target 整个有效窗口（覆盖全部 reach、迭代和 settle 间隙），使用独立开关 VLA_PREPARE_BASE_HOLD_ZERO_DURING_POUR，默认关闭；仅在 PR CI / 显式 workflow_dispatch 开启。未修改 IK、速度阈值、碰撞、抓持或交权门槛。
+- B3 目的：先消除控制器间隙重接管，再用真值位姿/命令源/轮速数据判断零指令下的剩余底盘运动。双轮完整成功数保持 1；main 不变；PR #2 仍草稿。
+
+
+- B3 首轮 Python CI 发现包装函数重构留下空 finally，触发 IndentationError（run 43591645765）。该语法缺陷已定位，改为无状态直通 wrapper，零指令范围只由 _tick() 在 PREPARE hold target 生命周期内统一控制；重新运行 CI 验证。
+
+
+### 8.372 B3 E2E 结果：零指令仍出现底盘漂移；补充机械臂关节动态遥测（2026-11-14）
+
+- B3 E2E run \`43591943839\`：Python #43591943811、CarryBus #43591943827 通过；Gazebo E2E 失败。artifact \`14113176998\`，round1 only，round2 缺失，passed_rounds=0/2，screenshots=3/7，archive_ok=false。
+- PREPARE 零指令模式中，drink_cmd 与 robot_cmd 均为 (0,0)，轮关节速度约为 0；底盘相对 hold target 位移增至约 58.9mm，yaw 偏差约 4.205°。瞬时 Gazebo truth twist 有尖峰，但里程计/轮速没有对应运动，说明不能把 odom 当真值；现有证据支持“机械臂运动/物理约束导致的底盘模型位姿变化”假设，但尚不足以区分机械臂反作用、接触力、轮地约束/模型动力学。
+- SDF 中底盘质量 13kg、两驱动轮各 1.2kg、轮地摩擦系数 1.2、两个 caster 摩擦系数 0.05、驱动轮 joint effort 上限 5Nm；这些配置可能影响反作用运动。当前不改物理参数。
+- PRESENT follow 是另一个独立失败：在 FOLLOW_BASE_HOLD 主动控制期间，cmd 达到 angular 0.04rad/s，底盘位姿变化峰值约 23.75mm/7.46°，杯子交接目标残差 62.916mm/6.447°；fail-closed 拒绝交权。不要将 PRESENT 主动保持漂移和 PREPARE 零指令漂移混为一谈。
+- 下一轮只补充 PREPARE 同步遥测：机械臂关节速度/力矩峰值与逐关节速度、驱动轮 effort，并修正 trace mode 标签。用时间相关性进一步区分机械臂反作用与底盘接触/动力学；不改控制输出和任何验收门槛。
+- 完整双轮成功数仍为 1，PR #2 草稿未合并，main 不变。
+
+
+### 8.373 B3 机械臂动态遥测复核与 PRESENT 跟随漂移分离（2026-11-14）
+
+- Run `43593553628`（commit `5bccc3ba4318d489f9ced9b6b9258d125df9fc51`，artifact `14114080591`）Python #43593553634、CarryBus #43593553646 均通过；Gazebo 双轮 E2E 失败。round1 仅执行到 `PREPARE → PRESENT → FAIL_PRESENT_FOLLOW_DRIFT`，round2 未启动；JSON 为 requested=2、completed=1、passed=0、failed=2、all_passed=false，关键截图 3/7。
+- PREPARE 零指令模式下，底盘相对 hold target 偏移从 0 增至 65.3mm，yaw 误差达到 5.171°；`drink_cmd`/`robot_cmd` 均为零，驱动轮速度多数采样接近零。关节遥测出现 2.5/4.0 的速度峰值，但采样频率仅约 1Hz，且关节 effort 始终为 0；无法据此确认关节力矩或建立机械臂运动与底盘位移的因果关系。部分时刻 Gazebo truth twist 有明显尖峰而轮速/odom 不一致，需继续确认动态 pose 差分、轮地动力学及模型根位姿变化来源。
+- PREPARE 结束后，`PRESENT_EXEC_RESULT` 通过（报告末端位置误差 0.593mm、姿态误差 0.03°）；但 follow_hand 后杯漂移 19.368mm，超过严格 6mm/0.5°交接门槛，进入 `FAIL_PRESENT_FOLLOW_DRIFT`。该轮在 PRESENT follow post 的底盘峰值 XY 位移 11.13mm、yaw 2.112°、速度 0.0477m/s；末端右掌跟随误差仍为 1.878mm。该阶段属于独立的主动保持控制问题，不与 PREPARE 零指令漂移合并归因。
+- 本轮没有启动 HANDOVER，不发生人手闭合、所有权转移或后续放杯；安全门控按预期拒绝不合格状态。杯子 home 偏移 603.6mm 是任务中止后的观测，不作为已完成安全放置的证据。
+- 下一步诊断拆分为两条：①PREPARE 采用更高频、紧凑的同步采样，记录 base truth pose/twist、轮速、当前关节速度峰值及活跃关节、命令源/时间戳；明确 joint effort 是否由 Gazebo joint-state 通道提供，若未提供则标记 unavailable，不把 0 当成真实零力矩。②PRESENT follow 单独检查 hold target、底盘速度反馈、命令与真值时序及杯体漂移；每次只改一个控制参数或结构，不以 PREPARE 实验结果推断 PRESENT。
+- 不修改任何控制输出、物理参数、4mm IK、5mm grasp、6mm/0.5°递杯、碰撞、关节限位、抓持/释放条件。完整双轮 Gazebo E2E 历史成功次数仍为 **1**；PR #2 保持 draft/open，main `1acfa3785283c227ee9f3e351140b3d601f7d85f` 未修改。
+
+
+### 8.374 将 PREPARE 机械臂/底盘相关性诊断提升至 5Hz（2026-11-14）
+
+- 基于 #43593553628 的证据，原 1Hz trace 可能漏掉短时关节速度、Gazebo 真值 twist 与底盘偏移之间的先后关系；同时 `JointState.effort` 的空数组被 max(default=0) 误显示成“零力矩”，存在把“未提供”误读为“真实为零”的风险。
+- 仅调整实验分支诊断输出：PREPARE zero-during-pour trace 从 1Hz 提高到 5Hz；逐关节速度改为最多输出 4 个绝对速度最大的活跃关节（阈值 0.05rad/s）；增加 wheel/arm effort 样本数，若无有效样本则输出 `arm_eff_max=na`，不再把缺失数据显示为 0。保留 base truth pose/twist、命令源、odom、wheel velocity 与姿态数据。
+- 本次不改变 `_tick()` 控制输出、零指令作用域、静止门控、Gazebo 物理参数或任何运动/验收阈值；5Hz 仅增加日志分辨率。
+- 提交 `6ee486d84a3363d1f53840f6689e568bc6b180ca` 的 Python syntax run `43595286034` 已通过；CarryBus run `43595286041` 与 Gazebo E2E run `43595286039` 正在执行，结果待复核。后续必须用高频 trace 判断 arm motion 与 truth base displacement 的时序关系，不能仅凭相关性断言因果。
+- PR #2 继续 draft/open，所有实验仅在 `experiment/prepare-base-stillness-ab`；main 未修改，完整双轮成功数仍为 **1**。
+
+
+### 8.375 5Hz PREPARE 结果与 PRESENT follow 同步采样实验（2026-11-14）
+
+- 最新 5Hz PREPARE trace 来自 E2E run `43595352547`、artifact `14115180961`；Python syntax #43595352573、CarryBus #43595352592 通过，Gazebo E2E 失败。任务阶段为 `PREPARE → PRESENT → FAIL_PRESENT_FOLLOW_DRIFT`，杯漂移 33.724mm，双轮请求2/完成1/通过0，第二轮未启动。
+- PREPARE hold 期间底盘 target 偏移最高约50.6mm；关节速度样本频繁出现精确±2.500，且关节 effort 36 个样本全为0。此信号可能是速度接口限幅/状态源语义或仿真状态问题；在核对 `/drink/joint_state` 的发布者、接口类型、更新时间和 velocity 语义前，不将其解释为实际机械臂速度，也不推断机械臂反作用力。wheel effort 两个样本为0同样只表示当前状态接口读数，不足以单独解释底盘位移。
+- PRESENT 执行本身通过（1.330mm、0.116°）；follow_hand 阶段杯漂移33.724mm，底盘 peak XY18.31mm、yaw3.299°、peak speed0.0320m/s、peak yaw rate12.65°/s。末端跟随误差2.912mm，但 active hold 命令角速度峰值0.04rad/s；因此严格漂移保护正确阻止后续交接。
+- 为解决当前 peak-only trace 缺少时序的问题，实验分支新增 `_follow_base_trace.detail_samples`：Gazebo pose callback 以约5Hz记录相对 hold target 的 base dx/dy/yaw、truth twist、wheel velocities、drink/robot command 及其 age、odom twist；保留已有 peak metrics。该采样只读、不改变控制输出与门槛，样本随本次 follow trace 生命周期销毁，预计约20-40行/轮。
+- 新提交 `ef25ec76395f256d4dc41b37ec5b8d032a07a6fd`；待 CI 验证。下一步用 detail_samples 判断是命令先行还是 chassis truth/轮速先行，以及 odom 与 Gazebo 真值是否一致；同时另行核查 joint_state velocity/effort 的发布源。禁止根据单轮相关性调整速度限值、物理参数或放宽任何安全阈值。
+- main 仍保持 `1acfa3785283c227ee9f3e351140b3d601f7d85f`，PR #2 draft/open，双轮完整成功数仍为 **1**。
+
+
+### 8.376 JointState 发布源核验与 PREPARE/PRESENT 同步时序结论（2026-11-14）
+
+- 最新提交 `4b6313eef492b950f9e8f1b3b58c46203492af6f` 的 CI：Python run `43596915470` 成功、CarryBus run `43596915474` 成功、Gazebo E2E run `43596915440` 失败；artifact `14114819493`。E2E 只执行到 `PREPARE → PRESENT → FAIL_PRESENT_FOLLOW_DRIFT`，requested=2、completed=1、passed=0、failed=2，第二轮缺失，截图3/7，不能计为双轮成功。
+- 核查源码确认 `/drink/joint_state` 由 `work_area.sdf` 中的 `gz-sim-joint-state-publisher-system` 发布（SDF 2373-2375），`drink_task._js_cb` 直接读取 `sensor_msgs/JointState.velocity`。因此此前 trace 中的 ±2.5 是 Gazebo JointStatePublisher 报告的关节速度状态值（单位 rad/s），不是单纯把命令参数误读成状态值；但它与关节位置控制器的 `cmd_max=2.5` 数值相同，说明存在速度限幅/饱和的可能。仍需通过对应关节的目标误差、指令值和状态变化进一步验证，不能仅凭数值相同断言关节正在持续饱和或其反作用导致底盘位移。
+- 本次 PREPARE 5Hz 日志中，底盘命令 `drink_cmd/robot_cmd=(0,0)`、驱动轮速度多数接近0时，底盘目标相对偏移从0逐步增长至约70.1mm，yaw误差约12.55°。部分样本出现 truth twist 尖峰，wheel/odom 未同步反映同等运动；这说明单靠轮式里程计不能解释 Gazebo 真值位姿变化，仍需检查动态 pose 回调的实体/坐标定义、模型根位姿、接触约束和机械臂关节动态。JointState effort 样本虽然存在且读数为0，但在确认 Gazebo 该发布器对 effort 字段的物理语义前，不把0作为“真实零力矩”的证据。
+- 同一 run 的 PRESENT 执行本身通过（末端误差0.222mm、姿态0.024°）；follow 结束杯漂移9.174mm，底盘 trace 最大XY 2.784mm、最大偏航0.919°。detail_samples 显示 follow 期间先有非零底盘命令，随后出现轮速/真值响应；该 run 的 PRESENT 偏移显著小于前几轮，但仍超过严格 6mm/0.5°交接门槛，故安全拒绝 HANDOVER。不能把该次改善归因于某一未隔离控制变量。
+- 下一步转为只读源头核验：①检查 Gazebo dynamic_pose/info 中 chassis pose 与 twist 的生成/坐标帧，验证差分是否由实体重置、模型姿态或仿真时间跳变引起；②按 PREPARE 关键关节同步记录目标位置、实测位置、速度、命令与样本时间，验证±2.5出现时的关节误差和持续时间；③单独保留 PRESENT follow 命令—轮速—真值序列。证据充分前不修改物理参数、关节控制器增益/限速、底盘保持控制或任何安全阈值。
+- main 仍为 `1acfa3785283c227ee9f3e351140b3d601f7d85f`，PR #2 保持 draft/open，实验仅在 `experiment/prepare-base-stillness-ab`；完整双轮成功次数仍为 **1**。
+
+
+### 8.377 PREPARE 关节目标—实测误差—速度限幅同步诊断（2026-11-14）
+
+- 源码复核：左右臂 14 个关节均使用 Gazebo `JointPositionController` 的 `use_velocity_commands=true` 模式，SDF 为每个关节设置 `cmd_min=-2.5`、`cmd_max=2.5`；`/drink/joint_state` 由 Gazebo `JointStatePublisher` 以 50Hz 发布，bridge 将 `gz.msgs.Model` 转成 `sensor_msgs/JointState`。因此 trace 中精确 ±2.5 rad/s 是状态消息中的关节速度读数，并与控制器速度命令限幅相同，具有“可能触及限幅”的诊断意义；但单看速度值无法判断持续饱和、目标误差大小或对底盘的因果作用。
+- 新增只读 PREPARE 诊断：在既有 5Hz hold trace 中，对速度绝对值最大的 4 个机械臂关节同时记录 CmdBus 目标角、JointState 实测角、目标误差、实测速度，并统计速度绝对值 ≥2.45rad/s 的关节数。该阈值只用于日志标记“接近 ±2.5 限幅”，不参与控制或验收；原有 active velocity、effort 样本与底盘 truth/odom/wheel 数据保留。
+- 此变更不修改关节目标、控制器 P/D 增益、±2.5rad/s 上下限、底盘命令、Gazebo 物理参数或任何安全门槛；也不把 effort=0 当作物理零力矩。日志将用于区分“速度触限但目标误差迅速收敛”与“速度触限且目标误差长期不收敛”，并检查其与底盘 pose 偏移的时间相关性。
+- 后续仍需单独核验 `dynamic_pose/info` 中模型级 `robot` pose 的采样时间/坐标帧与回调差分；不能把 truth twist 的瞬时尖峰、wheel odom 或轮速任一单独作为底盘真实运动的充分证据。
+- 本次诊断提交 `6b5a2b1182237b659579bd901c64949799c8c892`，待 Python/CarryBus/Gazebo CI 验证。PR #2 保持 draft/open，实验仅在隔离分支；main 未修改，完整双轮成功次数仍为 **1**。
+
+
+### 8.378 PREPARE 零指令复测与 PRESENT follow 门槛复核（2026-11-14）
+
+- 实验分支提交 `f1ec32b38e946cd4bc96d60dd4690768682d9d32` 的 CI：Python run `43600146353` 成功、CarryBus run `43600146372` 成功；Gazebo 双轮 E2E run `43600146364` 失败，artifact `14116805586`。本轮仅完成第一轮，阶段为 `PREPARE → PRESENT → FAIL_PRESENT_FOLLOW_DRIFT`；requested=2、completed=1、passed=0、failed=2，第二轮缺失，截图3/7，不能计为全流程成功。
+- PREPARE 的 5Hz trace 显示底盘相对 hold target 偏移由0增长至约56.6mm，yaw误差峰值约3.585°；零底盘模式下 `drink_cmd/robot_cmd=(0,0))，驱动轮速度多数为0，位移增长后长时间保持在约56.6mm。期间 truth twist 偶有尖峰，但与轮速/odom 不一致。关节状态显示短时机械臂关节速度触及±2.5rad/s，手指关节出现4.0rad/s；对应关节目标误差有变化但未建立与底盘位移的确定因果关系。该证据仍不足以判定机械臂反作用、轮地接触、模型状态更新或其他动力学因素中的哪一项为根因。
+- SDF 确认机器人模型声明 `canonical_link="chassis"`；当前 `_gt_cb` 使用 `dynamic_pose/info` 中名称为 `robot` 的模型级 pose 作为底盘 truth pose，并以回调到达的 monotonic 时间差分 twist。下一步应只读地同时采样 `robot` 与 `robot::chassis`（若消息中存在该 link 实体），并记录 Gazebo 仿真时间/消息时间戳、回调到达间隔及模型/底盘 link 相对变换；核实 SceneBroadcaster 输出实体名称、坐标语义与快照更新节奏，避免把回调间隔尖峰误判为真实瞬时速度。
+- PRESENT 执行本身通过（末端位置误差0.378mm、姿态误差0.032°）；follow_hand 后杯漂移9.232mm，仍超过严格6mm/0.5°交接门槛。follow trace 底盘最大XY位移8.286mm、最大yaw偏差0.924°，最大角速度命令0.04rad/s；安全门控正确阻止 HANDOVER，未发生人员接触/交权及后续动作。in_band_pct=100%仅是诊断指标，不代表 follow 成功。杯 home 偏差616.9mm为中止后观测，不作为已安全放置的证据。
+- 本轮没有调整任何控制参数或物理参数。下一步优先完成 dynamic_pose/model-vs-link pose 只读核验；PRESENT follow 保持独立分析命令—轮速—truth 响应链，只有获得可重复、单变量证据后才设计参数实验。所有4mm IK、5mm grasp、6mm/0.5°交接、碰撞、关节限位、fail-closed 与释放条件均保持不变。
+- Python 与 CarryBus 检查通过不代表 Gazebo E2E 通过。PR #2 继续 draft/open；main 仍为 `1acfa3785283c227ee9f3e351140b3d601f7d85f`，未修改；完整双轮成功次数仍为 **1**。
+
+
+### 8.379 dynamic_pose 模型位姿与 chassis canonical link 同步核验遥测（2026-11-14）
+
+- 基于 run `43600146364` 的 PREPARE 零指令 trace（偏移约56.6mm，轮速多数为0，truth twist 偶有尖峰）以及 SDF 中 `robot` 模型 `canonical_link="chassis"` 的定义，新增只读核验：在 Gazebo `dynamic_pose/info` 回调中分别记录 `robot` 模型 pose 与 `robot::chassis` link pose（消息存在时），输出二者 XY/yaw 相对差；同时记录回调到达间隔、当前消息 header 仿真时间戳及样本年龄。
+- 诊断目标是验证模型级 pose 是否与 chassis canonical link pose 一致、是否出现快照更新间隔/时间戳异常，以及此前 truth twist 尖峰是否由回调间隔变化放大。新增字段只进入 PREPARE 日志，不参与 base controller、静止门控、IK、动作状态机或验收逻辑；若消息没有 chassis link 实体或时间戳字段，则明确输出 na，不做猜测性填零。
+- 代码提交 `a791ec9366fa3f2d35c2958f4210ebb94011f678`，待 Python syntax、CarryBus 与 Gazebo 双轮 E2E CI 验证。下一步先检查编译和日志字段，再据此决定是否需要进一步检查模型状态/接触动力学；本轮不调整控制参数或物理参数。
+- PR #2 保持 draft/open，实验仍仅在 `experiment/prepare-base-stillness-ab`；main 保持 `1acfa3785283c227ee9f3e351140b3d601f7d85f`，完整双轮成功次数仍为 **1**。
+
+
+### 8.380 完整 pose/info 采样前的最新 E2E 结论（2026-11-14）
+
+- 最新可用 E2E run `43602350567`（提交 `fb7ce84d932b0ec7226c477a1df849cda4ba6397`）失败：Python `43602350482` 成功，CarryBus `43602350493` 成功，Gazebo 双轮 E2E 失败。首轮阶段 `PREPARE → PRESENT → FAIL_PRESENT_FOLLOW_DRIFT`，requested=2、completed=1、passed=0、failed=2，第二轮缺失；3张截图，未归档成功。
+- PREPARE 5Hz trace 共111个样本，base target-relative XY偏移从0增至68.8mm，yaw误差峰值约5.25°（后稳定约3.90°）。Gazebo dynamic pose 回调年龄最大约55ms，回调间隔最大约30.7ms，常见约15–25ms；没有证据表明持续性消息中断或异常长回调间隔足以解释最终68.8mm偏移。偏移发生时底盘命令为零、驱动轮速度多数为零；偏移初期有34个样本至少一个机械臂关节速度达到/超过2.45rad/s诊断阈值，后期关节速度归零而偏移保持。该时间相关性使“机械臂运动/控制器饱和与底盘位移相关”成为待验证假设，但尚不能证明机械臂反作用是根因；关节 effort 样本为零也不能用作真实力矩证据。
+- `dynamic_pose/info` 实际只包含可用的动态 pose 实体，本轮没有发现 `robot::chassis`，因此模型—link 差值仍为na。回调间隔与消息年龄未表现出足以解释该位移的严重异常。为消除剩余的位姿源不确定性，提交 `4cf6f139d4bf522024ed0b84cdd222149cb1839d`，新增只读订阅 `/world/follow_world/pose/info`，从完整 pose 流中查找 canonical link `robot::chassis`，记录实体名、消息pose数量、仿真时间戳、回调年龄/间隔，并与 `robot` 模型位姿对照。若 link 仍不存在，则日志保留na和实际实体名，不推断位姿。
+- PRESENT 执行误差0.897mm、轴角0.076°；follow 后杯漂移5.863mm，位置满足6mm数值门槛，但仍需同时检查轴角门槛及状态机完整性。该轮最终因后续状态判定 `FAIL_PRESENT_FOLLOW_DRIFT` 退出，未进入 HANDOVER；不能把单次杯漂移小于6mm视为交接通过。follow 底盘轨迹最大XY约8.72mm、最大yaw约1.276°，说明底盘运动与杯漂移仍须独立分析。安全门控保持fail-closed，没有请求人手合拢或交权。
+- 下一轮先验证完整 `pose/info` 中 canonical chassis 是否存在及与模型 pose 是否一致；再按同步时序判断PREPARE的机械臂速度饱和、模型位姿变化、轮速/odom之间关系。不得仅凭相关性改动机械臂速度限制、质量、摩擦、控制增益或任何精度门槛。所有4mm IK、5mm grasp、6mm/0.5°交接、碰撞、关节限位、释放条件均保持不变。
+- PR #2 继续 draft/open；main 仍为 `1acfa3785283c227ee9f3e351140b3d601f7d85f`，未修改；完整双轮成功次数仍为 **1**。
+
+
+### 8.381 双轮复测发现人体 IK 候选集 fail-open 并修复（2026-11-14）
+
+- E2E run `43604188267`（commit `0bf82e20e945090028ab341c798beff2c63468ba`，artifact `14117578229`）：Python 与 CarryBus CI 通过；Gazebo E2E 的第1轮完整通过，阶段覆盖 `PREPARE → PRESENT → HANDOVER → PERSON_DRINK → TAKE_BACK → PUT_BACK → RETREAT → HANDBACK → DONE`，归档8张截图，杯回位误差1.1mm、倾斜0.1°。第2轮在 `PREPARE → FAIL_PREPARE` 失败；汇总 requested=2、completed=2、passed=1、failed=1、all_passed=false，因此不能计为连续双轮通过。
+- 第2轮底盘在 PREPARE hold 开始时相对目标偏移为0mm；失败发生在右臂抓壶接近：IK/FK自洽误差0mm，但伺服未确认到位，掌心残差133.0mm、最大关节误差104.36°。目标关节包含 `R_elbow=-2.317rad`，违反 `|elbow|≤2.25rad` 的 R7 人体姿态硬规则；最终实测姿态同样报 `R7肘过折`。关节状态年龄约44ms，不能归因于陈旧 joint state。
+- 源码定位到 `arm_kin.ik_human()` 的 fail-open：候选搜索即使只找到残差合格但违反人体硬规则的解，也会把这些候选放入列表并按软代价选出“最不坏”的违规解；无候选时还会回退到未经过人体规则过滤的 `ik_best()`。数值 polish 也未再次验证规则，理论上可能把合规解修成违规解。
+- 修复提交：`c586aeabe857cd1cf740ad550f17c0482578f074`（候选过滤及无合规解异常）、`dee6a80170e315e27d5c34b7f5660a0cce7457ef`（reach 捕获异常并在下发关节目标前 fail-closed）、`ad5c8c25aadb52887e98581af567816b5dd84ce8`（增加全候选违规时必须拒绝的回归测试）。现已只保留满足 R1–R7 的候选；若没有合规候选则拒绝动作；polish 结果也必须重新通过人体规则检查。
+- 该修复不会放宽或重定义 R1–R7、关节机械限位、4mm IK、5mm grasp、6mm/0.5° handover、碰撞检查、抓持/释放或 fail-closed 条件。它修复的是“违规 IK 结果被当成可执行解”的软件缺陷，不代表已经找到第二轮的合规可达解；后续 E2E 需验证合规候选是否存在、是否可在既定伺服时限内到位。
+- 下一步先跑 Python/CarryBus/Gazebo CI，核对新增回归测试和运行时导入；随后分析若无合规候选时目标位姿、种子覆盖及几何可达性，不通过放宽人体规则解决。完整双轮成功次数仍为1；PR #2保持draft/open，main不得修改。
+
+
+### 8.382 最新 E2E 修正撤离失败定位及扩展 IK 种子回退（2026-11-14）
+
+- E2E run `43606755412`（commit `b8f93060d2af4e9e7473915fe4bbea5e4c56a735`，artifact `14118787432`）：Python 130 项测试通过、CarryBus 集成通过；Gazebo E2E 失败。汇总 requested=2、completed=1、passed=0、failed=2，round2 缺失；本次唯一已生成 round JSON 的第1轮在 PREPARE 失败，未进入 PRESENT。
+- 对日志重新定位：PREPARE 底盘 hold 目标起始偏差约8mm；右臂前序动作及水壶放置闭环运行后，`put_down()` 已收到 `release kettle` ACK，并完成 release ownership 状态切换。之后右臂撤手调用 `reach()`，人体 IK 无合规候选，安全拒绝下发；日志明确 `PUT_DOWN kettle 已确认释放并落桌，但撤手未到位`，任务因此中止。此前把本轮失败说成抓壶接近失败是不准确的，现更正为“释放确认后的右臂撤离失败”。水壶 release 前的落位和张手后复核闭环均已通过；撤手失败不改变 released 事实。
+- 源码检查发现 `HUMAN_SEEDS_EXTENDED`（P104-07 额外肩偏航/肩俯仰/肘部边界种子）已定义，但 `ik_human()` 默认搜索只使用 `HUMAN_SEEDS`，常规种子没有合规分支时直接 fail-closed，没有实际调用该扩展种子集。对于撤离这类新目标，可能因此漏掉其他满足硬规则的 IK 分支。
+- 新修复提交：`74e58701e547f18b6da8b0c23ba4ef19d80e7f1d`，当默认种子无合规候选时，额外搜索既有 `HUMAN_SEEDS_EXTENDED`；扩展候选仍使用同一残差闸（最大4mm）和相同 R1–R7 硬规则，且只有无合规解才抛出异常。显式传入自定义 seeds 时保持调用方指定范围，不擅自扩展。
+- 回归测试提交：`57ee9f1abdcf5c283303c1003cecd4edeb2f2bee`，验证常规种子只有违规候选时会进入扩展种子搜索，且最终解仍必须通过 R1–R7。未放宽关节限位、人体规则、4mm IK、5mm grasp、6mm/0.5° handover、碰撞和释放确认门槛。
+- 下一步验证新增测试与 Python/CarryBus CI，再跑 Gazebo E2E。若扩展种子仍无解，补充输出撤离目标位姿、当前关节姿态、各候选最近违规项及路径碰撞信息；在证据充分前不改用越限目标，也不绕过碰撞检查。完整双轮连续成功次数仍为1；PR #2保持 draft/open，main 不得修改。
+
+
+
+### 8.383 PREPARE 撤手 R7 失败根因：reach 后续迭代切换到无约束 IK（2026-11-14）
+
+- E2E run `43611293910`（commit `ded695624c593c48a0535323150d5beefee13e3e`，artifact `14120835977`）Python 与 CarryBus 通过，Gazebo 双轮 E2E 失败。round1 只执行 `PREPARE → FAIL_PREPARE`，round2 未生成；requested=2、completed=1、passed=0、failed=2、all_passed=false。水壶 release ACK 已确认，失败发生在释放后的右臂撤离，禁止将其误记为抓取失败或仍持壶状态。
+- 日志明确报 `当前 IK 迭代违反人体姿态硬规则: ['R7肘过折']`。源码核对发现 `reach()` 仅在第0轮设置 `_mode='human'`，后续轮次将 `_mode` 设为 `None`，于是后续闭环精调转为普通 KDL IK；虽然随后姿态检查会拒绝 R7 越限解，但动作已经无法继续。由此不能推断撤离目标几何无解，前次“候选集无解”结论不适用于本次日志。
+- 修复提交 `66c0b76bfbe3574e85889b414366ee650979c448`：当调用策略为 `human` 时，每一轮均保留 `_mode='human'`，使 `ik_human()` 在每轮使用当前实测关节状态；若当前分支仍合规且代价在保持门槛内则沿用，否则按既有候选集重新搜索。非 human 策略仍保持仅首轮选分支的原行为。人体规则 R1–R7、IK ≤4mm、碰撞路径检查、关节限位、释放顺序和 fail-closed 均未放宽。
+- 回归断言提交 `f7e3cf4297068122a661d43d17e4fe49b8b95c51`：验证 human 策略后续迭代不会退回普通 IK，且姿态硬规则仍在下发前检查。旧提交 `66c0b76` 的 Python 测试因原断言仍要求旧模式字符串而失败（不是生产模块编译失败）；断言已在 `f7e3cf4` 更新，必须等待该最新 HEAD 的 CI 重新验证。该提交的修复后 Gazebo E2E 也尚未完成。
+- 下一步：先确认 `f7e3cf4` 的 Python/CarryBus/Gazebo 工作流均以最新 head 运行；若没有自动触发，显式重跑工作流。重点检查撤手阶段是否通过 human IK、R7 与 4mm 门槛，随后再看完整九阶段和连续双轮结果。不得使用普通 IK 绕过人体规则，也不得放宽任何安全门槛。
+- 完整连续双轮 Gazebo E2E 成功次数仍为 **1**；PR #2 保持 draft/open；main `1acfa3785283c227ee9f3e351140b3d601f7d85f` 未修改。
+
+
+
+### 8.384 E2E # 修复 human IK 后推进至 PRESENT，发现 follow_hand 底盘主动保持导致杯位漂移（2026-11-14）
+
+- 最新可复现 run `43612409409`（commit `7c07a47d998a057aecea49950d24a53342e1253b`，artifact `14121137956`）：Python #run `43612409458` 与 CarryBus #run `43612409452` 均通过；Gazebo E2E 失败。round1 阶段序列为 `PREPARE → PRESENT → FAIL_PRESENT_FOLLOW_DRIFT`，round2 缺失，requested=2、completed=1、passed=0、failed=2、all_passed=false。
+- 重要进展：本次没有再次出现前一轮 `reach()` 后续迭代退回普通 KDL IK 的 R7 错误；PREPARE 与初始 PRESENT 动作已通过。递杯初始目标误差为 1.148mm / 0.075°，右手 follow_hand 终点误差 3.255mm，说明右手伺服本身到位；但杯子真值从 `[2.03015, 0.93941, 1.0]` 漂至 `[2.09969, 0.91340, 1.0]`，相对交接目标偏差 75.039mm / 7.319°。系统按既有 6mm / 0.5°硬门槛拒绝 HANDOVER，继续由机器人持杯；没有请求人手合拢，也没有交权。
+- `PRESENT_FOLLOW_POST` trace：约 4.5s 内底盘最大 XY 位移 23.19mm、最大 yaw 偏移 7.667°、最大真值速度 0.07395m/s、最大 yaw rate 32.78°/s。主动保持命令峰值线速度 0.06538m/s、角速度 0.04rad/s；wheel 速度峰值 2.763rad/s，wheel effort 最大采样 0.0Nm。当前证据表明底盘保持控制与大幅位姿变化同时发生，但尚不足以断定全部漂移由主动命令导致，需做隔离实验。
+- 实验修复提交 `4feaf3a716a3ec10cb4e6ab6df22eff5eb610118`：增加 `VLA_PRESENT_BASE_HOLD_ZERO_DURING_FOLLOW=1` 分支，只在 `_follow_base_hold_target` 存在的 PRESENT follow_hand 窗口发布零底盘命令并跳过主动位姿修正；该开关默认关闭，不影响其他任务阶段。PR E2E workflow 在 pull_request 触发时启用此 A/B 模式，手动 dispatch 可选择开/关（提交 `20a8dba`）；新增测试提交 `8bebb29` 验证开关作用域和严格门控。
+- 下一步以新 E2E trace 判定：若底盘 yaw/杯漂移显著收敛且杯位进入 6mm / 0.5°，说明主动 pose hold 是主要诱因，再设计带速率/位移上限的受控方案；若仍漂移，则进一步分离被动臂反作用、wheel dynamics 与命令链路。任何情况下 6mm / 0.5°门槛不变，未通过不得 HANDOVER。此轮未到 DONE，不计入成功轮数。

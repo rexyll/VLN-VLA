@@ -1,9 +1,28 @@
 name: P104 DrinkTask headless Gazebo E2E
 
 on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/p104-drinktask-headless.yml"
+      - "tests/run_drink_headless.sh"
+      - "tests/drink_repeat.sh"
+      - "tests/drink_evidence.py"
+      - "tests/test_drink.py"
+      - "tests/test_p104.py"
+      - "vla_ws/src/vla_follow/**"
+      - "tools/start_scene.sh"
+      - "tools/start_drink_demo.sh"
+      - "tools/killall_demo.sh"
+      - "tools/gz_plugin.sh"
+      - "tools/gen_drink_scene.py"
+      - "vla_demo/maps/**"
+      - "vla_demo/vision_config.json"
   push:
     branches:
       - main
+      - experiment/prepare-base-stillness-ab
     paths:
       - ".github/workflows/p104-drinktask-headless.yml"
       - "tests/run_drink_headless.sh"
@@ -30,6 +49,24 @@ on:
           - "0.08"
           - "0.06"
           - "0.04"
+      prepare_kettle_base_still:
+        description: "A/B experiment: require chassis twist below 5mm/s and 0.5deg/s before each kettle reach pass"
+        required: false
+        type: choice
+        default: "0"
+        options: ["0", "1"]
+      prepare_base_hold_zero_during_pour:
+        description: "B3 experiment: keep zero chassis command throughout the full PREPARE pour hold window"
+        required: false
+        type: choice
+        default: "0"
+        options: ["0", "1"]
+      present_base_hold_zero_during_follow:
+        description: "A/B experiment: suppress active chassis pose correction only during PRESENT follow_hand; retain strict cup target gate"
+        required: false
+        type: choice
+        default: "0"
+        options: ["0", "1"]
       present_base_hold_linear_limit:
         description: "PRESENT-only chassis hold linear cap (m/s), bounded to 0.04–0.12"
         required: false
@@ -68,6 +105,9 @@ jobs:
       P91_FOLLOW_WATCH: "75"
       PW_SEED: "7"
       VLA_KETTLE_POUR_REACH_TOL_DEG: ${{ inputs.kettle_pour_reach_tol_deg || '0.08' }}
+      VLA_PREPARE_KETTLE_BASE_STILL: ${{ github.event_name == 'pull_request' && '1' || inputs.prepare_kettle_base_still || '0' }}
+      VLA_PREPARE_BASE_HOLD_ZERO_DURING_POUR: ${{ github.event_name == 'pull_request' && '1' || inputs.prepare_base_hold_zero_during_pour || '0' }}
+      VLA_PRESENT_BASE_HOLD_ZERO_DURING_FOLLOW: ${{ github.event_name == 'pull_request' && '1' || inputs.present_base_hold_zero_during_follow || '0' }}
       VLA_PRESENT_BASE_HOLD_LINEAR_LIMIT: ${{ inputs.present_base_hold_linear_limit || '0.08' }}
       VLA_PRESENT_BASE_HOLD_LINEAR_KP: ${{ inputs.present_base_hold_linear_kp || '1.5' }}
       VLA_PRESENT_BASE_HOLD_LINEAR_KD: ${{ inputs.present_base_hold_linear_kd || '0.8' }}
