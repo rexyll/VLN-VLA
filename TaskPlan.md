@@ -952,3 +952,11 @@
 - PRESENT 执行本身通过（末端位置误差0.378mm、姿态误差0.032°）；follow_hand 后杯漂移9.232mm，仍超过严格6mm/0.5°交接门槛。follow trace 底盘最大XY位移8.286mm、最大yaw偏差0.924°，最大角速度命令0.04rad/s；安全门控正确阻止 HANDOVER，未发生人员接触/交权及后续动作。in_band_pct=100%仅是诊断指标，不代表 follow 成功。杯 home 偏差616.9mm为中止后观测，不作为已安全放置的证据。
 - 本轮没有调整任何控制参数或物理参数。下一步优先完成 dynamic_pose/model-vs-link pose 只读核验；PRESENT follow 保持独立分析命令—轮速—truth 响应链，只有获得可重复、单变量证据后才设计参数实验。所有4mm IK、5mm grasp、6mm/0.5°交接、碰撞、关节限位、fail-closed 与释放条件均保持不变。
 - Python 与 CarryBus 检查通过不代表 Gazebo E2E 通过。PR #2 继续 draft/open；main 仍为 `1acfa3785283c227ee9f3e351140b3d601f7d85f`，未修改；完整双轮成功次数仍为 **1**。
+
+
+### 8.379 dynamic_pose 模型位姿与 chassis canonical link 同步核验遥测（2026-11-14）
+
+- 基于 run `43600146364` 的 PREPARE 零指令 trace（偏移约56.6mm，轮速多数为0，truth twist 偶有尖峰）以及 SDF 中 `robot` 模型 `canonical_link="chassis"` 的定义，新增只读核验：在 Gazebo `dynamic_pose/info` 回调中分别记录 `robot` 模型 pose 与 `robot::chassis` link pose（消息存在时），输出二者 XY/yaw 相对差；同时记录回调到达间隔、当前消息 header 仿真时间戳及样本年龄。
+- 诊断目标是验证模型级 pose 是否与 chassis canonical link pose 一致、是否出现快照更新间隔/时间戳异常，以及此前 truth twist 尖峰是否由回调间隔变化放大。新增字段只进入 PREPARE 日志，不参与 base controller、静止门控、IK、动作状态机或验收逻辑；若消息没有 chassis link 实体或时间戳字段，则明确输出 na，不做猜测性填零。
+- 代码提交 `a791ec9366fa3f2d35c2958f4210ebb94011f678`，待 Python syntax、CarryBus 与 Gazebo 双轮 E2E CI 验证。下一步先检查编译和日志字段，再据此决定是否需要进一步检查模型状态/接触动力学；本轮不调整控制参数或物理参数。
+- PR #2 保持 draft/open，实验仍仅在 `experiment/prepare-base-stillness-ab`；main 保持 `1acfa3785283c227ee9f3e351140b3d601f7d85f`，完整双轮成功次数仍为 **1**。
