@@ -913,3 +913,13 @@
 - 本次不改变 `_tick()` 控制输出、零指令作用域、静止门控、Gazebo 物理参数或任何运动/验收阈值；5Hz 仅增加日志分辨率。
 - 提交 `6ee486d84a3363d1f53840f6689e568bc6b180ca` 的 Python syntax run `43595286034` 已通过；CarryBus run `43595286041` 与 Gazebo E2E run `43595286039` 正在执行，结果待复核。后续必须用高频 trace 判断 arm motion 与 truth base displacement 的时序关系，不能仅凭相关性断言因果。
 - PR #2 继续 draft/open，所有实验仅在 `experiment/prepare-base-stillness-ab`；main 未修改，完整双轮成功数仍为 **1**。
+
+
+### 8.375 5Hz PREPARE 结果与 PRESENT follow 同步采样实验（2026-11-14）
+
+- 最新 5Hz PREPARE trace 来自 E2E run `43595352547`、artifact `14115180961`；Python syntax #43595352573、CarryBus #43595352592 通过，Gazebo E2E 失败。任务阶段为 `PREPARE → PRESENT → FAIL_PRESENT_FOLLOW_DRIFT`，杯漂移 33.724mm，双轮请求2/完成1/通过0，第二轮未启动。
+- PREPARE hold 期间底盘 target 偏移最高约50.6mm；关节速度样本频繁出现精确±2.500，且关节 effort 36 个样本全为0。此信号可能是速度接口限幅/状态源语义或仿真状态问题；在核对 `/drink/joint_state` 的发布者、接口类型、更新时间和 velocity 语义前，不将其解释为实际机械臂速度，也不推断机械臂反作用力。wheel effort 两个样本为0同样只表示当前状态接口读数，不足以单独解释底盘位移。
+- PRESENT 执行本身通过（1.330mm、0.116°）；follow_hand 阶段杯漂移33.724mm，底盘 peak XY18.31mm、yaw3.299°、peak speed0.0320m/s、peak yaw rate12.65°/s。末端跟随误差2.912mm，但 active hold 命令角速度峰值0.04rad/s；因此严格漂移保护正确阻止后续交接。
+- 为解决当前 peak-only trace 缺少时序的问题，实验分支新增 `_follow_base_trace.detail_samples`：Gazebo pose callback 以约5Hz记录相对 hold target 的 base dx/dy/yaw、truth twist、wheel velocities、drink/robot command 及其 age、odom twist；保留已有 peak metrics。该采样只读、不改变控制输出与门槛，样本随本次 follow trace 生命周期销毁，预计约20-40行/轮。
+- 新提交 `ef25ec76395f256d4dc41b37ec5b8d032a07a6fd`；待 CI 验证。下一步用 detail_samples 判断是命令先行还是 chassis truth/轮速先行，以及 odom 与 Gazebo 真值是否一致；同时另行核查 joint_state velocity/effort 的发布源。禁止根据单轮相关性调整速度限值、物理参数或放宽任何安全阈值。
+- main 仍保持 `1acfa3785283c227ee9f3e351140b3d601f7d85f`，PR #2 draft/open，双轮完整成功数仍为 **1**。
