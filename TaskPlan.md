@@ -980,3 +980,13 @@
 - 修复提交：`c586aeabe857cd1cf740ad550f17c0482578f074`（候选过滤及无合规解异常）、`dee6a80170e315e27d5c34b7f5660a0cce7457ef`（reach 捕获异常并在下发关节目标前 fail-closed）、`ad5c8c25aadb52887e98581af567816b5dd84ce8`（增加全候选违规时必须拒绝的回归测试）。现已只保留满足 R1–R7 的候选；若没有合规候选则拒绝动作；polish 结果也必须重新通过人体规则检查。
 - 该修复不会放宽或重定义 R1–R7、关节机械限位、4mm IK、5mm grasp、6mm/0.5° handover、碰撞检查、抓持/释放或 fail-closed 条件。它修复的是“违规 IK 结果被当成可执行解”的软件缺陷，不代表已经找到第二轮的合规可达解；后续 E2E 需验证合规候选是否存在、是否可在既定伺服时限内到位。
 - 下一步先跑 Python/CarryBus/Gazebo CI，核对新增回归测试和运行时导入；随后分析若无合规候选时目标位姿、种子覆盖及几何可达性，不通过放宽人体规则解决。完整双轮成功次数仍为1；PR #2保持draft/open，main不得修改。
+
+
+### 8.382 最新 E2E 修正撤离失败定位及扩展 IK 种子回退（2026-11-14）
+
+- E2E run `43606755412`（commit `b8f93060d2af4e9e7473915fe4bbea5e4c56a735`，artifact `14118787432`）：Python 130 项测试通过、CarryBus 集成通过；Gazebo E2E 失败。汇总 requested=2、completed=1、passed=0、failed=2，round2 缺失；本次唯一已生成 round JSON 的第1轮在 PREPARE 失败，未进入 PRESENT。
+- 对日志重新定位：PREPARE 底盘 hold 目标起始偏差约8mm；右臂前序动作及水壶放置闭环运行后，`put_down()` 已收到 `release kettle` ACK，并完成 release ownership 状态切换。之后右臂撤手调用 `reach()`，人体 IK 无合规候选，安全拒绝下发；日志明确 `PUT_DOWN kettle 已确认释放并落桌，但撤手未到位`，任务因此中止。此前把本轮失败说成抓壶接近失败是不准确的，现更正为“释放确认后的右臂撤离失败”。水壶 release 前的落位和张手后复核闭环均已通过；撤手失败不改变 released 事实。
+- 源码检查发现 `HUMAN_SEEDS_EXTENDED`（P104-07 额外肩偏航/肩俯仰/肘部边界种子）已定义，但 `ik_human()` 默认搜索只使用 `HUMAN_SEEDS`，常规种子没有合规分支时直接 fail-closed，没有实际调用该扩展种子集。对于撤离这类新目标，可能因此漏掉其他满足硬规则的 IK 分支。
+- 新修复提交：`74e58701e547f18b6da8b0c23ba4ef19d80e7f1d`，当默认种子无合规候选时，额外搜索既有 `HUMAN_SEEDS_EXTENDED`；扩展候选仍使用同一残差闸（最大4mm）和相同 R1–R7 硬规则，且只有无合规解才抛出异常。显式传入自定义 seeds 时保持调用方指定范围，不擅自扩展。
+- 回归测试提交：`57ee9f1abdcf5c283303c1003cecd4edeb2f2bee`，验证常规种子只有违规候选时会进入扩展种子搜索，且最终解仍必须通过 R1–R7。未放宽关节限位、人体规则、4mm IK、5mm grasp、6mm/0.5° handover、碰撞和释放确认门槛。
+- 下一步验证新增测试与 Python/CarryBus CI，再跑 Gazebo E2E。若扩展种子仍无解，补充输出撤离目标位姿、当前关节姿态、各候选最近违规项及路径碰撞信息；在证据充分前不改用越限目标，也不绕过碰撞检查。完整双轮连续成功次数仍为1；PR #2保持 draft/open，main 不得修改。
