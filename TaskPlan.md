@@ -960,3 +960,13 @@
 - 诊断目标是验证模型级 pose 是否与 chassis canonical link pose 一致、是否出现快照更新间隔/时间戳异常，以及此前 truth twist 尖峰是否由回调间隔变化放大。新增字段只进入 PREPARE 日志，不参与 base controller、静止门控、IK、动作状态机或验收逻辑；若消息没有 chassis link 实体或时间戳字段，则明确输出 na，不做猜测性填零。
 - 代码提交 `a791ec9366fa3f2d35c2958f4210ebb94011f678`，待 Python syntax、CarryBus 与 Gazebo 双轮 E2E CI 验证。下一步先检查编译和日志字段，再据此决定是否需要进一步检查模型状态/接触动力学；本轮不调整控制参数或物理参数。
 - PR #2 保持 draft/open，实验仍仅在 `experiment/prepare-base-stillness-ab`；main 保持 `1acfa3785283c227ee9f3e351140b3d601f7d85f`，完整双轮成功次数仍为 **1**。
+
+
+### 8.380 完整 pose/info 采样前的最新 E2E 结论（2026-11-14）
+
+- 最新可用 E2E run `43602350567`（提交 `fb7ce84d932b0ec7226c477a1df849cda4ba6397`）失败：Python `43602350482` 成功，CarryBus `43602350493` 成功，Gazebo 双轮 E2E 失败。首轮阶段 `PREPARE → PRESENT → FAIL_PRESENT_FOLLOW_DRIFT`，requested=2、completed=1、passed=0、failed=2，第二轮缺失；3张截图，未归档成功。
+- PREPARE 5Hz trace 共111个样本，base target-relative XY偏移从0增至68.8mm，yaw误差峰值约5.25°（后稳定约3.90°）。Gazebo dynamic pose 回调年龄最大约55ms，回调间隔最大约30.7ms，常见约15–25ms；没有证据表明持续性消息中断或异常长回调间隔足以解释最终68.8mm偏移。偏移发生时底盘命令为零、驱动轮速度多数为零；偏移初期有34个样本至少一个机械臂关节速度达到/超过2.45rad/s诊断阈值，后期关节速度归零而偏移保持。该时间相关性使“机械臂运动/控制器饱和与底盘位移相关”成为待验证假设，但尚不能证明机械臂反作用是根因；关节 effort 样本为零也不能用作真实力矩证据。
+- `dynamic_pose/info` 实际只包含可用的动态 pose 实体，本轮没有发现 `robot::chassis`，因此模型—link 差值仍为na。回调间隔与消息年龄未表现出足以解释该位移的严重异常。为消除剩余的位姿源不确定性，提交 `4cf6f139d4bf522024ed0b84cdd222149cb1839d`，新增只读订阅 `/world/follow_world/pose/info`，从完整 pose 流中查找 canonical link `robot::chassis`，记录实体名、消息pose数量、仿真时间戳、回调年龄/间隔，并与 `robot` 模型位姿对照。若 link 仍不存在，则日志保留na和实际实体名，不推断位姿。
+- PRESENT 执行误差0.897mm、轴角0.076°；follow 后杯漂移5.863mm，位置满足6mm数值门槛，但仍需同时检查轴角门槛及状态机完整性。该轮最终因后续状态判定 `FAIL_PRESENT_FOLLOW_DRIFT` 退出，未进入 HANDOVER；不能把单次杯漂移小于6mm视为交接通过。follow 底盘轨迹最大XY约8.72mm、最大yaw约1.276°，说明底盘运动与杯漂移仍须独立分析。安全门控保持fail-closed，没有请求人手合拢或交权。
+- 下一轮先验证完整 `pose/info` 中 canonical chassis 是否存在及与模型 pose 是否一致；再按同步时序判断PREPARE的机械臂速度饱和、模型位姿变化、轮速/odom之间关系。不得仅凭相关性改动机械臂速度限制、质量、摩擦、控制增益或任何精度门槛。所有4mm IK、5mm grasp、6mm/0.5°交接、碰撞、关节限位、释放条件均保持不变。
+- PR #2 继续 draft/open；main 仍为 `1acfa3785283c227ee9f3e351140b3d601f7d85f`，未修改；完整双轮成功次数仍为 **1**。
