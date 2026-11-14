@@ -658,6 +658,13 @@ def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
                 'REACH %s 人体约束 IK 无合规候选，拒绝下发关节目标: %s'
                 % (side, exc))
             return False, 9e9, 'human-ik-no-valid-solution'
+        if elbow == 'human':
+            _posture_bad = K.violation_list(side, q)
+            if _posture_bad:
+                node.get_logger().warn(
+                    'REACH %s 当前 IK 迭代违反人体姿态硬规则，拒绝下发关节目标: %s'
+                    % (side, _posture_bad))
+                return False, 9e9, 'human-posture-violation'
         T_ik_fk = K.fk_world(side, q, base_at_ik)
         ik_fk_mm = pos_err_mm(T_ik_fk, T_world)
         ik_fk_deg = axis_angle_deg(T_ik_fk, T_world)
