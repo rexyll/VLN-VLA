@@ -1026,6 +1026,17 @@ def _arm_hold_yaw_limit():
     return max(0.02, min(0.08, requested))
 
 
+def _cup_lift_reach_tol_mm():
+    """Tunable per-reach palm tolerance for cup lift; never looser than 1.5mm."""
+    try:
+        requested = float(os.environ.get('VLA_CUP_LIFT_REACH_TOL_MM', '1.5'))
+    except (TypeError, ValueError, OverflowError):
+        requested = 1.5
+    if not math.isfinite(requested):
+        requested = 1.5
+    return max(0.5, min(1.5, requested))
+
+
 def base_pose_hold_velocity(target, current, max_linear=0.04,
                            max_angular=0.12, current_twist=(0.0, 0.0, 0.0)):
     """Bounded unicycle pose stabilizer for short arm-reaction disturbances.
@@ -2455,11 +2466,13 @@ def pour_into_cup(node, fill=0.65, jet_len=0.16, ramp=True):
     # P103: 举杯要走"肘朝外"的解 —— 与捧杯/递杯同一套(P101 的经验)。默认的
     # KDL 种子解在这里会给出肘内收/前臂反向拧的分支, 画面上就是"肘拐进怀里"。
     # 这一步既要满足杯体严格 <3mm 的位置闭环，也要满足 P103 人体姿态规则。
-    # 近期实测最后一轮残差 3.1mm，人体姿态本身全部合格；因此只对本动作
-    # 收紧伺服角容差并增加有限补偿轮数，不放宽物体位置门槛。
+    # 最近实测杯体残差 3.4mm，略高于严格 3.0mm 门槛；每轮 reach 原先
+    # 使用 3.0mm 掌心容差，可能过早停止补偿。将单轮掌心容差收紧至可调
+    # 0.5–1.5mm，最多 8 轮；杯体 <3.0mm、姿态与 IK/碰撞门槛完全不变。
     ok_l, res_l = place_held(
         node, 'L', 'cup', Tcup_pour, tol_mm=3.0,
-        reach_passes=8, reach_tol_deg=0.08)
+        reach_passes=8, reach_tol_mm=_cup_lift_reach_tol_mm(),
+        reach_tol_deg=0.08)
     out['res']['lift_cup'] = res_l
     out['arm']['lift_cup'] = log_arm(node, '举杯', ('L',))
     lift_kin_ok = human_kinematics_ok(

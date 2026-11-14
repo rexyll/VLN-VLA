@@ -2979,6 +2979,18 @@ class TestP104(unittest.TestCase):
             (0.0, 0.0, 0.0), (0.0, 0.0, 0.0),
             max_linear=0.0), (0.0, 0.0))
 
+    def test_cup_lift_reach_tolerance_is_runtime_tunable_and_only_tightens(self):
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertAlmostEqual(M._cup_lift_reach_tol_mm(), 1.5)
+        with patch.dict(os.environ, {'VLA_CUP_LIFT_REACH_TOL_MM': '1.0'}):
+            self.assertAlmostEqual(M._cup_lift_reach_tol_mm(), 1.0)
+        with patch.dict(os.environ, {'VLA_CUP_LIFT_REACH_TOL_MM': '0.1'}):
+            self.assertAlmostEqual(M._cup_lift_reach_tol_mm(), 0.5)
+        with patch.dict(os.environ, {'VLA_CUP_LIFT_REACH_TOL_MM': '3.0'}):
+            self.assertAlmostEqual(M._cup_lift_reach_tol_mm(), 1.5)
+        with patch.dict(os.environ, {'VLA_CUP_LIFT_REACH_TOL_MM': 'invalid'}):
+            self.assertAlmostEqual(M._cup_lift_reach_tol_mm(), 1.5)
+
     def test_arm_hold_yaw_limit_is_runtime_tunable_and_bounded(self):
         # The latest Gazebo run saturated at 0.04 rad/s while yaw was still
         # 2.8deg off target. Allow a controlled 0.06 trial; hard-cap at 0.08.
@@ -3195,7 +3207,8 @@ class TestP104(unittest.TestCase):
         end = source.index('def ', start + 5)
         body = source[start:end]
         self.assertIn('tol_mm=3.0,', body)
-        self.assertIn('reach_passes=8, reach_tol_deg=0.08', body)
+        self.assertIn('reach_passes=8, reach_tol_mm=_cup_lift_reach_tol_mm()', body)
+        self.assertIn('tol_mm=3.0,', body)
         self.assertIn('lift_kin_ok = human_kinematics_ok(', body)
         self.assertIn('if not ok_l:', body)
         self.assertIn('if not lift_kin_ok:', body)
