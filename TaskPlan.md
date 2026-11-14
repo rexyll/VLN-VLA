@@ -6,7 +6,7 @@
 
 ## Guide（允许执行）
 
-- 在 `main` 分支直接推进实现、测试、CI、仿真证据和文档；每次提交前读取最新 main head，避免覆盖并发更新。
+- 当前用户授权范围：仅在 `experiment/prepare-base-stillness-ab` 隔离分支修改实现、测试、CI、仿真证据和文档；不得直接修改或合并 `main`。每次提交前核对实验分支 HEAD 与 PR base/head。
 - 可以修复代码、测试、工作流和 TaskPlan；可增加诊断日志、快照和回归测试。
 - 对失败记录必须追溯日志、JSON、截图和代码路径，区分环境失败、测试观察器失败与产品功能失败。
 - 每次更新记录提交 SHA、CI 结果、E2E 阶段和验收指标；不确定的结论标注为待验证。
@@ -21,12 +21,13 @@
 
 ## 当前进度
 
-- 当前分支：`main`
-- 当前任务节点：**P104-07：DrinkTask 完整闭环与交权后视觉跟随**
+- 当前工作分支：`experiment/prepare-base-stillness-ab`
+- PR：[#2](https://github.com/rexyll/VLN-VLA/pull/2)，draft/open，base `main`，未合并
+- 当前任务节点：**P104-07：修复 PREPARE 放置后右臂撤离阶段的人体约束 IK 闭环，并恢复双轮 E2E 验收**
 - 状态：**正在进行中**
 - 完整真实 Gazebo DrinkTask E2E 成功轮数：**1（E2E #60，单轮通过；连续多轮稳定性仍未验收）**
 - 已稳定通过的部分：ROS 2 工作区构建、Python 单元回归、CarryBus 回归；E2E #60 首次完整通过任务、观察器进程、8 张截图归档及交权后视觉跟随指标。
-- 当前阻塞：最新 Gazebo E2E run `43447334486`（commit `06c0bbe`）在 `PREPARE → FAIL_PREPARE` 停止。artifact `14049327143` 显示倒水位形 reach 5/5 后掌心残差 10.6mm、物体残差 11.1mm，超过原 4mm IK 门槛。时间序列显示底盘 yaw 从 -0.010rad 超调至 +0.126rad，随后控制器反向制动；这是底盘角速度惯性导致的 pose-only P 控制超调，不是角度误差符号错误。已在 arm-reaction 保持窗口引入 Gazebo 真值 yaw-rate 阻尼、0.04rad/s 角速度上限，并在 twist 真值过期时 fail-safe 输出零；待 CI 与 Gazebo E2E 验证。不得放宽 IK、掌心、人体姿态、碰撞或 release 门槛。
+- 当前阻塞：E2E run `43611293910`（commit `ded695624c593c48a0535323150d5beefee13e3e`）在 `PREPARE → FAIL_PREPARE` 停止。artifact `14120835977` 的日志显示水壶 release ACK 已确认，随后右臂撤离的第二轮 reach 因切换到普通 KDL IK 得到违反 R7（肘过折）的候选而拒绝；这不是已证实的几何无解。已在提交 `66c0b76` 修复：只要动作策略为 `human`，每一轮 reach 都继续调用人体约束 IK，由 `ik_human` 合规保持分支维持连续性；并在 `f7e3cf4` 更新 P104 回归断言。代码编译已通过；`66c0b76` 对应 Python 测试因旧断言未同步而失败，修正后的 `f7e3cf4` 测试尚待新 CI 验证，Gazebo 修复后 E2E 尚未完成。
 
 ## 任务章节
 
@@ -990,3 +991,14 @@
 - 新修复提交：`74e58701e547f18b6da8b0c23ba4ef19d80e7f1d`，当默认种子无合规候选时，额外搜索既有 `HUMAN_SEEDS_EXTENDED`；扩展候选仍使用同一残差闸（最大4mm）和相同 R1–R7 硬规则，且只有无合规解才抛出异常。显式传入自定义 seeds 时保持调用方指定范围，不擅自扩展。
 - 回归测试提交：`57ee9f1abdcf5c283303c1003cecd4edeb2f2bee`，验证常规种子只有违规候选时会进入扩展种子搜索，且最终解仍必须通过 R1–R7。未放宽关节限位、人体规则、4mm IK、5mm grasp、6mm/0.5° handover、碰撞和释放确认门槛。
 - 下一步验证新增测试与 Python/CarryBus CI，再跑 Gazebo E2E。若扩展种子仍无解，补充输出撤离目标位姿、当前关节姿态、各候选最近违规项及路径碰撞信息；在证据充分前不改用越限目标，也不绕过碰撞检查。完整双轮连续成功次数仍为1；PR #2保持 draft/open，main 不得修改。
+
+
+
+### 8.383 PREPARE 撤手 R7 失败根因：reach 后续迭代切换到无约束 IK（2026-11-14）
+
+- E2E run `43611293910`（commit `ded695624c593c48a0535323150d5beefee13e3e`，artifact `14120835977`）Python 与 CarryBus 通过，Gazebo 双轮 E2E 失败。round1 只执行 `PREPARE → FAIL_PREPARE`，round2 未生成；requested=2、completed=1、passed=0、failed=2、all_passed=false。水壶 release ACK 已确认，失败发生在释放后的右臂撤离，禁止将其误记为抓取失败或仍持壶状态。
+- 日志明确报 `当前 IK 迭代违反人体姿态硬规则: ['R7肘过折']`。源码核对发现 `reach()` 仅在第0轮设置 `_mode='human'`，后续轮次将 `_mode` 设为 `None`，于是后续闭环精调转为普通 KDL IK；虽然随后姿态检查会拒绝 R7 越限解，但动作已经无法继续。由此不能推断撤离目标几何无解，前次“候选集无解”结论不适用于本次日志。
+- 修复提交 `66c0b76bfbe3574e85889b414366ee650979c448`：当调用策略为 `human` 时，每一轮均保留 `_mode='human'`，使 `ik_human()` 在每轮使用当前实测关节状态；若当前分支仍合规且代价在保持门槛内则沿用，否则按既有候选集重新搜索。非 human 策略仍保持仅首轮选分支的原行为。人体规则 R1–R7、IK ≤4mm、碰撞路径检查、关节限位、释放顺序和 fail-closed 均未放宽。
+- 回归断言提交 `f7e3cf4297068122a661d43d17e4fe49b8b95c51`：验证 human 策略后续迭代不会退回普通 IK，且姿态硬规则仍在下发前检查。旧提交 `66c0b76` 的 Python 测试因原断言仍要求旧模式字符串而失败（不是生产模块编译失败）；断言已在 `f7e3cf4` 更新，必须等待该最新 HEAD 的 CI 重新验证。该提交的修复后 Gazebo E2E 也尚未完成。
+- 下一步：先确认 `f7e3cf4` 的 Python/CarryBus/Gazebo 工作流均以最新 head 运行；若没有自动触发，显式重跑工作流。重点检查撤手阶段是否通过 human IK、R7 与 4mm 门槛，随后再看完整九阶段和连续双轮结果。不得使用普通 IK 绕过人体规则，也不得放宽任何安全门槛。
+- 完整连续双轮 Gazebo E2E 成功次数仍为 **1**；PR #2 保持 draft/open；main `1acfa3785283c227ee9f3e351140b3d601f7d85f` 未修改。
