@@ -1011,6 +1011,21 @@ def wrap_deg(a):
     return a
 
 
+def _arm_hold_yaw_limit():
+    """Runtime-tunable yaw cap for bounded arm-reaction pose hold.
+
+    The setting is intentionally bounded: values below 0.02 rad/s or above
+    0.08 rad/s are clamped. Invalid values fall back to 0.06 rad/s.
+    """
+    try:
+        requested = float(os.environ.get('VLA_ARM_HOLD_YAW_LIMIT', '0.06'))
+    except (TypeError, ValueError, OverflowError):
+        requested = 0.06
+    if not math.isfinite(requested):
+        requested = 0.06
+    return max(0.02, min(0.08, requested))
+
+
 def base_pose_hold_velocity(target, current, max_linear=0.04,
                            max_angular=0.12, current_twist=(0.0, 0.0, 0.0)):
     """Bounded unicycle pose stabilizer for short arm-reaction disturbances.
@@ -1042,7 +1057,7 @@ def base_pose_hold_velocity(target, current, max_linear=0.04,
             # Gazebo chassis yaw has measurable inertia: pose-only P control
             # reversed after crossing the target but still overshot. Use the
             # independently sampled truth yaw rate as derivative damping.
-            hold_wlim = min(wlim, 0.04)
+            hold_wlim = min(wlim, _arm_hold_yaw_limit())
             wz = max(-hold_wlim, min(
                 hold_wlim, 1.2 * theta - 1.5 * yaw_rate))
             return 0.0, wz

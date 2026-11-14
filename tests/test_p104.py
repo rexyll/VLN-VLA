@@ -2979,6 +2979,24 @@ class TestP104(unittest.TestCase):
             (0.0, 0.0, 0.0), (0.0, 0.0, 0.0),
             max_linear=0.0), (0.0, 0.0))
 
+    def test_arm_hold_yaw_limit_is_runtime_tunable_and_bounded(self):
+        # The latest Gazebo run saturated at 0.04 rad/s while yaw was still
+        # 2.8deg off target. Allow a controlled 0.06 trial; hard-cap at 0.08.
+        with patch.dict(os.environ, {'VLA_ARM_HOLD_YAW_LIMIT': '0.06'}):
+            self.assertAlmostEqual(M._arm_hold_yaw_limit(), 0.06)
+            _, wz = M.base_pose_hold_velocity(
+                (0.0, 0.0, 0.0), (0.0, 0.0, 0.20))
+            self.assertAlmostEqual(wz, -0.06)
+        with patch.dict(os.environ, {'VLA_ARM_HOLD_YAW_LIMIT': '0.50'}):
+            self.assertAlmostEqual(M._arm_hold_yaw_limit(), 0.08)
+            _, wz = M.base_pose_hold_velocity(
+                (0.0, 0.0, 0.0), (0.0, 0.0, 0.20))
+            self.assertAlmostEqual(wz, -0.08)
+        with patch.dict(os.environ, {'VLA_ARM_HOLD_YAW_LIMIT': 'invalid'}):
+            self.assertAlmostEqual(M._arm_hold_yaw_limit(), 0.06)
+        with patch.dict(os.environ, {'VLA_ARM_HOLD_YAW_LIMIT': '0.001'}):
+            self.assertAlmostEqual(M._arm_hold_yaw_limit(), 0.02)
+
     def test_prepare_base_hold_is_scoped_to_arm_only_pour_window(self):
         task_path = os.path.join(
             ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
