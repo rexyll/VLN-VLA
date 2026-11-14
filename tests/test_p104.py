@@ -220,6 +220,28 @@ class TestP104(unittest.TestCase):
         self.assertIsNone(M.person_hand_midpoint_from_confirmed_command(
             left, wrong_gap, q_open, -q_open, q_close))
 
+    def test_human_ik_fails_closed_when_all_candidates_violate_posture_rules(self):
+        # E2E round 2 exposed a KDL solution with |elbow|=2.317rad (>R7 2.25).
+        # If every residual-valid seed violates a hard rule, IK must not return
+        # the least-bad invalid pose as an executable target.
+        invalid = K.Q_REST.copy()
+        invalid[3] = -2.30
+        with patch.object(K, 'ik_best',
+                          return_value=(invalid, 1e-3, 'mock-invalid')):
+            with self.assertRaises(K.HumanIKNoValidSolution):
+                K.ik_human(
+                    'R', np.eye(4), seed=K.Q_REST.copy(),
+                    seeds=[(0.0, -0.55, 0.0, -1.0)])
+
+    def test_human_ik_refinement_cannot_reintroduce_posture_violation(self):
+        # A valid selected branch must remain valid after numerical polishing.
+        source = open(os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
+            'arm_kin.py'), encoding='utf-8').read()
+        self.assertIn('and not violation_list(side, q_refined)', source)
+        self.assertIn('raise HumanIKNoValidSolution(', source)
+        self.assertIn('if violation_list(side, q):', source)
+
     def test_reach_servo_failure_diagnostic_captures_both_joint_caches(self):
         source = open(os.path.join(ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow', 'drink_motion.py'), encoding='utf-8').read()
         self.assertIn('q_servo_final = np.asarray(node.arm[side]._read()', source)
