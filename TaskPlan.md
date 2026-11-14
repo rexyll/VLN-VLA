@@ -970,3 +970,13 @@
 - PRESENT 执行误差0.897mm、轴角0.076°；follow 后杯漂移5.863mm，位置满足6mm数值门槛，但仍需同时检查轴角门槛及状态机完整性。该轮最终因后续状态判定 `FAIL_PRESENT_FOLLOW_DRIFT` 退出，未进入 HANDOVER；不能把单次杯漂移小于6mm视为交接通过。follow 底盘轨迹最大XY约8.72mm、最大yaw约1.276°，说明底盘运动与杯漂移仍须独立分析。安全门控保持fail-closed，没有请求人手合拢或交权。
 - 下一轮先验证完整 `pose/info` 中 canonical chassis 是否存在及与模型 pose 是否一致；再按同步时序判断PREPARE的机械臂速度饱和、模型位姿变化、轮速/odom之间关系。不得仅凭相关性改动机械臂速度限制、质量、摩擦、控制增益或任何精度门槛。所有4mm IK、5mm grasp、6mm/0.5°交接、碰撞、关节限位、释放条件均保持不变。
 - PR #2 继续 draft/open；main 仍为 `1acfa3785283c227ee9f3e351140b3d601f7d85f`，未修改；完整双轮成功次数仍为 **1**。
+
+
+### 8.381 双轮复测发现人体 IK 候选集 fail-open 并修复（2026-11-14）
+
+- E2E run `43604188267`（commit `0bf82e20e945090028ab341c798beff2c63468ba`，artifact `14117578229`）：Python 与 CarryBus CI 通过；Gazebo E2E 的第1轮完整通过，阶段覆盖 `PREPARE → PRESENT → HANDOVER → PERSON_DRINK → TAKE_BACK → PUT_BACK → RETREAT → HANDBACK → DONE`，归档8张截图，杯回位误差1.1mm、倾斜0.1°。第2轮在 `PREPARE → FAIL_PREPARE` 失败；汇总 requested=2、completed=2、passed=1、failed=1、all_passed=false，因此不能计为连续双轮通过。
+- 第2轮底盘在 PREPARE hold 开始时相对目标偏移为0mm；失败发生在右臂抓壶接近：IK/FK自洽误差0mm，但伺服未确认到位，掌心残差133.0mm、最大关节误差104.36°。目标关节包含 `R_elbow=-2.317rad`，违反 `|elbow|≤2.25rad` 的 R7 人体姿态硬规则；最终实测姿态同样报 `R7肘过折`。关节状态年龄约44ms，不能归因于陈旧 joint state。
+- 源码定位到 `arm_kin.ik_human()` 的 fail-open：候选搜索即使只找到残差合格但违反人体硬规则的解，也会把这些候选放入列表并按软代价选出“最不坏”的违规解；无候选时还会回退到未经过人体规则过滤的 `ik_best()`。数值 polish 也未再次验证规则，理论上可能把合规解修成违规解。
+- 修复提交：`c586aeabe857cd1cf740ad550f17c0482578f074`（候选过滤及无合规解异常）、`dee6a80170e315e27d5c34b7f5660a0cce7457ef`（reach 捕获异常并在下发关节目标前 fail-closed）、`ad5c8c25aadb52887e98581af567816b5dd84ce8`（增加全候选违规时必须拒绝的回归测试）。现已只保留满足 R1–R7 的候选；若没有合规候选则拒绝动作；polish 结果也必须重新通过人体规则检查。
+- 该修复不会放宽或重定义 R1–R7、关节机械限位、4mm IK、5mm grasp、6mm/0.5° handover、碰撞检查、抓持/释放或 fail-closed 条件。它修复的是“违规 IK 结果被当成可执行解”的软件缺陷，不代表已经找到第二轮的合规可达解；后续 E2E 需验证合规候选是否存在、是否可在既定伺服时限内到位。
+- 下一步先跑 Python/CarryBus/Gazebo CI，核对新增回归测试和运行时导入；随后分析若无合规候选时目标位姿、种子覆盖及几何可达性，不通过放宽人体规则解决。完整双轮成功次数仍为1；PR #2保持draft/open，main不得修改。
