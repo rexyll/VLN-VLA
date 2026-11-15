@@ -66,6 +66,16 @@ class CandidateBufferTests(unittest.TestCase):
         self.assertEqual(buffer.ranked()[0].score, 4.0)
         self.assertEqual(buffer.executable(), [])
 
+    def test_hard_valid_duplicate_replaces_lower_scored_invalid_record(self):
+        buffer = CandidateBuffer(3)
+        invalid = self.candidate(1, 1.0, valid=False)
+        valid = self.candidate(1, 9.0, valid=True)
+        buffer.add(invalid)
+        buffer.add(valid)
+        self.assertEqual(len(buffer), 1)
+        self.assertEqual(buffer.executable(), [valid])
+
+
     def test_capacity_is_strictly_three_to_five(self):
         for capacity in (2, 6):
             with self.assertRaises(ValueError):
