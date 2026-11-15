@@ -52,6 +52,13 @@ class CmdMux(Node):
     def __init__(self):
         super().__init__('cmd_mux')
         self.pub = self.create_publisher(Twist, '/robot/cmd_vel', 20)
+        # Explicit table-side operation lock: while true, every velocity source,
+        # including /drink/cmd_vel, is ignored and zero is continuously published.
+        self._drink_base_locked = False
+        self.pub_base_lock_state = self.create_publisher(
+            Bool, '/drink/base_lock_state', 10)
+        self.create_subscription(Bool, '/drink/base_lock',
+                                 self._base_lock_cb, 10)
         self.create_subscription(Twist, '/follower_cmd_vel',
                                  self._fol_cb, 20)
         self.create_subscription(Twist, '/cmd_vel_smoothed', self._nav_cb, 20)
@@ -99,6 +106,18 @@ class CmdMux(Node):
                 self.get_logger().info('CMD_MUX 解除喝水锁定')
             self._drink_until = 0.0
 
+    def _base_lock_cb(self, m):
+        locked = bool(m.data)
+        if locked != self._drink_base_locked:
+            self._drink_base_locked = locked
+            # A stale nonzero task command must never replay after unlock.
+            self.drk = Twist()
+            self.drk_t = 0.0
+            self.get_logger().info(
+                'CMD_MUX DRINK_BASE_LOCK state=%s; all velocity inputs %s' %
+                ('LOCKED' if locked else 'UNLOCKED',
+                 'suppressed' if locked else 'awaiting fresh drink command'))
+
     def _fol_cb(self, m):
         self.fol = m
 
@@ -107,6 +126,9 @@ class CmdMux(Node):
         self.nav_t = time.monotonic()
 
     def _drk_cb(self, m):
+        # Discard task velocity commands during table-side lock; do not queue them.
+        if self._drink_base_locked:
+            return
         self.drk = m
         self.drk_t = time.monotonic()
 
@@ -157,6 +179,13 @@ class CmdMux(Node):
     def _tick(self):
         out = Twist()
         _now = time.monotonic()
+        # Publish zero continuously so the chassis controller's own velocity
+        # loop holds still. This overrides follower, Nav2 and task commands.
+        self.pub_base_lock_state.publish(
+            Bool(data=self._drink_base_locked))
+        if self._drink_base_locked:
+            self.pub.publish(Twist())
+            return
         # 滚动续租: 任务还在发心跳(或速度)就把锁往后推。原来锁是**固定
         # 300s**, 而低 RTF 下整条链要 330~390s —— 锁在 RETREAT 中途到期,
         # cmd_mux 立刻回落到 follower 的零速, 任务发的 /drink/cmd_vel 被
