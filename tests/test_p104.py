@@ -3452,7 +3452,7 @@ class TestP104(unittest.TestCase):
         with open(task_path, encoding='utf-8') as stream:
             source = stream.read()
         start = source.index('_pre_hc = M.hands_to_cup_mm(self)')
-        end = source.index('            # 保存世界系手心中点', start)
+        end = source.index("            self._set_state('HANDOVER'", start)
         body = source[start:end]
         self.assertIn("'不可用' if _pre_hc is None else", body)
         self.assertIn("'L=%.1fmm, R=%.1fmm' % (", body)
@@ -3484,8 +3484,9 @@ class TestPrepareBaseHoldNeutralization(unittest.TestCase):
             'drink_task.py')
         with open(task_path, encoding='utf-8') as stream:
             source = stream.read()
-        self.assertIn('PREPARE_BASE_HOLD_MODE zero-during-pour', source)
+        self.assertIn('def set_base_lock(self, locked, timeout=2.0):', source)
         self.assertIn("self.drive(0.0, 0.0)", source)
+        self.assertIn("'locked': True, 'request_id': self._base_lock_request_id", source)
         self.assertIn("VLA_PREPARE_BASE_HOLD_ZERO_DURING_POUR", source)
         self.assertNotIn('_prepare_base_reach_active', source)
 
