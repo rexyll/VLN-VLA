@@ -1172,4 +1172,4 @@
 - 将对应回归测试更新为明确断言零速度 publish 发生在 ACK publish 之前，防止未来重排。
 - 启用历史 P104 回归测试后，发现旧测试依赖已经变更的 handover 注释标记和过时的 PREPARE hold 字符串；已更新为当前 HANDOVER 状态边界和 cmd_mux lock/heartbeat 语义。另将旧的 _prepare_base_reach_active 检查限定在 _tick 逻辑范围，避免把初始化字段误判为运行时控制分支。
 - 修正后的 7a36bf2 Python syntax/pure tests 已通过，138 tests；但其后 5f7c258 与 ed087339 又增加 ACK 前立即输出零速度及对应断言，最新提交上的 Python、CarryBus 和 Gazebo E2E 正在排队/执行，必须以最新 SHA 的结果为准。
-- 当前最新代码 SHA：ed087339fdb8a3ab16b1d9a3edb700e6f977c7d0。最新相关 workflow：P104 Python 43703550778、CarryBus 43703550765、Gazebo E2E 43703550763；尚未完成。A 方案尚无 Gazebo 物理结果，不能宣称手部摆动已消除。
+- 最新代码 SHA：ed087339fdb8a3ab16b1d9a3edb700e6f977c7d0；当前分支 HEAD 为后续 TaskPlan 文档提交 7ff613408ddb493da95d70f71e890ebfbe9cb3ac。ed087339 上 P104 Python workflow 43703550778 已成功，编译与纯测试均通过；CarryBus ROS 2 executor workflow 43703550765 仍 in_progress，双轮 Gazebo E2E workflow 43703550763 仍 in_progress。后续文档提交触发的 Python workflow 43703556220 也已成功。A 方案尚无 Gazebo 物理结果，不能宣称手部摆动已消除。
