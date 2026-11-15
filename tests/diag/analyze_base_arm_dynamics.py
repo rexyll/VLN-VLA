@@ -152,7 +152,7 @@ def main():
     rendered = json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True)
     if args.output:
         with open(args.output, "w", encoding="utf-8") as stream:
-            stream.write(rendered + "\\n")
+            stream.write(rendered + "\n")
     print(rendered)
 
 
