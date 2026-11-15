@@ -687,11 +687,11 @@ class DrinkTask(Node):
     def run_base_motion_window(self, label, motion):
         """Run one explicitly permitted chassis motion, then always re-lock.
 
-        The drink lease remains active, so this temporary unlock only permits
-        the task's own /drink/cmd_vel path; ordinary follower/Nav2 inputs remain
-        excluded by cmd_mux arbitration. A failed unlock skips the motion. A
-        failed re-lock reports failure and set_base_lock() restores its lock
-        heartbeat (fail-closed).
+        The drink lease remains active, so velocity commands in this window
+        can only come from this task's /drink/cmd_vel path; follower/Nav2 remain
+        excluded by cmd_mux arbitration. CarryBus robot pose writes are also
+        guarded by _base_motion_window_active. A failed unlock skips the motion.
+        A failed re-lock reports failure and restores the lock heartbeat.
         """
         if not self.set_base_lock(False):
             self.get_logger().error(
