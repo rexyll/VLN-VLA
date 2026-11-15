@@ -23,15 +23,15 @@
 
 - 当前工作分支：`experiment/prepare-base-stillness-ab`
 - PR：[#2](https://github.com/rexyll/VLN-VLA/pull/2)，draft/open，base `main`，未合并
-- 当前任务节点：**P104-08：桌边取壶—倒水—放壶阶段底盘命令锁定（A 方案）**
-- 状态：**正在进行中；代码已提交至隔离分支，CI/Gazebo 验证待完成**
+- 当前任务节点：**P104-09：DrinkTask 分阶段底盘锁定与受控移动窗口**
+- 状态：**正在进行中；阶段化锁定代码和静态回归测试已提交，最新 CI/Gazebo 验证待完成**
 - 完整真实 Gazebo DrinkTask E2E 成功轮数：**1（连续双轮稳定性仍未验收；本次 A 方案尚未取得仿真结果）**
 - 最新已分析的失败 E2E：run 43700683227 在 PRESENT 因底盘位姿变化导致杯位偏差 20.897mm / 2.013°，严格 6mm / 0.5° gate 正确阻止 HANDOVER；run 43700687408 在 PREPARE 因掌心残差 3.5mm > 1.5mm 且杯体残差 3.2mm > 3.0mm fail-closed。两轮均未通过，不计入成功轮数。
 - 用户已确认优先使用 A 方案：在桌边操作窗口由 cmd_mux 忽略 follower、Nav2 和 DrinkTask 的所有普通速度输入，持续向底盘控制器发布零速度；底盘控制器继续执行其本地速度闭环。急停、故障保护、碰撞与任务安全门保持不变。
-- 实现边界：pour_approach 完成桌边定位后、第一次抓壶动作前请求锁定；必须收到带 request_id 的 cmd_mux ACK 才开始操作。锁定持续覆盖抓壶、倒水、水壶放回和右臂撤回安全位；确认放置及右臂撤离后才请求解锁，且必须收到 ACK 才允许底盘重新定位。锁定期间丢弃 DrinkTask 速度指令；解锁清空旧速度缓存，等待新指令，避免旧命令突然重放。
-- 当前代码提交：cmd_mux 锁定 bb2e2ab / request-ID ACK a7f2892 / ACK 前立即输出零速度 5f7c258；DrinkTask ACK 接口 05151c6、锁心跳 74b8110、解锁超时重新锁定 956cf62；桌边锁定时序 69b44b3 / 保持锁至右臂撤离 d2c186e；回归测试入口与断言修正 4f21422、1f36d45、7207a80、5b000da、7a36bf2、ed08733。这些提交均位于 experiment/prepare-base-stillness-ab，没有修改 main。
-- 回归测试已增加：mux 锁优先级、速度缓存清理、锁定/解锁阶段顺序、请求 ID ACK、缺失 mux 时 fail-closed、mux 重启后的锁心跳恢复，以及 ACK 前先发布零速度。此前首次启用历史遗留测试时发现 2 条断言过时，已按当前代码结构修正；7a36bf2 上 Python syntax/pure tests 已成功（138 tests），但 5f7c258/ed08733 的新增 ACK 顺序改动仍待最新 CI 验证。
-- 下一步：运行 Python syntax/pure tests、CarryBus 集成、headless Gazebo E2E；重点核对 CMD_MUX DRINK_BASE_LOCK 请求与 ACK、锁定窗口的 /robot/cmd_vel=0、底盘 truth pose/twist、轮速及杯/掌位姿。若零速度期间底盘仍漂移，应明确记录 A 方案只隔离速度命令，不能等同机械抱闸，再依据证据决定后续方案。
+- 实现边界（阶段化修订）：桌边第一次抓壶前锁定；抓壶、倒水、放壶、双臂捧杯及精细手臂动作期间保持锁定。仅对状态机明确允许的底盘动作开启短窗口：PREPARE 面向人员转身、PRESENT 递杯补位、PUT_BACK 转身、RETREAT 各段有界撤离；每个窗口均执行“解锁 ACK→指定任务动作→finally 重新锁定 ACK”，失败则不执行动作或中止后续阶段。PRESENT 双臂递杯、HANDOVER 人手接管与机器人松手、PERSON_DRINK、TAKE_BACK 全程保持锁定。只有放回、机械臂撤离净空和桌边安全距离均确认后，HANDBACK 才解锁并发送 FOLLOW；若 FOLLOW 状态未确认则重新锁定。解锁清空旧速度缓存；喝水租约仍屏蔽 follower/Nav2，只放行当前任务的 /drink/cmd_vel。
+- 当前代码提交：阶段化锁定实现 `61a976aef1855b83bb37927bb81c28fb6d02deea`（DrinkTask 受控移动窗口、PRESENT/PUT_BACK/RETREAT 分段重锁、HANDBACK 解锁）与 `dcff909e66d4c6b54ffcf7186e59f2ff231385cb`（PREPARE 保持锁定，仅面向人员转身短暂解锁）；静态回归测试 `880f5042ce3bca9bc4402f9cc1ac7841df4373af`。均位于 `experiment/prepare-base-stillness-ab`，PR #2 base 仍为 main，未修改 main。
+- 回归测试已增加：mux 锁优先级与缓存清理、request_id ACK、锁心跳、ACK 前立即发布零速度、PREPARE 不再在放壶后提前解锁、每个底盘移动窗口均通过统一 finally 重锁、HANDBACK 失败时重新锁定。最新 SHA `880f5042` 的 P104 Python push workflow `43707215875` 已成功；对应 PR Python、CarryBus 与双轮 Gazebo E2E workflows 仍在执行，尚不宣称本次阶段化锁定通过。
+- 下一步：先收敛最新 SHA 的 Python/CarryBus/Gazebo CI；随后从 `drink.log` 与 `mux.log` 验证 OPEN/CLOSED 窗口与 request_id ACK 的严格顺序，并核对锁定阶段的底盘 truth pose/twist、轮速、杯/掌位姿。完整 E2E 必须走到 DONE 且满足全部既有验收指标；零速度锁定仍不等于机械抱闸，物理制动接口调查与只读底盘—机械臂 A/B 采集继续独立进行。
 - 不得修改 SDF、摩擦/质量/阻尼、控制器参数或放宽 IK、碰撞、关节、抓取、交接和释放安全门槛；不把 `in_band_pct` 当作跟随成功。
 
 ## 任务章节
@@ -1173,3 +1173,14 @@
 - 启用历史 P104 回归测试后，发现旧测试依赖已经变更的 handover 注释标记和过时的 PREPARE hold 字符串；已更新为当前 HANDOVER 状态边界和 cmd_mux lock/heartbeat 语义。另将旧的 _prepare_base_reach_active 检查限定在 _tick 逻辑范围，避免把初始化字段误判为运行时控制分支。
 - 修正后的 7a36bf2 Python syntax/pure tests 已通过，138 tests；但其后 5f7c258 与 ed087339 又增加 ACK 前立即输出零速度及对应断言，最新提交上的 Python、CarryBus 和 Gazebo E2E 正在排队/执行，必须以最新 SHA 的结果为准。
 - 最新代码 SHA：ed087339fdb8a3ab16b1d9a3edb700e6f977c7d0；当前分支 HEAD 为后续 TaskPlan 文档提交 7ff613408ddb493da95d70f71e890ebfbe9cb3ac。ed087339 上 P104 Python workflow 43703550778 已成功，编译与纯测试均通过；CarryBus ROS 2 executor workflow 43703550765 仍 in_progress，双轮 Gazebo E2E workflow 43703550763 仍 in_progress。后续文档提交触发的 Python workflow 43703556220 也已成功。A 方案尚无 Gazebo 物理结果，不能宣称手部摆动已消除。
+
+
+### 8.401 DrinkTask 底盘锁定改为阶段化短窗口（2026-11-15）
+
+- 用户确认将底盘锁定延长至 PRESENT/HANDOVER 交接动作完成，并仅在状态机明确允许底盘移动时解锁。源码审查发现 PREPARE 结束后原实现立即解锁，导致捧杯、转身、PRESENT 跟随期间都失去命令层锁定；同时 PREPARE/PRESENT/PUT_BACK/RETREAT 本身确有必需的脚本化底盘移动，不能简单全程锁死。
+- 新增 `DrinkTask.run_base_motion_window(label, motion)`：解锁必须获得 cmd_mux request_id ACK；只执行传入的任务动作；无论动作返回成功或失败，均在 `finally` 中请求重新锁定。解锁失败不执行动作；重锁 ACK 失败则返回失败并依靠 `set_base_lock()` 的锁心跳 fail-closed。
+- PREPARE：水壶放回及右臂回安全位后不再提前解锁；杯子双手承托动作期间保持锁定；仅 `PREPARE_FACE_TURN` 使用短暂受控移动窗口，随后重新锁定。
+- PRESENT：仅 `PRESENT_APPROACH` 递杯补位使用短暂移动窗口；补位结束后重新锁定，覆盖双臂递杯、杯位复核、HANDOVER 人手合拢接管、机器人松手与撤臂。
+- PERSON_DRINK 与 TAKE_BACK 保持锁定；PUT_BACK 转身、RETREAT 各段撤离分别开启独立短窗口，窗口之间的手臂动作保持锁定。撤离净空确认后，HANDBACK 才解除底盘锁并发送 FOLLOW；若 FOLLOW 状态未获新鲜确认则重新锁定。
+- 新增/更新 `tests/test_p104.py` 静态回归：检查 PREPARE 锁定范围、受控窗口 finally 重锁、PRESENT/PUT_BACK/RETREAT 窗口覆盖及 HANDBACK 解锁顺序。最新代码 SHA `880f5042ce3bca9bc4402f9cc1ac7841df4373af` 的 Python push workflow `43707215875` 成功；同 SHA 的 PR Python、CarryBus、headless Gazebo E2E 仍需以最终状态核验。Base-arm diagnostic collector syntax workflow `43707221048` 成功。
+- 本次只改变底盘命令锁的时序与回归测试；不改变 IK、抓取/交接/放置阈值、碰撞检查、关节限制、释放条件、SDF、质量、摩擦、阻尼或控制器增益。命令层 LOCKED 仍不等于机械抱闸。完整 Gazebo E2E 成功轮数保持 **1**，本次改动尚未计为验证通过；main 未修改，PR #2 仍 Draft/Open。
