@@ -3555,14 +3555,17 @@ class TestDrinkBaseLock(unittest.TestCase):
         body = source[start:end]
         self.assertLess(body.index('pour_approach(node)'), body.index('node.set_base_lock(True)'))
         self.assertLess(body.index('node.set_base_lock(True)'), body.index('pour_into_cup(node'))
-        self.assertLess(body.index('if not ok_d:'), body.index('serve_mm = place_robot'))
+        self.assertLess(body.index('if not ok_d:'), body.index('serve_window_ok, serve_mm'))
         self.assertNotIn('node.set_base_lock(False)', body)
-        self.assertLess(body.index('place_held('), body.index('run_base_motion_window('))
-        self.assertIn("'PREPARE_FACE_TURN'", body)
-        self.assertLess(body.index("run_base_motion_window("), body.index("ok_t, err_t = turn_result"))
-        self.assertLess(body.index("ok_t, err_t = turn_result"), body.index("face_mm = place_robot"))
+        self.assertEqual(body.count('run_base_motion_window('), 2)
+        self.assertIn("'PREPARE_SERVICE_RESET'", body)
+        self.assertIn("'PREPARE_FACE_ALIGN'", body)
+        self.assertLess(body.index('serve_window_ok, serve_mm'), body.index('place_held('))
+        self.assertLess(body.index('hand_onto('), body.index('run_base_motion_window(', body.index('hand_onto(')))
+        self.assertIn('place_robot(node, T_face)', body)
         self.assertIn("out['reason'] = 'chassis_lock_unconfirmed'", body)
-        self.assertIn("prepare_face_turn_lock_window_failed", body)
+        self.assertIn("service_pose_lock_window_failed", body)
+        self.assertIn("prepare_face_align_lock_window_failed", body)
 
     def test_task_lock_request_requires_mux_ack_and_request_id(self):
         task_path = os.path.join(
@@ -3589,6 +3592,8 @@ class TestDrinkBaseLock(unittest.TestCase):
         self.assertIn('try:', helper)
         self.assertIn('finally:', helper)
         self.assertIn('relock_ok = self.set_base_lock(True)', helper)
+        self.assertIn('self._base_motion_window_active = True', helper)
+        self.assertIn('self._base_motion_window_active = False', helper)
         self.assertIn('return False, result', helper)
 
         run_start = source.index('def run_drink(')
@@ -3606,17 +3611,27 @@ class TestDrinkBaseLock(unittest.TestCase):
         self.assertLess(unlock, follow)
         self.assertIn('self.set_base_lock(True)', run[follow:])
 
-    def test_prepare_face_turn_is_the_only_prepare_present_velocity_window(self):
+    def test_prepare_robot_pose_writes_are_guarded_by_motion_windows(self):
         motion_path = os.path.join(
             ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
             'drink_motion.py')
         with open(motion_path, encoding='utf-8') as stream:
             source = stream.read()
+        start = source.index('def place_robot(')
+        end = source.index('def ', start + 5)
+        body = source[start:end]
+        self.assertIn("getattr(node, '_base_lock_active', False)", body)
+        self.assertIn("getattr(node, '_base_motion_window_active', False)", body)
+        self.assertIn('PLACE_ROBOT 被底盘锁拒绝', body)
+
         start = source.index('def prepare_present(')
         end = source.index('def cup_present_target(', start)
         body = source[start:end]
-        self.assertEqual(body.count('run_base_motion_window('), 1)
-        self.assertIn("'PREPARE_FACE_TURN'", body)
+        self.assertEqual(body.count('run_base_motion_window('), 2)
+        self.assertIn("'PREPARE_SERVICE_RESET'", body)
+        self.assertIn("'PREPARE_FACE_ALIGN'", body)
+        self.assertIn('place_robot(node, T_serve)', body)
+        self.assertIn('place_robot(node, T_face)', body)
         self.assertNotIn('node.set_base_lock(False)', body)
 
 
