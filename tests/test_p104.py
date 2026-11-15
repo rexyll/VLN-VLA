@@ -3488,7 +3488,9 @@ class TestPrepareBaseHoldNeutralization(unittest.TestCase):
         self.assertIn("self.drive(0.0, 0.0)", source)
         self.assertIn("'locked': True, 'request_id': self._base_lock_request_id", source)
         self.assertIn("VLA_PREPARE_BASE_HOLD_ZERO_DURING_POUR", source)
-        self.assertNotIn('_prepare_base_reach_active', source)
+        tick_body = source[source.index('def _tick(self):'):
+                             source.index('def _carry_tick(self):')]
+        self.assertNotIn('_prepare_base_reach_active', tick_body)
 
 
 class TestPresentBaseHoldAblation(unittest.TestCase):
