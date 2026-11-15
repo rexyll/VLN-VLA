@@ -3544,7 +3544,7 @@ class TestDrinkBaseLock(unittest.TestCase):
         self.assertIn('if self._drink_base_locked:', drk_callback)
         self.assertIn('return', drk_callback)
 
-    def test_prepare_locks_after_table_approach_and_unlocks_only_after_kettle_putdown(self):
+    def test_prepare_keeps_lock_through_arm_work_and_scopes_face_turn_unlock(self):
         motion_path = os.path.join(
             ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
             'drink_motion.py')
@@ -3555,10 +3555,14 @@ class TestDrinkBaseLock(unittest.TestCase):
         body = source[start:end]
         self.assertLess(body.index('pour_approach(node)'), body.index('node.set_base_lock(True)'))
         self.assertLess(body.index('node.set_base_lock(True)'), body.index('pour_into_cup(node'))
-        self.assertLess(body.index('if not ok_d:'), body.index('node.set_base_lock(False)'))
-        self.assertLess(body.index('node.set_base_lock(False)'), body.index('serve_mm = place_robot'))
+        self.assertLess(body.index('if not ok_d:'), body.index('serve_mm = place_robot'))
+        self.assertNotIn('node.set_base_lock(False)', body)
+        self.assertLess(body.index('place_held('), body.index('run_base_motion_window('))
+        self.assertIn("'PREPARE_FACE_TURN'", body)
+        self.assertLess(body.index("run_base_motion_window("), body.index("ok_t, err_t = turn_result"))
+        self.assertLess(body.index("ok_t, err_t = turn_result"), body.index("face_mm = place_robot"))
         self.assertIn("out['reason'] = 'chassis_lock_unconfirmed'", body)
-        self.assertIn("out['reason'] = 'chassis_unlock_unconfirmed'", body)
+        self.assertIn("prepare_face_turn_lock_window_failed", body)
 
     def test_task_lock_request_requires_mux_ack_and_request_id(self):
         task_path = os.path.join(
@@ -3572,6 +3576,48 @@ class TestDrinkBaseLock(unittest.TestCase):
         self.assertIn('ack[0] == request_id', source)
         self.assertIn("'locked': True, 'request_id': self._base_lock_request_id", source)
         self.assertIn('self._base_lock_active = bool(locked)', source)
+
+    def test_task_motion_windows_always_relock_and_cover_every_drive(self):
+        task_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow', 'drink_task.py')
+        with open(task_path, encoding='utf-8') as stream:
+            source = stream.read()
+        helper_start = source.index('def run_base_motion_window(')
+        helper_end = source.index('def _cmd_mux_is_present(', helper_start)
+        helper = source[helper_start:helper_end]
+        self.assertIn('if not self.set_base_lock(False):', helper)
+        self.assertIn('try:', helper)
+        self.assertIn('finally:', helper)
+        self.assertIn('relock_ok = self.set_base_lock(True)', helper)
+        self.assertIn('return False, result', helper)
+
+        run_start = source.index('def run_drink(')
+        run_end = source.index('def _tick(', run_start)
+        run = source[run_start:run_end]
+        self.assertIn("'PRESENT_APPROACH', self._approach_if_far", run)
+        self.assertIn("'PUT_BACK_TURN', lambda: M.turn_base(self, 0.0)", run)
+        for label in ('RETREAT_FOLD_CLEARANCE',
+                      'RETREAT_CLEARANCE_EXTEND',
+                      'RETREAT_CLEARANCE_RETRY', 'RETREAT_FINAL'):
+            self.assertIn(label, run)
+        handback = run.index("self._set_state('HANDBACK')")
+        unlock = run.index('if not self.set_base_lock(False):', handback)
+        follow = run.index("self._tell_robot('FOLLOW')", handback)
+        self.assertLess(unlock, follow)
+        self.assertIn('self.set_base_lock(True)', run[follow:])
+
+    def test_prepare_face_turn_is_the_only_prepare_present_velocity_window(self):
+        motion_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
+            'drink_motion.py')
+        with open(motion_path, encoding='utf-8') as stream:
+            source = stream.read()
+        start = source.index('def prepare_present(')
+        end = source.index('def cup_present_target(', start)
+        body = source[start:end]
+        self.assertEqual(body.count('run_base_motion_window('), 1)
+        self.assertIn("'PREPARE_FACE_TURN'", body)
+        self.assertNotIn('node.set_base_lock(False)', body)
 
 
 if __name__ == '__main__':
