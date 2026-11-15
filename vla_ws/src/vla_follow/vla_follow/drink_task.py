@@ -228,6 +228,7 @@ class DrinkTask(Node):
         self.js_effort = {}
         self.js_sample_t = 0.0
         self.links = {}
+        self._gt_model_sample_t = {}
         self.base = (0.0, 0.0, 0.0)
         # Model-truth finite-difference velocity is independent of wheel odom.
         self.truth_base_twist = None
@@ -432,6 +433,7 @@ class DrinkTask(Node):
         # dynamic_pose/info is a stream of complete-ish snapshots. Build the
         # next map off-thread and publish it with one reference assignment.
         updated = dict(self.links)
+        model_sample_t = dict(getattr(self, '_gt_model_sample_t', {}))
         sample_t = time.monotonic()
         previous_arrival = self._gt_last_arrival_t
         callback_dt = (sample_t - previous_arrival
@@ -447,6 +449,7 @@ class DrinkTask(Node):
         self._gt_callback_meta = (sample_t, callback_dt, sim_stamp)
         for p in msg.pose:
             updated[p.name] = p
+            model_sample_t[p.name] = sample_t
             if (p.name == 'robot::chassis'
                     or (p.name.startswith('robot::') and p.name.endswith('::chassis'))):
                 link_rpy = quaternion_rpy(
@@ -570,6 +573,7 @@ class DrinkTask(Node):
                             })
                             trace['detail_last_t'] = sample_t
         self.links = updated
+        self._gt_model_sample_t = model_sample_t
         # P98 排查: 道具键会间歇性从 links 里"消失"(抓取时在、place_held
         # 时变 None → FAIL_PREPARE)。节流打印真值流的关键键存在性, 定位
         # 是"流里没有"还是"字典丢了"。
