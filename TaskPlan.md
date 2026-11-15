@@ -1032,3 +1032,13 @@
 - 当前 SDF 参数仅作为待核对对象：底盘质量13kg；差速轮关节 effort上限5Nm、damping 0.5；支撑轮摩擦系数0.05；地面摩擦系数1.0。SDF数值不等于实际施加的制动/摩擦力矩，JointState effort采样为0也不能证明关节无力矩或已锁止。不得据此直接增大阻尼/摩擦或改质量。
 - 下一步采用只读/独立可复现实验：核实diff-drive插件在零命令下的wheel joint force/velocity控制语义及轮子接触面方向；记录轮关节position/velocity/effort、底盘model pose、wheel-ground接触/真值twist和仿真时间戳；将机械臂静止、单臂低速分段运动、双臂原动作作为分组对照，保持同一场景与初始状态。先验证接口和物理观测一致性，再决定是否需要单变量物理参数实验。不得直接降低ARM_VMAX，不得改变4mm IK、5mm grasp、6mm/0.5° handover、碰撞、关节限位、fail-closed或释放条件。
 - 完整连续双轮 Gazebo E2E 成功次数仍为 **1**；PR #2 保持draft/open；main `1acfa3785283c227ee9f3e351140b3d601f7d85f` 未修改。
+
+
+### 8.387 DiffDrive 零速度命令语义与轮关节坐标核验（2026-11-15）
+
+- 核对 Gazebo Sim 8 官方 `DiffDrive.cc` 实现：`OnCmdVel()` 将收到的 Twist 保存为 `targetVel`；`UpdateVelocity()` 对线/角速度做加速度限幅后，按差速运动学换算左右轮目标角速度；每个更新周期通过 `JointVelocityCmd` 写入左右轮关节。故零 Twist 的语义是左右轮目标角速度为零，不是额外的机械抱闸/刚性锁止命令。外力作用下的实际轮速、底盘运动和约束反力仍由物理引擎与接触状态决定，必须实测，不能由零命令推断“底盘锁定”。
+- 核对 SDF 1.11 关节坐标语义与当前模型：wheel link 的初始姿态绕 X 轴约 +90°，关节未显式指定 pose 时轴向按关节初始坐标系解释；因此 `<xyz>0 0 -1</xyz>` 经坐标变换后与轮子圆柱轴线一致。排除“仅凭 XML 轴向数字看起来是 Z 轴，就判定轮轴错误”的误判；本轮不改轮轴。
+- 当前机器人差速配置为轮距0.30m、半径0.06m，轮关节 effort 上限5Nm、damping 0.5；DiffDrive 插件配置加速度限幅，但未配置独立 brake/hold 系统。5Nm 是关节 effort 限制，不等于零命令下持续施加5Nm制动力；JointState effort 读数为0也不构成制动状态证明。
+- 另核对 E2E workflow：实验分支 push 事件会强制启用 PREPARE/PRESENT 双零指令变量；workflow_dispatch 事件才会采用输入开关值。因此后续 A/B 需使用手动 dispatch 分别明确指定变量，或新增独立诊断工作流，避免把分支 push 的强制变量当作可切换基线。现有 E2E 仅在完整任务流程中采集轨迹，不能单独区分“机械臂静止基线 / 单臂慢速分段 / 双臂原动作”。
+- 下一步：实现独立的只读物理诊断入口，在相同 world、初始姿态、仿真步长和控制器下，分组运行机械臂静止、单臂低速分段、双臂原动作；同步记录仿真时间、模型 pose、关节位置/速度/effort、轮速、轮地接触状态与真值 twist。先验证 JointState effort/接触观测接口的可用性，再做单变量对照；诊断入口不得改变生产任务状态机、默认控制或安全门槛。
+- 本轮没有修改 SDF 物理参数、轮轴、DiffDrive 控制器、ARM_VMAX、任务阈值或释放逻辑。完整连续双轮 Gazebo E2E 成功次数仍为 **1**；PR #2 保持 draft/open；main `1acfa3785283c227ee9f3e351140b3d601f7d85f` 未修改。
