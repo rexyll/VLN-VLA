@@ -1476,6 +1476,13 @@ def place_robot(node, T_goal, tol_mm=8.0, tries=3, settle=0.25):
 
     返回最终位置残差 mm。
     """
+    # CarryBus SetWorldPoseCmd bypasses cmd_mux. Once the drink base lock is
+    # active, only a state-machine-owned motion window may issue this teleport.
+    if (getattr(node, '_base_lock_active', False)
+            and not getattr(node, '_base_motion_window_active', False)):
+        node.get_logger().error(
+            'PLACE_ROBOT 被底盘锁拒绝：当前不在状态机许可的底盘移动窗口')
+        return 9e9
     # 先清除 follower/上一轮 drive 残留的轮速。不能只看 cmd_vel=0：
     # E2E #68 第二轮实测 cmd_vel=0 时左轮仍为 -0.986rad/s，底盘 yaw
     # 在 5 轮 IK 中漂移约 15.6°，将 5.4mm 的末轮残差推过 4mm 门槛。
@@ -2973,9 +2980,15 @@ def prepare_present(node, fill=0.65, verbose=True):
             % math.degrees(float(np.nanmax(np.abs(err_r_home)))))
         return out
     node.spin_for(0.4)
-    # Keep the chassis command lock after kettle placement. Pose pinning and
-    # arm-only cup preparation do not need a velocity-command unlock.
-    serve_mm = place_robot(node, T_serve)
+    # The service-pose correction is a CarryBus teleport (outside cmd_mux), so
+    # it must use the same explicit state-machine motion window as drive_to.
+    serve_window_ok, serve_mm = node.run_base_motion_window(
+        'PREPARE_SERVICE_RESET', lambda: place_robot(node, T_serve))
+    if not serve_window_ok:
+        out['reason'] = 'service_pose_lock_window_failed'
+        node.get_logger().error(
+            'PREPARE 服务位复位窗口无法确认解锁/重新锁定；保持抓持并中止')
+        return out
     if serve_mm >= 8.0:
         out['reason'] = 'service_pose_reset_failed'
         node.get_logger().error(
@@ -3017,24 +3030,24 @@ def prepare_present(node, fill=0.65, verbose=True):
     if yaw_face is None:
         yaw_face = math.atan2(L.PERSON_SPOT[1] - node.base[1],
                               L.PERSON_SPOT[0] - node.base[0])
-    # The only mobile-base operation in this arm-preparation section is the
-    # intentional in-place turn. Open a short task-only window and re-lock in
-    # the helper's finally path before any further precision arm motion.
-    turn_window_ok, turn_result = node.run_base_motion_window(
-        'PREPARE_FACE_TURN', lambda: turn_base(node, yaw_face))
-    if not turn_window_ok:
-        out['reason'] = 'prepare_face_turn_lock_window_failed'
-        node.get_logger().error(
-            'PREPARE 面向人员转身窗口无法确认解锁/重新锁定；保持持杯并中止')
-        return out
-    ok_t, err_t = turn_result
-    # 转身是 cmd_vel 原地转, 轮子会平移漂 3~7cm (§6.4 #35 的同一个病)。而
-    # 递杯位是"从 base 前伸 0.62"算的、人手点却是世界固定点 —— 不摆正的话
-    # 两者不共线, 实测杯子会停在离人手 65.9mm 的地方。转完把底盘摆回服务位
-    # (**朝向保留**), 让 base 与人手点严格落在同一条射线上。
+    # Turn and the following CarryBus pose correction are both base motion.
+    # Keep them in one explicit window, then re-lock before further arm work.
     T_face = K.frame(K.rot_z(yaw_face),
                      (L.SERVE_POSE[0], L.SERVE_POSE[1], 0.0))
-    face_mm = place_robot(node, T_face)
+
+    def _turn_and_face_reset():
+        ok_turn, err_turn = turn_base(node, yaw_face)
+        reset_mm = place_robot(node, T_face)
+        return ok_turn, err_turn, reset_mm
+
+    turn_window_ok, turn_result = node.run_base_motion_window(
+        'PREPARE_FACE_ALIGN', _turn_and_face_reset)
+    if not turn_window_ok:
+        out['reason'] = 'prepare_face_align_lock_window_failed'
+        node.get_logger().error(
+            'PREPARE 面向人员转身/复位窗口无法确认解锁/重新锁定；保持持杯并中止')
+        return out
+    ok_t, err_t, face_mm = turn_result
     face_ok = bool(face_mm < 8.0)
     out.update({'ok': bool(ok_d and ok_c and off_r is not None and ok_t
                             and face_ok),
