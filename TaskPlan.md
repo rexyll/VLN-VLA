@@ -1067,3 +1067,11 @@
 - 当前实验分支 HEAD 为 `fde1867bfcce257870195e4b969376d25145f50f`，相对 `main` ahead 61、behind 0；PR #2 仍 open，未合并。`main` HEAD 仍为 `1acfa3785283c227ee9f3e351140b3d601f7d85f`。
 - 诊断采集器尚未在可运行的 Gazebo 实例执行，A/B/C 物理数据仍缺失。下一步应在真实仿真环境分别采集 A（双臂静止）、B（单臂低速分段）、C（双臂原动作），先验证 topic 覆盖、仿真时间戳与真值 pose，再比较底盘位移/偏航、轮速、关节状态和 odometry。不得以 CI 成功替代物理实验，不得修改安全阈值或直接改物理参数。
 - 完整连续双轮 Gazebo E2E 成功次数仍为 **1**；本轮未新增完整 E2E 成功，不计数。
+
+### 8.391 A/B/C 采集数据离线摘要器与单元测试（2026-11-15）
+
+- 新增 tests/diag/analyze_base_arm_dynamics.py：离线读取采集器 JSONL，输出来源覆盖/仿真时间戳覆盖、robot/chassis 相对首帧 XY 位移与 yaw 变化、左右轮和机械臂关节速度统计、底盘命令分量统计。缺失 chassis/contact 数据明确保留为缺失，不补造；不设置通过阈值、不输出根因结论，也不将 JointState force 当作制动力证明。
+- 新增 tests/diag/test_analyze_base_arm_dynamics.py，覆盖位移计算、轮/臂速度分类及空数据/缺失数据语义。扩展 .github/workflows/base-arm-diagnostic.yml，对采集器与分析器执行 py_compile、单元测试，并保留采集器只读 AST 检查。
+- CI 调整过程曾出现一次 workflow run 43677613914 失败，原因是把两条 shell 命令写进同一条 run scalar，导致 unittest 参数被 py_compile 接收；已改为 YAML 多行 run: |。最新诊断 CI run 43677655219 在最终提交 8a063f31d8784f8829bbc9697beed383ebe3a327 上成功，Compile and test 与 read-only AST 两步均通过。P104 Python syntax run 43677655227 同一提交成功；P104 CarryBus run 43677655253 在本次记录时仍在 ROS 2 Jazzy 依赖安装阶段，需继续轮询。
+- 本分析器只对已有 JSONL 做描述性汇总，不代替 Gazebo 物理实验。A/B/C 数据尚未取得；采集器仍未在 Gazebo 实例实际执行。下一步先完成 CarryBus CI 状态确认，再获取三组真实采集文件并离线分析；若没有 Gazebo runtime，不能声称物理根因已解决。
+- 本轮未改 SDF、控制器、任务状态机、安全门槛或释放条件；main 未修改，PR #2 仍 Draft/Open；完整连续双轮 Gazebo E2E 成功次数仍为 1。
