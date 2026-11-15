@@ -1467,6 +1467,115 @@ def wait_base_stopped(node, timeout=4.0, stable_s=0.25):
     return False
 
 
+def base_alignment_motion_table_clear(node, start_base, goal_base,
+                                      sides=('L', 'R')):
+    """Check both current arm postures throughout translation then base yaw turn."""
+    try:
+        start = tuple(float(v) for v in start_base)
+        goal = tuple(float(v) for v in goal_base)
+    except (TypeError, ValueError, OverflowError):
+        return False, {'reason': 'base_pose_invalid'}
+    if (len(start) != 3 or len(goal) != 3
+            or not all(math.isfinite(v) for v in start + goal)):
+        return False, {'reason': 'base_pose_invalid'}
+    yaw_delta = math.atan2(math.sin(goal[2] - start[2]),
+                           math.cos(goal[2] - start[2]))
+    translation = math.hypot(goal[0] - start[0], goal[1] - start[1])
+    translation_steps = max(1, int(math.ceil(translation / 0.01)))
+    yaw_steps = max(1, int(math.ceil(abs(yaw_delta) / math.radians(2.0))))
+    q_by_side = {}
+    for side in sides:
+        q = q_meas(node, side)
+        if q is None:
+            return False, {'reason': 'joint_state_missing', 'side': side}
+        q_by_side[side] = q
+    samples = []
+    for index in range(1, translation_steps + 1):
+        fraction = index / float(translation_steps)
+        samples.append((
+            start[0] + (goal[0] - start[0]) * fraction,
+            start[1] + (goal[1] - start[1]) * fraction,
+            start[2]))
+    for index in range(1, yaw_steps + 1):
+        fraction = index / float(yaw_steps)
+        samples.append((
+            goal[0], goal[1],
+            math.atan2(math.sin(start[2] + yaw_delta * fraction),
+                       math.cos(start[2] + yaw_delta * fraction))))
+    for sample_index, base in enumerate(samples):
+        for side, q in q_by_side.items():
+            clear, hit = arm_path_table_clear(
+                node, side, [q], base=base, ignore_initial=True,
+                q_start=q)
+            if not clear:
+                return False, {
+                    'reason': 'arm_table_collision_during_base_alignment',
+                    'sample': sample_index, 'base': list(base),
+                    'side': side, 'collision': hit,
+                }
+    return True, {'samples': len(samples), 'sides': list(sides)}
+
+
+def drive_to_base_axis(node, xy, v_max=0.08, tol_mm=8.0,
+                       timeout=10.0, k=0.8, v_min=0.02,
+                       tag='底盘距离调整'):
+    """Short bounded translation that drives in reverse when target is behind.
+
+    Unlike drive_to(), this avoids a 180-degree pivot for table-normal
+    standoff changes away from the table. It preserves the current heading;
+    lateral misalignment beyond 15 degrees is rejected rather than steering
+    the raised arms through an unverified sweep.
+    """
+    t0 = time.time()
+    s0 = sim_now(node)
+    last_progress = 0.0
+    best = 9e9
+    while True:
+        elapsed_sim = sim_now(node) - s0
+        if (elapsed_sim > timeout * 6.0
+                or time.time() - t0 > timeout * 18.0):
+            break
+        node.sync_base_from_truth(quiet=True)
+        dx, dy = float(xy[0]) - node.base[0], float(xy[1]) - node.base[1]
+        distance = math.hypot(dx, dy)
+        if distance * 1000.0 < float(tol_mm):
+            break
+        if distance < best - 0.005:
+            best, last_progress = distance, elapsed_sim
+        elif elapsed_sim - last_progress > float(timeout):
+            node.get_logger().warn(
+                'DRIVE_AXIS %s: %.0fmm 无进展，停止' % (tag, distance * 1e3))
+            break
+        direction = math.atan2(dy, dx)
+        yaw = float(node.base[2])
+        direction_error = math.atan2(
+            math.sin(direction - yaw), math.cos(direction - yaw))
+        reverse = abs(direction_error) > (math.pi / 2.0)
+        desired_yaw = (direction - math.pi) if reverse else direction
+        yaw_error = math.atan2(math.sin(desired_yaw - yaw),
+                               math.cos(desired_yaw - yaw))
+        if abs(yaw_error) > math.radians(3.0):
+            velocity = 0.0
+            angular = max(-0.20, min(0.20, 1.0 * yaw_error))
+        else:
+            velocity = max(min(float(v_max), float(k) * distance),
+                           float(v_min))
+            if reverse:
+                velocity = -velocity
+            angular = max(-0.08, min(0.08, 0.8 * yaw_error))
+        node.drive(velocity, angular)
+        node.spin_for(0.05)
+    node.drive(0.0, 0.0)
+    stopped = wait_base_stopped(node)
+    node.sync_base_from_truth(quiet=True)
+    residual = math.hypot(
+        float(xy[0]) - node.base[0], float(xy[1]) - node.base[1]) * 1000.0
+    node.get_logger().info(
+        'DRIVE_AXIS %s -> (%.3f,%.3f) residual=%.1fmm stopped=%s'
+        % (tag, xy[0], xy[1], residual, stopped))
+    return bool(stopped and residual < float(tol_mm)), residual
+
+
 def place_robot(node, T_goal, tol_mm=8.0, tries=3, settle=0.25):
     """把底盘 teleport 到 T_goal, 用真值核对, 不够就重放。
 
@@ -3106,6 +3215,13 @@ def prepare_present(node, fill=0.65, verbose=True):
                 math.cos(candidate[2] - cup_base_before[2])))
             if xy_delta < 0.001 and yaw_delta < math.radians(0.5):
                 continue
+            motion_clear, motion_detail = base_alignment_motion_table_clear(
+                node, cup_base_before, candidate)
+            if not motion_clear:
+                node.get_logger().info(
+                    'CUP_GRASP_BASE_CANDIDATE rejected: base-motion arm sweep %s'
+                    % motion_detail)
+                continue
             candidate_ok, candidate_detail = cup_grasp_preflight(
                 node, base_pose=candidate)
             node.get_logger().info(
@@ -3124,7 +3240,7 @@ def prepare_present(node, fill=0.65, verbose=True):
             return out
 
         def align_cup_base():
-            move_ok, move_res = drive_to(
+            move_ok, move_res = drive_to_base_axis(
                 node, (cup_candidate[0], cup_candidate[1]),
                 v_max=0.08, tol_mm=8.0, timeout=10.0,
                 k=0.8, v_min=0.02, tag='杯子抓取前底盘距离调整')
