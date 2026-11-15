@@ -29,8 +29,8 @@
 - 最新已分析的失败 E2E：run 43700683227 在 PRESENT 因底盘位姿变化导致杯位偏差 20.897mm / 2.013°，严格 6mm / 0.5° gate 正确阻止 HANDOVER；run 43700687408 在 PREPARE 因掌心残差 3.5mm > 1.5mm 且杯体残差 3.2mm > 3.0mm fail-closed。两轮均未通过，不计入成功轮数。
 - 用户已确认优先使用 A 方案：在桌边操作窗口由 cmd_mux 忽略 follower、Nav2 和 DrinkTask 的所有普通速度输入，持续向底盘控制器发布零速度；底盘控制器继续执行其本地速度闭环。急停、故障保护、碰撞与任务安全门保持不变。
 - 实现边界：pour_approach 完成桌边定位后、第一次抓壶动作前请求锁定；必须收到带 request_id 的 cmd_mux ACK 才开始操作。锁定持续覆盖抓壶、倒水、水壶放回和右臂撤回安全位；确认放置及右臂撤离后才请求解锁，且必须收到 ACK 才允许底盘重新定位。锁定期间丢弃 DrinkTask 速度指令；解锁清空旧速度缓存，等待新指令，避免旧命令突然重放。
-- 当前代码提交：cmd_mux 锁定 bb2e2ab / ACK a7f2892；DrinkTask ACK 接口 05151c6；桌边锁定时序 69b44b3 / 保持锁至右臂撤离 d2c186e；回归断言修正 4f21422。这些提交均位于 experiment/prepare-base-stillness-ab，没有修改 main。
-- 回归测试已增加：mux 锁优先级、速度缓存清理、锁定/解锁阶段顺序、请求 ID ACK 与缺失 mux 时 fail-closed。当前尚未核实这些测试和 Gazebo E2E 的 CI 结果，不得提前宣称实现已通过。
+- 当前代码提交：cmd_mux 锁定 bb2e2ab / request-ID ACK a7f2892；DrinkTask ACK 接口 05151c6、锁心跳 74b8110、解锁超时重新锁定 956cf62；桌边锁定时序 69b44b3 / 保持锁至右臂撤离 d2c186e；回归断言修正 4f21422、锁心跳覆盖 1f36d45、修正测试入口顺序 7207a80。这些提交均位于 experiment/prepare-base-stillness-ab，没有修改 main。
+- 回归测试已增加：mux 锁优先级、速度缓存清理、锁定/解锁阶段顺序、请求 ID ACK、缺失 mux 时 fail-closed，以及 mux 重启后的锁心跳恢复；已将 unittest.main 移到测试文件末尾，确保新增测试在 CI 的直接脚本执行方式下实际被发现。7207a80 上的 Python、CarryBus 和 Gazebo E2E workflow 已触发，结果待核实，不得提前宣称实现已通过。
 - 下一步：运行 Python syntax/pure tests、CarryBus 集成、headless Gazebo E2E；重点核对 CMD_MUX DRINK_BASE_LOCK 请求与 ACK、锁定窗口的 /robot/cmd_vel=0、底盘 truth pose/twist、轮速及杯/掌位姿。若零速度期间底盘仍漂移，应明确记录 A 方案只隔离速度命令，不能等同机械抱闸，再依据证据决定后续方案。
 - 不得修改 SDF、摩擦/质量/阻尼、控制器参数或放宽 IK、碰撞、关节、抓取、交接和释放安全门槛；不把 `in_band_pct` 当作跟随成功。
 
@@ -1162,3 +1162,5 @@
 - drink_motion.py::prepare_present 在驶入桌边定位完成且确认水壶真值存在后、第一次抓壶前锁定；倒水、缩回水柱、水壶放回及右臂撤离到安全位期间保持锁定。只有 put_down 成功确认且右臂回到 Q_REST 后，才请求解锁；解锁未确认则不执行后续底盘重定位。
 - 新增 tests/test_p104.py 静态回归，检查 mux 锁定优先级、DrinkTask 速度丢弃、缓存清理、锁定时序和 ACK 失败关闭。测试尚待 CI 执行；没有 Gazebo 新证据，不得将本次改动记为通过。
 - 未修改 SDF/质量/摩擦/阻尼/控制器增益、IK/抓取/交接阈值、碰撞检查、关节限制、fail-closed 或释放条件；未修改 main，PR #2 仍 Draft/Open。
+
+- 运行验证补充：最新代码提交 7207a80 的 P104 Python syntax、CarryBus ROS 2 executor integration、双轮 headless Gazebo E2E 分别由 workflow runs 43703331888、43703332006、43703331925 执行；记录时均未完成。更早的 956cf62 Python syntax 成功不包含 7207a80 新增的测试入口调整，不能替代最新提交验证。
