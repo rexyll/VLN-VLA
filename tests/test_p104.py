@@ -3659,6 +3659,21 @@ class TestDrinkBaseLock(unittest.TestCase):
         self.assertIn("'locked': True, 'request_id': self._base_lock_request_id", source)
         self.assertIn('self._base_lock_active = bool(locked)', source)
 
+    def test_drink_task_never_bypasses_cmd_mux_with_raw_chassis_publisher(self):
+        task_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow', 'drink_task.py')
+        with open(task_path, encoding='utf-8') as stream:
+            source = stream.read()
+        self.assertNotIn("create_publisher(Twist, '/robot/cmd_vel'", source)
+        self.assertNotIn('self.pub_vel_raw', source)
+        self.assertNotIn("'direct_fallback'", source)
+        drive_start = source.index('def drive(self, vx=0.0, wz=0.0):')
+        drive_end = source.index('# ------------------------------------------------------------ P90', drive_start)
+        drive = source[drive_start:drive_end]
+        self.assertIn("route_mode = 'cmd_mux' if mux_present else 'blocked_no_mux'", drive)
+        self.assertLess(drive.index('if not mux_present:'), drive.index('self.pub_vel.publish(m)'))
+        self.assertIn('return False', drive)
+
     def test_task_motion_windows_always_relock_and_cover_every_drive(self):
         task_path = os.path.join(
             ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow', 'drink_task.py')
