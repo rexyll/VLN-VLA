@@ -1207,3 +1207,13 @@
 - 最新预抓杯位姿预检已成功执行，杯真值采样新鲜、IK/FK 与桌面路径检查通过；本次失败不是抓杯前对位或右手 IK 精度问题。失败位于 PRESENT 后的杯位安全复核，安全门正确 fail-closed。
 - 遥测采集器在清理期间被终止且未刷新数据，需在后续回归测试中修复采集器生命周期；本次根因分析依据 drink.log 内已记录的底盘真值、速度、轮速和杯/掌位姿数据。
 - 当前推进重点转为 P104-10.1 物理制动机制、P104-10.2 独立物理锁定确认、P104-10.3 抗机械臂反作用力回归测试。所有既有 IK、抓取、碰撞、6mm/0.5°交接与释放门槛保持不变；PR #3 继续 Draft/Open，main 未修改。
+
+
+### 8.404 封闭 DrinkTask 绕过 cmd_mux 的直发兜底（2026-11-15）
+
+- 源码审计确认：`drink_task.py`原先在 ROS graph 未发现 `cmd_mux`订阅者时，会把任务速度直接发布到 `/robot/cmd_vel`；graph 查询异常也会选择 direct fallback。这是统一仲裁/锁定链路之外的潜在主动速度入口。
+- 已移除 DrinkTask 的原始 `/robot/cmd_vel` publisher。现在 `drive()` 必须先确认 `cmd_mux` 存在；若不存在或 graph 探测失败，则记录 `blocked_no_mux` 并拒绝发布任务底盘速度，不再尝试绕过 mux。`/drink/cmd_vel` 仍是唯一任务速度入口。
+- 新增 `tests/test_p104.py` 静态回归，断言不存在 raw publisher/direct fallback，且 mux 不可用检查发生在任务速度发布之前。该改动目前仅是源码与测试断言，尚未由 CI 验证，也不代表 Gazebo 物理锁止已实现。
+- 本次审计可确认的 ROS 速度链路为 follower → `/follower_cmd_vel`、Nav2 smoother → `/cmd_vel_smoothed`、DrinkTask → `/drink/cmd_vel`，最终由 `cmd_mux` 写 `/robot/cmd_vel`。仍需在真实运行时用 `ros2 topic info -v` 核实所有发布者，并用 `gz topic -i -t /model/robot/cmd_vel` 核实 Gazebo Transport 原生发布者；静态代码审计不能替代运行时 publisher audit。
+- `tools/gen_drink_scene.py` 中机械臂 JPC 使用 `JointVelocityCmd` 速度命令模式；因此轮端 `JointForceCmd` 制动方案必须先在隔离 Gazebo world 验证与 DiffDrive 的组件竞争及更新顺序。尚未创建物理制动插件，未修改 SDF/物理参数，P104-10.1 仍进行中，P104-10.2/10.3 未完成。
+- 不修改 `main`；PR #3 维持 Draft/Open。完整双轮 Gazebo E2E 成功数不因本次代码修改而增加。
