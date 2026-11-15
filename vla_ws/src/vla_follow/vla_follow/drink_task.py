@@ -683,6 +683,38 @@ class DrinkTask(Node):
             ('LOCK' if locked else 'UNLOCK'))
         return False
 
+    def run_base_motion_window(self, label, motion):
+        """Run one explicitly permitted chassis motion, then always re-lock.
+
+        The drink lease remains active, so this temporary unlock only permits
+        the task's own /drink/cmd_vel path; ordinary follower/Nav2 inputs remain
+        excluded by cmd_mux arbitration. A failed unlock skips the motion. A
+        failed re-lock reports failure and set_base_lock() restores its lock
+        heartbeat (fail-closed).
+        """
+        if not self.set_base_lock(False):
+            self.get_logger().error(
+                'DRINK_BASE_MOTION_WINDOW %s refused: unlock not acknowledged'
+                % label)
+            return False, None
+        self.get_logger().info(
+            'DRINK_BASE_MOTION_WINDOW %s OPEN: task motion only' % label)
+        result = None
+        relock_ok = False
+        try:
+            result = motion()
+        finally:
+            relock_ok = self.set_base_lock(True)
+            self.get_logger().info(
+                'DRINK_BASE_MOTION_WINDOW %s CLOSED: relock_ack=%s' %
+                (label, relock_ok))
+        if not relock_ok:
+            self.get_logger().error(
+                'DRINK_BASE_MOTION_WINDOW %s failed to re-lock; aborting'
+                % label)
+            return False, result
+        return True, result
+
     def _cmd_mux_is_present(self):
         """Return whether cmd_mux consumes /drink/cmd_vel, with a bounded graph probe."""
         now = time.monotonic()
@@ -1017,7 +1049,15 @@ class DrinkTask(Node):
             self._set_state('PRESENT')
             res.setdefault('arm', {})['前伸前'] = self._arm_state('前伸前')
             # P94: 人站偏(±0.15m/±20°)时先把"够不着"的那段用底盘补上
-            res['approach'] = self._approach_if_far()
+            _approach_window_ok, _approach_result = (
+                self.run_base_motion_window(
+                    'PRESENT_APPROACH', self._approach_if_far))
+            if not _approach_window_ok:
+                self._set_state('FAIL_PRESENT_APPROACH')
+                self.get_logger().error(
+                    'DRINK 递杯补位窗口无法确认解锁/重新锁定；不伸臂、不交接')
+                return False
+            res['approach'] = _approach_result
             if not res['approach'].get('ok', False):
                 self._set_state('FAIL_PRESENT_APPROACH')
                 self.get_logger().error(
@@ -1534,7 +1574,14 @@ class DrinkTask(Node):
             self._tell_person('DRINK_DONE')
             # 6) 转回桌前 → 放回原位
             self._set_state('PUT_BACK')
-            ok_turn_back, turn_back_err = M.turn_base(self, 0.0)
+            _turn_window_ok, _turn_result = self.run_base_motion_window(
+                'PUT_BACK_TURN', lambda: M.turn_base(self, 0.0))
+            if not _turn_window_ok:
+                self._set_state('FAIL_PUT_BACK_APPROACH')
+                self.get_logger().error(
+                    'DRINK 放回前转身窗口无法确认解锁/重新锁定；保持持杯并中止')
+                return False
+            ok_turn_back, turn_back_err = _turn_result
             if not ok_turn_back:
                 self._set_state('FAIL_PUT_BACK_APPROACH')
                 self.get_logger().error(
@@ -1649,16 +1696,33 @@ class DrinkTask(Node):
 
             # 不必先退满 1.15m：只退到桌沿净距约 0.80m（臂+手全长 0.715m
             # 再留 85mm）就可完成肩部归位/伸肘。底盘位置由真实桌面矩形计算。
-            ok_r, res_r = M.drive_to(
-                self, L.RETREAT_FOLD_XY, v_max=0.20, tol_mm=25.0,
-                tag='收臂净空位')
+            _retreat_window_ok, _retreat_result = self.run_base_motion_window(
+                'RETREAT_FOLD_CLEARANCE',
+                lambda: M.drive_to(
+                    self, L.RETREAT_FOLD_XY, v_max=0.20, tol_mm=25.0,
+                    tag='收臂净空位'))
+            if not _retreat_window_ok:
+                self._set_state('FAIL_RETREAT_CLEARANCE')
+                self.get_logger().error(
+                    'DRINK 撤离净空移动窗口无法确认重新锁定；停止任务')
+                return False
+            ok_r, res_r = _retreat_result
             _gap_fold = M.table_gap_m(self)
             _full_retreat_done = False
             if not ok_r or _gap_fold < K.ARM_REACH + 0.04:
                 # 进度不足时先退到最终安全位；未达到几何净空绝不执行后两段。
-                ok_r, res_r = M.drive_to(
-                    self, L.SERVE_RETREAT_XY, v_max=0.22,
-                    tol_mm=40.0, tag='补足收臂净空')
+                _retreat_window_ok, _retreat_result = (
+                    self.run_base_motion_window(
+                        'RETREAT_CLEARANCE_EXTEND',
+                        lambda: M.drive_to(
+                            self, L.SERVE_RETREAT_XY, v_max=0.22,
+                            tol_mm=40.0, tag='补足收臂净空')))
+                if not _retreat_window_ok:
+                    self._set_state('FAIL_RETREAT_CLEARANCE')
+                    self.get_logger().error(
+                        'DRINK 扩大撤离净空窗口无法确认重新锁定；停止任务')
+                    return False
+                ok_r, res_r = _retreat_result
                 _full_retreat_done = True
 
             # 如果桌边第①段因碰撞风险被拦截，就在净空位重新执行完整三段；
@@ -1675,9 +1739,18 @@ class DrinkTask(Node):
 
             # 若 0.80m 净空位仍被真实几何检查拦截，再退至 1.15m 并重试。
             if not _finish_ok and not _full_retreat_done:
-                ok_r, res_r = M.drive_to(
-                    self, L.SERVE_RETREAT_XY, v_max=0.22,
-                    tol_mm=40.0, tag='扩大收臂净空')
+                _retreat_window_ok, _retreat_result = (
+                    self.run_base_motion_window(
+                        'RETREAT_CLEARANCE_RETRY',
+                        lambda: M.drive_to(
+                            self, L.SERVE_RETREAT_XY, v_max=0.22,
+                            tol_mm=40.0, tag='扩大收臂净空')))
+                if not _retreat_window_ok:
+                    self._set_state('FAIL_RETREAT_CLEARANCE')
+                    self.get_logger().error(
+                        'DRINK 撤离重试窗口无法确认重新锁定；停止任务')
+                    return False
+                ok_r, res_r = _retreat_result
                 _full_retreat_done = True
                 _finish_ok = True
                 for _s in ('R', 'L'):
@@ -1697,9 +1770,18 @@ class DrinkTask(Node):
 
             # 机械臂已悬垂后再完成剩余撤离距离，避免在臂仍伸展时长距离倒车。
             if not _full_retreat_done:
-                ok_final, res_final = M.drive_to(
-                    self, L.SERVE_RETREAT_XY, v_max=0.22,
-                    tol_mm=40.0, tag='悬垂后撤离')
+                _retreat_window_ok, _retreat_result = (
+                    self.run_base_motion_window(
+                        'RETREAT_FINAL',
+                        lambda: M.drive_to(
+                            self, L.SERVE_RETREAT_XY, v_max=0.22,
+                            tol_mm=40.0, tag='悬垂后撤离')))
+                if not _retreat_window_ok:
+                    self._set_state('FAIL_RETREAT_CLEARANCE')
+                    self.get_logger().error(
+                        'DRINK 最终撤离窗口无法确认重新锁定；停止任务')
+                    return False
+                ok_final, res_final = _retreat_result
                 ok_r = bool(ok_r and ok_final)
                 res_r = res_final
                 _full_retreat_done = True
@@ -1796,6 +1878,15 @@ class DrinkTask(Node):
             # 8) 交权: follower 恢复跟随 + cmd_mux 解 300s 喝水锁。
             #    两条都是收到 /robot/command 才动作, 一条消息两处生效。
             self._set_state('HANDBACK')
+            # Only after cup placement, arm clearance and retreat geometry are
+            # confirmed may chassis lock be released for follower handback.
+            if not self.set_base_lock(False):
+                self._set_state('FAIL_HANDBACK')
+                self.get_logger().error(
+                    'DRINK 撤离已完成，但底盘解锁未获确认；不恢复 FOLLOW')
+                return False
+            self.get_logger().info(
+                'DRINK_BASE_LOCK released at HANDBACK after verified retreat')
             _handback_sent_t = time.monotonic()
             self._tell_robot('FOLLOW')
             self.spin_for(1.0)
@@ -1812,6 +1903,9 @@ class DrinkTask(Node):
                 'fresh': bool(0.0 <= _fs_age < 1.5),
             }
             if not handback_ok:
+                # Follower did not confirm ownership; restore the hard mux
+                # lock rather than leave an unowned chassis command path open.
+                self.set_base_lock(True)
                 self._set_state('FAIL_HANDBACK')
                 self.get_logger().error(
                     'DRINK 已发送 FOLLOW，但未在 1.5s 内收到 follower 的 FOLLOW 状态确认；'
@@ -1851,6 +1945,10 @@ class DrinkTask(Node):
                 % (ok_g, ok_d, res_d, res_r, ok_r, time.time() - t0))
             return res['ok']
         except Exception:                            # noqa: BLE001
+            # Any unexpected exception before confirmed handback must leave
+            # the chassis command path locked.
+            if self._base_lock_active is False:
+                self.set_base_lock(True)
             self._set_state('ERROR')
             # P98: %r 只有异常类型没有位置, numpy 歧义值这种错根本没法定位,
             # 打完整 traceback。
