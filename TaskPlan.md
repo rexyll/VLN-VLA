@@ -6,7 +6,7 @@
 
 ## Guide（允许执行）
 
-- 当前用户授权范围：仅在 `experiment/prepare-base-stillness-ab` 隔离分支修改实现、测试、CI、仿真证据和文档；不得直接修改或合并 `main`。每次提交前核对实验分支 HEAD 与 PR base/head。
+- 当前用户授权范围：仅在 `experiment/drinktask-bt-ik-recovery` 分支修改实现、测试、CI、仿真证据和文档；不得直接修改或合并 `main`。PR #3 保持 Draft/Open，除非用户另行明确授权，否则不得合并。每次提交前核对分支 HEAD 与 PR base/head。
 - 可以修复代码、测试、工作流和 TaskPlan；可增加诊断日志、快照和回归测试。
 - 对失败记录必须追溯日志、JSON、截图和代码路径，区分环境失败、测试观察器失败与产品功能失败。
 - 每次更新记录提交 SHA、CI 结果、E2E 阶段和验收指标；不确定的结论标注为待验证。
@@ -21,17 +21,17 @@
 
 ## 当前进度
 
-- 当前工作分支：`experiment/prepare-base-stillness-ab`
-- PR：[#2](https://github.com/rexyll/VLN-VLA/pull/2)，draft/open，base `main`，未合并
-- 当前任务节点：**P104-09：DrinkTask 分阶段底盘锁定与受控移动窗口（含 CarryBus 底盘位姿直写保护）**
-- 状态：**正在进行中；速度驱动和 CarryBus 位姿直写均已纳入受控窗口，Python/CarryBus CI 已通过，Gazebo E2E 待完成**
-- 完整真实 Gazebo DrinkTask E2E 成功轮数：**1（连续双轮稳定性仍未验收；本次 A 方案尚未取得仿真结果）**
+- 当前工作分支：`experiment/drinktask-bt-ik-recovery`
+- PR：[#3](https://github.com/rexyll/VLN-VLA/pull/3)，draft/open，base `main`，未合并
+- 当前任务节点：**P104-10：底盘物理锁定与递杯抗反作用力验证**
+- 状态：**正在进行中；命令层锁定已实现，但最新 E2E 证明零速度命令与软件 LOCKED ACK 不能阻止底盘受机械臂动作影响而漂移；物理制动、锁定确认和抗反作用力测试尚未完成**
+- 完整真实 Gazebo DrinkTask E2E 成功轮数：**1（历史成功轮次；最新 P104 E2E 未通过，不得计入成功轮数；连续双轮稳定性未验收）**
 - 最新已分析的失败 E2E：run 43700683227 在 PRESENT 因底盘位姿变化导致杯位偏差 20.897mm / 2.013°，严格 6mm / 0.5° gate 正确阻止 HANDOVER；run 43700687408 在 PREPARE 因掌心残差 3.5mm > 1.5mm 且杯体残差 3.2mm > 3.0mm fail-closed。两轮均未通过，不计入成功轮数。
 - 用户已确认优先使用 A 方案：在桌边操作窗口由 cmd_mux 忽略 follower、Nav2 和 DrinkTask 的所有普通速度输入，持续向底盘控制器发布零速度；底盘控制器继续执行其本地速度闭环。急停、故障保护、碰撞与任务安全门保持不变。
 - 实现边界（阶段化修订）：桌边第一次抓壶前锁定；抓壶、倒水、放壶、双臂捧杯及精细手臂动作期间保持锁定。仅对状态机明确允许的底盘动作开启短窗口：PREPARE 服务位 CarryBus 复位、面向人员转身+转后位姿复位、PRESENT 递杯补位、PUT_BACK 转身、RETREAT 各段有界撤离；每个窗口均执行“解锁 ACK→指定任务动作→finally 重新锁定 ACK”，失败则不执行动作或中止后续阶段。`place_robot()` 的 CarryBus SetWorldPoseCmd 绕过 cmd_mux，已增加锁状态/窗口许可检查，禁止锁定阶段外的底盘位姿直写。PRESENT 双臂递杯、HANDOVER 人手接管与机器人松手、PERSON_DRINK、TAKE_BACK 全程保持锁定。只有放回、机械臂撤离净空和桌边安全距离均确认后，HANDBACK 才解锁并发送 FOLLOW；若 FOLLOW 状态未确认则重新锁定。解锁清空旧速度缓存；喝水租约仍屏蔽 follower/Nav2，只放行当前任务的 /drink/cmd_vel。
 - 当前代码提交：分阶段锁定窗口 `61a976aef1855b83bb37927bb81c28fb6d02deea`；PREPARE 保持锁定 `dcff909e66d4c6b54ffcf7186e59f2ff231385cb`；窗口许可标志 `2cd13f541ede61b977203446fb57307ea139bd45`；CarryBus 底盘位姿直写保护及 PREPARE 复位窗口 `9d92af568155641a56750af8ebc0a332f1a37571`；窗口说明 `536b8881098dc015ece118d29b93081bb313953f`；回归测试 `893d685b55456c5ef0625a23dd3c53a3dc37047e`。全部位于隔离分支 `experiment/prepare-base-stillness-ab`，未修改 main。
 - 回归测试已增加：mux 锁优先级与缓存清理、request_id ACK、锁心跳、ACK 前立即发布零速度、PREPARE 不提前解锁、每个底盘移动窗口 finally 重锁、CarryBus 位姿直写必须处于窗口、HANDBACK 失败时重新锁定。最新 SHA `893d685b` 的 P104 Python push/PR workflow `43707784775` / `43707789868` 均成功（140 tests）；CarryBus push/PR workflow `43707784792` / `43707789853` 均成功；Base-arm diagnostic syntax PR workflow `43707789858` 成功。双轮 Gazebo E2E push/PR workflow `43707784756` / `43707789855` 仍在执行，尚不宣称端到端通过。
-- 下一步：等待 SHA `893d685b` 的双轮 Gazebo E2E 完成，检查 OPEN/CLOSED 窗口、request_id ACK、CarryBus pose-write 许可、底盘 truth pose/twist、轮速、杯/掌位姿及完整 HANDOVER→DONE 阶段。当前 `work_area.sdf` 只有 DiffDrive 轮速控制接口，没有独立轮端抱闸系统；后续物理锁止候选是基于 Gazebo `JointForceCmd` 的轮端位置保持控制，但必须独立验证力矩上限、饱和、释放时移除力矩命令及地面滑移，不得将命令层 LOCKED 视为机械抱闸。现有 5Nm 轮关节 effort limit、0.5 damping、摩擦、质量和控制器参数均不修改；是否新增独立抱闸插件及其控制增益，先单独评估/确认后再实施。
+- 下一步按 P104-10 的三个节点执行：①实现 Gazebo 轮端物理制动/保持机制；②增加独立于软件 ACK 的物理锁定确认与运行期漂移监测；③建立机械臂反作用力回归测试并通过后重跑双轮完整 E2E。当前 `work_area.sdf` 使用 DiffDrive，未配置独立轮端抱闸；Gazebo `JointForceCmd` 是候选接口，但必须核对与 DiffDrive `JointVelocityCmd` 的优先级、力矩限幅、饱和和释放行为。不得未经实验直接修改现有 5Nm effort limit、0.5 damping、摩擦、质量或控制器增益。
 - 不得修改 SDF、摩擦/质量/阻尼、控制器参数或放宽 IK、碰撞、关节、抓取、交接和释放安全门槛；不把 `in_band_pct` 当作跟随成功。
 
 ## 任务章节
@@ -44,6 +44,12 @@
 4. [正在进行中] 修复桌边遮挡条件下的人员视觉观测与跟随恢复。
 5. [正在进行中] 修复双手交接/交还相对杯轴的几何对位。
 6. [未完成] 连续完整 E2E 验收；必须所有轮次通过，才可关闭 P104-07。
+
+### P104-10 底盘物理锁定与递杯抗反作用力验证
+
+1. [正在进行中] **P104-10.1 实现 Gazebo 底盘物理制动/保持机制**：先核实 Gazebo Sim 8 `DiffDrive` 与轮关节 `JointForceCmd` 的实际命令优先级和更新周期，再设计可独立启停的轮端制动控制器/插件。锁定时对驱动轮提供可控保持力矩或位置保持；解锁时必须可靠撤销力矩组件并恢复 DiffDrive 速度控制。保留现有急停、碰撞与任务安全门，不以增大摩擦、阻尼或质量替代制动设计。验收需证明机械臂动作负载下轮端保持有效、无持续饱和/明显滑移，且解锁后正常移动能力恢复。
+2. [未完成] **P104-10.2 增加物理锁定确认与运行期漂移监测**：软件 LOCKED ACK 仅表示命令层已锁定，不作为物理静止证明。以 Gazebo 真值底盘位姿/速度、左右轮关节位置/速度及可用的力矩/接触观测进行独立确认。初始验收目标：线速度 < 0.005m/s、角速度 < 0.5°/s、1秒窗口内位置变化 < 2mm、朝向变化 < 0.5°；阈值须结合仿真采样率和噪声验证，不得因测试失败而直接放宽。机械臂动作期间持续监测，超限立即暂停后续动作并保持抓持/释放安全状态。
+3. [未完成] **P104-10.3 建立底盘抗机械臂反作用力回归测试**：固定 world、初始底盘位姿、关节初态和仿真时长，依次执行机械臂静止基线、左臂分段低速动作、右臂跟随动作、双臂完整递杯动作；同步记录底盘 truth pose/twist、轮关节 position/velocity/effort、机械臂目标与实测关节状态、左右掌—杯相对变换和仿真时间戳。验证锁定时底盘满足 P104-10.2 指标、杯子世界坐标偏移满足既有交接 6mm/0.5°门槛。独立回归通过后再执行完整双轮 headless Gazebo E2E；不得把单元测试、插件构建或部分阶段通过记为 E2E 成功。
 
 ## 失败记录与技术决策
 
@@ -1193,3 +1199,11 @@
 - 回归测试新增：检查 `place_robot()` 的锁状态/窗口许可守卫、PREPARE 两个位姿移动窗口、窗口标志的开启/关闭和 finally 重锁。最新 SHA `893d685b55456c5ef0625a23dd3c53a3dc37047e` 的 Python push/PR 两轮均成功（140 tests），CarryBus push/PR 两轮均成功，Base-arm diagnostic syntax 成功；双轮 Gazebo E2E 仍在运行。
 - 物理抱闸接口只做只读调查：当前 `work_area.sdf` 的机器人使用 Gazebo `DiffDrive`，没有自定义轮端制动插件或 `ros2_control` 制动接口。Gazebo Sim 8 的 `JointForceCmd` 支持对关节施加力矩，Physics 系统在同一关节同时存在 `JointForceCmd` 与 `JointVelocityCmd` 时优先采用力矩命令；释放时必须移除该组件，否则 DiffDrive 速度命令可能继续被忽略。候选是独立轮端位置保持控制器，但还需验证 5Nm effort 限制下的保持能力、饱和和滑移。未新增插件、未改 SDF 物理参数、轮关节 effort/damping 或现有控制器增益。
 - 完整 Gazebo DrinkTask E2E 成功轮数仍为 **1**；本轮代码改动尚未取得端到端验收结果。PR #2 仍 Draft/Open，base `main` 未修改。
+
+### 8.403 最新递杯 E2E 确认底盘物理漂移，新增物理制动与抗反作用力任务（2026-11-15）
+
+- 最新实验分支提交 `bd7968203673d569035497ad214a6fbbe1aaf87f` 的 E2E 失败。递杯动作末端误差约 1.061mm，但杯子相对交接目标偏移约 81.104mm、轴线偏差约 7.274°；安全门按既有交接约束拒绝 HANDOVER，没有请求人手合拢或交权。
+- 同步轨迹显示 PRESENT follow 窗口内 `drink_cmd` 与 `robot_cmd` 均为零，底盘仍发生约 21.36mm 平面位移和约 7.48° 朝向变化；左掌—杯相对位姿基本稳定，右手跟随误差约 2.246mm。对照运行恢复主动底盘修正后，底盘位移约 26.86mm、朝向变化约 10.26°，杯漂移约 109.21mm。证据表明命令层零速度/LOCKED 不能等同物理制动；机械臂反作用与底盘漂移存在强相关，但仍需独立动力学回归进一步确认因果链。
+- 最新预抓杯位姿预检已成功执行，杯真值采样新鲜、IK/FK 与桌面路径检查通过；本次失败不是抓杯前对位或右手 IK 精度问题。失败位于 PRESENT 后的杯位安全复核，安全门正确 fail-closed。
+- 遥测采集器在清理期间被终止且未刷新数据，需在后续回归测试中修复采集器生命周期；本次根因分析依据 drink.log 内已记录的底盘真值、速度、轮速和杯/掌位姿数据。
+- 当前推进重点转为 P104-10.1 物理制动机制、P104-10.2 独立物理锁定确认、P104-10.3 抗机械臂反作用力回归测试。所有既有 IK、抓取、碰撞、6mm/0.5°交接与释放门槛保持不变；PR #3 继续 Draft/Open，main 未修改。
