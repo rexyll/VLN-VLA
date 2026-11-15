@@ -3519,3 +3519,47 @@ class TestPresentBaseHoldAblation(unittest.TestCase):
         guard = task_source.index("self._set_state('FAIL_PRESENT_FOLLOW_DRIFT')")
         close = task_source.index("ok_person_grip = M.person_hands")
         self.assertLess(guard, close)
+
+
+class TestDrinkBaseLock(unittest.TestCase):
+    def test_mux_lock_overrides_every_velocity_source_and_clears_stale_drink_cmd(self):
+        mux_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow', 'cmd_mux.py')
+        with open(mux_path, encoding='utf-8') as stream:
+            source = stream.read()
+        self.assertIn("'/drink/base_lock'", source)
+        self.assertIn("'/drink/base_lock_state'", source)
+        self.assertIn('if self._drink_base_locked:', source)
+        lock_gate = source.index('if self._drink_base_locked:', source.index('def _tick'))
+        drink_route = source.index('if self._drink_until > 0.0', source.index('def _tick'))
+        self.assertLess(lock_gate, drink_route)
+        self.assertIn('self.pub.publish(Twist())', source)
+        self.assertIn('self.drk = Twist()', source)
+        self.assertIn('if self._drink_base_locked:\\n            return', source)
+
+    def test_prepare_locks_after_table_approach_and_unlocks_only_after_kettle_putdown(self):
+        motion_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
+            'drink_motion.py')
+        with open(motion_path, encoding='utf-8') as stream:
+            source = stream.read()
+        start = source.index('def prepare_present(')
+        end = source.index('def cup_present_target(', start)
+        body = source[start:end]
+        self.assertLess(body.index('pour_approach(node)'), body.index('node.set_base_lock(True)'))
+        self.assertLess(body.index('node.set_base_lock(True)'), body.index('pour_into_cup(node'))
+        self.assertLess(body.index('if not ok_d:'), body.index('node.set_base_lock(False)'))
+        self.assertLess(body.index('node.set_base_lock(False)'), body.index('serve_mm = place_robot'))
+        self.assertIn("out['reason'] = 'chassis_lock_unconfirmed'", body)
+        self.assertIn("out['reason'] = 'chassis_unlock_unconfirmed'", body)
+
+    def test_task_lock_request_requires_mux_ack_and_request_id(self):
+        task_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow', 'drink_task.py')
+        with open(task_path, encoding='utf-8') as stream:
+            source = stream.read()
+        self.assertIn('def set_base_lock(self, locked, timeout=2.0):', source)
+        self.assertIn("'request_id': request_id", source)
+        self.assertIn("self._base_lock_ack", source)
+        self.assertIn('cmd_mux unavailable; refusing table-side motion', source)
+        self.assertIn('ack[0] == request_id', source)
