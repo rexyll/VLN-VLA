@@ -659,6 +659,9 @@ class DrinkTask(Node):
             return False
         self._base_lock_request_id += 1
         request_id = self._base_lock_request_id
+        # Begin heartbeating a lock immediately; stop heartbeating only while
+        # an unlock is being requested. A failed unlock restores the lock.
+        self._base_lock_active = bool(locked)
         payload = String(data=json.dumps({
             'locked': bool(locked), 'request_id': request_id}))
         while time.monotonic() < deadline:
@@ -673,6 +676,8 @@ class DrinkTask(Node):
                     'DRINK_BASE_LOCK state=%s request_id=%d acknowledged' %
                     ('LOCKED' if locked else 'UNLOCKED', request_id))
                 return True
+        if not locked:
+            self._base_lock_active = True
         self.get_logger().error(
             'DRINK_BASE_LOCK %s acknowledgement timeout; fail closed' %
             ('LOCK' if locked else 'UNLOCK'))
