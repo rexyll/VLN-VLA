@@ -1797,37 +1797,55 @@ def put_down(node, side, model, T_obj_goal, retreat=0.10,
         node, side, T_back, tol_mm=8.0, check_table=True)
     withdraw_stage = None
     # A released kettle can leave the wrist at a pose whose short direct
-    # retreat target has no R1-R7-compliant IK branch. Try a collision-checked
-    # world-Z clearance waypoint for both table blockage and posture-IK
-    # infeasibility; never relax posture, residual, or collision gates.
-    # The cup's two-hand put-down already uses this exact, collision-checked
-    # 120mm world-Z waypoint when the free support arm cannot reach around the
-    # table lip. Reuse that proven staged retreat for a released kettle: first
-    # lift the empty hand above the lip, then retry the original retreat target.
-    # Every segment still passes the full table/leg path gate; a blocked lift
-    # or blocked second segment remains fail-closed.
+    # retreat target has no R1-R7-compliant IK branch. Search a small,
+    # deterministic set of collision-checked clearance waypoints. The search
+    # changes only the intermediate empty-hand route: the final retreat target,
+    # R1-R7 posture rules, 4mm IK gate, 8mm servo gate and table/leg swept-path
+    # checks remain unchanged. Each failed candidate is re-seeded from the
+    # latest measured wrist pose because a failed servo attempt may have moved
+    # partially; no candidate is assumed to have succeeded.
     if not ok_back and how_back in ('table-collision',
                                       'human-ik-no-valid-solution'):
-        T_stage_now = wrist(node, side)
-        if T_stage_now is not None:
+        _retreat_candidates = (
+            (0.04, 0.00, 0.00), (0.08, 0.00, 0.00),
+            (0.16, 0.00, 0.00), (0.20, 0.00, 0.00),
+            (0.12, 0.04, 0.00), (0.12, -0.04, 0.00),
+            (0.12, 0.00, 0.04), (0.12, 0.00, -0.04),
+        )
+        _candidate_trace = []
+        for _dz, _dx, _dy in _retreat_candidates:
+            T_stage_now = wrist(node, side)
+            if T_stage_now is None:
+                _candidate_trace.append({
+                    'offset_m': [_dx, _dy, _dz],
+                    'ok': False, 'how': 'current_wrist_pose_missing'})
+                break
             T_stage = T_stage_now.copy()
-            T_stage[2, 3] += 0.12
+            T_stage[:3, 3] += np.array([_dx, _dy, _dz], dtype=float)
             ok_stage, res_stage, how_stage = reach(
                 node, side, T_stage, tol_mm=8.0, check_table=True)
-            withdraw_stage = {
-                'attempted': True, 'ok': bool(ok_stage),
+            _entry = {
+                'offset_m': [_dx, _dy, _dz],
+                'ok': bool(ok_stage),
                 'residual_mm': round(float(res_stage), 1),
-                'how': how_stage, 'target_z': round(float(T_stage[2, 3]), 4)}
+                'how': how_stage,
+                'target_xyz': np.round(T_stage[:3, 3], 4).tolist(),
+            }
             if ok_stage:
                 ok_back, res_back, how_back = reach(
                     node, side, T_back, tol_mm=8.0, check_table=True)
-                withdraw_stage.update(
+                _entry.update(
                     retry_ok=bool(ok_back),
                     retry_residual_mm=round(float(res_back), 1),
                     retry_how=how_back)
-        else:
-            withdraw_stage = {'attempted': False,
-                              'reason': 'current_wrist_pose_missing'}
+            _candidate_trace.append(_entry)
+            if ok_back:
+                break
+        withdraw_stage = {
+            'attempted': True,
+            'ok': bool(ok_back),
+            'candidates': _candidate_trace,
+        }
     if info is not None:
         info['withdraw_ok'] = bool(ok_back)
         info['withdraw_res_mm'] = round(float(res_back), 1)
