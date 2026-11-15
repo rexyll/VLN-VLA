@@ -1795,6 +1795,8 @@ def put_down(node, side, model, T_obj_goal, retreat=0.10,
     if info is not None:
         info.update(release_confirmed=True, object_state='released')
     node.spin_for(0.6)
+    # Immutable checkpoint: capture before the first withdrawal attempt can move the arm.
+    T_release = wrist(node, side)
     if info is not None:
         T_after_release = object_pose(node, model)
         if T_after_release is not None:
@@ -1828,7 +1830,6 @@ def put_down(node, side, model, T_obj_goal, retreat=0.10,
         # Freeze the release-time pose once. Every candidate is an independent
         # final withdrawal target derived from this immutable checkpoint; a
         # previous failed/partial move must never shift later candidate targets.
-        T_release = wrist(node, side)
         _candidate_trace = []
         _bt_children = []
         if T_release is None:
