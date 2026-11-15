@@ -1825,85 +1825,107 @@ def put_down(node, side, model, T_obj_goal, retreat=0.10,
             (0.12, 0.04, 0.00), (0.12, -0.04, 0.00),
             (0.12, 0.00, 0.04), (0.12, 0.00, -0.04),
         )
+        # Freeze the release-time pose once. Every candidate is an independent
+        # final withdrawal target derived from this immutable checkpoint; a
+        # previous failed/partial move must never shift later candidate targets.
+        T_release = wrist(node, side)
         _candidate_trace = []
         _bt_children = []
+        if T_release is None:
+            _candidate_trace.append({
+                'ok': False, 'how': 'release_wrist_pose_missing'})
+        else:
+            for _candidate_index, (_dz, _dx, _dy) in enumerate(
+                    _retreat_candidates):
+                _entry = {
+                    'offset_m': [_dx, _dy, _dz],
+                    'ok': False,
+                    'how': 'not_attempted',
+                }
+                _candidate_trace.append(_entry)
+                T_candidate = T_release.copy()
+                T_candidate[:3, 3] += np.array(
+                    [_dx, _dy, _dz], dtype=float)
+                _entry['target_xyz'] = np.round(
+                    T_candidate[:3, 3], 4).tolist()
 
-        for _candidate_index, (_dz, _dx, _dy) in enumerate(
-                _retreat_candidates):
-            _entry = {
-                'offset_m': [_dx, _dy, _dz],
-                'ok': False,
-                'how': 'not_attempted',
-            }
-            _candidate_trace.append(_entry)
+                def _make_candidate_action(entry, target, offset, index):
+                    # Capture a private target copy: no callback can mutate the
+                    # immutable release checkpoint or another branch's target.
+                    fixed_target = target.copy()
+                    fixed_offset = np.asarray(offset, float).copy()
 
-            def _make_stage_action(entry, dx, dy, dz, index):
-                def _stage_action(_context):
-                    T_stage_now = wrist(node, side)
-                    if T_stage_now is None:
-                        entry.update(ok=False,
-                                     how='current_wrist_pose_missing')
-                        return BT.Status.FAILURE
-                    T_stage = T_stage_now.copy()
-                    T_stage[:3, 3] += np.array(
-                        [dx, dy, dz], dtype=float)
-                    entry['target_xyz'] = np.round(
-                        T_stage[:3, 3], 4).tolist()
-                    node.get_logger().info(
-                        'PUT_DOWN %s WITHDRAW_BT_CANDIDATE_BEGIN index=%d '
-                        'offset_m=%s target_xyz=%s'
-                        % (model, index, [dx, dy, dz],
-                           entry['target_xyz']))
-                    ok_stage, res_stage, how_stage = reach(
-                        node, side, T_stage, tol_mm=8.0, check_table=True)
-                    entry.update(
-                        stage_ok=bool(ok_stage),
-                        stage_residual_mm=round(float(res_stage), 1),
-                        stage_how=how_stage,
-                        how=how_stage)
-                    node.get_logger().info(
-                        'PUT_DOWN %s WITHDRAW_BT_STAGE index=%d ok=%s '
-                        'residual_mm=%.1f how=%s'
-                        % (model, index, bool(ok_stage),
-                           float(res_stage), how_stage))
-                    if ok_stage:
-                        return BT.Status.SUCCESS
-                    return BT.Status.FAILURE
-                return BT.Action(_stage_action)
+                    def _candidate_action(_context):
+                        node.get_logger().info(
+                            'PUT_DOWN %s WITHDRAW_BT_CANDIDATE_BEGIN index=%d '
+                            'offset_m=%s target_xyz=%s'
+                            % (model, index, fixed_offset.tolist(),
+                               entry['target_xyz']))
+                        ok, residual, how = reach(
+                            node, side, fixed_target,
+                            tol_mm=8.0, check_table=True)
+                        actual = wrist(node, side) if ok else None
+                        displacement_mm = (
+                            pos_err_mm(actual, T_release)
+                            if actual is not None else None)
+                        required_displacement_mm = max(
+                            0.0, float(np.linalg.norm(fixed_offset)) * 1000.0
+                            - 8.0)
+                        arrived = (
+                            actual is not None
+                            and displacement_mm is not None
+                            and displacement_mm + 1e-6
+                            >= required_displacement_mm)
+                        accepted = bool(ok and arrived)
+                        entry.update(
+                            ok=accepted,
+                            reach_ok=bool(ok),
+                            residual_mm=round(float(residual), 1),
+                            how=how,
+                            actual_xyz=(np.round(
+                                actual[:3, 3], 4).tolist()
+                                if actual is not None else None),
+                            displacement_from_release_mm=(
+                                round(float(displacement_mm), 1)
+                                if displacement_mm is not None else None),
+                            required_displacement_mm=round(
+                                required_displacement_mm, 1))
+                        node.get_logger().info(
+                            'PUT_DOWN %s WITHDRAW_BT_ENDPOINT index=%d '
+                            'accepted=%s reach_ok=%s residual_mm=%.1f '
+                            'displacement_mm=%s required_mm=%.1f how=%s'
+                            % (model, index, accepted, bool(ok),
+                               float(residual),
+                               (round(float(displacement_mm), 1)
+                                if displacement_mm is not None else None),
+                               required_displacement_mm, how))
+                        return (BT.Status.SUCCESS if accepted
+                                else BT.Status.FAILURE)
+                    return BT.Action(_candidate_action)
 
-            def _make_final_action(entry, index):
-                def _final_action(_context):
-                    nonlocal ok_back, res_back, how_back
-                    ok_back, res_back, how_back = reach(
-                        node, side, T_back, tol_mm=8.0, check_table=True)
-                    entry.update(
-                        retry_ok=bool(ok_back),
-                        retry_residual_mm=round(float(res_back), 1),
-                        retry_how=how_back,
-                        ok=bool(ok_back))
-                    node.get_logger().info(
-                        'PUT_DOWN %s WITHDRAW_BT_FINAL index=%d ok=%s '
-                        'residual_mm=%.1f how=%s'
-                        % (model, index, bool(ok_back),
-                           float(res_back), how_back))
-                    return (BT.Status.SUCCESS if ok_back
-                            else BT.Status.FAILURE)
-                return BT.Action(_final_action)
-
-            _bt_children.append(BT.Sequence(
-                _make_stage_action(_entry, _dx, _dy, _dz,
-                                   _candidate_index),
-                _make_final_action(_entry, _candidate_index)))
+                _bt_children.append(_make_candidate_action(
+                    _entry, T_candidate, (_dx, _dy, _dz),
+                    _candidate_index))
 
         _withdraw_tree = BT.Selector(*_bt_children)
-        _bt_result = _withdraw_tree.tick({})
+        _bt_result = (_withdraw_tree.tick({})
+                      if _bt_children else BT.Status.FAILURE)
+        _accepted_entry = next(
+            (entry for entry in _candidate_trace if entry.get('ok')), None)
+        if _accepted_entry is not None:
+            ok_back = True
+            res_back = float(_accepted_entry['residual_mm'])
+            how_back = 'local-clearance-endpoint'
         withdraw_stage = {
             'attempted': True,
             'ok': bool(_bt_result == BT.Status.SUCCESS and ok_back),
-            'recovery_mode': 'local_clearance_waypoint_selector',
+            'recovery_mode': 'immutable_release_pose_endpoint_selector',
             'upstream_replay_allowed': False,
             'release_boundary': 'irreversible_object_release',
             'bt_status': _bt_result.value,
+            'release_pose_xyz': (
+                np.round(T_release[:3, 3], 4).tolist()
+                if T_release is not None else None),
             'candidates': _candidate_trace,
         }
         node.get_logger().info(
