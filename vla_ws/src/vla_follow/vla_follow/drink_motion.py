@@ -1827,7 +1827,6 @@ def put_down(node, side, model, T_obj_goal, retreat=0.10,
         )
         _candidate_trace = []
         _bt_children = []
-        _bt_state = {'ok': False}
 
         for _candidate_index, (_dz, _dx, _dy) in enumerate(
                 _retreat_candidates):
@@ -1868,7 +1867,6 @@ def put_down(node, side, model, T_obj_goal, retreat=0.10,
                         % (model, index, bool(ok_stage),
                            float(res_stage), how_stage))
                     if ok_stage:
-                        _bt_state['stage_residual_mm'] = float(res_stage)
                         return BT.Status.SUCCESS
                     return BT.Status.FAILURE
                 return BT.Action(_stage_action)
