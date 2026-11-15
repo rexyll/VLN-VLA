@@ -3565,3 +3565,5 @@ class TestDrinkBaseLock(unittest.TestCase):
         self.assertIn("self._base_lock_ack", source)
         self.assertIn('cmd_mux unavailable; refusing table-side motion', source)
         self.assertIn('ack[0] == request_id', source)
+        self.assertIn("'locked': True, 'request_id': self._base_lock_request_id", source)
+        self.assertIn('self._base_lock_active = bool(locked)', source)
