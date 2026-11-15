@@ -56,8 +56,8 @@ class CmdMux(Node):
         # including /drink/cmd_vel, is ignored and zero is continuously published.
         self._drink_base_locked = False
         self.pub_base_lock_state = self.create_publisher(
-            Bool, '/drink/base_lock_state', 10)
-        self.create_subscription(Bool, '/drink/base_lock',
+            String, '/drink/base_lock_state', 10)
+        self.create_subscription(String, '/drink/base_lock',
                                  self._base_lock_cb, 10)
         self.create_subscription(Twist, '/follower_cmd_vel',
                                  self._fol_cb, 20)
@@ -107,7 +107,13 @@ class CmdMux(Node):
             self._drink_until = 0.0
 
     def _base_lock_cb(self, m):
-        locked = bool(m.data)
+        try:
+            request = json.loads(m.data)
+            locked = bool(request['locked'])
+            request_id = int(request['request_id'])
+        except (ValueError, TypeError, KeyError):
+            self.get_logger().error('CMD_MUX invalid DRINK_BASE_LOCK request')
+            return
         if locked != self._drink_base_locked:
             self._drink_base_locked = locked
             # A stale nonzero task command must never replay after unlock.
@@ -117,6 +123,8 @@ class CmdMux(Node):
                 'CMD_MUX DRINK_BASE_LOCK state=%s; all velocity inputs %s' %
                 ('LOCKED' if locked else 'UNLOCKED',
                  'suppressed' if locked else 'awaiting fresh drink command'))
+        self.pub_base_lock_state.publish(String(data=json.dumps({
+            'locked': self._drink_base_locked, 'request_id': request_id})))
 
     def _fol_cb(self, m):
         self.fol = m
@@ -181,8 +189,7 @@ class CmdMux(Node):
         _now = time.monotonic()
         # Publish zero continuously so the chassis controller's own velocity
         # loop holds still. This overrides follower, Nav2 and task commands.
-        self.pub_base_lock_state.publish(
-            Bool(data=self._drink_base_locked))
+        # State is acknowledged against each request ID in _base_lock_cb.
         if self._drink_base_locked:
             self.pub.publish(Twist())
             return
