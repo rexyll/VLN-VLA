@@ -11,6 +11,7 @@ on:
       - "tests/drink_evidence.py"
       - "tests/test_drink.py"
       - "tests/test_p104.py"
+      - "tests/test_manipulation_bt.py"
       - "vla_ws/src/vla_follow/**"
       - "tools/start_scene.sh"
       - "tools/start_drink_demo.sh"
@@ -23,6 +24,7 @@ on:
     branches:
       - main
       - experiment/prepare-base-stillness-ab
+      - experiment/drinktask-bt-ik-recovery
     paths:
       - ".github/workflows/p104-drinktask-headless.yml"
       - "tests/run_drink_headless.sh"
@@ -117,6 +119,11 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+
+      - name: Run dependency-free manipulation behavior-tree unit tests
+        run: |
+          PYTHONPATH=vla_ws/src/vla_follow python3 -m unittest discover \\
+            -s tests -p 'test_manipulation_bt.py' -v
 
       - name: Configure Gazebo Harmonic apt repository
         run: |
