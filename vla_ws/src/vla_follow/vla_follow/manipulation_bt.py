@@ -142,9 +142,14 @@ class CandidateBuffer:
     def add(self, candidate: FailureCandidate) -> None:
         key = candidate.dedupe_key
         previous = self._items.get(key)
-        if previous is None or candidate.score < previous.score:
+        if (previous is None
+                or (candidate.hard_valid and not previous.hard_valid)
+                or (candidate.hard_valid == previous.hard_valid
+                    and candidate.score < previous.score)):
             self._items[key] = candidate
-        ordered = sorted(self._items.items(), key=lambda item: item[1].score)
+        ordered = sorted(
+            self._items.items(),
+            key=lambda item: (not item[1].hard_valid, item[1].score))
         self._items = dict(ordered[:self.capacity])
 
     def ranked(self) -> List[FailureCandidate]:
