@@ -29,8 +29,8 @@
 - 最新已分析的失败 E2E：run 43700683227 在 PRESENT 因底盘位姿变化导致杯位偏差 20.897mm / 2.013°，严格 6mm / 0.5° gate 正确阻止 HANDOVER；run 43700687408 在 PREPARE 因掌心残差 3.5mm > 1.5mm 且杯体残差 3.2mm > 3.0mm fail-closed。两轮均未通过，不计入成功轮数。
 - 用户已确认优先使用 A 方案：在桌边操作窗口由 cmd_mux 忽略 follower、Nav2 和 DrinkTask 的所有普通速度输入，持续向底盘控制器发布零速度；底盘控制器继续执行其本地速度闭环。急停、故障保护、碰撞与任务安全门保持不变。
 - 实现边界：pour_approach 完成桌边定位后、第一次抓壶动作前请求锁定；必须收到带 request_id 的 cmd_mux ACK 才开始操作。锁定持续覆盖抓壶、倒水、水壶放回和右臂撤回安全位；确认放置及右臂撤离后才请求解锁，且必须收到 ACK 才允许底盘重新定位。锁定期间丢弃 DrinkTask 速度指令；解锁清空旧速度缓存，等待新指令，避免旧命令突然重放。
-- 当前代码提交：cmd_mux 锁定 bb2e2ab / request-ID ACK a7f2892；DrinkTask ACK 接口 05151c6、锁心跳 74b8110、解锁超时重新锁定 956cf62；桌边锁定时序 69b44b3 / 保持锁至右臂撤离 d2c186e；回归断言修正 4f21422、锁心跳覆盖 1f36d45、修正测试入口顺序 7207a80。这些提交均位于 experiment/prepare-base-stillness-ab，没有修改 main。
-- 回归测试已增加：mux 锁优先级、速度缓存清理、锁定/解锁阶段顺序、请求 ID ACK、缺失 mux 时 fail-closed，以及 mux 重启后的锁心跳恢复；已将 unittest.main 移到测试文件末尾，确保新增测试在 CI 的直接脚本执行方式下实际被发现。7207a80 上的 Python、CarryBus 和 Gazebo E2E workflow 已触发，结果待核实，不得提前宣称实现已通过。
+- 当前代码提交：cmd_mux 锁定 bb2e2ab / request-ID ACK a7f2892 / ACK 前立即输出零速度 5f7c258；DrinkTask ACK 接口 05151c6、锁心跳 74b8110、解锁超时重新锁定 956cf62；桌边锁定时序 69b44b3 / 保持锁至右臂撤离 d2c186e；回归测试入口与断言修正 4f21422、1f36d45、7207a80、5b000da、7a36bf2、ed08733。这些提交均位于 experiment/prepare-base-stillness-ab，没有修改 main。
+- 回归测试已增加：mux 锁优先级、速度缓存清理、锁定/解锁阶段顺序、请求 ID ACK、缺失 mux 时 fail-closed、mux 重启后的锁心跳恢复，以及 ACK 前先发布零速度。此前首次启用历史遗留测试时发现 2 条断言过时，已按当前代码结构修正；7a36bf2 上 Python syntax/pure tests 已成功（138 tests），但 5f7c258/ed08733 的新增 ACK 顺序改动仍待最新 CI 验证。
 - 下一步：运行 Python syntax/pure tests、CarryBus 集成、headless Gazebo E2E；重点核对 CMD_MUX DRINK_BASE_LOCK 请求与 ACK、锁定窗口的 /robot/cmd_vel=0、底盘 truth pose/twist、轮速及杯/掌位姿。若零速度期间底盘仍漂移，应明确记录 A 方案只隔离速度命令，不能等同机械抱闸，再依据证据决定后续方案。
 - 不得修改 SDF、摩擦/质量/阻尼、控制器参数或放宽 IK、碰撞、关节、抓取、交接和释放安全门槛；不把 `in_band_pct` 当作跟随成功。
 
@@ -1164,3 +1164,12 @@
 - 未修改 SDF/质量/摩擦/阻尼/控制器增益、IK/抓取/交接阈值、碰撞检查、关节限制、fail-closed 或释放条件；未修改 main，PR #2 仍 Draft/Open。
 
 - 运行验证补充：最新代码提交 7207a80 的 P104 Python syntax、CarryBus ROS 2 executor integration、双轮 headless Gazebo E2E 分别由 workflow runs 43703331888、43703332006、43703331925 执行；记录时均未完成。更早的 956cf62 Python syntax 成功不包含 7207a80 新增的测试入口调整，不能替代最新提交验证。
+
+
+### 8.400 A 方案锁定 ACK 前先发布零速度，并修复历史测试断言（2026-11-15）
+
+- 复核锁定时序发现：如果 mux 先 ACK、再等下一个 50ms tick 才输出零速度，DrinkTask 可能在 ACK 后立即开始抓壶，存在一个 tick 的旧命令窗口。修正 cmd_mux：收到 LOCK 请求后，先立即发布 Twist() 零速度，再回 ACK；锁定期间仍持续每个 tick 输出零速度。
+- 将对应回归测试更新为明确断言零速度 publish 发生在 ACK publish 之前，防止未来重排。
+- 启用历史 P104 回归测试后，发现旧测试依赖已经变更的 handover 注释标记和过时的 PREPARE hold 字符串；已更新为当前 HANDOVER 状态边界和 cmd_mux lock/heartbeat 语义。另将旧的 _prepare_base_reach_active 检查限定在 _tick 逻辑范围，避免把初始化字段误判为运行时控制分支。
+- 修正后的 7a36bf2 Python syntax/pure tests 已通过，138 tests；但其后 5f7c258 与 ed087339 又增加 ACK 前立即输出零速度及对应断言，最新提交上的 Python、CarryBus 和 Gazebo E2E 正在排队/执行，必须以最新 SHA 的结果为准。
+- 当前最新代码 SHA：ed087339fdb8a3ab16b1d9a3edb700e6f977c7d0。最新相关 workflow：P104 Python 43703550778、CarryBus 43703550765、Gazebo E2E 43703550763；尚未完成。A 方案尚无 Gazebo 物理结果，不能宣称手部摆动已消除。
