@@ -3535,6 +3535,10 @@ class TestDrinkBaseLock(unittest.TestCase):
         drink_route = source.index('if self._drink_until > 0.0', source.index('def _tick'))
         self.assertLess(lock_gate, drink_route)
         self.assertIn('self.pub.publish(Twist())', source)
+        lock_callback = source[source.index('def _base_lock_cb'):
+                               source.index('def _fol_cb')]
+        self.assertLess(lock_callback.index('self.pub.publish(Twist())'),
+                        lock_callback.index('self.pub_base_lock_state.publish'))
         self.assertIn('self.drk = Twist()', source)
         drk_callback = source[source.index('def _drk_cb'):source.index('def _live_cb')]
         self.assertIn('if self._drink_base_locked:', drk_callback)
