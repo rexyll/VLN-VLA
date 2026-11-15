@@ -209,8 +209,8 @@ jobs:
           # Start the observer before scene startup so it can discover Gazebo
           # publishers as the headless scenario comes online. It publishes no
           # commands and does not alter the world or controller parameters.
-          python3 tests/diag/collect_base_arm_dynamics.py \
-            --duration 3000 --output "$TRACE" >"$COLLECTOR_LOG" 2>&1 &
+          (trap - INT; exec python3 tests/diag/collect_base_arm_dynamics.py \
+            --duration 3000 --output "$TRACE") >"$COLLECTOR_LOG" 2>&1 &
           COLLECTOR_PID=$!
 
           E2E_STATUS=0
