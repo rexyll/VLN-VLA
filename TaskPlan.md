@@ -1105,3 +1105,13 @@
 - 诊断改动提交 `e9c21e040d2ca4eab00bdd73da97af13bbb6d477`：在 PRESENT follow 前后同步采集左掌位姿，并计算杯子在左掌坐标系中的相对变换变化（平移/旋转），新增日志 `PRESENT_LEFT_GRASP_REL`。若相对变换稳定而世界位姿漂移，优先定位底盘/整体运动；若相对变换变化显著，再检查 carry update 频率、目标命令队列与 pose truth 采样时序。
 - 下一步先让 Python syntax、CarryBus、Base-arm diagnostic 与 headless Gazebo E2E CI 在该提交上完成；从新 artifact 验证 `PRESENT_LEFT_GRASP_REL` 的真实输出，再决定下一项实验。不得放宽 6mm / 0.5° 交接门槛，不得改变 IK/grasp 精度、碰撞、关节限位、fail-closed 或释放条件；不修改 SDF/物理参数。A/B/C 独立 Gazebo 物理实验仍待本地仿真运行。
 - 完整连续双轮 Gazebo E2E 成功次数仍为 **1**；PR #2 保持 Draft/Open；main `1acfa3785283c227ee9f3e351140b3d601f7d85f` 未修改。
+
+
+### 8.395 PREPARE 水壶释放后右臂撤手 R7 约束失败与有界航点搜索（2026-11-15）
+
+- 检查 DrinkTask E2E run `43684628826` artifact `14149464056`：流程实际为 `PREPARE → FAIL_PREPARE`，尚未进入 PRESENT。水壶 release ACK 已确认，日志确认物体落桌；失败发生在释放后的右臂撤手。
+- 两次撤手 IK 均没有合规解：直接撤手目标 `[2.1342, 0.0862, 0.843]` 的最佳位置残差约 0.02mm，但违反人体姿态硬规则 `R7肘过折`；现有世界 Z 上抬 120mm 航点 `[2.1433, 0.0929, 0.963]` 的搜索也没有 R1–R7 合规候选。该失败不是放置/释放失败，不应重试 release，也不能将物体误判为仍被抓持。
+- 修复提交 `65df32365c4bdece82678dba07bb1e2b1f99f815` 与 `9f84ad94cecd7684f36e8fcd97296132505fad8e`：将单一 120mm 上抬点改为 8 个确定性、有界的中间航点候选（世界 Z 40/80/160/200mm；另含 Z=120mm 配合 ±40mm 的 X/Y 偏移）。每个候选都重新读取当前腕部位姿，并调用原有 `reach(..., tol_mm=8.0, check_table=True)`；IK 内部仍执行 R1–R7、4mm IK/FK gate 与全路径桌面/腿部碰撞检查。仅当中间航点真实到达后，才重试原始撤手目标。失败候选记录在 `PUT_DOWN ... WITHDRAW_TRACE` 日志中；候选耗尽或最终撤手失败仍 fail-closed。
+- 本修复只搜索空手撤离路径，不改变物体最终放置目标、抓持/释放边界、人体姿态规则、IK 精度、碰撞检查、关节限制或 PRESENT 交接门槛；不修改 SDF/质量/摩擦/控制器参数。
+- run `43684628826` 的 E2E 失败发生在该修复之前，不能作为修复后验证。需等待新提交上的 Python syntax、CarryBus 与 headless Gazebo E2E CI；若新 E2E 仍失败，优先检查 `PUT_DOWN kettle WITHDRAW_TRACE` 的候选逐项结果。完整连续双轮 E2E 成功次数仍为 **1**，不得计入本次失败运行。
+- main 未修改；PR #2 仍 Draft/Open。
