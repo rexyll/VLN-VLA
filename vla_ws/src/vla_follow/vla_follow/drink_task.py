@@ -307,6 +307,10 @@ class DrinkTask(Node):
         # telemetry to distinguish commanded rotation from passive wheel roll.
         self._drink_cmd_snapshot = None
         self._robot_cmd_snapshot = None
+        # Probe the ROS graph so the raw fallback never races cmd_mux.
+        self._cmd_mux_present = False
+        self._last_cmd_mux_probe = 0.0
+        self._last_cmd_route_mode = None
         self.create_subscription(Twist, '/drink/cmd_vel',
                                  self._drink_cmd_cb, 20)
         self.create_subscription(Twist, '/robot/cmd_vel',
@@ -623,18 +627,38 @@ class DrinkTask(Node):
             (float(msg.linear.x), float(msg.angular.z)), time.monotonic())
         self._record_follow_cmd_trace('robot', msg)
 
-    def drive(self, vx=0.0, wz=0.0):
-        """发一帧底盘速度。gz 的 DiffDrive 会锁存最后一条, 但仍按 20Hz 补发。
+    def _cmd_mux_is_present(self):
+        """Return whether cmd_mux consumes /drink/cmd_vel, with a bounded graph probe."""
+        now = time.monotonic()
+        if now - self._last_cmd_mux_probe >= 0.5:
+            try:
+                endpoints = self.get_subscriptions_info_by_topic('/drink/cmd_vel')
+                self._cmd_mux_present = any(
+                    getattr(endpoint, 'node_name', '') == 'cmd_mux'
+                    for endpoint in endpoints)
+            except Exception as exc:
+                self.get_logger().warn(
+                    'CMD_ROUTE graph probe failed; retaining direct fallback: %s'
+                    % exc, throttle_duration_sec=5.0)
+                self._cmd_mux_present = False
+            self._last_cmd_mux_probe = now
+        return self._cmd_mux_present
 
-        发两份: `/drink/cmd_vel` 给 cmd_mux(喝水锁内由它放行, 这是"正式通道"),
-        `/robot/cmd_vel` 给"没有 cmd_mux 的场景"(单点脚本 test_p87/p88/p89 直接
-        调 prepare_present, 那时没人中转)。两个值永远相同, 同时在场也不会打架。
-        """
+    def drive(self, vx=0.0, wz=0.0):
+        """Publish task velocity; use cmd_mux when present, raw fallback otherwise."""
         m = Twist()
         m.linear.x = float(vx)
         m.angular.z = float(wz)
         self.pub_vel.publish(m)
-        if self.pub_vel_raw is not None:
+        mux_present = self._cmd_mux_is_present()
+        route_mode = 'cmd_mux' if mux_present else 'direct_fallback'
+        if route_mode != self._last_cmd_route_mode:
+            self.get_logger().info(
+                'DRINK_CMD_ROUTE mode=%s' % route_mode)
+            self._last_cmd_route_mode = route_mode
+        # cmd_mux is the sole /robot/cmd_vel writer in the integrated demo.
+        # Direct publication is retained only for standalone scripts without mux.
+        if self.pub_vel_raw is not None and not mux_present:
             self.pub_vel_raw.publish(m)
 
     # ------------------------------------------------------------ P90 喝水任务
