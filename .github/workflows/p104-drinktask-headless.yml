@@ -198,11 +198,44 @@ jobs:
           test -s "$PKG_SHARE/maps/arena.pgm"
           grep -Fq "image: arena.pgm" "$PKG_SHARE/maps/arena.yaml"
 
-      - name: Run complete headless DrinkTask E2E baseline
+      - name: Run headless DrinkTask E2E with read-only base-arm telemetry
         shell: bash
         run: |
           set -euo pipefail
-          timeout 50m bash tests/run_drink_headless.sh 2 "ci_${GITHUB_RUN_ID}" 10
+          mkdir -p vla_ws/logs
+          TRACE="vla_ws/logs/base_arm_dynamics_ci_${GITHUB_RUN_ID}.jsonl"
+          COLLECTOR_LOG="vla_ws/logs/base_arm_dynamics_collector_ci_${GITHUB_RUN_ID}.log"
+
+          # Start the observer before scene startup so it can discover Gazebo
+          # publishers as the headless scenario comes online. It publishes no
+          # commands and does not alter the world or controller parameters.
+          python3 tests/diag/collect_base_arm_dynamics.py \
+            --duration 3000 --output "$TRACE" >"$COLLECTOR_LOG" 2>&1 &
+          COLLECTOR_PID=$!
+
+          E2E_STATUS=0
+          timeout 50m bash tests/run_drink_headless.sh 2 "ci_${GITHUB_RUN_ID}" 10 || E2E_STATUS=$?
+
+          # SIGINT asks the collector to flush its JSONL and report source coverage.
+          COLLECTOR_STATUS=0
+          kill -INT "$COLLECTOR_PID" 2>/dev/null || true
+          wait "$COLLECTOR_PID" || COLLECTOR_STATUS=$?
+
+          if [ -s "$TRACE" ]; then
+            python3 tests/diag/analyze_base_arm_dynamics.py "$TRACE" \
+              --output "vla_ws/logs/base_arm_dynamics_summary_ci_${GITHUB_RUN_ID}.json"
+          else
+            echo "ERROR: read-only base-arm telemetry capture produced no data"
+            COLLECTOR_STATUS=1
+          fi
+
+          if [ "$E2E_STATUS" -ne 0 ]; then
+            exit "$E2E_STATUS"
+          fi
+          if [ "$COLLECTOR_STATUS" -ne 0 ]; then
+            echo "ERROR: telemetry collector reported missing required sources"
+            exit "$COLLECTOR_STATUS"
+          fi
 
       - name: Upload Gazebo logs, round JSON and screenshot evidence
         if: always()
@@ -213,6 +246,8 @@ jobs:
           retention-days: 14
           path: |
             vla_ws/logs/*.log
+            vla_ws/logs/base_arm_dynamics_ci_*.jsonl
+            vla_ws/logs/base_arm_dynamics_summary_ci_*.json
             vla_ws/logs/test_drink.json
             tests/out/drink_repeat_ci_*.json
             tests/out/drink_ci_*.json
