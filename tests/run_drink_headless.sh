@@ -182,6 +182,26 @@ if (( action_ready != 1 )); then
     exit 1
 fi
 
+echo "[4/5] Auditing ROS and Gazebo chassis velocity publishers"
+{
+    echo "===== ROS /robot/cmd_vel ====="
+    ros2 topic info -v /robot/cmd_vel || true
+    echo "===== ROS /drink/cmd_vel ====="
+    ros2 topic info -v /drink/cmd_vel || true
+    echo "===== ROS /follower_cmd_vel ====="
+    ros2 topic info -v /follower_cmd_vel || true
+    echo "===== ROS /cmd_vel_smoothed ====="
+    ros2 topic info -v /cmd_vel_smoothed || true
+} > "$LOG_DIR/chassis_ros_publishers.log" 2>&1
+{
+    echo "===== Gazebo /model/robot/cmd_vel ====="
+    gz topic -i -t /model/robot/cmd_vel || true
+} > "$LOG_DIR/chassis_gz_publishers.log" 2>&1
+echo "ROS publisher audit:"
+cat "$LOG_DIR/chassis_ros_publishers.log"
+echo "Gazebo publisher audit:"
+cat "$LOG_DIR/chassis_gz_publishers.log"
+
 echo "[4/5] Running complete observer acceptance through drink_repeat.sh"
 echo "Rounds=$N tag=$TAG cooldown=$COOLDOWN"
 bash "$ROOT/tests/drink_repeat.sh" "$N" "$TAG" "$COOLDOWN"
