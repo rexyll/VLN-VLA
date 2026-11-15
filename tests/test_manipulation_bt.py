@@ -144,13 +144,21 @@ class RuntimeIntegrationTests(unittest.TestCase):
         end = source.index("# ---------------------------------------------------------------- 双手捧", start)
         body = source[start:end]
         self.assertIn("BT.Selector(*_bt_children)", body)
-        self.assertIn("BT.Sequence(", body)
+        self.assertNotIn("BT.Sequence(", body)
         self.assertIn("'upstream_replay_allowed': False", body)
         self.assertIn("'release_boundary': 'irreversible_object_release'", body)
         self.assertLess(body.index("release_ok = node.carry.release(model)"),
                         body.index("BT.Selector(*_bt_children)"))
         self.assertIn("check_table=True", body)
         self.assertIn("tol_mm=8.0", body)
+        self.assertIn("T_release = wrist(node, side)", body)
+        self.assertLess(body.index("T_release = wrist(node, side)"),
+                        body.index("ok_back, res_back, how_back = reach("))
+        self.assertIn("T_candidate = T_release.copy()", body)
+        self.assertIn("fixed_target = target.copy()", body)
+        self.assertIn("displacement_from_release_mm", body)
+        self.assertNotIn("T_stage_now", body)
+        self.assertNotIn("reach(\\n                        node, side, T_back", body)
 
 
 if __name__ == "__main__":
