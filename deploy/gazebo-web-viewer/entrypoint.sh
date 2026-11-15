@@ -32,14 +32,15 @@ openbox > "$VLA_HOME/vla_ws/logs/openbox.log" 2>&1 &
 x11vnc -storepasswd "$VNC_PASSWORD" /tmp/vnc.pass >/dev/null
 x11vnc -display :0 -rfbauth /tmp/vnc.pass -forever -shared -rfbport 5900 \
   -noxdamage -repeat > "$VLA_HOME/vla_ws/logs/x11vnc.log" 2>&1 &
+X11VNC_PID=$!
 websockify --web=/usr/share/novnc 6080 localhost:5900 \
   > "$VLA_HOME/vla_ws/logs/novnc.log" 2>&1 &
-VNC_PID=$!
+WEBSOCKIFY_PID=$!
 
 cleanup() {
   set +e
   bash "$VLA_HOME/tools/killall_demo.sh"
-  kill "$VNC_PID" "$XVFB_PID" 2>/dev/null
+  kill "$WEBSOCKIFY_PID" "$X11VNC_PID" "$XVFB_PID" 2>/dev/null
 }
 trap cleanup EXIT TERM INT
 
@@ -56,7 +57,7 @@ echo "Open /vnc.html?autoconnect=true&resize=remote and enter the VNC password."
 
 # Keep the service alive while monitoring the simulator and its GUI.
 while kill -0 "$XVFB_PID" 2>/dev/null; do
-  if ! pgrep -af 'gz sim' >/dev/null; then
+  if ! pgrep -af '[g]z sim' >/dev/null; then
     echo "Gazebo process exited; stopping viewer service." >&2
     exit 1
   fi
