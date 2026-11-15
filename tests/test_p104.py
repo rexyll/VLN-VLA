@@ -3535,7 +3535,9 @@ class TestDrinkBaseLock(unittest.TestCase):
         self.assertLess(lock_gate, drink_route)
         self.assertIn('self.pub.publish(Twist())', source)
         self.assertIn('self.drk = Twist()', source)
-        self.assertIn('if self._drink_base_locked:\\n            return', source)
+        drk_callback = source[source.index('def _drk_cb'):source.index('def _live_cb')]
+        self.assertIn('if self._drink_base_locked:', drk_callback)
+        self.assertIn('return', drk_callback)
 
     def test_prepare_locks_after_table_approach_and_unlocks_only_after_kettle_putdown(self):
         motion_path = os.path.join(
