@@ -295,6 +295,13 @@ class DrinkTask(Node):
         # cmd_mux 也上了 300s 锁)。这两个都是收到 /robot/command 才动作。
         self.pub_cmd = self.create_publisher(String, '/robot/command', 10)
         self.create_subscription(String, '/robot/command', self._cmd_cb, 10)
+        # Explicit table-side chassis lock with request-ID acknowledgement.
+        self.pub_base_lock = (None if observer_only else
+                              self.create_publisher(String, '/drink/base_lock', 10))
+        self._base_lock_ack = None
+        self._base_lock_request_id = 0
+        self.create_subscription(String, '/drink/base_lock_state',
+                                 self._base_lock_state_cb, 10)
         # P104: 订阅 follower 状态，在交权后确认 FOLLOW 指令确已被接收。
         self._follower_status_snapshot = ({}, 0.0)
         self.create_subscription(String, '/follower/status',
@@ -626,6 +633,48 @@ class DrinkTask(Node):
         self._robot_cmd_snapshot = (
             (float(msg.linear.x), float(msg.angular.z)), time.monotonic())
         self._record_follow_cmd_trace('robot', msg)
+
+    def _base_lock_state_cb(self, msg):
+        try:
+            payload = json.loads(msg.data)
+            self._base_lock_ack = (
+                int(payload['request_id']), bool(payload['locked']),
+                time.monotonic())
+        except (ValueError, TypeError, KeyError):
+            self.get_logger().warn('DRINK_BASE_LOCK invalid mux acknowledgement')
+
+    def set_base_lock(self, locked, timeout=2.0):
+        """Request an acknowledged mux lock; fail closed if the mux is absent."""
+        if self.pub_base_lock is None:
+            self.get_logger().error(
+                'DRINK_BASE_LOCK unavailable in observer-only mode')
+            return False
+        deadline = time.monotonic() + max(0.1, float(timeout))
+        while time.monotonic() < deadline and not self._cmd_mux_is_present():
+            self.spin_for(0.1)
+        if not self._cmd_mux_is_present():
+            self.get_logger().error(
+                'DRINK_BASE_LOCK cmd_mux unavailable; refusing table-side motion')
+            return False
+        self._base_lock_request_id += 1
+        request_id = self._base_lock_request_id
+        payload = String(data=json.dumps({
+            'locked': bool(locked), 'request_id': request_id}))
+        while time.monotonic() < deadline:
+            self.pub_base_lock.publish(payload)
+            self.spin_for(0.1)
+            ack = self._base_lock_ack
+            if (ack is not None and ack[0] == request_id
+                    and ack[1] == bool(locked)
+                    and time.monotonic() - ack[2] < 0.5):
+                self.get_logger().info(
+                    'DRINK_BASE_LOCK state=%s request_id=%d acknowledged' %
+                    ('LOCKED' if locked else 'UNLOCKED', request_id))
+                return True
+        self.get_logger().error(
+            'DRINK_BASE_LOCK %s acknowledgement timeout; fail closed' %
+            ('LOCK' if locked else 'UNLOCK'))
+        return False
 
     def _cmd_mux_is_present(self):
         """Return whether cmd_mux consumes /drink/cmd_vel, with a bounded graph probe."""
