@@ -2780,7 +2780,7 @@ class TestP104(unittest.TestCase):
         self.assertNotIn(
             '水壶未确认落稳，保持抓持并中止后续动作', prepare)
 
-    def test_put_down_searches_bounded_collision_checked_retreat_waypoints(self):
+    def test_put_down_uses_bounded_local_withdrawal_behavior_tree(self):
         motion_path = os.path.join(
             ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
             'drink_motion.py')
@@ -2789,36 +2789,31 @@ class TestP104(unittest.TestCase):
         start = motion.index('def put_down(')
         end = motion.index('# ---------------------------------------------------------------- 双手捧', start)
         body = motion[start:end]
-        first = body.index('ok_back, res_back, how_back = reach(')
+        direct = body.index('ok_back, res_back, how_back = reach(')
         gate = body.index('if not ok_back and how_back in (')
+        release = body.index('release_ok = node.carry.release(model)')
+        selector = body.index('BT.Selector(*_bt_children)')
         self.assertIn("'human-ik-no-valid-solution'", body[gate:])
         self.assertIn("'human-posture-violation')", body[gate:])
         self.assertIn('WITHDRAW_DIRECT', body[:gate])
-        self.assertIn('WITHDRAW_SEARCH_BEGIN', body[gate:])
-        self.assertIn('WITHDRAW_CANDIDATE_BEGIN', body[gate:])
-        self.assertIn('WITHDRAW_CANDIDATE_RESULT', body[gate:])
-        candidates = body.index('_retreat_candidates = (', gate)
-        loop = body.index('for _dz, _dx, _dy in _retreat_candidates:', candidates)
-        refresh = body.index('T_stage_now = wrist(node, side)', loop)
-        stage_reach = body.index(
-            'node, side, T_stage, tol_mm=8.0, check_table=True', refresh)
-        retry = body.index('node, side, T_back, tol_mm=8.0, check_table=True',
-                           stage_reach)
-        self.assertLess(first, gate)
-        self.assertLess(gate, candidates)
-        self.assertLess(candidates, loop)
-        self.assertLess(loop, refresh)
-        self.assertLess(refresh, stage_reach)
-        self.assertLess(stage_reach, retry)
-        self.assertIn('(0.04, 0.00, 0.00)', body[candidates:loop])
-        self.assertIn('(0.20, 0.00, 0.00)', body[candidates:loop])
-        self.assertIn('(0.12, 0.04, 0.00)', body[candidates:loop])
-        self.assertIn('(0.12, 0.00, -0.04)', body[candidates:loop])
-        self.assertIn('np.array([_dx, _dy, _dz], dtype=float)', body[loop:])
-        self.assertIn('if ok_stage:', body[stage_reach:retry])
-        self.assertIn('if ok_back:', body[retry:])
-        self.assertIn('WITHDRAW_TRACE', body)
-        # Initial retreat, each candidate, and final retry retain full table checks.
+        self.assertIn('WITHDRAW_BT_BEGIN', body[gate:])
+        self.assertIn('WITHDRAW_BT_CANDIDATE_BEGIN', body[gate:])
+        self.assertIn('WITHDRAW_BT_STAGE', body[gate:])
+        self.assertIn('WITHDRAW_BT_FINAL', body[gate:])
+        self.assertIn('BT.Sequence(', body[gate:])
+        self.assertIn('BT.Selector(*_bt_children)', body[gate:])
+        self.assertLess(release, selector)
+        self.assertLess(direct, gate)
+        self.assertIn("'upstream_replay_allowed': False", body[selector:])
+        self.assertIn("'release_boundary': 'irreversible_object_release'", body[selector:])
+        self.assertIn('node, side, T_stage, tol_mm=8.0, check_table=True', body[gate:])
+        self.assertIn('node, side, T_back, tol_mm=8.0, check_table=True', body[gate:])
+        self.assertIn('(0.04, 0.00, 0.00)', body[gate:])
+        self.assertIn('(0.20, 0.00, 0.00)', body[gate:])
+        self.assertIn('(0.12, 0.04, 0.00)', body[gate:])
+        self.assertIn('(0.12, 0.00, -0.04)', body[gate:])
+        self.assertIn("'recovery_mode': 'local_clearance_waypoint_selector'", body[selector:])
+        self.assertIn('WITHDRAW_BT_RESULT', body)
         self.assertEqual(body.count('check_table=True'), 3)
 
     def test_reach_enforces_ik_fk_four_mm_before_table_checked_motion(self):
