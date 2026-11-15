@@ -113,6 +113,58 @@ from vla_follow import scene_layout as L  # noqa: E402
 
 class TestP104(unittest.TestCase):
 
+    def test_cup_grasp_base_candidates_are_bounded_and_table_clear(self):
+        candidates = M.cup_grasp_base_candidates(L.SERVE_POSE)
+        self.assertTrue(candidates)
+        bx, by, yaw = L.SERVE_POSE
+        for x, y, candidate_yaw in candidates:
+            self.assertLessEqual(math.hypot(x - bx, y - by), 0.060001)
+            yaw_delta = abs(math.atan2(
+                math.sin(candidate_yaw - yaw),
+                math.cos(candidate_yaw - yaw)))
+            self.assertLessEqual(yaw_delta, math.radians(12.0) + 1e-9)
+            self.assertGreaterEqual(L.table_clearance(x, y, pad=0.05), 0.0)
+        self.assertTrue(any(
+            math.hypot(x - bx, y - by) < 1e-9
+            and abs(math.atan2(math.sin(candidate_yaw - yaw),
+                               math.cos(candidate_yaw - yaw))) < 1e-9
+            for x, y, candidate_yaw in candidates))
+
+    def test_cup_pose_freshness_is_per_model_and_fail_closed(self):
+        import time
+        from types import SimpleNamespace
+        now = time.monotonic()
+        fresh = SimpleNamespace(_gt_model_sample_t={'cup': now - 0.05})
+        stale = SimpleNamespace(_gt_model_sample_t={'cup': now - 0.50})
+        missing = SimpleNamespace(_gt_model_sample_t={})
+        self.assertTrue(M.cup_pose_fresh(fresh, 0.25)[0])
+        self.assertFalse(M.cup_pose_fresh(stale, 0.25)[0])
+        self.assertFalse(M.cup_pose_fresh(missing, 0.25)[0])
+
+    def test_cup_preflight_uses_explicit_candidate_base_and_precedes_lock(self):
+        motion_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
+            'drink_motion.py')
+        with open(motion_path, encoding='utf-8') as stream:
+            source = stream.read()
+        preflight_start = source.index('def preflight_table_route(')
+        preflight_end = source.index('def put_down_two(', preflight_start)
+        preflight_body = source[preflight_start:preflight_end]
+        self.assertIn('base_pose=None', preflight_body)
+        self.assertIn('else tuple(float(v) for v in base_pose)', preflight_body)
+        prepare_start = source.index('def prepare_present(')
+        prepare_end = source.index('def cup_present_target(', prepare_start)
+        prepare_body = source[prepare_start:prepare_end]
+        self.assertLess(
+            prepare_body.index('cup_grasp_preflight('),
+            prepare_body.index('node.set_base_lock(True)'))
+        self.assertLess(
+            prepare_body.index('cup_grasp_preflight('),
+            prepare_body.index('pour_into_cup('))
+        self.assertIn('PREPARE_CUP_GRASP_ALIGN', prepare_body)
+        self.assertIn('post_alignment_preflight', prepare_body)
+        self.assertIn('run_base_motion_window', prepare_body)
+
     def test_present_approach_threshold_catches_observed_34mm_cup_offset(self):
         # E2E #48 had the hand target 33.6mm beyond the 0.70m arm reach.
         # A 35mm deadband incorrectly skipped base compensation, leaving one
