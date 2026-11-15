@@ -40,6 +40,7 @@ import numpy as np
 from vla_follow import arm_kin as K
 from vla_follow import drink_poses as P
 from vla_follow import scene_layout as L
+from vla_follow import manipulation_bt as BT
 
 # 到位容差调度：第 0 轮用伺服默认容差，之后逐轮收紧
 TOL_SCHED = (None, 0.6, 0.25, 0.25, 0.25)
@@ -1807,19 +1808,16 @@ def put_down(node, side, model, T_obj_goal, retreat=0.10,
         % (model, bool(ok_back), float(res_back), how_back,
            np.round(T_back[:3, 3], 4).tolist()))
     withdraw_stage = None
-    # A released kettle can leave the wrist at a pose whose short direct
-    # retreat target has no R1-R7-compliant IK branch. Search a small,
-    # deterministic set of collision-checked clearance waypoints. The search
-    # changes only the intermediate empty-hand route: the final retreat target,
-    # R1-R7 posture rules, 4mm IK gate, 8mm servo gate and table/leg swept-path
-    # checks remain unchanged. Each failed candidate is re-seeded from the
-    # latest measured wrist pose because a failed servo attempt may have moved
-    # partially; no candidate is assumed to have succeeded.
+    # Release is an irreversible object-ownership boundary.  Recovery after
+    # this point is deliberately a local withdrawal BT only: it may search
+    # verified clearance waypoints, but it must never replay the pre-release
+    # placement/grasp/pour action.
     if not ok_back and how_back in (
             'table-collision', 'human-ik-no-valid-solution',
             'human-posture-violation'):
         node.get_logger().warn(
-            'PUT_DOWN %s WITHDRAW_SEARCH_BEGIN reason=%s; retain R1-R7/4mm IK/8mm servo/full path collision gates'
+            'PUT_DOWN %s WITHDRAW_BT_BEGIN reason=%s; local-only recovery, '
+            'release boundary forbids upstream replay'
             % (model, how_back))
         _retreat_candidates = (
             (0.04, 0.00, 0.00), (0.08, 0.00, 0.00),
@@ -1828,47 +1826,91 @@ def put_down(node, side, model, T_obj_goal, retreat=0.10,
             (0.12, 0.00, 0.04), (0.12, 0.00, -0.04),
         )
         _candidate_trace = []
-        for _dz, _dx, _dy in _retreat_candidates:
-            T_stage_now = wrist(node, side)
-            if T_stage_now is None:
-                _candidate_trace.append({
-                    'offset_m': [_dx, _dy, _dz],
-                    'ok': False, 'how': 'current_wrist_pose_missing'})
-                break
-            T_stage = T_stage_now.copy()
-            T_stage[:3, 3] += np.array([_dx, _dy, _dz], dtype=float)
-            node.get_logger().info(
-                'PUT_DOWN %s WITHDRAW_CANDIDATE_BEGIN offset_m=%s target_xyz=%s'
-                % (model, [_dx, _dy, _dz],
-                   np.round(T_stage[:3, 3], 4).tolist()))
-            ok_stage, res_stage, how_stage = reach(
-                node, side, T_stage, tol_mm=8.0, check_table=True)
-            node.get_logger().info(
-                'PUT_DOWN %s WITHDRAW_CANDIDATE_RESULT offset_m=%s ok=%s residual_mm=%.1f how=%s'
-                % (model, [_dx, _dy, _dz], bool(ok_stage),
-                   float(res_stage), how_stage))
+        _bt_children = []
+        _bt_state = {'ok': False}
+
+        for _candidate_index, (_dz, _dx, _dy) in enumerate(
+                _retreat_candidates):
             _entry = {
                 'offset_m': [_dx, _dy, _dz],
-                'ok': bool(ok_stage),
-                'residual_mm': round(float(res_stage), 1),
-                'how': how_stage,
-                'target_xyz': np.round(T_stage[:3, 3], 4).tolist(),
+                'ok': False,
+                'how': 'not_attempted',
             }
-            if ok_stage:
-                ok_back, res_back, how_back = reach(
-                    node, side, T_back, tol_mm=8.0, check_table=True)
-                _entry.update(
-                    retry_ok=bool(ok_back),
-                    retry_residual_mm=round(float(res_back), 1),
-                    retry_how=how_back)
             _candidate_trace.append(_entry)
-            if ok_back:
-                break
+
+            def _make_stage_action(entry, dx, dy, dz, index):
+                def _stage_action(_context):
+                    T_stage_now = wrist(node, side)
+                    if T_stage_now is None:
+                        entry.update(ok=False,
+                                     how='current_wrist_pose_missing')
+                        return BT.Status.FAILURE
+                    T_stage = T_stage_now.copy()
+                    T_stage[:3, 3] += np.array(
+                        [dx, dy, dz], dtype=float)
+                    entry['target_xyz'] = np.round(
+                        T_stage[:3, 3], 4).tolist()
+                    node.get_logger().info(
+                        'PUT_DOWN %s WITHDRAW_BT_CANDIDATE_BEGIN index=%d '
+                        'offset_m=%s target_xyz=%s'
+                        % (model, index, [dx, dy, dz],
+                           entry['target_xyz']))
+                    ok_stage, res_stage, how_stage = reach(
+                        node, side, T_stage, tol_mm=8.0, check_table=True)
+                    entry.update(
+                        stage_ok=bool(ok_stage),
+                        stage_residual_mm=round(float(res_stage), 1),
+                        stage_how=how_stage,
+                        how=how_stage)
+                    node.get_logger().info(
+                        'PUT_DOWN %s WITHDRAW_BT_STAGE index=%d ok=%s '
+                        'residual_mm=%.1f how=%s'
+                        % (model, index, bool(ok_stage),
+                           float(res_stage), how_stage))
+                    if ok_stage:
+                        _bt_state['stage_residual_mm'] = float(res_stage)
+                        return BT.Status.SUCCESS
+                    return BT.Status.FAILURE
+                return BT.Action(_stage_action)
+
+            def _make_final_action(entry, index):
+                def _final_action(_context):
+                    nonlocal ok_back, res_back, how_back
+                    ok_back, res_back, how_back = reach(
+                        node, side, T_back, tol_mm=8.0, check_table=True)
+                    entry.update(
+                        retry_ok=bool(ok_back),
+                        retry_residual_mm=round(float(res_back), 1),
+                        retry_how=how_back,
+                        ok=bool(ok_back))
+                    node.get_logger().info(
+                        'PUT_DOWN %s WITHDRAW_BT_FINAL index=%d ok=%s '
+                        'residual_mm=%.1f how=%s'
+                        % (model, index, bool(ok_back),
+                           float(res_back), how_back))
+                    return (BT.Status.SUCCESS if ok_back
+                            else BT.Status.FAILURE)
+                return BT.Action(_final_action)
+
+            _bt_children.append(BT.Sequence(
+                _make_stage_action(_entry, _dx, _dy, _dz,
+                                   _candidate_index),
+                _make_final_action(_entry, _candidate_index)))
+
+        _withdraw_tree = BT.Selector(*_bt_children)
+        _bt_result = _withdraw_tree.tick({})
         withdraw_stage = {
             'attempted': True,
-            'ok': bool(ok_back),
+            'ok': bool(_bt_result == BT.Status.SUCCESS and ok_back),
+            'recovery_mode': 'local_clearance_waypoint_selector',
+            'upstream_replay_allowed': False,
+            'release_boundary': 'irreversible_object_release',
+            'bt_status': _bt_result.value,
             'candidates': _candidate_trace,
         }
+        node.get_logger().info(
+            'PUT_DOWN %s WITHDRAW_BT_RESULT=%s'
+            % (model, withdraw_stage))
     if info is not None:
         info['withdraw_ok'] = bool(ok_back)
         info['withdraw_res_mm'] = round(float(res_back), 1)
