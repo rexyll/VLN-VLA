@@ -1851,6 +1851,9 @@ def put_down(node, side, model, T_obj_goal, retreat=0.10,
         info['withdraw_res_mm'] = round(float(res_back), 1)
         if withdraw_stage is not None:
             info['withdraw_stage'] = withdraw_stage
+    if withdraw_stage is not None:
+        node.get_logger().info(
+            'PUT_DOWN %s WITHDRAW_TRACE=%s' % (model, withdraw_stage))
     if ok_back and withdraw_stage and withdraw_stage.get('ok'):
         node.get_logger().info(
             'PUT_DOWN %s 经桌边上方安全航点撤手到位 '
