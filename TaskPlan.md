@@ -1094,3 +1094,14 @@
 - 修正 `tests/diag/README.md`：使用准确的 `wheel_odometry` 来源名；区分“启动时成功订阅”与“采集期间收到消息”。A 组机械臂静止时没有目标消息可以是正常情况；B/C 组应结合实际动作检查逐关节目标消息，不再把静止组无目标消息误判为采集失败。
 - 对应代码提交 `34fa8bc532cbcd1f1fd9bab0ffb777200c242219` 的 Base-arm diagnostic CI push run `43681967989` 已成功；同一提交的 P104 Python syntax、CarryBus ROS 2 executor 和 headless Gazebo E2E workflow 当时仍在运行/排队，需继续轮询。随后 `3ee07fe4aa27301223c85f3765ea927bce328178` 仅修订手册文字，不能把先前 CI 结果描述为对该文档提交的测试。
 - 当前还没有 A/B/C 实际 Gazebo JSONL；本轮修复的是观测覆盖可辨识性，不是物理漂移根因。不得根据该改动宣称物理问题解决；不改 SDF、控制器、状态机、安全阈值、碰撞/关节限制或释放条件。
+
+
+### 8.394 PRESENT follow 漂移根因收窄：左手持杯与右手跟随解耦（2026-11-15）
+
+- 下载并逐行检查 E2E run `43682007351` 的 artifact `14149416752`。本轮初始递杯位姿误差为 1.291mm / 0.056°；follow_hand 结束时右手末端误差仅 0.713mm，但杯子从 `[2.02962, 0.94108, 0.99999]` 移至 `[2.11055, 0.92113, 0.99999]`，杯位相对交接目标偏差 83.838mm / 7.927°。严格 6mm / 0.5° 门槛正常触发 fail-closed。
+- 纠正上一轮诊断表述：源码明确说明 PRESENT 阶段杯子由**左掌**持有，`M.follow_hand(self, 'R', 'cup', pr['off_r'])` 是让右手跟随杯子目标，并不意味着杯子附着在右掌。故“右手跟随误差很小”不能证明杯子相对左掌刚性关系正确；必须同步观测左掌、杯子及其相对变换。
+- 本轮底盘真值在约3.33s窗口内最大 XY 位移 23.281mm、最大 yaw 偏差 8.100°；底盘命令为零，轮速大多数样本接近零，truth twist 有短时非零峰值，而 odometry 大多近零。杯子世界位姿变化与底盘姿态变化同时出现；目前优先假设为底盘/机械臂耦合导致左掌及杯子整体偏移，但尚未取得左掌同步 trace，不能确认杯子是否相对左掌滑移，也不能将漂移归因于单一因素。
+- 检查 `carry.py` 与 `GraspCarry.cc`：`grab()` 冻结 `inv(T_left_palm) @ T_cup` 偏移；`update()` 周期性发布 `T_left_palm @ offset`；插件 PreUpdate 每仿真 tick 对活动目标执行 `SetWorldPoseCmd`。这是一种运动学位姿钉住机制，不是物理接触/摩擦抓取。该机制应保持原设计，不应仅因本次失败就替换或调参。
+- 诊断改动提交 `e9c21e040d2ca4eab00bdd73da97af13bbb6d477`：在 PRESENT follow 前后同步采集左掌位姿，并计算杯子在左掌坐标系中的相对变换变化（平移/旋转），新增日志 `PRESENT_LEFT_GRASP_REL`。若相对变换稳定而世界位姿漂移，优先定位底盘/整体运动；若相对变换变化显著，再检查 carry update 频率、目标命令队列与 pose truth 采样时序。
+- 下一步先让 Python syntax、CarryBus、Base-arm diagnostic 与 headless Gazebo E2E CI 在该提交上完成；从新 artifact 验证 `PRESENT_LEFT_GRASP_REL` 的真实输出，再决定下一项实验。不得放宽 6mm / 0.5° 交接门槛，不得改变 IK/grasp 精度、碰撞、关节限位、fail-closed 或释放条件；不修改 SDF/物理参数。A/B/C 独立 Gazebo 物理实验仍待本地仿真运行。
+- 完整连续双轮 Gazebo E2E 成功次数仍为 **1**；PR #2 保持 Draft/Open；main `1acfa3785283c227ee9f3e351140b3d601f7d85f` 未修改。
