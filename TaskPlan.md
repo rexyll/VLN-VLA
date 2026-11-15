@@ -1225,3 +1225,13 @@
 - `drink_task.py` 的 raw `/robot/cmd_vel` 兜底已移除；对应静态回归和 Python syntax/pure tests 在 SHA `2603a7160d6646759a190faf9e58b76b2abcfdfd` 已通过。新增 runtime publisher audit 的 runner 改动提交于 `24fdf3006c2615dbb1800be46d72b6a30a763f32`，需要以该最新 SHA 的 CI 日志为准。
 - ROS graph 查询失败时 DrinkTask 现在 fail-closed，不会发布 `/robot/cmd_vel`。但该改动只封闭已审计到的 DrinkTask fallback；其他 ROS/Gazebo publisher 是否存在仍待运行时快照确认。
 - P104-10.1 仍进行中：本轮没有创建或加载轮端制动插件，也没有执行固定约束实验。P104-10.2/10.3 未完成。不得将 Python 测试通过或 publisher 快照采集成功当作 Gazebo 物理锁止或完整 E2E 成功。
+
+
+### 8.406 修复 #280 暴露的 Observer 终态识别与遥测采集器清理冲突（2026-11-15）
+
+- Observer 终态判断由固定枚举扩展为识别所有 `FAIL_*` 状态；失败状态保留最多 2 秒的有界窗口尝试保存失败现场截图，随后立即停止，不再继续等待完整流程超时。
+- 若任务在完整闭环前进入 `FAIL_*`，观察器将后续杯子归位、交权后跟随、双手交还及完整截图验收统一标记为 `downstream_checks=NOT_RUN`，避免把未执行阶段的真值/默认值误报为下游失败指标。阶段轨迹与已采集截图仍保留。
+- `killall_demo.sh` 不再按 `tests/diag/` 路径批量 SIGKILL。遥测采集器由启动它的 workflow shell 持有 PID，在 E2E runner 返回后发送 SIGINT 并 wait，使 collector 有机会执行 flush；清理脚本继续负责 ROS/Gazebo demo 进程。
+- 新增纯回归覆盖 `FAIL_PRESENT_FOLLOW_DRIFT` 等多种失败状态、失败后下游 NOT_RUN，以及清理脚本不得杀死诊断采集器。
+- 本次只修复测试观察器与进程生命周期，不改变底盘控制、Gazebo 物理参数或任何 IK/抓取/碰撞/交接阈值。它不能解决底盘被动漂移；P104-10.1 物理制动、P104-10.2 独立锁止确认、P104-10.3 抗反作用力测试仍未完成。
+- 验证状态：代码已写入实验分支，等待最新 SHA 的 Python 回归、shell 静态检查及新一轮双轮 headless Gazebo E2E；在 CI 实际完成前不标记通过。main 未修改，PR #3 保持 Draft/Open。
