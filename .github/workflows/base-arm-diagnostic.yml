@@ -31,8 +31,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Compile diagnostic collector
-        run: python -m py_compile tests/diag/collect_base_arm_dynamics.py tests/diag/analyze_base_arm_dynamics.py tests/diag/test_analyze_base_arm_dynamics.py
+      - name: Compile and test diagnostic tools
+        run: |
+          python -m py_compile tests/diag/collect_base_arm_dynamics.py tests/diag/analyze_base_arm_dynamics.py tests/diag/test_analyze_base_arm_dynamics.py
           python -m unittest discover -s tests/diag -p 'test_*.py' -v
       - name: Check collector is read-only
         run: |
