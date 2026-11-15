@@ -301,6 +301,7 @@ class DrinkTask(Node):
         self._base_lock_ack = None
         self._base_lock_request_id = 0
         self._base_lock_active = False
+        self._base_motion_window_active = False
         self.create_subscription(String, '/drink/base_lock_state',
                                  self._base_lock_state_cb, 10)
         # P104: 订阅 follower 状态，在交权后确认 FOLLOW 指令确已被接收。
@@ -701,9 +702,11 @@ class DrinkTask(Node):
             'DRINK_BASE_MOTION_WINDOW %s OPEN: task motion only' % label)
         result = None
         relock_ok = False
+        self._base_motion_window_active = True
         try:
             result = motion()
         finally:
+            self._base_motion_window_active = False
             relock_ok = self.set_base_lock(True)
             self.get_logger().info(
                 'DRINK_BASE_MOTION_WINDOW %s CLOSED: relock_ack=%s' %
