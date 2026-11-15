@@ -41,11 +41,11 @@ Before interpreting a capture, verify that it contains records for:
 - `clock`
 - `dynamic_pose`
 - `joint_state`
-- `odometry`
+- `wheel_odometry`
 - `base_cmd_vel`
-- the 14 arm target topics (R/L pan, lift, up_roll, elbow, fore_roll, wrist_p, wrist_r)
+- the 14 arm target topics, recorded independently as `arm_position_target:<joint>` (R/L pan, lift, up_roll, elbow, fore_roll, wrist_p, wrist_r). The collector prints each successful subscription at startup; a stationary A capture may legitimately contain no target messages, while B/C should show the topics that were commanded.
 
-The collector reports missing sources and exits nonzero rather than synthesizing missing data. The dynamic-pose stream may not expose `robot::chassis`; record that as unavailable rather than inferring a model/link transform. Contact-state telemetry is not currently collected by this tool.
+The collector reports missing core sources and exits nonzero rather than synthesizing missing data. Per-joint arm target topic records are separate in `source_coverage`, so missing target messages can be distinguished instead of hidden by one aggregate counter. The dynamic-pose stream may not expose `robot::chassis`; record that as unavailable rather than inferring a model/link transform. Contact-state telemetry is not currently collected by this tool.
 
 ## Offline analysis
 
