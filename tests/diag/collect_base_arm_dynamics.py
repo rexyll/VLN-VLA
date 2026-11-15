@@ -161,7 +161,9 @@ class Collector:
         })
 
     def on_arm_cmd(self, joint, msg):
-        self.emit("arm_position_target", {
+        # Keep per-topic coverage distinct: an aggregate source counter cannot
+        # reveal which of the 14 target topics actually delivered messages.
+        self.emit(f"arm_position_target:{joint}", {
             "joint": joint, "target": float(msg.data),
         })
 
