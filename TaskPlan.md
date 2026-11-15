@@ -25,12 +25,13 @@
 - PR：[#2](https://github.com/rexyll/VLN-VLA/pull/2)，draft/open，base `main`，未合并
 - 当前任务节点：**P104-07：隔离 PRESENT follow_hand 期间底盘被动漂移与闭环位置保持效果**
 - 状态：**正在进行中**
-- 完整真实 Gazebo DrinkTask E2E 成功轮数：**1（E2E #60；连续双轮稳定性仍未验收）**
-- 已通过部分：Python syntax/pure tests（run `43695773198`，131 tests）、CarryBus ROS 2 executor（run `43695773224`）；两项均对应代码提交 `0ea534638ea673f0bc80cc1fd2e91f194495c4a6`。
-- 最新 E2E：run `43695773286`，artifact `14154797499`，仅执行第一轮并在 `PREPARE → PRESENT → FAIL_PRESENT_FOLLOW_DRIFT` 停止；requested=2、completed=1、passed=0、failed=2，第二轮缺失。follow_hand 右手误差 3.624mm，但杯相对交接目标误差 98.367mm / 8.978°，严格 6mm / 0.5° gate 正确阻止交权。
-- 新增关键证据：`PRESENT_LEFT_GRASP_REL` 显示杯相对左掌平移变化仅 0.001mm、轴角变化 0°，本轮不支持左掌—杯相对滑移是主因。与此同时底盘在约4.7s follow 窗口内最大 XY 位移 21.619mm、最大 yaw 偏差 9.149°；两路底盘速度命令峰值均为 0，轮速瞬时峰值 2.026rad/s、末端回到近零。JointState wheel effort 最大值为0，但该字段不能证明实际制动状态。证据优先指向底盘/机械臂耦合下的被动底盘运动，尚不能单独归因为某一物理机制。
-- 为建立真正可比较的 A/B 基线，提交 `8bbc9f45ee324e87a0b84621bc36b49d71022fa2` 修改 headless workflow：实验分支 push 默认恢复 PRESENT 闭环位置保持（zero-during-follow=0）；PR 触发和 workflow_dispatch 显式输入仍可运行零命令隔离组。该次闭环基线 E2E 待 CI 结果，不预判其改善效果。
-- 下一步：检查新 E2E 的 hold 控制命令、底盘 truth pose/twist、轮速与左掌—杯相对位姿是否同步；若闭环命令确实输出但底盘仍明显偏移，再做只读 A/B/C 动力学采集，先验证 wheel/contact 观测有效性。不得修改 SDF、摩擦/质量/阻尼、控制器参数或放宽任何 IK、碰撞、关节、抓取、交接和释放安全门槛。
+- 完整真实 Gazebo DrinkTask E2E 成功轮数：**1（连续双轮稳定性仍未验收）**
+- 最新闭环基线 E2E：run `43697514032`，测试代码 SHA `8bbc9f45ee324e87a0b84621bc36b49d71022fa2`，artifact `14155990326`。Python syntax、CarryBus ROS 2、Gazebo 插件构建、ROS 2 workspace 构建及 Nav2 资源检查均成功；Gazebo 双轮 E2E 失败。首轮 `PREPARE → PRESENT → FAIL_PRESENT_FOLLOW_DRIFT`，requested=2、completed=1、passed=0、failed=2，第二轮缺失。
+- 最新 PRESENT 同步证据：右手末端误差 `4.036mm`，但杯相对交接目标偏差 `13.229mm / 0.613°`，严格 `6mm / 0.5°` gate 正确阻止 HANDOVER。杯相对左掌变化仅 `0.634mm / 0.014°`，不支持明显的左掌—杯相对滑移。
+- 本轮闭环 hold 窗口约 `1.71s`，底盘真值最大 XY 位移 `19.70mm`、最大 yaw 偏差 `1.351°`；主动 hold 输出峰值线速度约 `0.0644m/s`、角速度 `0.04rad/s`，轮速峰值约 `2.997rad/s`。底盘命令与轮速均有非零样本，不能把本轮描述为“被动漂移”或“闭环保持未输出”。
+- 与前一轮零命令组 run `43695773286` 相比，前一轮约 `4.7s`、最大 XY `21.619mm`、最大 yaw `9.149°`；两轮 follow 时长与轨迹并不匹配，因此目前**不能据此量化闭环保持的改善幅度，也不能认定主动 hold 是根因**。JointState wheel effort=0 仍不能证明实际制动状态。
+- 下一步：在相同初始位姿、相同机械臂轨迹和相同观测窗口下做成对 A/B；同步记录底盘 truth pose/twist、两路 cmd_vel、轮 position/velocity/force、机械臂目标/实测关节状态及左掌—杯相对变换。先核对采集器在 Gazebo 中的 topic 覆盖和时间戳，再判断控制输出与底盘运动的先后关系。A/B/C 物理采集器尚未在 Gazebo 实例实际运行，不能以 CI 构建替代。
+- 不得修改 SDF、摩擦/质量/阻尼、控制器参数或放宽 IK、碰撞、关节、抓取、交接和释放安全门槛；不把 `in_band_pct` 当作跟随成功。
 
 ## 任务章节
 
@@ -1140,3 +1141,13 @@
 - 本轮在 `PREPARE → PRESENT → FAIL_PRESENT_FOLLOW_DRIFT` 终止。右手跟随末端误差 3.624mm，但杯相对 PRESENT 目标偏差 98.367mm / 8.978°，触发既有 6mm / 0.5° fail-closed gate；不请求人手合拢、不交权。完整两轮验收仍为 0/2，本轮不计入成功轮数。
 - 左掌—杯相对位姿变化仅 0.001mm / 0°，说明杯子在左掌坐标系中保持稳定；底盘在约4.7s窗口内最大 XY 位移 21.619mm、最大 yaw 偏差 9.149°。期间 `/drink/cmd_vel` 与 `/robot/cmd_vel` 的峰值均为 0，轮速最大瞬时值 2.026rad/s，结束时回到近零。该同步证据支持“零命令并不等于底盘机械锁止，底盘在机械臂动作窗口仍发生被动运动”；JointState effort=0 不能作为制动/无力矩证明。
 - 由于杯相对左掌稳定，而世界系杯位明显偏离，下一步应优先比较底盘闭环保持开启与零命令隔离两组，并同步核对控制输出、底盘真值和轮速；暂不更改物理参数或控制器。实验分支 push 默认已改为闭环保持，提交 `8bbc9f45ee324e87a0b84621bc36b49d71022fa2`，新 E2E 待 CI。PR #2 仍 Draft/Open，main 未修改；完整连续双轮 E2E 成功次数仍为 **1**。
+
+
+### 8.398 PRESENT 闭环保持基线仍未满足交接门槛；A/B 需匹配时窗（2026-11-15）
+
+- 闭环基线 run `43697514032`（代码 SHA `8bbc9f45ee324e87a0b84621bc36b49d71022fa2`，artifact `14155990326`）：Python syntax、CarryBus ROS 2、Gazebo 插件构建、ROS 2 workspace 构建与 Nav2 map asset verify 均成功；Gazebo E2E 失败。round1 只到 `PREPARE → PRESENT → FAIL_PRESENT_FOLLOW_DRIFT`，requested=2、completed=1、passed=0、failed=2，round2 文件缺失；不计入成功轮数。
+- PRESENT 期间初始杯/交接目标位姿记录为 `[2.02753, 0.93918, 1.0]`；follow 后杯位为 `[2.03616, 0.94932, 1.0]`，相对目标位置误差 `13.229mm)、轴角误差 `0.613°`。右手末端误差 `4.036mm`，但杯位仍同时违反 `6mm / 0.5°` 门槛，系统正确 fail-closed，未进入 HANDOVER。
+- `PRESENT_LEFT_GRASP_REL`：左掌—杯相对平移变化 `0.634mm)、轴角变化 `0.014°`，不支持明显相对滑移。follow 期间底盘真值最大 XY 位移 `19.700mm)、最大 yaw 偏差 `1.351°`；采样窗口约 `1.71s`。主动 hold 命令峰值线速度约 `0.06442m/s)、角速度 `0.04rad/s`，轮速峰值约 `2.997rad/s`，说明闭环控制器确实发出纠偏命令，但仍伴随底盘位姿变化。
+- 与零命令 run `43695773286`（约 `4.7s`，最大 XY `21.619mm`、最大 yaw `9.149°`）时窗不同、轨迹不同，不能直接据此声称闭环保持显著改善或主动控制导致漂移。两组均未通过交接 gate；轮 JointState effort=0 不能证明制动/无力矩。
+- 下一步进行匹配条件的成对 A/B：同一 world、初始底盘姿态、机械臂动作、仿真时长与采样时间轴；一组闭环 hold、一组零命令隔离。同步采集 truth pose/twist、cmd_vel、轮 position/velocity/force、机械臂目标/实测关节状态、左掌—杯相对变换；先验证数据覆盖与时间戳语义。A/B/C 只读采集器尚未在 Gazebo 实例实际执行，物理根因仍未确认。
+- 未改变 SDF、物理参数、控制器或安全阈值。PR #2 保持 draft/open；main `1acfa3785283c227ee9f3e351140b3d601f7d85f` 未修改；完整连续双轮成功次数仍为 **1**。
