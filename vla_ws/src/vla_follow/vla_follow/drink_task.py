@@ -300,6 +300,7 @@ class DrinkTask(Node):
                               self.create_publisher(String, '/drink/base_lock', 10))
         self._base_lock_ack = None
         self._base_lock_request_id = 0
+        self._base_lock_active = False
         self.create_subscription(String, '/drink/base_lock_state',
                                  self._base_lock_state_cb, 10)
         # P104: 订阅 follower 状态，在交权后确认 FOLLOW 指令确已被接收。
@@ -667,6 +668,7 @@ class DrinkTask(Node):
             if (ack is not None and ack[0] == request_id
                     and ack[1] == bool(locked)
                     and time.monotonic() - ack[2] < 0.5):
+                self._base_lock_active = bool(locked)
                 self.get_logger().info(
                     'DRINK_BASE_LOCK state=%s request_id=%d acknowledged' %
                     ('LOCKED' if locked else 'UNLOCKED', request_id))
@@ -1860,6 +1862,12 @@ class DrinkTask(Node):
                 {'state': final_state, 'result': res}, ensure_ascii=False)))
 
     def _tick(self):
+        # Repeat the acknowledged lock request as a heartbeat. If cmd_mux is
+        # restarted during table-side manipulation, it re-enters LOCKED before
+        # any task velocity can be forwarded.
+        if self._base_lock_active and self.pub_base_lock is not None:
+            self.pub_base_lock.publish(String(data=json.dumps({
+                'locked': True, 'request_id': self._base_lock_request_id})))
         # 一旦锁定真值来源, 就每拍把 base 跟到模型世界位姿上 —— 机器人走动、
         # 被 teleport、被 Nav2 摆位, 机械臂的正解/逆解都自动跟着走。
         # P98: 改为**每拍无条件尝试** —— 真值订阅晚于节点就绪时(发现期),
