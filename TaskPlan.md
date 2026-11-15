@@ -23,14 +23,15 @@
 
 - 当前工作分支：`experiment/prepare-base-stillness-ab`
 - PR：[#2](https://github.com/rexyll/VLN-VLA/pull/2)，draft/open，base `main`，未合并
-- 当前任务节点：**P104-07：隔离 PRESENT follow_hand 期间底盘被动漂移与闭环位置保持效果**
-- 状态：**正在进行中**
-- 完整真实 Gazebo DrinkTask E2E 成功轮数：**1（连续双轮稳定性仍未验收）**
-- 最新闭环基线 E2E：run `43697514032`，测试代码 SHA `8bbc9f45ee324e87a0b84621bc36b49d71022fa2`，artifact `14155990326`。Python syntax、CarryBus ROS 2、Gazebo 插件构建、ROS 2 workspace 构建及 Nav2 资源检查均成功；Gazebo 双轮 E2E 失败。首轮 `PREPARE → PRESENT → FAIL_PRESENT_FOLLOW_DRIFT`，requested=2、completed=1、passed=0、failed=2，第二轮缺失。
-- 最新 PRESENT 同步证据：右手末端误差 `4.036mm`，但杯相对交接目标偏差 `13.229mm / 0.613°`，严格 `6mm / 0.5°` gate 正确阻止 HANDOVER。杯相对左掌变化仅 `0.634mm / 0.014°`，不支持明显的左掌—杯相对滑移。
-- 本轮闭环 hold 窗口约 `1.71s`，底盘真值最大 XY 位移 `19.70mm`、最大 yaw 偏差 `1.351°`；主动 hold 输出峰值线速度约 `0.0644m/s`、角速度 `0.04rad/s`，轮速峰值约 `2.997rad/s`。底盘命令与轮速均有非零样本，不能把本轮描述为“被动漂移”或“闭环保持未输出”。
-- 与前一轮零命令组 run `43695773286` 相比，前一轮约 `4.7s`、最大 XY `21.619mm`、最大 yaw `9.149°`；两轮 follow 时长与轨迹并不匹配，因此目前**不能据此量化闭环保持的改善幅度，也不能认定主动 hold 是根因**。JointState wheel effort=0 仍不能证明实际制动状态。
-- 下一步：在相同初始位姿、相同机械臂轨迹和相同观测窗口下做成对 A/B；同步记录底盘 truth pose/twist、两路 cmd_vel、轮 position/velocity/force、机械臂目标/实测关节状态及左掌—杯相对变换。先核对采集器在 Gazebo 中的 topic 覆盖和时间戳，再判断控制输出与底盘运动的先后关系。A/B/C 物理采集器尚未在 Gazebo 实例实际运行，不能以 CI 构建替代。
+- 当前任务节点：**P104-08：桌边取壶—倒水—放壶阶段底盘命令锁定（A 方案）**
+- 状态：**正在进行中；代码已提交至隔离分支，CI/Gazebo 验证待完成**
+- 完整真实 Gazebo DrinkTask E2E 成功轮数：**1（连续双轮稳定性仍未验收；本次 A 方案尚未取得仿真结果）**
+- 最新已分析的失败 E2E：run 43700683227 在 PRESENT 因底盘位姿变化导致杯位偏差 20.897mm / 2.013°，严格 6mm / 0.5° gate 正确阻止 HANDOVER；run 43700687408 在 PREPARE 因掌心残差 3.5mm > 1.5mm 且杯体残差 3.2mm > 3.0mm fail-closed。两轮均未通过，不计入成功轮数。
+- 用户已确认优先使用 A 方案：在桌边操作窗口由 cmd_mux 忽略 follower、Nav2 和 DrinkTask 的所有普通速度输入，持续向底盘控制器发布零速度；底盘控制器继续执行其本地速度闭环。急停、故障保护、碰撞与任务安全门保持不变。
+- 实现边界：pour_approach 完成桌边定位后、第一次抓壶动作前请求锁定；必须收到带 request_id 的 cmd_mux ACK 才开始操作。锁定持续覆盖抓壶、倒水、水壶放回和右臂撤回安全位；确认放置及右臂撤离后才请求解锁，且必须收到 ACK 才允许底盘重新定位。锁定期间丢弃 DrinkTask 速度指令；解锁清空旧速度缓存，等待新指令，避免旧命令突然重放。
+- 当前代码提交：cmd_mux 锁定 bb2e2ab / ACK a7f2892；DrinkTask ACK 接口 05151c6；桌边锁定时序 69b44b3 / 保持锁至右臂撤离 d2c186e；回归断言修正 4f21422。这些提交均位于 experiment/prepare-base-stillness-ab，没有修改 main。
+- 回归测试已增加：mux 锁优先级、速度缓存清理、锁定/解锁阶段顺序、请求 ID ACK 与缺失 mux 时 fail-closed。当前尚未核实这些测试和 Gazebo E2E 的 CI 结果，不得提前宣称实现已通过。
+- 下一步：运行 Python syntax/pure tests、CarryBus 集成、headless Gazebo E2E；重点核对 CMD_MUX DRINK_BASE_LOCK 请求与 ACK、锁定窗口的 /robot/cmd_vel=0、底盘 truth pose/twist、轮速及杯/掌位姿。若零速度期间底盘仍漂移，应明确记录 A 方案只隔离速度命令，不能等同机械抱闸，再依据证据决定后续方案。
 - 不得修改 SDF、摩擦/质量/阻尼、控制器参数或放宽 IK、碰撞、关节、抓取、交接和释放安全门槛；不把 `in_band_pct` 当作跟随成功。
 
 ## 任务章节
@@ -1151,3 +1152,13 @@
 - 与零命令 run `43695773286`（约 `4.7s`，最大 XY `21.619mm`、最大 yaw `9.149°`）时窗不同、轨迹不同，不能直接据此声称闭环保持显著改善或主动控制导致漂移。两组均未通过交接 gate；轮 JointState effort=0 不能证明制动/无力矩。
 - 下一步进行匹配条件的成对 A/B：同一 world、初始底盘姿态、机械臂动作、仿真时长与采样时间轴；一组闭环 hold、一组零命令隔离。同步采集 truth pose/twist、cmd_vel、轮 position/velocity/force、机械臂目标/实测关节状态、左掌—杯相对变换；先验证数据覆盖与时间戳语义。A/B/C 只读采集器尚未在 Gazebo 实例实际执行，物理根因仍未确认。
 - 未改变 SDF、物理参数、控制器或安全阈值。PR #2 保持 draft/open；main `1acfa3785283c227ee9f3e351140b3d601f7d85f` 未修改；完整连续双轮成功次数仍为 **1**。
+
+
+### 8.399 桌边取壶—倒水—放壶阶段增加 A 方案底盘命令锁定（2026-11-15）
+
+- 根据用户确认，优先实施 A 方案：底盘 mux 在锁定窗口忽略 follower、Nav2 和 DrinkTask 的所有普通速度输入，并以 20Hz 持续向底盘控制器输出零速度；底盘驱动器内部闭环继续运行。该策略不等于机械抱闸，也不承诺消除机械臂反作用力造成的物理漂移。
+- cmd_mux.py 新增 /drink/base_lock 请求和 /drink/base_lock_state ACK，使用 request_id 配对确认；锁定优先级高于 DRINK lease 路由，锁定时每个 mux tick 都输出零速度。锁定期间丢弃 /drink/cmd_vel，并在锁定/解锁时清空缓存，防止旧非零速度在解锁瞬间重放。
+- drink_task.py 新增 set_base_lock()：要求 cmd_mux 存在，发送带 request_id 的锁定/解锁请求并等待匹配 ACK；未收到 ACK 或 mux 不存在时 fail-closed，不继续桌边动作。
+- drink_motion.py::prepare_present 在驶入桌边定位完成且确认水壶真值存在后、第一次抓壶前锁定；倒水、缩回水柱、水壶放回及右臂撤离到安全位期间保持锁定。只有 put_down 成功确认且右臂回到 Q_REST 后，才请求解锁；解锁未确认则不执行后续底盘重定位。
+- 新增 tests/test_p104.py 静态回归，检查 mux 锁定优先级、DrinkTask 速度丢弃、缓存清理、锁定时序和 ACK 失败关闭。测试尚待 CI 执行；没有 Gazebo 新证据，不得将本次改动记为通过。
+- 未修改 SDF/质量/摩擦/阻尼/控制器增益、IK/抓取/交接阈值、碰撞检查、关节限制、fail-closed 或释放条件；未修改 main，PR #2 仍 Draft/Open。
