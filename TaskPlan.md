@@ -1217,3 +1217,11 @@
 - 本次审计可确认的 ROS 速度链路为 follower → `/follower_cmd_vel`、Nav2 smoother → `/cmd_vel_smoothed`、DrinkTask → `/drink/cmd_vel`，最终由 `cmd_mux` 写 `/robot/cmd_vel`。仍需在真实运行时用 `ros2 topic info -v` 核实所有发布者，并用 `gz topic -i -t /model/robot/cmd_vel` 核实 Gazebo Transport 原生发布者；静态代码审计不能替代运行时 publisher audit。
 - `tools/gen_drink_scene.py` 中机械臂 JPC 使用 `JointVelocityCmd` 速度命令模式；因此轮端 `JointForceCmd` 制动方案必须先在隔离 Gazebo world 验证与 DiffDrive 的组件竞争及更新顺序。尚未创建物理制动插件，未修改 SDF/物理参数，P104-10.1 仍进行中，P104-10.2/10.3 未完成。
 - 不修改 `main`；PR #3 维持 Draft/Open。完整双轮 Gazebo E2E 成功数不因本次代码修改而增加。
+
+### 8.405 将 ROS 与 Gazebo 原生底盘速度发布者审计纳入 headless runner（2026-11-15）
+
+- 在 `tests/run_drink_headless.sh` 的任务启动后、正式 E2E 动作前，新增只读快照：`ros2 topic info -v` 检查 `/robot/cmd_vel`、`/drink/cmd_vel`、`/follower_cmd_vel`、`/cmd_vel_smoothed`；`gz topic -i -t /model/robot/cmd_vel` 检查 Gazebo Transport 原生发布者。
+- 快照写入 `vla_ws/logs/chassis_ros_publishers.log` 与 `vla_ws/logs/chassis_gz_publishers.log`，并打印到 runner 日志，便于从 CI artifact 核对发布者节点/进程。当前为观测性审计，不假定 Gazebo 原生 topic 只有 bridge 一个发布者，也不因输出格式差异误判 E2E。
+- `drink_task.py` 的 raw `/robot/cmd_vel` 兜底已移除；对应静态回归和 Python syntax/pure tests 在 SHA `2603a7160d6646759a190faf9e58b76b2abcfdfd` 已通过。新增 runtime publisher audit 的 runner 改动提交于 `24fdf3006c2615dbb1800be46d72b6a30a763f32`，需要以该最新 SHA 的 CI 日志为准。
+- ROS graph 查询失败时 DrinkTask 现在 fail-closed，不会发布 `/robot/cmd_vel`。但该改动只封闭已审计到的 DrinkTask fallback；其他 ROS/Gazebo publisher 是否存在仍待运行时快照确认。
+- P104-10.1 仍进行中：本轮没有创建或加载轮端制动插件，也没有执行固定约束实验。P104-10.2/10.3 未完成。不得将 Python 测试通过或 publisher 快照采集成功当作 Gazebo 物理锁止或完整 E2E 成功。
