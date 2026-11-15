@@ -1019,7 +1019,12 @@ class DrinkTask(Node):
             # The cup is attached to the left palm; this read-only trace distinguishes
             # an inaccurate frozen offset from contact-induced cup displacement.
             _cup_before_follow = M.object_pose(self, 'cup')
+            _left_before_follow = M.wrist(self, 'L')
             _right_before_follow = M.wrist(self, 'R')
+            _cup_left_rel_before = (
+                np.linalg.inv(_left_before_follow) @ _cup_before_follow
+                if (_left_before_follow is not None and
+                    _cup_before_follow is not None) else None)
             # Snapshot command channels and independent chassis telemetry at
             # both ends of follow_hand; a single BASE_STOP sample is not proof
             # that the base remained stationary during arm motion.
@@ -1116,7 +1121,12 @@ class DrinkTask(Node):
                 self._follow_base_hold_target = None
                 self.drive(0.0, 0.0)
             _cup_after_follow = M.object_pose(self, 'cup')
+            _left_after_follow = M.wrist(self, 'L')
             _right_after_follow = M.wrist(self, 'R')
+            _cup_left_rel_after = (
+                np.linalg.inv(_left_after_follow) @ _cup_after_follow
+                if (_left_after_follow is not None and
+                    _cup_after_follow is not None) else None)
             _base_diag_post = _follow_base_diag()
             _base_trace_result = self._follow_base_trace
             self._follow_base_trace = None
@@ -1132,6 +1142,25 @@ class DrinkTask(Node):
                 M.pos_err_mm(_right_after_follow, _right_goal_follow)
                 if (_right_after_follow is not None and
                     _right_goal_follow is not None) else None)
+            _left_cup_rel_pos_mm = (
+                M.pos_err_mm(_cup_left_rel_after, _cup_left_rel_before)
+                if (_cup_left_rel_after is not None and
+                    _cup_left_rel_before is not None) else None)
+            _left_cup_rel_axis_deg = (
+                M.axis_angle_deg(_cup_left_rel_after, _cup_left_rel_before)
+                if (_cup_left_rel_after is not None and
+                    _cup_left_rel_before is not None) else None)
+            self.get_logger().info(
+                'PRESENT_LEFT_GRASP_REL left_pre=%s left_post=%s '
+                'cup_left_rel_pos_delta_mm=%s cup_left_rel_axis_delta_deg=%s' %
+                (np.round(_left_before_follow[:3, 3], 5).tolist()
+                 if _left_before_follow is not None else None,
+                 np.round(_left_after_follow[:3, 3], 5).tolist()
+                 if _left_after_follow is not None else None,
+                 (round(float(_left_cup_rel_pos_mm), 3)
+                  if _left_cup_rel_pos_mm is not None else None),
+                 (round(float(_left_cup_rel_axis_deg), 3)
+                  if _left_cup_rel_axis_deg is not None else None)))
             self.get_logger().info(
                 'PRESENT_FOLLOW_POST ok=%s reported_mm=%.3f cup_xyz=%s '
                 'cup_drift_mm=%s right_xyz=%s right_goal_err_mm=%s base=%s chassis=%s peak_trace=%s' %
