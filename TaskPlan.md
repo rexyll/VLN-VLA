@@ -23,11 +23,14 @@
 
 - 当前工作分支：`experiment/prepare-base-stillness-ab`
 - PR：[#2](https://github.com/rexyll/VLN-VLA/pull/2)，draft/open，base `main`，未合并
-- 当前任务节点：**P104-07：验证 human IK 持续约束修复，并隔离 PRESENT follow_hand 底盘主动保持引起的杯位漂移**
+- 当前任务节点：**P104-07：隔离 PRESENT follow_hand 期间底盘被动漂移与闭环位置保持效果**
 - 状态：**正在进行中**
-- 完整真实 Gazebo DrinkTask E2E 成功轮数：**1（E2E #60，单轮通过；连续多轮稳定性仍未验收）**
-- 已稳定通过的部分：ROS 2 工作区构建、Python 单元回归、CarryBus 回归；E2E #60 首次完整通过任务、观察器进程、8 张截图归档及交权后视觉跟随指标。
-- 当前阻塞：最新 Gazebo E2E run `43671525404`（commit `dcba8268548b47839443d54afec97270847861d5`，artifact `14145091956`）在 `PREPARE → PRESENT → FAIL_PRESENT_FOLLOW_DRIFT` 停止，requested=2、completed=1、passed=0、failed=2，第二轮缺失。Python 与 CarryBus 均通过。PREPARE/PRESENT 两个零底盘指令实验开关均生效，但仍观察到底盘显著漂移：PREPARE 相对 hold target 偏移约55.2mm；PRESENT follow 期间最大XY位移约46.3mm、yaw偏移约4.57°，杯漂移约55.3mm。follow_hand 末端误差仅1.133mm，说明末端到位不能证明杯位稳定。日志同时显示机械臂多个关节短时触及±2.5rad/s；底盘零命令、轮速多数为零时仍发生位姿变化。现阶段不能唯一归因于机械臂反作用或轮地动力学，下一步需同步核验轮关节实际状态/制动机制、机械臂运动时序和Gazebo模型/chassis pose；不得仅凭wheel effort采样为零判断无制动力。
+- 完整真实 Gazebo DrinkTask E2E 成功轮数：**1（E2E #60；连续双轮稳定性仍未验收）**
+- 已通过部分：Python syntax/pure tests（run `43695773198`，131 tests）、CarryBus ROS 2 executor（run `43695773224`）；两项均对应代码提交 `0ea534638ea673f0bc80cc1fd2e91f194495c4a6`。
+- 最新 E2E：run `43695773286`，artifact `14154797499`，仅执行第一轮并在 `PREPARE → PRESENT → FAIL_PRESENT_FOLLOW_DRIFT` 停止；requested=2、completed=1、passed=0、failed=2，第二轮缺失。follow_hand 右手误差 3.624mm，但杯相对交接目标误差 98.367mm / 8.978°，严格 6mm / 0.5° gate 正确阻止交权。
+- 新增关键证据：`PRESENT_LEFT_GRASP_REL` 显示杯相对左掌平移变化仅 0.001mm、轴角变化 0°，本轮不支持左掌—杯相对滑移是主因。与此同时底盘在约4.7s follow 窗口内最大 XY 位移 21.619mm、最大 yaw 偏差 9.149°；两路底盘速度命令峰值均为 0，轮速瞬时峰值 2.026rad/s、末端回到近零。JointState wheel effort 最大值为0，但该字段不能证明实际制动状态。证据优先指向底盘/机械臂耦合下的被动底盘运动，尚不能单独归因为某一物理机制。
+- 为建立真正可比较的 A/B 基线，提交 `8bbc9f45ee324e87a0b84621bc36b49d71022fa2` 修改 headless workflow：实验分支 push 默认恢复 PRESENT 闭环位置保持（zero-during-follow=0）；PR 触发和 workflow_dispatch 显式输入仍可运行零命令隔离组。该次闭环基线 E2E 待 CI 结果，不预判其改善效果。
+- 下一步：检查新 E2E 的 hold 控制命令、底盘 truth pose/twist、轮速与左掌—杯相对位姿是否同步；若闭环命令确实输出但底盘仍明显偏移，再做只读 A/B/C 动力学采集，先验证 wheel/contact 观测有效性。不得修改 SDF、摩擦/质量/阻尼、控制器参数或放宽任何 IK、碰撞、关节、抓取、交接和释放安全门槛。
 
 ## 任务章节
 
@@ -1129,3 +1132,11 @@
 - 当前仍未完成双轮全流程；main 未修改，PR #2 保持 Draft/Open。
 
 - 回归测试维护：提交 `2f118b1` 的 Python run `43695701606` 因测试仍按旧字符串匹配撤手条件而失败（测试断言过期）；已在 `0ea5346` 更新为检查扩展触发原因及直接撤手/候选诊断日志。最新 Python run `43695773198` 已通过（131 tests）。最新 CarryBus run `43695773224` 与 Gazebo E2E run `43695773286` 正在执行，尚无新实测结论。
+
+
+### 8.397 PRESENT follow 零命令隔离实验确认底盘被动漂移（2026-11-15）
+
+- E2E run `43695773286`（测试提交 `0ea534638ea673f0bc80cc1fd2e91f194495c4a6`，artifact `14154797499`）由实验分支 push 触发；该 workflow 当时将 `VLA_PRESENT_BASE_HOLD_ZERO_DURING_FOLLOW=1`，因此 follow_hand 窗口主动位置修正被抑制，作为零命令隔离组。
+- 本轮在 `PREPARE → PRESENT → FAIL_PRESENT_FOLLOW_DRIFT` 终止。右手跟随末端误差 3.624mm，但杯相对 PRESENT 目标偏差 98.367mm / 8.978°，触发既有 6mm / 0.5° fail-closed gate；不请求人手合拢、不交权。完整两轮验收仍为 0/2，本轮不计入成功轮数。
+- 左掌—杯相对位姿变化仅 0.001mm / 0°，说明杯子在左掌坐标系中保持稳定；底盘在约4.7s窗口内最大 XY 位移 21.619mm、最大 yaw 偏差 9.149°。期间 `/drink/cmd_vel` 与 `/robot/cmd_vel` 的峰值均为 0，轮速最大瞬时值 2.026rad/s，结束时回到近零。该同步证据支持“零命令并不等于底盘机械锁止，底盘在机械臂动作窗口仍发生被动运动”；JointState effort=0 不能作为制动/无力矩证明。
+- 由于杯相对左掌稳定，而世界系杯位明显偏离，下一步应优先比较底盘闭环保持开启与零命令隔离两组，并同步核对控制输出、底盘真值和轮速；暂不更改物理参数或控制器。实验分支 push 默认已改为闭环保持，提交 `8bbc9f45ee324e87a0b84621bc36b49d71022fa2`，新 E2E 待 CI。PR #2 仍 Draft/Open，main 未修改；完整连续双轮 E2E 成功次数仍为 **1**。
