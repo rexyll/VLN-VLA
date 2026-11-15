@@ -1,3 +1,4 @@
+import os
 import unittest
 
 from vla_follow.manipulation_bt import (
@@ -118,6 +119,28 @@ class BacktrackGuardTests(unittest.TestCase):
                          "upstream_action_not_replayable")
         self.assertEqual(supervisor.can_backtrack(unsafe, self.current)[1],
                          "safe_recovery_pose_not_verified")
+
+
+
+class RuntimeIntegrationTests(unittest.TestCase):
+    def test_post_release_withdraw_uses_local_selector_and_forbids_upstream_replay(self):
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        motion_path = os.path.join(
+            root, "vla_ws", "src", "vla_follow", "vla_follow",
+            "drink_motion.py")
+        with open(motion_path, encoding="utf-8") as stream:
+            source = stream.read()
+        start = source.index("def put_down(")
+        end = source.index("# ---------------------------------------------------------------- 双手捧", start)
+        body = source[start:end]
+        self.assertIn("BT.Selector(*_bt_children)", body)
+        self.assertIn("BT.Sequence(", body)
+        self.assertIn("'upstream_replay_allowed': False", body)
+        self.assertIn("'release_boundary': 'irreversible_object_release'", body)
+        self.assertLess(body.index("release_ok = node.carry.release(model)"),
+                        body.index("BT.Selector(*_bt_children)"))
+        self.assertIn("check_table=True", body)
+        self.assertIn("tol_mm=8.0", body)
 
 
 if __name__ == "__main__":
