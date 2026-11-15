@@ -2903,6 +2903,13 @@ def prepare_present(node, fill=0.65, verbose=True):
         out['reason'] = 'kettle_pose_missing'
         node.get_logger().error('PREPARE 缺少水壶真值位姿，停止倒水')
         return out
+    # The base has reached its table-side pose. Lock every velocity source
+    # before the first kettle grasp motion; do not proceed without mux ACK.
+    if not node.set_base_lock(True):
+        out['reason'] = 'chassis_lock_unconfirmed'
+        node.get_logger().error(
+            'PREPARE 底盘锁定未获 cmd_mux 确认，拒绝开始抓壶/倒水')
+        return out
     # The arm-only pour sequence can push the free-rolling chassis even when
     # both velocity command channels are zero. Hold the measured service pose
     # only across this arm-motion window; release it before base repositioning.
@@ -2958,6 +2965,16 @@ def prepare_present(node, fill=0.65, verbose=True):
             node.get_logger().error(
                 'PREPARE 水壶未确认释放/落稳，保持抓持状态并中止后续动作')
         return out
+    # Unlock only after put_down has positively confirmed kettle placement.
+    # This happens before the intentional base repositioning for presentation.
+    if not node.set_base_lock(False):
+        out['reason'] = 'chassis_unlock_unconfirmed'
+        node.get_logger().error(
+            'PREPARE 水壶已确认放回，但底盘解锁未获确认；'
+            '保持底盘锁定并停止后续移动')
+        return out
+    node.get_logger().info(
+        'PREPARE_BASE_LOCK released after kettle placement confirmation')
     ok_r_home, err_r_home = node.arm['R'].move(K.Q_REST, timeout=10.0)
     if not ok_r_home:
         out['reason'] = 'right_arm_home_failed'
