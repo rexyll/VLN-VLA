@@ -3069,13 +3069,140 @@ def prepare_present(node, fill=0.65, verbose=True):
         out['reason'] = 'kettle_pose_missing'
         node.get_logger().error('PREPARE 缺少水壶真值位姿，停止倒水')
         return out
-    # The base has reached its table-side pose. Lock every velocity source
-    # before the first kettle grasp motion; do not proceed without mux ACK.
-    if not node.set_base_lock(True):
-        out['reason'] = 'chassis_lock_unconfirmed'
+    # Before the cup is touched, verify its live world pose and preflight
+    # the complete left-arm approach+grasp path. If the current base pose is
+    # unsuitable, select the least-motion collision-safe standoff/yaw candidate
+    # and execute it only inside the acknowledged chassis-motion window.
+    if not wait_base_stopped(node):
+        out['reason'] = 'cup_preflight_base_not_stopped'
         node.get_logger().error(
-            'PREPARE 底盘锁定未获 cmd_mux 确认，拒绝开始抓壶/倒水')
+            'PREPARE 杯子预检前底盘未能确认静止，拒绝接触杯子')
         return out
+    node.sync_base_from_truth(quiet=True)
+    cup_base_before = tuple(_base_pose(node))
+    cup_preflight_ok, cup_preflight = cup_grasp_preflight(
+        node, base_pose=cup_base_before)
+    cup_alignment = {
+        'moved': False, 'base_before': list(cup_base_before),
+        'initial_preflight': cup_preflight,
+    }
+    if not cup_preflight_ok:
+        if cup_preflight.get('reason') in (
+                'cup_pose_stale', 'cup_pose_missing_or_invalid',
+                'joint_state_missing', 'base_pose_invalid'):
+            out['reason'] = 'cup_grasp_preflight_input_invalid'
+            out['cup_preflight'] = cup_preflight
+            node.get_logger().error(
+                'PREPARE 杯位/关节/底盘输入无效或过期，不尝试盲目移动底盘')
+            return out
+        cup_candidate = None
+        cup_candidate_detail = None
+        for candidate in cup_grasp_base_candidates(cup_base_before):
+            xy_delta = math.hypot(
+                candidate[0] - cup_base_before[0],
+                candidate[1] - cup_base_before[1])
+            yaw_delta = abs(math.atan2(
+                math.sin(candidate[2] - cup_base_before[2]),
+                math.cos(candidate[2] - cup_base_before[2])))
+            if xy_delta < 0.001 and yaw_delta < math.radians(0.5):
+                continue
+            candidate_ok, candidate_detail = cup_grasp_preflight(
+                node, base_pose=candidate)
+            node.get_logger().info(
+                'CUP_GRASP_BASE_CANDIDATE base=%s ok=%s reason=%s'
+                % (list(candidate), candidate_ok,
+                   candidate_detail.get('reason')))
+            if candidate_ok:
+                cup_candidate = candidate
+                cup_candidate_detail = candidate_detail
+                break
+        if cup_candidate is None:
+            out['reason'] = 'cup_grasp_no_safe_base_candidate'
+            out['cup_preflight'] = cup_preflight
+            node.get_logger().error(
+                'PREPARE 杯子抓取预检无安全底盘候选；不接触杯子、不放宽 IK/碰撞约束')
+            return out
+
+        def align_cup_base():
+            move_ok, move_res = drive_to(
+                node, (cup_candidate[0], cup_candidate[1]),
+                v_max=0.08, tol_mm=8.0, timeout=10.0,
+                k=0.8, v_min=0.02, tag='杯子抓取前底盘距离调整')
+            if not move_ok:
+                return {'ok': False, 'reason': 'base_translation_failed',
+                        'position_residual_mm': round(float(move_res), 2)}
+            turn_ok, turn_err = turn_base(
+                node, cup_candidate[2], w_max=0.25, tol_deg=1.0,
+                timeout=10.0, k=1.0)
+            if not turn_ok:
+                return {'ok': False, 'reason': 'base_yaw_adjustment_failed',
+                        'yaw_error_deg': round(float(turn_err), 3)}
+            if not wait_base_stopped(node):
+                return {'ok': False, 'reason': 'base_stop_unconfirmed'}
+            node.sync_base_from_truth(quiet=True)
+            actual = tuple(_base_pose(node))
+            position_error = math.hypot(
+                actual[0] - cup_candidate[0],
+                actual[1] - cup_candidate[1])
+            yaw_error = abs(math.atan2(
+                math.sin(actual[2] - cup_candidate[2]),
+                math.cos(actual[2] - cup_candidate[2])))
+            clearance = L.table_clearance(
+                actual[0], actual[1], pad=0.05)
+            aligned = (position_error < 0.012
+                       and yaw_error < math.radians(2.0)
+                       and clearance >= 0.0)
+            return {
+                'ok': bool(aligned),
+                'reason': 'aligned' if aligned else
+                'actual_pose_outside_candidate_gate',
+                'actual_base': list(actual),
+                'position_error_mm': round(position_error * 1000.0, 2),
+                'yaw_error_deg': round(math.degrees(yaw_error), 3),
+                'table_clearance_m': round(clearance, 4),
+                'candidate_preflight': cup_candidate_detail,
+            }
+
+        window_ok, alignment_result = node.run_base_motion_window(
+            'PREPARE_CUP_GRASP_ALIGN', align_cup_base)
+        cup_alignment.update({
+            'moved': True, 'candidate_base': list(cup_candidate),
+            'motion': alignment_result, 'window_ok': bool(window_ok),
+        })
+        if not window_ok or not (alignment_result or {}).get('ok', False):
+            out['reason'] = 'cup_grasp_base_alignment_failed'
+            out['cup_alignment'] = cup_alignment
+            node.get_logger().error(
+                'PREPARE 杯子抓取前底盘调整失败或未重新锁定；拒绝接触杯子')
+            return out
+        node.sync_base_from_truth(quiet=True)
+        cup_base_after = tuple(_base_pose(node))
+        cup_preflight_ok, cup_preflight = cup_grasp_preflight(
+            node, base_pose=cup_base_after)
+        if not cup_preflight_ok:
+            out['reason'] = 'cup_grasp_post_alignment_preflight_failed'
+            out['cup_alignment'] = cup_alignment
+            out['cup_preflight'] = cup_preflight
+            node.get_logger().error(
+                'PREPARE 底盘调整后杯位/抓取路径复检失败；保持底盘锁定并中止')
+            return out
+        cup_alignment['base_after'] = list(cup_base_after)
+        cup_alignment['post_alignment_preflight'] = cup_preflight
+    else:
+        node.get_logger().info(
+            'CUP_GRASP_PREFLIGHT current base already feasible: %s'
+            % cup_preflight)
+        if not node.set_base_lock(True):
+            out['reason'] = 'chassis_lock_unconfirmed'
+            node.get_logger().error(
+                'PREPARE 底盘锁定未获 cmd_mux 确认，拒绝开始抓杯/倒水')
+            return out
+    if not wait_base_stopped(node):
+        out['reason'] = 'cup_preflight_final_base_not_stopped'
+        node.get_logger().error(
+            'PREPARE 杯子预检后底盘静止状态丢失，拒绝开始抓杯')
+        return out
+    out['cup_alignment'] = cup_alignment
     # The arm-only pour sequence can push the free-rolling chassis even when
     # both velocity command channels are zero. Hold the measured service pose
     # only across this arm-motion window; release it before base repositioning.
