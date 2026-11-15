@@ -2780,7 +2780,7 @@ class TestP104(unittest.TestCase):
         self.assertNotIn(
             '水壶未确认落稳，保持抓持并中止后续动作', prepare)
 
-    def test_put_down_retries_table_lip_with_collision_checked_lift_waypoint(self):
+    def test_put_down_searches_bounded_collision_checked_retreat_waypoints(self):
         motion_path = os.path.join(
             ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
             'drink_motion.py')
@@ -2792,18 +2792,28 @@ class TestP104(unittest.TestCase):
         first = body.index('ok_back, res_back, how_back = reach(')
         gate = body.index("if not ok_back and how_back in ('table-collision',")
         self.assertIn("'human-ik-no-valid-solution')", body[gate:])
-        lift = body.index('T_stage[2, 3] += 0.12', gate)
+        candidates = body.index('_retreat_candidates = (', gate)
+        loop = body.index('for _dz, _dx, _dy in _retreat_candidates:', candidates)
+        refresh = body.index('T_stage_now = wrist(node, side)', loop)
         stage_reach = body.index(
-            'node, side, T_stage, tol_mm=8.0, check_table=True', lift)
+            'node, side, T_stage, tol_mm=8.0, check_table=True', refresh)
         retry = body.index('node, side, T_back, tol_mm=8.0, check_table=True',
                            stage_reach)
         self.assertLess(first, gate)
-        self.assertLess(gate, lift)
-        self.assertLess(lift, stage_reach)
+        self.assertLess(gate, candidates)
+        self.assertLess(candidates, loop)
+        self.assertLess(loop, refresh)
+        self.assertLess(refresh, stage_reach)
         self.assertLess(stage_reach, retry)
+        self.assertIn('(0.04, 0.00, 0.00)', body[candidates:loop])
+        self.assertIn('(0.20, 0.00, 0.00)', body[candidates:loop])
+        self.assertIn('(0.12, 0.04, 0.00)', body[candidates:loop])
+        self.assertIn('(0.12, 0.00, -0.04)', body[candidates:loop])
+        self.assertIn('np.array([_dx, _dy, _dz], dtype=float)', body[loop:])
         self.assertIn('if ok_stage:', body[stage_reach:retry])
-        self.assertIn('withdraw_stage', body)
-        # Both the lift and retry keep the original full table collision gate.
+        self.assertIn('if ok_back:', body[retry:])
+        self.assertIn('WITHDRAW_TRACE', body)
+        # Initial retreat, each candidate, and final retry retain full table checks.
         self.assertEqual(body.count('check_table=True'), 3)
 
     def test_reach_enforces_ik_fk_four_mm_before_table_checked_motion(self):
