@@ -122,8 +122,7 @@ jobs:
 
       - name: Run dependency-free manipulation behavior-tree unit tests
         run: |
-          PYTHONPATH=vla_ws/src/vla_follow python3 -m unittest discover \\
-            -s tests -p 'test_manipulation_bt.py' -v
+          PYTHONPATH=vla_ws/src/vla_follow python3 -m unittest discover -s tests -p 'test_manipulation_bt.py' -v
 
       - name: Configure Gazebo Harmonic apt repository
         run: |
