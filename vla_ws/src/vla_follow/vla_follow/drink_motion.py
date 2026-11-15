@@ -1924,6 +1924,9 @@ def put_down(node, side, model, T_obj_goal, retreat=0.10,
             'upstream_replay_allowed': False,
             'release_boundary': 'irreversible_object_release',
             'bt_status': _bt_result.value,
+            'residual_mm': (
+                float(_accepted_entry['residual_mm'])
+                if _accepted_entry is not None else float(res_back)),
             'release_pose_xyz': (
                 np.round(T_release[:3, 3], 4).tolist()
                 if T_release is not None else None),
