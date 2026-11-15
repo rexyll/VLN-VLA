@@ -2965,16 +2965,6 @@ def prepare_present(node, fill=0.65, verbose=True):
             node.get_logger().error(
                 'PREPARE 水壶未确认释放/落稳，保持抓持状态并中止后续动作')
         return out
-    # Unlock only after put_down has positively confirmed kettle placement.
-    # This happens before the intentional base repositioning for presentation.
-    if not node.set_base_lock(False):
-        out['reason'] = 'chassis_unlock_unconfirmed'
-        node.get_logger().error(
-            'PREPARE 水壶已确认放回，但底盘解锁未获确认；'
-            '保持底盘锁定并停止后续移动')
-        return out
-    node.get_logger().info(
-        'PREPARE_BASE_LOCK released after kettle placement confirmation')
     ok_r_home, err_r_home = node.arm['R'].move(K.Q_REST, timeout=10.0)
     if not ok_r_home:
         out['reason'] = 'right_arm_home_failed'
@@ -2983,6 +2973,16 @@ def prepare_present(node, fill=0.65, verbose=True):
             % math.degrees(float(np.nanmax(np.abs(err_r_home)))))
         return out
     node.spin_for(0.4)
+    # Keep the chassis locked until the kettle is confirmed placed and the
+    # withdrawing arm has returned to its safe rest pose.
+    if not node.set_base_lock(False):
+        out['reason'] = 'chassis_unlock_unconfirmed'
+        node.get_logger().error(
+            'PREPARE 水壶已确认放回且右臂已回安全位，但底盘解锁未获确认；'
+            '保持底盘锁定并停止后续移动')
+        return out
+    node.get_logger().info(
+        'PREPARE_BASE_LOCK released after kettle placement and arm retreat')
     serve_mm = place_robot(node, T_serve)
     if serve_mm >= 8.0:
         out['reason'] = 'service_pose_reset_failed'
