@@ -1042,3 +1042,11 @@
 - 另核对 E2E workflow：实验分支 push 事件会强制启用 PREPARE/PRESENT 双零指令变量；workflow_dispatch 事件才会采用输入开关值。因此后续 A/B 需使用手动 dispatch 分别明确指定变量，或新增独立诊断工作流，避免把分支 push 的强制变量当作可切换基线。现有 E2E 仅在完整任务流程中采集轨迹，不能单独区分“机械臂静止基线 / 单臂慢速分段 / 双臂原动作”。
 - 下一步：实现独立的只读物理诊断入口，在相同 world、初始姿态、仿真步长和控制器下，分组运行机械臂静止、单臂低速分段、双臂原动作；同步记录仿真时间、模型 pose、关节位置/速度/effort、轮速、轮地接触状态与真值 twist。先验证 JointState effort/接触观测接口的可用性，再做单变量对照；诊断入口不得改变生产任务状态机、默认控制或安全门槛。
 - 本轮没有修改 SDF 物理参数、轮轴、DiffDrive 控制器、ARM_VMAX、任务阈值或释放逻辑。完整连续双轮 Gazebo E2E 成功次数仍为 **1**；PR #2 保持 draft/open；main `1acfa3785283c227ee9f3e351140b3d601f7d85f` 未修改。
+
+
+### 8.388 JointState effort 字段与机械臂速度模式语义核验（2026-11-15）
+
+- 核对 Gazebo Sim 8 的 `JointStatePublisher.cc`：插件将 ECS 的 `JointPosition`、`JointVelocity`、`JointForce` 分别序列化为 joint state 的 position、velocity、force 字段；其中 force 字段来自 `components::JointForce`，不是插件独立测得的电机电流或制动器状态。因此当前 ROS `JointState.effort` 经 bridge 映射后只能作为 Gazebo joint-force 组件遥测；若组件未由物理引擎有效更新，0值不能证明关节实际无力矩，也不能证明车轮处于制动/锁止状态。下一步应核验仿真物理引擎是否为目标轮关节提供有效 JointForce 反馈，必要时增加独立接触/约束观测，不将该字段当作唯一真值。
+- 核对 Gazebo Sim 8 的 `JointPositionController.cc`：机械臂 `use_velocity_commands=true` 并非把输入 Float64 直接解释为速度；它仍以输入为位置目标，根据位置误差计算目标速度，并受 PID 的 `cmd_max/cmd_min` 限幅，再写入 `JointVelocityCmd`。所以 trace 中关节速度接近±2.5rad/s表示位置伺服可能处于速度输出限幅状态；必须同时看目标位置误差与实测位置的时间变化，不能把它误称为直接速度指令，也不能仅据此证明底盘受到了多大反作用力。
+- 物理诊断实验的最小观测集修订为：模型 pose + 仿真 header stamp、JointState position/velocity/effort + JointState header stamp、左右轮角速度、轮地接触/约束状态（可用接口）、机械臂目标角和目标误差；所有采样统一转换为仿真时间或显式保留各自时间戳。先在机械臂静止基线验证 effort/接触接口有效，再进行单臂低速分段和双臂原动作对照。
+- 本轮仅核验官方插件源码并记录结论，没有修改任何控制器、SDF、控制参数或安全阈值；实验分支/PR/main 状态不变。
