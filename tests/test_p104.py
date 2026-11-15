@@ -3612,7 +3612,8 @@ class TestDrinkBaseLock(unittest.TestCase):
         self.assertLess(body.index('node.set_base_lock(True)'), body.index('pour_into_cup(node'))
         self.assertLess(body.index('if not ok_d:'), body.index('serve_window_ok, serve_mm'))
         self.assertNotIn('node.set_base_lock(False)', body)
-        self.assertEqual(body.count('run_base_motion_window('), 2)
+        self.assertEqual(body.count('run_base_motion_window('), 3)
+        self.assertIn("'PREPARE_CUP_GRASP_ALIGN'", body)
         self.assertIn("'PREPARE_SERVICE_RESET'", body)
         self.assertIn("'PREPARE_FACE_ALIGN'", body)
         self.assertLess(body.index('serve_window_ok, serve_mm'), body.index('place_held('))
@@ -3682,7 +3683,7 @@ class TestDrinkBaseLock(unittest.TestCase):
         start = source.index('def prepare_present(')
         end = source.index('def cup_present_target(', start)
         body = source[start:end]
-        self.assertEqual(body.count('run_base_motion_window('), 2)
+        self.assertEqual(body.count('run_base_motion_window('), 3)
         self.assertIn("'PREPARE_SERVICE_RESET'", body)
         self.assertIn("'PREPARE_FACE_ALIGN'", body)
         self.assertIn('place_robot(node, T_serve)', body)
