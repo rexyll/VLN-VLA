@@ -1469,7 +1469,7 @@ def wait_base_stopped(node, timeout=4.0, stable_s=0.25):
 
 def base_alignment_motion_table_clear(node, start_base, goal_base,
                                       sides=('L', 'R')):
-    """Check both current arm postures throughout translation then base yaw turn."""
+    """Check both arm postures along the actual rotate/translate/rotate path."""
     try:
         start = tuple(float(v) for v in start_base)
         goal = tuple(float(v) for v in goal_base)
@@ -1478,11 +1478,21 @@ def base_alignment_motion_table_clear(node, start_base, goal_base,
     if (len(start) != 3 or len(goal) != 3
             or not all(math.isfinite(v) for v in start + goal)):
         return False, {'reason': 'base_pose_invalid'}
+    dx, dy = goal[0] - start[0], goal[1] - start[1]
+    translation = math.hypot(dx, dy)
     yaw_delta = math.atan2(math.sin(goal[2] - start[2]),
                            math.cos(goal[2] - start[2]))
-    translation = math.hypot(goal[0] - start[0], goal[1] - start[1])
-    translation_steps = max(1, int(math.ceil(translation / 0.01)))
-    yaw_steps = max(1, int(math.ceil(abs(yaw_delta) / math.radians(2.0))))
+    direction = math.atan2(dy, dx) if translation > 1e-6 else start[2]
+    direction_error = math.atan2(
+        math.sin(direction - start[2]),
+        math.cos(direction - start[2]))
+    reverse = abs(direction_error) > (math.pi / 2.0)
+    travel_yaw = (direction - math.pi) if reverse else direction
+    travel_yaw = math.atan2(math.sin(travel_yaw), math.cos(travel_yaw))
+    turn_in = math.atan2(math.sin(travel_yaw - start[2]),
+                         math.cos(travel_yaw - start[2]))
+    turn_out = math.atan2(math.sin(goal[2] - travel_yaw),
+                          math.cos(goal[2] - travel_yaw))
     q_by_side = {}
     for side in sides:
         q = q_meas(node, side)
@@ -1490,19 +1500,37 @@ def base_alignment_motion_table_clear(node, start_base, goal_base,
             return False, {'reason': 'joint_state_missing', 'side': side}
         q_by_side[side] = q
     samples = []
+    turn_in_steps = max(1, int(math.ceil(
+        abs(turn_in) / math.radians(2.0))))
+    for index in range(1, turn_in_steps + 1):
+        fraction = index / float(turn_in_steps)
+        samples.append((
+            start[0], start[1],
+            math.atan2(math.sin(start[2] + turn_in * fraction),
+                       math.cos(start[2] + turn_in * fraction))))
+    translation_steps = max(1, int(math.ceil(translation / 0.01)))
     for index in range(1, translation_steps + 1):
         fraction = index / float(translation_steps)
         samples.append((
-            start[0] + (goal[0] - start[0]) * fraction,
-            start[1] + (goal[1] - start[1]) * fraction,
-            start[2]))
-    for index in range(1, yaw_steps + 1):
-        fraction = index / float(yaw_steps)
+            start[0] + dx * fraction,
+            start[1] + dy * fraction,
+            travel_yaw))
+    turn_out_steps = max(1, int(math.ceil(
+        abs(turn_out) / math.radians(2.0))))
+    for index in range(1, turn_out_steps + 1):
+        fraction = index / float(turn_out_steps)
         samples.append((
             goal[0], goal[1],
-            math.atan2(math.sin(start[2] + yaw_delta * fraction),
-                       math.cos(start[2] + yaw_delta * fraction))))
+            math.atan2(math.sin(travel_yaw + turn_out * fraction),
+                       math.cos(travel_yaw + turn_out * fraction))))
     for sample_index, base in enumerate(samples):
+        clearance = L.table_clearance(base[0], base[1], pad=0.05)
+        if clearance < 0.0:
+            return False, {
+                'reason': 'chassis_table_clearance',
+                'sample': sample_index, 'base': list(base),
+                'clearance_m': round(clearance, 5),
+            }
         for side, q in q_by_side.items():
             clear, hit = arm_path_table_clear(
                 node, side, [q], base=base, ignore_initial=True,
@@ -1513,7 +1541,8 @@ def base_alignment_motion_table_clear(node, start_base, goal_base,
                     'sample': sample_index, 'base': list(base),
                     'side': side, 'collision': hit,
                 }
-    return True, {'samples': len(samples), 'sides': list(sides)}
+    return True, {'samples': len(samples), 'sides': list(sides),
+                  'reverse_translation': bool(reverse)}
 
 
 def drive_to_base_axis(node, xy, v_max=0.08, tol_mm=8.0,
