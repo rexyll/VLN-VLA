@@ -1127,3 +1127,5 @@
 - 新提交 `2f118b10df857c0c9e3a445c79db270a329e6d9c` 将 headless E2E 的 PREPARE 底盘保持恢复为默认闭环位置保持（`VLA_PREPARE_BASE_HOLD_ZERO_DURING_POUR=0`）；零命令隔离实验仍可通过 workflow_dispatch 显式设置为 1。此项仅调整 CI 实验默认值，不改变生产运动逻辑或安全门槛。
 - 下一轮先核对 `WITHDRAW_DIRECT` 与 `WITHDRAW_SEARCH_BEGIN/CANDIDATE_BEGIN/CANDIDATE_RESULT`，确认分支触发和候选执行情况；同时比较闭环 hold 下的底盘漂移是否下降。若 R7 仍不可解，应从目标姿态/腕部朝向与机械臂可行域入手，不得放宽 R7 或 IK 精度。
 - 当前仍未完成双轮全流程；main 未修改，PR #2 保持 Draft/Open。
+
+- 回归测试维护：提交 `2f118b1` 的 Python run `43695701606` 因测试仍按旧字符串匹配撤手条件而失败（测试断言过期）；已在 `0ea5346` 更新为检查扩展触发原因及直接撤手/候选诊断日志。最新 Python run `43695773198` 已通过（131 tests）。最新 CarryBus run `43695773224` 与 Gazebo E2E run `43695773286` 正在执行，尚无新实测结论。
