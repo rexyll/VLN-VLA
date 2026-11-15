@@ -1085,3 +1085,12 @@
 - 明确解释边界：零 cmd_vel 不等于机械抱闸；JointState effort=0 不证明无物理力矩；odom 不等于 truth pose/twist；缺失 chassis/contact telemetry 必须标记缺失；时间相关性不能证明因果；摘要器没有通过阈值，不能据此直接改生产物理参数。
 - 最新已确认 CI：Base-arm diagnostic run `43677655219` 成功（对应代码提交 `8a063f31d8784f8829bbc9697beed383ebe3a327`）；P104 Python syntax `43677655227` 成功；CarryBus ROS 2 executor integration `43677655253` 已完成且成功（ROS 2 Jazzy 安装与 executor test 均通过）。上述 CI 均早于本次纯文档提交，不代表对 README 文档本身新增了运行时验证。
 - A/B/C Gazebo 实测数据仍未取得；本次只补齐实验操作手册，不声称物理根因已定位或修复。完整连续双轮 Gazebo E2E 成功次数仍为 **1**。不改 SDF、控制器、状态机、安全阈值、碰撞/关节限制或释放条件；PR #2 仍 Draft/Open；main `1acfa3785283c227ee9f3e351140b3d601f7d85f` 未修改。
+
+
+### 8.393 诊断采集器逐关节目标话题覆盖修正（2026-11-15）
+
+- 检查 A/B/C 手册与采集器实现时发现两个可操作性缺陷：原采集器将 14 个机械臂目标话题合并计入同一个 `arm_position_target` 来源，离线摘要无法判断具体哪个话题产生过数据；手册将里程计来源写为 `odometry`，而采集器实际记录名为 `wheel_odometry`。
+- 修正 `tests/diag/collect_base_arm_dynamics.py`：每个目标话题现在分别写入 `arm_position_target:<joint>` 来源，分析器的通用来源覆盖统计可直接显示逐关节消息覆盖，避免聚合计数掩盖缺失话题。
+- 修正 `tests/diag/README.md`：使用准确的 `wheel_odometry` 来源名；区分“启动时成功订阅”与“采集期间收到消息”。A 组机械臂静止时没有目标消息可以是正常情况；B/C 组应结合实际动作检查逐关节目标消息，不再把静止组无目标消息误判为采集失败。
+- 对应代码提交 `34fa8bc532cbcd1f1fd9bab0ffb777200c242219` 的 Base-arm diagnostic CI push run `43681967989` 已成功；同一提交的 P104 Python syntax、CarryBus ROS 2 executor 和 headless Gazebo E2E workflow 当时仍在运行/排队，需继续轮询。随后 `3ee07fe4aa27301223c85f3765ea927bce328178` 仅修订手册文字，不能把先前 CI 结果描述为对该文档提交的测试。
+- 当前还没有 A/B/C 实际 Gazebo JSONL；本轮修复的是观测覆盖可辨识性，不是物理漂移根因。不得根据该改动宣称物理问题解决；不改 SDF、控制器、状态机、安全阈值、碰撞/关节限制或释放条件。
