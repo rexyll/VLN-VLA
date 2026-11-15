@@ -728,6 +728,31 @@ class TestP104(unittest.TestCase):
         self.assertEqual(
             missing_required_shots(None), sorted(REQUIRED_SHOT_LABELS))
 
+    def test_all_fail_states_are_terminal_and_observer_skips_downstream_checks(self):
+        for state in ('FAIL_PREPARE', 'FAIL_HANDOVER',
+                      'FAIL_HANDOVER_GEOMETRY', 'FAIL_PRESENT_FOLLOW_DRIFT',
+                      'FAIL_PUT_BACK', 'FAIL_RETREAT'):
+            with self.subTest(state=state):
+                self.assertFalse(should_stop_terminal_observer(
+                    state, set(), 0.0))
+                self.assertTrue(should_stop_terminal_observer(
+                    state, set(), 2.0))
+        self.assertTrue(should_stop_terminal_observer('ERROR', set(), 0.0))
+        self.assertFalse(should_stop_terminal_observer('PRESENT', set(), 10.0))
+
+        observer = open(os.path.join(ROOT, 'tests', 'test_drink.py'),
+                        encoding='utf-8').read()
+        self.assertIn("any(stage.startswith('FAIL_') for stage in w.stages)",
+                      observer)
+        self.assertIn("res['downstream_checks'] = 'NOT_RUN'", observer)
+        self.assertIn("res['shot_labels'].append('failure')", observer)
+
+    def test_headless_cleanup_does_not_sigkill_diagnostic_collector(self):
+        cleanup = open(os.path.join(ROOT, 'tools', 'killall_demo.sh'),
+                       encoding='utf-8').read()
+        self.assertNotIn("pkill -9 -f 'tests/diag/'", cleanup)
+        self.assertNotIn('tests/diag', cleanup.split('残留统计:')[1])
+
     def test_observer_result_contract_allows_optional_evidence(self):
         self.assertEqual(validate_observer_result({'ok': True}), [])
         self.assertEqual(validate_observer_result({
