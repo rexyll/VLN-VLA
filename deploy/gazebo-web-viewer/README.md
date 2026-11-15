@@ -1,38 +1,69 @@
-# Gazebo Web Viewer (cloud)
+# Gazebo Web Viewer (same simulation host)
 
-This service streams the **real Gazebo Harmonic GUI** to a browser using Xvfb,
-x11vnc and noVNC. It is not a prerecorded video or a rendered mock-up.
-The noVNC client preserves Gazebo's normal mouse controls: left-drag to orbit,
-middle-drag to pan, and wheel to zoom.
+This exposes the **existing Gazebo desktop** to a browser on the same machine
+or a trusted local network. It does not create another simulator, move the
+simulation to a cloud provider, or use a public relay. The browser receives
+the actual Gazebo GUI through x11vnc + noVNC; mouse controls remain Gazebo's
+own controls (left-drag orbit, middle-drag pan, wheel zoom).
 
-## Deploy on Railway
+## Install on the machine that runs Gazebo
 
-1. Create a new Railway project from this repository.
-2. Set the service root to the repository root and builder to Dockerfile.
-3. Set the Dockerfile path to `deploy/gazebo-web-viewer/Dockerfile`.
-4. Add a secret environment variable `VNC_PASSWORD` with a unique random
-   value of at least 12 characters. Never commit this secret.
-5. Expose target port `6080`, then generate a public HTTPS domain.
-6. Open `https://<your-domain>/vnc.html?autoconnect=true&resize=remote`.
-   Enter the VNC password when prompted.
+On Ubuntu:
 
-Optional variables:
-- `SCREEN_RESOLUTION` (default `1600x900x24`)
-- `PW_AUTO_DRINK` (default `1`; set `0` to disable autonomous drink requests)
-- `PW_DRINK_FIRST` (default `45` seconds)
-- `PW_DRINK_GAP_MIN` / `PW_DRINK_GAP_MAX` (defaults `120` / `180` seconds)
+```bash
+sudo apt-get update
+sudo apt-get install -y x11vnc novnc websockify
+```
 
-## Notes
+The host must already have its normal graphical desktop and Gazebo GUI running
+on the active X display (the VLA scripts default to `:0`).
 
-- The image builds the Gazebo GraspCarry plugin and the ROS 2 workspace.
-- At startup it launches the real `work_area.sdf`, ROS-Gazebo bridge, follower,
-  Nav2 and DrinkTask nodes using the repository's existing startup scripts.
-- The person simulation automatically requests a drink by default, so the
-  complete behavior can be observed without a terminal.
-- Software rendering is used because managed cloud containers generally do
-  not expose a GPU. A service with at least 4 vCPU and 8 GB RAM is recommended;
-  8 vCPU and 16 GB RAM is preferable for smoother Gazebo GUI rendering.
-- The public endpoint is protected by VNC password authentication. Use a
-  long, unique secret and rotate it if it is exposed.
-- This is an always-on interactive simulator service, not a GitHub Actions job.
-  Hosting and compute charges depend on the selected provider and runtime.
+## Start / stop
+
+From the repository root:
+
+```bash
+export DISPLAY=:0
+export VNC_PASSWORD='use-a-unique-password-at-least-12-characters'
+bash tools/start_gazebo_web_viewer.sh
+```
+
+Open the printed local URL in a browser and enter the VNC password.
+
+Stop only the web viewer (Gazebo keeps running):
+
+```bash
+bash tools/stop_gazebo_web_viewer.sh
+```
+
+## Access from another device on the same LAN
+
+By default, the service binds to `127.0.0.1` and is not exposed to the LAN.
+To access it from another computer on the same trusted LAN:
+
+```bash
+LISTEN_ADDRESS=0.0.0.0 VNC_PASSWORD='your-unique-long-password' \
+  bash tools/start_gazebo_web_viewer.sh
+```
+
+Then open `http://<simulation-host-LAN-IP>:6080/vnc.html?autoconnect=true`.
+Allow TCP port 6080 only on the trusted LAN firewall. Do not port-forward it
+to the public internet. The VNC password protects the desktop session, but
+plain HTTP/noVNC is intended for a trusted LAN, not an untrusted network.
+
+## Existing VLA camera tools
+
+Once connected, use the existing Gazebo GUI and its native mouse controls.
+The project already provides camera presets and follow mode:
+
+```bash
+bash tools/open_gui.sh free
+bash tools/open_gui.sh wide
+bash tools/open_gui.sh top
+python3 tools/gui_follow.py robot
+python3 tools/gui_follow.py person
+python3 tools/gui_follow.py off
+```
+
+These commands change the camera in the real Gazebo GUI; the noVNC browser
+shows those changes live.
