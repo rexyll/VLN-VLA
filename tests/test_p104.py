@@ -3444,8 +3444,6 @@ class TestP104(unittest.TestCase):
         self.assertIn('严格要求 <4.0mm', body)
 
 
-if __name__ == '__main__':
-    unittest.main(verbosity=2)
 
     def test_handover_geometry_failure_log_formats_pair_without_tuple_unpack(self):
         task_path = os.path.join(
@@ -3567,3 +3565,7 @@ class TestDrinkBaseLock(unittest.TestCase):
         self.assertIn('ack[0] == request_id', source)
         self.assertIn("'locked': True, 'request_id': self._base_lock_request_id", source)
         self.assertIn('self._base_lock_active = bool(locked)', source)
+
+
+if __name__ == '__main__':
+    unittest.main(verbosity=2)
