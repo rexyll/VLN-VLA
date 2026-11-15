@@ -509,10 +509,49 @@ def _wait_fresh_joint_state(node, timeout=2.0, max_age=0.5):
             time.sleep(min(0.01, remaining))
 
 
+def _wait_base_still(node, timeout=3.0, max_age=0.25,
+                     linear_mps=0.005, angular_rps=math.radians(0.5),
+                     stable_for=0.20):
+    """Wait for fresh Gazebo chassis twist to remain below strict stillness limits."""
+    started, stable_since, last = time.monotonic(), None, None
+    while True:
+        now = time.monotonic()
+        twist = getattr(node, 'truth_base_twist', None)
+        sample_t = float(getattr(node, 'truth_base_twist_t', 0.0) or 0.0)
+        age = now - sample_t if sample_t > 0.0 else float('inf')
+        if twist is not None and 0.0 <= age <= max_age:
+            try:
+                vx, vy, wz = (float(v) for v in twist[:3])
+                linear, angular = math.hypot(vx, vy), abs(wz)
+                if all(math.isfinite(v) for v in (linear, angular)):
+                    last = {'age_s': age, 'linear_mps': linear, 'angular_rps': angular}
+                    if linear <= linear_mps and angular <= angular_rps:
+                        if stable_since is None:
+                            stable_since = now
+                        if now - stable_since >= stable_for:
+                            return True, last
+                    else:
+                        stable_since = None
+                else:
+                    stable_since = None
+            except (TypeError, ValueError, OverflowError, IndexError):
+                stable_since = None
+        else:
+            stable_since = None
+        remaining = timeout - (now - started)
+        if remaining <= 0.0:
+            return False, last
+        spin_for = getattr(node, 'spin_for', None)
+        if callable(spin_for):
+            spin_for(min(0.02, remaining))
+        else:
+            time.sleep(min(0.01, remaining))
+
+
 # ---------------------------------------------------------------- 到位
 def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
           timeout=10.0, elbow='human', tol_deg=None, check_table=False,
-          preflight_only=False):
+          preflight_only=False, require_base_still=False):
     """闭环把 side 侧手臂的**掌心**移到世界位形 T_world。
 
     每轮 IK 和伺服后掌心测量均优先刷新同一接收端时钟下的新鲜 Gazebo
@@ -550,6 +589,17 @@ def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
     pass_trace = []
     q_target_last = None
     for it in range(passes):
+        if require_base_still:
+            still, base_motion = _wait_base_still(node)
+            if not still:
+                node.get_logger().warn(
+                    'REACH %s 底盘未在 3.0s 内稳定；停止精调，保持抓持；last_twist=%s'
+                    % (side, base_motion))
+                return False, res, 'base-not-still'
+            node.get_logger().info(
+                'REACH %s BASE_STILL pass=%d linear=%.4fm/s yaw_rate=%.4fdeg/s truth_age=%.3fs'
+                % (side, it + 1, base_motion['linear_mps'],
+                   math.degrees(base_motion['angular_rps']), base_motion['age_s']))
         # Never derive a redundant-arm IK branch from cached joint values.
         # In E2E run #114 the second-round joint cache was 60.654s old while
         # Gazebo base truth continued updating; the stale seed led to a
@@ -567,7 +617,10 @@ def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
         # 挑"最像人"的那个会让手臂在两个分支之间来回跳 —— 实测抓杯时两轮各
         # 选一边, 掌心在中间不动, 残差 115mm 一直不下去。分支是姿态策略,
         # 补位是精度问题, 两件事分开: 第一轮定分支, 后面只用种子做局部修正。
-        _mode = elbow if it == 0 else None
+        # Human-constrained motion must keep the same hard posture solver on
+        # every refinement pass; ik_human()'s compliant hold branch provides
+        # continuity without letting later KDL iterations violate R1-R7.
+        _mode = elbow if elbow == 'human' or it == 0 else None
         # Freeze the exact receive-side evidence used by this IK iteration.
         # The later post-servo ages alone cannot prove that the base pose used
         # by FK/IK was aligned with the latest Gazebo truth snapshot.
@@ -600,7 +653,27 @@ def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
                 math.sin(base_at_ik[2] - truth_pose_at_ik[2]),
                 math.cos(base_at_ik[2] - truth_pose_at_ik[2]))
             base_truth_yaw_deg_at_ik = math.degrees(_yaw_gap)
-        q, _e, how = K.ik_world(side, T_world, base_at_ik, q_now, elbow=_mode)
+        try:
+            q, _e, how = K.ik_world(
+                side, T_world, base_at_ik, q_now, elbow=_mode)
+        except K.HumanIKNoValidSolution as exc:
+            _target_xyz = np.round(np.asarray(T_world)[:3, 3], 4).tolist()
+            _target_rpy = np.round(
+                K.mat_to_rpy(np.asarray(T_world)[:3, :3]), 3).tolist()
+            _q_diag = np.round(np.asarray(q_now, float), 3).tolist()
+            node.get_logger().warn(
+                'REACH %s 人体约束 IK 无合规候选，拒绝下发关节目标: %s; '
+                'target_xyz=%s target_rpy_rad=%s base=%s measured_q=%s'
+                % (side, exc, _target_xyz, _target_rpy,
+                   [round(float(v), 5) for v in base_at_ik], _q_diag))
+            return False, 9e9, 'human-ik-no-valid-solution'
+        if _mode == 'human':
+            _posture_bad = K.violation_list(side, q)
+            if _posture_bad:
+                node.get_logger().warn(
+                    'REACH %s 当前 IK 迭代违反人体姿态硬规则，拒绝下发关节目标: %s'
+                    % (side, _posture_bad))
+                return False, 9e9, 'human-posture-violation'
         T_ik_fk = K.fk_world(side, q, base_at_ik)
         ik_fk_mm = pos_err_mm(T_ik_fk, T_world)
         ik_fk_deg = axis_angle_deg(T_ik_fk, T_world)
@@ -1004,6 +1077,28 @@ def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
     return res < tol_mm, res, how
 
 
+_reach_impl = reach
+
+
+def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
+          timeout=10.0, elbow='human', tol_deg=None, check_table=False,
+          preflight_only=False, require_base_still=False):
+    """Public reach wrapper for the isolated PREPARE pour-window neutralization experiment."""
+    zero_prepare_hold = bool(
+        require_base_still
+        and os.environ.get('VLA_PREPARE_BASE_HOLD_ZERO_DURING_POUR', '0') == '1'
+        and getattr(node, '_prepare_base_hold_target', None) is not None)
+    if zero_prepare_hold:
+        node.get_logger().info(
+            'PREPARE_BASE_HOLD_MODE zero-during-pour: '
+            'chassis zero command remains active across the full pour hold window')
+    return _reach_impl(
+        node, side, T_world, tol_mm=tol_mm, passes=passes,
+        timeout=timeout, elbow=elbow, tol_deg=tol_deg,
+        check_table=check_table, preflight_only=preflight_only,
+        require_base_still=require_base_still)
+
+
 def sim_now(node):
     """当前**逻辑时间**(秒): 仿真时钟可用时给仿真时间, 否则退回墙上时间。
 
@@ -1381,6 +1476,13 @@ def place_robot(node, T_goal, tol_mm=8.0, tries=3, settle=0.25):
 
     返回最终位置残差 mm。
     """
+    # CarryBus SetWorldPoseCmd bypasses cmd_mux. Once the drink base lock is
+    # active, only a state-machine-owned motion window may issue this teleport.
+    if (getattr(node, '_base_lock_active', False)
+            and not getattr(node, '_base_motion_window_active', False)):
+        node.get_logger().error(
+            'PLACE_ROBOT 被底盘锁拒绝：当前不在状态机许可的底盘移动窗口')
+        return 9e9
     # 先清除 follower/上一轮 drive 残留的轮速。不能只看 cmd_vel=0：
     # E2E #68 第二轮实测 cmd_vel=0 时左轮仍为 -0.986rad/s，底盘 yaw
     # 在 5 轮 IK 中漂移约 15.6°，将 5.4mm 的末轮残差推过 4mm 门槛。
@@ -1518,7 +1620,8 @@ def held_palm_target(node, model, T_obj_goal):
 def place_held(node, side, model, T_obj_goal, tol_mm=PLACE_TOL_MM,
                tol_deg=2.0, iters=8, settle=0.30, reach_tol_mm=None,
                elbow='human', budget=60.0, reach_tol_deg=None,
-               reach_passes=None, check_table=False):
+               reach_passes=None, check_table=False,
+               reach_require_base_still=False):
     """把手里抓住的物体闭环送到世界位姿 T_obj_goal(**位置 + 姿态**)。
 
     返回 (是否到位, 位置残差 mm)。
@@ -1600,7 +1703,8 @@ def place_held(node, side, model, T_obj_goal, tol_mm=PLACE_TOL_MM,
                     else reach_tol_mm), elbow=elbow,
             tol_deg=reach_tol_deg,
             passes=(len(TOL_SCHED) if reach_passes is None
-                    else int(reach_passes)), check_table=check_table)
+                    else int(reach_passes)), check_table=check_table,
+            require_base_still=reach_require_base_still)
         if not ok_reach:
             # reach() 失败时，前一轮的物体残差可能仍是大位移旧值；伺服
             # 已经移动到目标附近后，不能把这个过期值作为最终失败残差上报。
@@ -1698,39 +1802,81 @@ def put_down(node, side, model, T_obj_goal, retreat=0.10,
                  - float(T_after_release[2, 3])) * 1e3, 1)
     ok_back, res_back, how_back = reach(
         node, side, T_back, tol_mm=8.0, check_table=True)
+    node.get_logger().info(
+        'PUT_DOWN %s WITHDRAW_DIRECT ok=%s residual_mm=%.1f how=%s target_xyz=%s'
+        % (model, bool(ok_back), float(res_back), how_back,
+           np.round(T_back[:3, 3], 4).tolist()))
     withdraw_stage = None
-    # The cup's two-hand put-down already uses this exact, collision-checked
-    # 120mm world-Z waypoint when the free support arm cannot reach around the
-    # table lip. Reuse that proven staged retreat for a released kettle: first
-    # lift the empty hand above the lip, then retry the original retreat target.
-    # Every segment still passes the full table/leg path gate; a blocked lift
-    # or blocked second segment remains fail-closed.
-    if not ok_back and how_back == 'table-collision':
-        T_stage_now = wrist(node, side)
-        if T_stage_now is not None:
+    # A released kettle can leave the wrist at a pose whose short direct
+    # retreat target has no R1-R7-compliant IK branch. Search a small,
+    # deterministic set of collision-checked clearance waypoints. The search
+    # changes only the intermediate empty-hand route: the final retreat target,
+    # R1-R7 posture rules, 4mm IK gate, 8mm servo gate and table/leg swept-path
+    # checks remain unchanged. Each failed candidate is re-seeded from the
+    # latest measured wrist pose because a failed servo attempt may have moved
+    # partially; no candidate is assumed to have succeeded.
+    if not ok_back and how_back in (
+            'table-collision', 'human-ik-no-valid-solution',
+            'human-posture-violation'):
+        node.get_logger().warn(
+            'PUT_DOWN %s WITHDRAW_SEARCH_BEGIN reason=%s; retain R1-R7/4mm IK/8mm servo/full path collision gates'
+            % (model, how_back))
+        _retreat_candidates = (
+            (0.04, 0.00, 0.00), (0.08, 0.00, 0.00),
+            (0.16, 0.00, 0.00), (0.20, 0.00, 0.00),
+            (0.12, 0.04, 0.00), (0.12, -0.04, 0.00),
+            (0.12, 0.00, 0.04), (0.12, 0.00, -0.04),
+        )
+        _candidate_trace = []
+        for _dz, _dx, _dy in _retreat_candidates:
+            T_stage_now = wrist(node, side)
+            if T_stage_now is None:
+                _candidate_trace.append({
+                    'offset_m': [_dx, _dy, _dz],
+                    'ok': False, 'how': 'current_wrist_pose_missing'})
+                break
             T_stage = T_stage_now.copy()
-            T_stage[2, 3] += 0.12
+            T_stage[:3, 3] += np.array([_dx, _dy, _dz], dtype=float)
+            node.get_logger().info(
+                'PUT_DOWN %s WITHDRAW_CANDIDATE_BEGIN offset_m=%s target_xyz=%s'
+                % (model, [_dx, _dy, _dz],
+                   np.round(T_stage[:3, 3], 4).tolist()))
             ok_stage, res_stage, how_stage = reach(
                 node, side, T_stage, tol_mm=8.0, check_table=True)
-            withdraw_stage = {
-                'attempted': True, 'ok': bool(ok_stage),
+            node.get_logger().info(
+                'PUT_DOWN %s WITHDRAW_CANDIDATE_RESULT offset_m=%s ok=%s residual_mm=%.1f how=%s'
+                % (model, [_dx, _dy, _dz], bool(ok_stage),
+                   float(res_stage), how_stage))
+            _entry = {
+                'offset_m': [_dx, _dy, _dz],
+                'ok': bool(ok_stage),
                 'residual_mm': round(float(res_stage), 1),
-                'how': how_stage, 'target_z': round(float(T_stage[2, 3]), 4)}
+                'how': how_stage,
+                'target_xyz': np.round(T_stage[:3, 3], 4).tolist(),
+            }
             if ok_stage:
                 ok_back, res_back, how_back = reach(
                     node, side, T_back, tol_mm=8.0, check_table=True)
-                withdraw_stage.update(
+                _entry.update(
                     retry_ok=bool(ok_back),
                     retry_residual_mm=round(float(res_back), 1),
                     retry_how=how_back)
-        else:
-            withdraw_stage = {'attempted': False,
-                              'reason': 'current_wrist_pose_missing'}
+            _candidate_trace.append(_entry)
+            if ok_back:
+                break
+        withdraw_stage = {
+            'attempted': True,
+            'ok': bool(ok_back),
+            'candidates': _candidate_trace,
+        }
     if info is not None:
         info['withdraw_ok'] = bool(ok_back)
         info['withdraw_res_mm'] = round(float(res_back), 1)
         if withdraw_stage is not None:
             info['withdraw_stage'] = withdraw_stage
+    if withdraw_stage is not None:
+        node.get_logger().info(
+            'PUT_DOWN %s WITHDRAW_TRACE=%s' % (model, withdraw_stage))
     if ok_back and withdraw_stage and withdraw_stage.get('ok'):
         node.get_logger().info(
             'PUT_DOWN %s 经桌边上方安全航点撤手到位 '
@@ -2609,7 +2755,9 @@ def pour_into_cup(node, fill=0.65, jet_len=0.16, ramp=True):
     # changes. Object acceptance remains strictly <4mm and <2deg.
     ok_p, res_p = place_held(
         node, 'R', 'kettle', Tk_pour, tol_mm=4.0, reach_passes=8,
-        reach_tol_deg=_kettle_pour_reach_tol_deg())
+        reach_tol_deg=_kettle_pour_reach_tol_deg(),
+        reach_require_base_still=(
+            os.environ.get('VLA_PREPARE_KETTLE_BASE_STILL', '0') == '1'))
     out['res']['kettle_pour'] = res_p
     out['arm']['pour'] = log_arm(node, '倒水', ('L', 'R'))
     pour_kin_ok = human_kinematics_ok(
@@ -2762,6 +2910,13 @@ def prepare_present(node, fill=0.65, verbose=True):
         out['reason'] = 'kettle_pose_missing'
         node.get_logger().error('PREPARE 缺少水壶真值位姿，停止倒水')
         return out
+    # The base has reached its table-side pose. Lock every velocity source
+    # before the first kettle grasp motion; do not proceed without mux ACK.
+    if not node.set_base_lock(True):
+        out['reason'] = 'chassis_lock_unconfirmed'
+        node.get_logger().error(
+            'PREPARE 底盘锁定未获 cmd_mux 确认，拒绝开始抓壶/倒水')
+        return out
     # The arm-only pour sequence can push the free-rolling chassis even when
     # both velocity command channels are zero. Hold the measured service pose
     # only across this arm-motion window; release it before base repositioning.
@@ -2825,7 +2980,15 @@ def prepare_present(node, fill=0.65, verbose=True):
             % math.degrees(float(np.nanmax(np.abs(err_r_home)))))
         return out
     node.spin_for(0.4)
-    serve_mm = place_robot(node, T_serve)
+    # The service-pose correction is a CarryBus teleport (outside cmd_mux), so
+    # it must use the same explicit state-machine motion window as drive_to.
+    serve_window_ok, serve_mm = node.run_base_motion_window(
+        'PREPARE_SERVICE_RESET', lambda: place_robot(node, T_serve))
+    if not serve_window_ok:
+        out['reason'] = 'service_pose_lock_window_failed'
+        node.get_logger().error(
+            'PREPARE 服务位复位窗口无法确认解锁/重新锁定；保持抓持并中止')
+        return out
     if serve_mm >= 8.0:
         out['reason'] = 'service_pose_reset_failed'
         node.get_logger().error(
@@ -2867,14 +3030,24 @@ def prepare_present(node, fill=0.65, verbose=True):
     if yaw_face is None:
         yaw_face = math.atan2(L.PERSON_SPOT[1] - node.base[1],
                               L.PERSON_SPOT[0] - node.base[0])
-    ok_t, err_t = turn_base(node, yaw_face)
-    # 转身是 cmd_vel 原地转, 轮子会平移漂 3~7cm (§6.4 #35 的同一个病)。而
-    # 递杯位是"从 base 前伸 0.62"算的、人手点却是世界固定点 —— 不摆正的话
-    # 两者不共线, 实测杯子会停在离人手 65.9mm 的地方。转完把底盘摆回服务位
-    # (**朝向保留**), 让 base 与人手点严格落在同一条射线上。
+    # Turn and the following CarryBus pose correction are both base motion.
+    # Keep them in one explicit window, then re-lock before further arm work.
     T_face = K.frame(K.rot_z(yaw_face),
                      (L.SERVE_POSE[0], L.SERVE_POSE[1], 0.0))
-    face_mm = place_robot(node, T_face)
+
+    def _turn_and_face_reset():
+        ok_turn, err_turn = turn_base(node, yaw_face)
+        reset_mm = place_robot(node, T_face)
+        return ok_turn, err_turn, reset_mm
+
+    turn_window_ok, turn_result = node.run_base_motion_window(
+        'PREPARE_FACE_ALIGN', _turn_and_face_reset)
+    if not turn_window_ok:
+        out['reason'] = 'prepare_face_align_lock_window_failed'
+        node.get_logger().error(
+            'PREPARE 面向人员转身/复位窗口无法确认解锁/重新锁定；保持持杯并中止')
+        return out
+    ok_t, err_t, face_mm = turn_result
     face_ok = bool(face_mm < 8.0)
     out.update({'ok': bool(ok_d and ok_c and off_r is not None and ok_t
                             and face_ok),

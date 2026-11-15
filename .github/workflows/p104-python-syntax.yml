@@ -7,6 +7,7 @@ on:
   push:
     branches:
       - main
+      - experiment/prepare-base-stillness-ab
       - fix/person-occlusion-and-table-safe-arm-recovery
 
 permissions:
