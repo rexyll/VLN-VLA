@@ -123,6 +123,11 @@ class CmdMux(Node):
                 'CMD_MUX DRINK_BASE_LOCK state=%s; all velocity inputs %s' %
                 ('LOCKED' if locked else 'UNLOCKED',
                  'suppressed' if locked else 'awaiting fresh drink command'))
+        # Send the first zero before acknowledging LOCKED, so the task
+        # cannot begin kettle motion while a previous nonzero command remains
+        # the last command seen by the chassis controller.
+        if self._drink_base_locked:
+            self.pub.publish(Twist())
         self.pub_base_lock_state.publish(String(data=json.dumps({
             'locked': self._drink_base_locked, 'request_id': request_id})))
 
