@@ -745,7 +745,7 @@ class TestP104(unittest.TestCase):
         self.assertIn("any(stage.startswith('FAIL_') for stage in w.stages)",
                       observer)
         self.assertIn("res['downstream_checks'] = 'NOT_RUN'", observer)
-        self.assertIn("res['shot_labels'].append('failure')", observer)
+        self.assertIn("tag = ('failure' if isinstance(w.state, str)", observer)
 
     def test_headless_cleanup_does_not_sigkill_diagnostic_collector(self):
         cleanup = open(os.path.join(ROOT, 'tools', 'killall_demo.sh'),
