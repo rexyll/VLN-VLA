@@ -1012,3 +1012,13 @@
 - `PRESENT_FOLLOW_POST` trace：约 4.5s 内底盘最大 XY 位移 23.19mm、最大 yaw 偏移 7.667°、最大真值速度 0.07395m/s、最大 yaw rate 32.78°/s。主动保持命令峰值线速度 0.06538m/s、角速度 0.04rad/s；wheel 速度峰值 2.763rad/s，wheel effort 最大采样 0.0Nm。当前证据表明底盘保持控制与大幅位姿变化同时发生，但尚不足以断定全部漂移由主动命令导致，需做隔离实验。
 - 实验修复提交 `4feaf3a716a3ec10cb4e6ab6df22eff5eb610118`：增加 `VLA_PRESENT_BASE_HOLD_ZERO_DURING_FOLLOW=1` 分支，只在 `_follow_base_hold_target` 存在的 PRESENT follow_hand 窗口发布零底盘命令并跳过主动位姿修正；该开关默认关闭，不影响其他任务阶段。PR E2E workflow 在 pull_request 触发时启用此 A/B 模式，手动 dispatch 可选择开/关（提交 `20a8dba`）；新增测试提交 `8bebb29` 验证开关作用域和严格门控。
 - 下一步以新 E2E trace 判定：若底盘 yaw/杯漂移显著收敛且杯位进入 6mm / 0.5°，说明主动 pose hold 是主要诱因，再设计带速率/位移上限的受控方案；若仍漂移，则进一步分离被动臂反作用、wheel dynamics 与命令链路。任何情况下 6mm / 0.5°门槛不变，未通过不得 HANDOVER。此轮未到 DONE，不计入成功轮数。
+
+### 8.385 PREPARE/PRESENT 双零指令实验确认生效：底盘被动漂移仍使交接门槛失败（2026-11-15）
+
+- 最新实验提交 `35e854d0be43a47ef579ef719f55408786fdfcc9` 的 CI：Python run `43669334256` 成功，CarryBus run `43669334237` 成功；Gazebo 双轮 E2E run `43669334247` 失败，artifact `14144191042`。本轮确认 workflow env 中 `VLA_PREPARE_KETTLE_BASE_STILL=1`、`VLA_PREPARE_BASE_HOLD_ZERO_DURING_POUR=1`、`VLA_PRESENT_BASE_HOLD_ZERO_DURING_FOLLOW=1` 均真实生效，排除了此前 push 事件未启用实验变量的问题。
+- E2E round1 阶段为 `PREPARE → PRESENT → FAIL_PRESENT_FOLLOW_DRIFT`；requested=2、completed=1、passed=0、failed=2、all_passed=false，round2 未生成。初始 PRESENT 执行误差 1.394mm / 0.11°，follow_hand 末端报告误差 2.110mm，但杯子相对交接目标漂移 54.844mm，最终偏差 53.854mm / 5.226°，严格 6mm / 0.5°门槛拒绝 HANDOVER；没有人手合拢或交权。in_band_pct=100% 仅为诊断值，不代表交接成功。
+- PRESENT 零指令窗口中，底盘两路命令均为零、驱动轮速度基本为零，但 trace 最大 XY 位移 31.48mm、最大 yaw 偏移 5.345°，约4s后稳定仍有约31mm横移和5.3°偏航；杯漂移约54.8mm。该结果否定“仅关闭主动底盘 pose correction 就能解决 follow 漂移”的假设。轮速样本最大约0.189rad/s，truth twist 瞬时峰值约0.147m/s；需继续核对物理轮地运动、关节反作用和 pose 采样，不可仅凭某一个瞬时速度认定根因。
+- PREPARE 零指令保持窗口中，base target-relative 偏移从0增至约55.8mm，偏航误差约4.07°；过程中左臂多个关节速度读数触及±2.5rad/s，最大同时约7个关节接近限幅，关节目标误差可达约1.5rad。后期机械臂速度归零后底盘偏移保持约55.8mm。当前证据支持“机械臂运动与底盘偏移具有时间相关性”，但仍不能单独证明机械臂反作用是唯一原因；wheel effort=0不能解释为真实制动力矩为零。
+- 源码审查确认 PREPARE 通过 `pour_approach()` 先抬臂，再驶入桌边；随后 `pour_into_cup()` 在底盘零指令窗口中执行倒水动作。生成场景时机械臂 JointPositionController 使用速度指令模式，`ARM_VMAX` 约束为 ±2.5rad/s。当前首要实验不应继续反复切换 base hold 开关，而应建立独立的机械臂—底盘动力学诊断：记录各关节目标/实测位置、速度、关节力矩（若仿真接口可用）、底盘模型与 chassis pose、轮关节位置/速度/力矩及仿真时间戳的同步序列；再设计单变量的低速/分段动作对照。不得通过直接降低速度上限而不先验证动作时间、IK伺服收敛及碰撞路径。
+- PRESENT 的底盘零指令 A/B 已证实无法满足交接精度；不将该模式设为默认生产控制。下一步重点查明轮子/底盘的实际制动模型与机械臂反作用传递路径，确认 zero cmd 时轮子是否自由滚动、是否有真实保持力矩，以及 Gazebo 模型 pose 与 canonical chassis link 的同步关系。若需要增加轮制动/阻尼，先通过独立物理实验验证，不直接修改主场景物理参数。
+- 所有 4mm IK、5mm grasp、6mm/0.5° handover、碰撞、关节限位、fail-closed 与释放条件保持不变。完整连续双轮 E2E 成功次数仍为 **1**；PR #2 保持 draft/open；main `1acfa3785283c227ee9f3e351140b3d601f7d85f` 未修改。
