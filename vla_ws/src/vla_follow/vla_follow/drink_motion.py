@@ -1795,6 +1795,10 @@ def put_down(node, side, model, T_obj_goal, retreat=0.10,
                  - float(T_after_release[2, 3])) * 1e3, 1)
     ok_back, res_back, how_back = reach(
         node, side, T_back, tol_mm=8.0, check_table=True)
+    node.get_logger().info(
+        'PUT_DOWN %s WITHDRAW_DIRECT ok=%s residual_mm=%.1f how=%s target_xyz=%s'
+        % (model, bool(ok_back), float(res_back), how_back,
+           np.round(T_back[:3, 3], 4).tolist()))
     withdraw_stage = None
     # A released kettle can leave the wrist at a pose whose short direct
     # retreat target has no R1-R7-compliant IK branch. Search a small,
@@ -1804,8 +1808,12 @@ def put_down(node, side, model, T_obj_goal, retreat=0.10,
     # checks remain unchanged. Each failed candidate is re-seeded from the
     # latest measured wrist pose because a failed servo attempt may have moved
     # partially; no candidate is assumed to have succeeded.
-    if not ok_back and how_back in ('table-collision',
-                                      'human-ik-no-valid-solution'):
+    if not ok_back and how_back in (
+            'table-collision', 'human-ik-no-valid-solution',
+            'human-posture-violation'):
+        node.get_logger().warn(
+            'PUT_DOWN %s WITHDRAW_SEARCH_BEGIN reason=%s; retain R1-R7/4mm IK/8mm servo/full path collision gates'
+            % (model, how_back))
         _retreat_candidates = (
             (0.04, 0.00, 0.00), (0.08, 0.00, 0.00),
             (0.16, 0.00, 0.00), (0.20, 0.00, 0.00),
@@ -1822,8 +1830,16 @@ def put_down(node, side, model, T_obj_goal, retreat=0.10,
                 break
             T_stage = T_stage_now.copy()
             T_stage[:3, 3] += np.array([_dx, _dy, _dz], dtype=float)
+            node.get_logger().info(
+                'PUT_DOWN %s WITHDRAW_CANDIDATE_BEGIN offset_m=%s target_xyz=%s'
+                % (model, [_dx, _dy, _dz],
+                   np.round(T_stage[:3, 3], 4).tolist()))
             ok_stage, res_stage, how_stage = reach(
                 node, side, T_stage, tol_mm=8.0, check_table=True)
+            node.get_logger().info(
+                'PUT_DOWN %s WITHDRAW_CANDIDATE_RESULT offset_m=%s ok=%s residual_mm=%.1f how=%s'
+                % (model, [_dx, _dy, _dz], bool(ok_stage),
+                   float(res_stage), how_stage))
             _entry = {
                 'offset_m': [_dx, _dy, _dz],
                 'ok': bool(ok_stage),
