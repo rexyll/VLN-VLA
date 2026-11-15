@@ -39,7 +39,7 @@ x11vnc -display "$DISPLAY" -rfbauth "$PID_DIR/passwd" -forever -shared \
 echo $! > "$PID_DIR/x11vnc.pid"
 
 websockify --web=/usr/share/novnc --heartbeat=30 \
-  "$LISTEN_ADDRESS:$WEB_PORT" "$LISTEN_ADDRESS:$VNC_PORT" \
+  "$LISTEN_ADDRESS:$WEB_PORT" "127.0.0.1:$VNC_PORT" \
   > "$PID_DIR/websockify.log" 2>&1 &
 echo $! > "$PID_DIR/websockify.pid"
 
