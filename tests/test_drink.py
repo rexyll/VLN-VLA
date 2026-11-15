@@ -277,7 +277,8 @@ def _run_observer(node):
     deadline = time.time() + TOTAL_TIMEOUT
     while time.time() < deadline:
         w.spin(0.15)
-        tag = SHOT_AT.get(w.state)
+        tag = ('failure' if isinstance(w.state, str) and w.state.startswith('FAIL_')
+               else SHOT_AT.get(w.state))
         # 人真正"到位并开口"的时刻 = /robot/command 收到 DRINK(那是它说完话
         # 的产物)。person_walk 的 GOTO/DRINK 是它**自己**的状态机, 不对外播。
         if arrive is None and w.cmds:
@@ -315,7 +316,8 @@ def _run_observer(node):
                 res['shots'].append(sh)
                 res['shot_labels'].append(tag)
                 shots_done.add(tag)
-        if w.state in ('DONE', 'ERROR', 'FAIL_PREPARE', 'FAIL_HANDOVER'):
+        if (w.state in ('DONE', 'ERROR')
+                or (isinstance(w.state, str) and w.state.startswith('FAIL_'))):
             if terminal_since is None:
                 terminal_since = time.monotonic()
             if should_stop_terminal_observer(
@@ -361,6 +363,15 @@ def _run_observer(node):
          % (len(need) - len(miss), len(need), miss or '无',
             '正确' if order_ok else observed_order, sim_s, res['elapsed_s']),
          not miss and order_ok and sim_s < 300.0)
+
+    # A FAIL_* state is terminal. Preserve the failure snapshot and stage
+    # trace, but never run post-handover checks against a task that did not
+    # reach the corresponding phase; those metrics would be misleading.
+    early_failure = any(stage.startswith('FAIL_') for stage in w.stages)
+    if early_failure:
+        res['downstream_checks'] = 'NOT_RUN'
+        res['ok'] = False
+        return report(node, res)
 
     # ---- [6] 杯子回到原位、杯轴竖直
     Tcup = pos('cup')
