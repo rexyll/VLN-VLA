@@ -1056,6 +1056,14 @@
 
 - 新增 `tests/diag/collect_base_arm_dynamics.py`：只订阅、不发布、不调用 Gazebo service；同时采集仿真时钟、`/world/follow_world/dynamic_pose/info` 中 robot/chassis/轮子实体（若存在）、`/drink/joint_state` 中左右轮与 R/L 机械臂关节 position/velocity/force、`/model/robot/odometry`、底盘 `cmd_vel` 及 14 个机械臂位置目标话题。以 JSONL 保存每条记录的单调接收时刻与消息仿真时间戳；缺失来源会明确报错，不伪造数据。
 - 新增 `.github/workflows/base-arm-diagnostic.yml`，对采集器做 Python 3.12 语法编译，并用 AST 检查其保持只读（禁止 Publisher/publish/service request 类调用）。
-- CI：新诊断工作流 run `43675799686` 已成功；同一提交触发的 P104 Python syntax run `43675799555` 已成功。CarryBus ROS 2 executor run `43675799648` 在本次记录时仍运行中；需后续轮询确认。采集器尚未在 Gazebo 实例上执行，故目前没有 A/B/C 物理实验结果，不宣称根因已确认。
+- CI：新诊断工作流 run `43675799686` 已成功；同一提交触发的 P104 Python syntax run `43675799555` 已成功。CarryBus ROS 2 executor run `43675799648` 已于 2026-11-15 完成并成功；其 job `CarryBus real ROS 2 executor integration` 的 ROS 2 Jazzy 安装与 executor integration test 均成功。上述三项 CI run 均对应代码提交 `5bb574cea329197981bea56504ad5235f02db82a`，其后 `fde1867bfcce257870195e4b969376d25145f50f` 为 TaskPlan 文档更新提交。采集器尚未在 Gazebo 实例上执行，故目前没有 A/B/C 物理实验结果，不宣称根因已确认。
 - 执行建议：每个条件单独启动一次全新场景与采集文件；A 组机械臂保持静止，B 组只驱动一侧机械臂低速分段，C 组复现原双臂动作；三组均保持底盘零指令、相同初始位姿与仿真配置。先检查必需 topic 数据覆盖和时间戳，再比较 robot 真值位移、轮速、关节运动与 odometry。采集器不自动驱动机械臂，避免诊断代码改变受测系统。
 - 本轮未修改 SDF/物理参数/生产状态机/安全阈值/释放条件；没有运行新的完整喝水 E2E。main 未修改，PR #2 仍 Draft/Open。
+
+
+### 8.390 只读底盘—机械臂采集器 CI 状态收敛（2026-11-15）
+
+- 已轮询确认三项 CI 均成功：Base-arm diagnostic collector syntax `43675799686`、P104 Python syntax `43675799555`、P104 CarryBus ROS 2 executor integration `43675799648`。CarryBus job 中 ROS 2 Jazzy 安装和 executor integration test 均成功。三项 run 的 `head_sha` 均为 `5bb574cea329197981bea56504ad5235f02db82a`；随后 `fde1867bfcce257870195e4b969376d25145f50f` 仅更新 TaskPlan 文档，因此不能将这些 CI 结果误标为对后续未变代码的重新执行。
+- 当前实验分支 HEAD 为 `fde1867bfcce257870195e4b969376d25145f50f`，相对 `main` ahead 61、behind 0；PR #2 仍 open，未合并。`main` HEAD 仍为 `1acfa3785283c227ee9f3e351140b3d601f7d85f`。
+- 诊断采集器尚未在可运行的 Gazebo 实例执行，A/B/C 物理数据仍缺失。下一步应在真实仿真环境分别采集 A（双臂静止）、B（单臂低速分段）、C（双臂原动作），先验证 topic 覆盖、仿真时间戳与真值 pose，再比较底盘位移/偏航、轮速、关节状态和 odometry。不得以 CI 成功替代物理实验，不得修改安全阈值或直接改物理参数。
+- 完整连续双轮 Gazebo E2E 成功次数仍为 **1**；本轮未新增完整 E2E 成功，不计数。
