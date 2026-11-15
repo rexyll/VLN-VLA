@@ -2973,16 +2973,8 @@ def prepare_present(node, fill=0.65, verbose=True):
             % math.degrees(float(np.nanmax(np.abs(err_r_home)))))
         return out
     node.spin_for(0.4)
-    # Keep the chassis locked until the kettle is confirmed placed and the
-    # withdrawing arm has returned to its safe rest pose.
-    if not node.set_base_lock(False):
-        out['reason'] = 'chassis_unlock_unconfirmed'
-        node.get_logger().error(
-            'PREPARE 水壶已确认放回且右臂已回安全位，但底盘解锁未获确认；'
-            '保持底盘锁定并停止后续移动')
-        return out
-    node.get_logger().info(
-        'PREPARE_BASE_LOCK released after kettle placement and arm retreat')
+    # Keep the chassis command lock after kettle placement. Pose pinning and
+    # arm-only cup preparation do not need a velocity-command unlock.
     serve_mm = place_robot(node, T_serve)
     if serve_mm >= 8.0:
         out['reason'] = 'service_pose_reset_failed'
@@ -3025,7 +3017,17 @@ def prepare_present(node, fill=0.65, verbose=True):
     if yaw_face is None:
         yaw_face = math.atan2(L.PERSON_SPOT[1] - node.base[1],
                               L.PERSON_SPOT[0] - node.base[0])
-    ok_t, err_t = turn_base(node, yaw_face)
+    # The only mobile-base operation in this arm-preparation section is the
+    # intentional in-place turn. Open a short task-only window and re-lock in
+    # the helper's finally path before any further precision arm motion.
+    turn_window_ok, turn_result = node.run_base_motion_window(
+        'PREPARE_FACE_TURN', lambda: turn_base(node, yaw_face))
+    if not turn_window_ok:
+        out['reason'] = 'prepare_face_turn_lock_window_failed'
+        node.get_logger().error(
+            'PREPARE 面向人员转身窗口无法确认解锁/重新锁定；保持持杯并中止')
+        return out
+    ok_t, err_t = turn_result
     # 转身是 cmd_vel 原地转, 轮子会平移漂 3~7cm (§6.4 #35 的同一个病)。而
     # 递杯位是"从 base 前伸 0.62"算的、人手点却是世界固定点 —— 不摆正的话
     # 两者不共线, 实测杯子会停在离人手 65.9mm 的地方。转完把底盘摆回服务位
