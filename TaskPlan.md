@@ -1075,3 +1075,13 @@
 - CI 调整过程曾出现一次 workflow run 43677613914 失败，原因是把两条 shell 命令写进同一条 run scalar，导致 unittest 参数被 py_compile 接收；已改为 YAML 多行 run: |。最新诊断 CI run 43677655219 在最终提交 8a063f31d8784f8829bbc9697beed383ebe3a327 上成功，Compile and test 与 read-only AST 两步均通过。P104 Python syntax run 43677655227 同一提交成功；P104 CarryBus run 43677655253 在本次记录时仍在 ROS 2 Jazzy 依赖安装阶段，需继续轮询。
 - 本分析器只对已有 JSONL 做描述性汇总，不代替 Gazebo 物理实验。A/B/C 数据尚未取得；采集器仍未在 Gazebo 实例实际执行。下一步先完成 CarryBus CI 状态确认，再获取三组真实采集文件并离线分析；若没有 Gazebo runtime，不能声称物理根因已解决。
 - 本轮未改 SDF、控制器、任务状态机、安全门槛或释放条件；main 未修改，PR #2 仍 Draft/Open；完整连续双轮 Gazebo E2E 成功次数仍为 1。
+
+
+### 8.392 A/B/C 底盘—机械臂动力学采集操作手册（2026-11-15）
+
+- 新增 `tests/diag/README.md`，将只读采集器与离线分析器的执行步骤固化为可复现实验手册：A 双臂静止基线、B 单臂低速分段、C 原双臂动作；三组均保持底盘零命令、独立重置场景和输出文件，并要求对齐 world、初始位姿、仿真配置与采集时长。
+- 手册明确只在可丢弃的 Gazebo 仿真环境执行；采集器不驱动机械臂，实验动作必须由已有且批准的仿真控制入口施加；若无法安全、可重复地施加动作则停止，不临时添加命令发布器。
+- 文档提供 ROS 2 Jazzy 环境下 collector 与 analyzer 命令，规定先核验 clock/dynamic_pose/joint_state/odometry/base_cmd_vel/14个arm target来源覆盖，再比较 pose、yaw、轮速、臂关节速度和底盘命令。保留原始 JSONL、摘要、git commit、初始状态和条件说明。
+- 明确解释边界：零 cmd_vel 不等于机械抱闸；JointState effort=0 不证明无物理力矩；odom 不等于 truth pose/twist；缺失 chassis/contact telemetry 必须标记缺失；时间相关性不能证明因果；摘要器没有通过阈值，不能据此直接改生产物理参数。
+- 最新已确认 CI：Base-arm diagnostic run `43677655219` 成功（对应代码提交 `8a063f31d8784f8829bbc9697beed383ebe3a327`）；P104 Python syntax `43677655227` 成功；CarryBus ROS 2 executor integration `43677655253` 已完成且成功（ROS 2 Jazzy 安装与 executor test 均通过）。上述 CI 均早于本次纯文档提交，不代表对 README 文档本身新增了运行时验证。
+- A/B/C Gazebo 实测数据仍未取得；本次只补齐实验操作手册，不声称物理根因已定位或修复。完整连续双轮 Gazebo E2E 成功次数仍为 **1**。不改 SDF、控制器、状态机、安全阈值、碰撞/关节限制或释放条件；PR #2 仍 Draft/Open；main `1acfa3785283c227ee9f3e351140b3d601f7d85f` 未修改。
