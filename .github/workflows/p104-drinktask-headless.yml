@@ -167,6 +167,10 @@ jobs:
             python3-gz-transport13 python3-gz-msgs10 \
             xvfb x11-utils libgl1-mesa-dri libglx-mesa0
 
+      - name: Run P104 offline safety and motion regression tests
+        run: |
+          PYTHONPATH=vla_ws/src/vla_follow python3 tests/test_p104.py
+
       - name: Build GraspCarry Gazebo system plugin
         run: |
           cmake -S vla_ws/src/vla_follow/gz_plugins \
