@@ -130,6 +130,29 @@ class TestP104(unittest.TestCase):
                                math.cos(candidate_yaw - yaw))) < 1e-9
             for x, y, candidate_yaw in candidates))
 
+    def test_base_alignment_checks_both_arm_sweeps_and_reverse_path(self):
+        from types import SimpleNamespace
+        with patch.object(M, 'q_meas', return_value=np.zeros(K.NJ)):
+            with patch.object(
+                    M, 'arm_path_table_clear', return_value=(True, None)) as path_check:
+                ok, detail = M.base_alignment_motion_table_clear(
+                    SimpleNamespace(), L.SERVE_POSE,
+                    (L.SERVE_POSE[0] - 0.06, L.SERVE_POSE[1], 0.10))
+                self.assertTrue(ok, detail)
+                self.assertTrue(detail['reverse_translation'])
+                self.assertEqual(detail['sides'], ['L', 'R'])
+                self.assertGreater(path_check.call_count, 2)
+            with patch.object(
+                    M, 'arm_path_table_clear',
+                    return_value=(False, {'box': 'table_top'})):
+                ok, detail = M.base_alignment_motion_table_clear(
+                    SimpleNamespace(), L.SERVE_POSE,
+                    (L.SERVE_POSE[0] - 0.06, L.SERVE_POSE[1], 0.10))
+                self.assertFalse(ok)
+                self.assertEqual(
+                    detail['reason'],
+                    'arm_table_collision_during_base_alignment')
+
     def test_cup_pose_freshness_is_per_model_and_fail_closed(self):
         import time
         from types import SimpleNamespace
