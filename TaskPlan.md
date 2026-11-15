@@ -1117,3 +1117,13 @@
 - main 未修改；PR #2 仍 Draft/Open。
 
 - 回归测试调整：首次 Python 测试 run `43688187911` 暴露旧测试仍硬编码查找 `T_stage[2, 3] += 0.12`，与新的候选搜索结构不兼容；这属于测试断言过时，不是运行时代码语法错误。已在提交 `2d61be675cd5a8f3a68e0e9f41a5ed338547e42e` 更新测试，改为检查有界候选、逐次刷新腕部真值、逐段碰撞检查及原始目标重试。该提交的 Python syntax/pure tests run `43688246710` 已成功；同一提交 CarryBus run `43688246731` 与 Gazebo E2E run `43688246730` 正在运行，结果待确认。
+
+
+### 8.396 PREPARE 撤手候选逻辑未产生 trace：确认零命令底盘漂移并恢复基线闭环保持（2026-11-15）
+
+- E2E run `43688246730`（提交 `2d61be6`）失败，JSON 显示仅完成 `PREPARE`，双轮 0/2；阶段日志有 release ACK，随后右臂撤手目标连续触发 `human-ik-no-valid-solution`，最优 IK 解违反 R7 肘过折，姿态合规解残差约 1.25–1.45m。没有 `WITHDRAW_TRACE`，因此不能声称 8 个候选已被执行或全部失败。
+- 同一日志 `PREPARE_BASE_HOLD_TRACE` 提供了重要底盘证据：在 `VLA_PREPARE_BASE_HOLD_ZERO_DURING_POUR=1` 下，命令速度为零，但底盘相对 hold target 的平移偏差达到约 **65.7mm**、yaw 偏差约 **6.411°**；日志中 arm 关节曾达到 2.5rad/s 速度饱和。该实验明确证明“零速度命令”不等于机械制动或位置保持，机械臂动作窗口中底盘仍可漂移。
+- 这次运行不能用来断言候选航点逻辑无效：虽然当前源码在 SHA `2d61be6` 中包含候选分支，但运行日志没有 candidate begin/result 或 WITHDRAW_TRACE。新增提交 `0bb3a6e21cdca915140be9b772e0e990b7c4c384` 在直接撤手后记录 `how_back`，并逐个记录候选开始/结果；同时明确支持 `human-posture-violation` 的安全候选搜索触发原因，原 R1–R7/4mm/8mm/碰撞门槛不变。
+- 新提交 `2f118b10df857c0c9e3a445c79db270a329e6d9c` 将 headless E2E 的 PREPARE 底盘保持恢复为默认闭环位置保持（`VLA_PREPARE_BASE_HOLD_ZERO_DURING_POUR=0`）；零命令隔离实验仍可通过 workflow_dispatch 显式设置为 1。此项仅调整 CI 实验默认值，不改变生产运动逻辑或安全门槛。
+- 下一轮先核对 `WITHDRAW_DIRECT` 与 `WITHDRAW_SEARCH_BEGIN/CANDIDATE_BEGIN/CANDIDATE_RESULT`，确认分支触发和候选执行情况；同时比较闭环 hold 下的底盘漂移是否下降。若 R7 仍不可解，应从目标姿态/腕部朝向与机械臂可行域入手，不得放宽 R7 或 IK 精度。
+- 当前仍未完成双轮全流程；main 未修改，PR #2 保持 Draft/Open。
