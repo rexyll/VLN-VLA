@@ -2015,8 +2015,98 @@ def putback_route_candidates(T_goal):
     return candidates
 
 
+def cup_pose_fresh(node, max_age_s=0.25):
+    """Require a recent Gazebo sample for the cup model itself."""
+    samples = getattr(node, '_gt_model_sample_t', None)
+    try:
+        sample_t = float(samples['cup'])
+        age = time.monotonic() - sample_t
+        limit = float(max_age_s)
+    except (TypeError, ValueError, KeyError, OverflowError):
+        return False, None
+    if (not math.isfinite(age) or not math.isfinite(limit)
+            or age < 0.0 or limit < 0.0 or age > limit):
+        return False, age if math.isfinite(age) else None
+    return True, age
+
+
+def cup_grasp_base_candidates(base, max_radial_m=0.06,
+                              yaw_offsets_deg=(0.0, -4.0, 4.0,
+                                               -8.0, 8.0,
+                                               -12.0, 12.0)):
+    """Bounded table-normal standoff/yaw candidates, ranked by travel cost.
+
+    Positive radial offset moves away from the table; negative moves toward it.
+    Every candidate preserves the existing 50mm chassis/table clearance pad.
+    """
+    try:
+        bx, by, yaw = (float(v) for v in base)
+        radius = float(max_radial_m)
+    except (TypeError, ValueError, OverflowError):
+        return []
+    if (not all(math.isfinite(v) for v in (bx, by, yaw, radius))
+            or radius < 0.0 or radius > 0.10):
+        return []
+    dx, dy = bx - L.TABLE_XY[0], by - L.TABLE_XY[1]
+    norm = math.hypot(dx, dy)
+    if norm < 1e-6:
+        return []
+    ux, uy = dx / norm, dy / norm
+    radial_steps = (0.0, -radius / 2.0, radius / 2.0,
+                    -radius, radius)
+    candidates = []
+    seen = set()
+    for radial in radial_steps:
+        x, y = bx + radial * ux, by + radial * uy
+        if L.table_clearance(x, y, pad=0.05) < 0.0:
+            continue
+        for offset_deg in yaw_offsets_deg:
+            try:
+                offset = math.radians(float(offset_deg))
+            except (TypeError, ValueError, OverflowError):
+                continue
+            if not math.isfinite(offset):
+                continue
+            candidate = (x, y, math.atan2(math.sin(yaw + offset),
+                                          math.cos(yaw + offset)))
+            key = tuple(round(v, 6) for v in candidate)
+            if key in seen:
+                continue
+            seen.add(key)
+            travel = math.hypot(x - bx, y - by)
+            score = travel + 0.002 * abs(offset)
+            candidates.append((score, candidate))
+    candidates.sort(key=lambda item: item[0])
+    return [pose for _score, pose in candidates]
+
+
+def cup_grasp_preflight(node, base_pose=None, max_pose_age_s=0.25):
+    """Preflight cup approach and grasp from one fresh cup/base/joint snapshot."""
+    fresh, age = cup_pose_fresh(node, max_pose_age_s)
+    if not fresh:
+        return False, {'reason': 'cup_pose_stale', 'cup_pose_age_s': age}
+    T_cup = object_pose(node, 'cup')
+    if T_cup is None or not np.all(np.isfinite(T_cup)):
+        return False, {'reason': 'cup_pose_missing_or_invalid'}
+    base = (tuple(_base_pose(node)) if base_pose is None
+            else tuple(float(v) for v in base_pose))
+    T_grasp = P.cup_grasp_palm(T_cup, 'L')
+    T_approach = T_grasp @ K.trans((0.0, 0.0, 0.10))
+    ok, detail = preflight_table_route(
+        node, 'L', (T_approach, T_grasp), elbow='human',
+        max_ik_error_mm=4.0, base_pose=base)
+    return ok, {
+        'reason': detail.get('reason', 'unknown'),
+        'cup_pose_age_s': round(float(age), 4) if age is not None else None,
+        'base': [round(float(v), 6) for v in base],
+        'approach_xyz': np.round(T_approach[:3, 3], 5).tolist(),
+        'grasp_xyz': np.round(T_grasp[:3, 3], 5).tolist(),
+        'preflight': detail,
+    }
+
+
 def preflight_table_route(node, side, targets, elbow='human',
-                          max_ik_error_mm=4.0):
+                          max_ik_error_mm=4.0, base_pose=None):
     """No-motion sequential IK/FK and full swept-path preflight.
 
     Each segment is solved from the preceding segment's predicted joint
@@ -2027,7 +2117,10 @@ def preflight_table_route(node, side, targets, elbow='human',
     q_start = q_meas(node, side)
     if q_start is None:
         return False, {'reason': 'joint_state_missing'}
-    base = tuple(_base_pose(node))
+    base = (tuple(_base_pose(node)) if base_pose is None
+            else tuple(float(v) for v in base_pose))
+    if (len(base) != 3 or not all(math.isfinite(v) for v in base)):
+        return False, {'reason': 'base_pose_invalid'}
     q_seed = np.asarray(q_start, float).copy()
     segment_results = []
     for index, target in enumerate(targets):
