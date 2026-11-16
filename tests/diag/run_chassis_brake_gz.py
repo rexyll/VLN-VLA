@@ -340,6 +340,8 @@ def run_single(torque_nm, log_suffix=""):
                        "both wheel joint states", process)
             wait_until(lambda: telemetry.motion_snapshot()[1] is not None, 30,
                        "DiffDrive odometry twist", process)
+            wait_until(lambda: len(telemetry.motion_snapshot()[2]) == 2, 30,
+                       "both wheel joint positions", process)
 
             publish(CMD_TOPIC, "gz.msgs.Twist",
                     "linear: {x: 0.0} angular: {z: 0.0}")
