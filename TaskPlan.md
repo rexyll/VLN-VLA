@@ -52,7 +52,7 @@
 3. [未完成] **P104-10.3 建立底盘抗机械臂反作用力回归测试**：固定 world、初始底盘位姿、关节初态和仿真时长，依次执行机械臂静止基线、左臂分段低速动作、右臂跟随动作、双臂完整递杯动作；同步记录底盘 truth pose/twist、轮关节 position/velocity/effort、机械臂目标与实测关节状态、左右掌—杯相对变换和仿真时间戳。验证锁定时底盘满足 P104-10.2 指标、杯子世界坐标偏移满足既有交接 6mm/0.5°门槛。独立回归通过后再执行完整双轮 headless Gazebo E2E；不得把单元测试、插件构建或部分阶段通过记为 E2E 成功。
 
 4. [正在进行中] **P104-10.4 DisturbanceInjectionTest：独立扰动注入验证**：将扰动发生器与状态采集/判定器解耦。先验证目标 MODEL/LINK 实体解析、消息回调接收、物理更新执行和 pose/twist 响应，再进行参数搜索。候选注入器包括 ApplyLinkWrench、自定义 Gazebo System（在 PreUpdate 受控施力）及 Joint API；每种方式明确记录实际使用的注入路径，不得把一种路径的 PASS 归因于另一种路径。只有接口接收、实体解析和物理作用均可观测，才允许进入参数搜索。
-5. [未完成] **P104-10.5 GroundFixedJointTest：独立物理锁止验证**：使用 Gazebo Sim 8.15.0 DetachableJoint 和无碰撞静态 world anchor；每个重复从全新 Gazebo 进程启动。确认启动 attach 状态→detach 后速度命令可移动至少 10mm→attach 后同一速度命令下 XYZ 位移 <2mm、yaw 变化 <0.5°→再次 detach 后恢复移动至少 10mm。每种状态同时检查 Boolean 状态 topic、Gazebo truth pose/twist 和轮关节速度；ACK 不等于物理 PASS。至少 3 次独立重复全部通过后才进入手臂负载测试。
+5. [未完成] **P104-10.5 GroundFixedJointTest：独立物理锁止验证**：使用 Gazebo Sim 8.15.0 DetachableJoint 和无碰撞静态 world anchor；每个重复从全新 Gazebo 进程启动。确认启动 attach 状态→detach 后速度命令可移动至少 10mm→attach 后同一速度命令下 XYZ 位移 <2mm、yaw 变化 <0.5°→再次 detach 后恢复移动至少 10mm。每种状态同时检查 StringMsg 状态 topic（attached / detached）、Gazebo truth pose/twist 和轮关节速度；ACK 不等于物理 PASS。至少 3 次独立重复全部通过后才进入手臂负载测试。
 6. [未完成] **P104-10.6 ChassisImmobilityE2E：锁止期间综合抗扰动与手臂负载验证**：在 Ground Fixed Joint 保持期间，依次施加导航/follower/DrinkTask 普通速度指令、可观测外部扰动和机械臂分段/双臂完整动作；确认底盘无可测漂移、旧速度缓存不在解锁后执行，所有阶段锁止状态 fail-closed。验证完成前不得接入生产 work_area.sdf；完成后再执行完整双轮 DrinkTask E2E。
 
 
