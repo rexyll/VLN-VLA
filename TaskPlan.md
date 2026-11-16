@@ -1368,3 +1368,13 @@
 - 本次只改进实验输入生命周期、发布次数可观测性和施力/清除实体一致性；18Nm 外部扰动、5Nm 轮端 effort 上限、质量、摩擦、阻尼、PD 增益、baseline 0.5°门槛、locked 50% reduction 门槛及解锁 10mm 门槛均未改变。尚未有新的 Gazebo CI 结果，不能声称 publisher API、端点可见性或物理 A/B 已通过；需由下一轮 P104 workflow 实际验证。
 - P104-10.1 仍未通过验收；P104-10.2 独立静止确认、P104-10.3 机械臂反作用力回归及完整 DrinkTask E2E 均未完成。实验通过前不将 ChassisBrake 接入生产 work_area.sdf。
 - 仅在 experiment/drinktask-bt-ik-recovery 修改；main 未修改，PR #3 保持 Draft/Open，不合并；未创建其他分支。
+
+
+### 8.419 #379 ODE 崩溃证据复核与 Gazebo runner 失稳快速诊断（2026-11-16）
+- Run #379（ID `43802515611`，job `133086663695`）的真实 artifact 显示：行为树单测、P104 离线回归、Gazebo 插件构建均通过；失败发生于隔离 ChassisBrake 实验，后续 ROS workspace build 和完整 DrinkTask E2E 被跳过。
+- `chassis_brake_runner.log` 记录 baseline 位移 472.449mm、偏航 176.836°、轮速 75,923.406rad/s；baseline wrench 连续发布 20 次，clear 发布 5 次。publisher 与 ApplyLinkWrench subscriber 均可见，因此本轮不能再将失败归因于一次性 publisher 生命周期或 endpoint discovery。
+- `chassis_brake_isolated.log` 明确记录 DART/ODE 碰撞检测内部断言 `aabbBound >= dMinIntExact && aabbBound < dMaxIntExact`，随后 Gazebo 进程 Aborted。runner 未检查 Gazebo 子进程状态，最终错误被误报为等待 `LOCKED` ACK 超时。
+- 根因判断：本轮确定存在 baseline 阶段严重动力学失稳并触发 ODE 崩溃；异常轮速和位姿数据先于锁定确认。现有证据不支持将其归因于 ChassisBrake PD 锁定算法，也不支持继续把问题描述为 publisher 未送达。18Nm 外部扰动对当前隔离模型是否过强仍需通过受控标定验证，不能仅凭相关性宣称唯一根因。
+- runner 已增加 Gazebo 子进程存活检查，并在等待 pose、轮速、LOCKED/UNLOCKED ACK 及 baseline/locked 测量期间检测进程退出；新增 100rad/s 轮速诊断保护，用于在失稳时提前终止实验并记录 pose/wheel telemetry。该保护仅为诊断护栏，不改变物理验收门槛、扰动力矩、质量、摩擦、阻尼或 effort limit。
+- 下一步：运行 Python syntax / 离线回归 / Gazebo 插件构建和隔离实验；若诊断护栏首先触发，则基于实测响应开展扰动力矩标定与接触/关节状态排查。不得在未获得有效 baseline 与物理 hold 数据前接入生产 `work_area.sdf`，不得推进 P104-10.2/10.3。
+- P104-10.1 仍未通过；P104-10.2/10.3 未完成；PR #3 保持 Draft/Open，`main` 不修改，不创建其他分支。
