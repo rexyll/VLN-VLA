@@ -41,7 +41,7 @@
 - [已定位｜任务入口安全门控缺失] Run #571 的物理锁启动失败后，`run_drink()` 仍继续执行水位归零与 PREPARE 原语。日志后续记录 `PLACE_ROBOT 未收敛`，目标位姿残差 1211.7mm，随后 PREPARE 入场中止。现已在 `run_drink()` 最前面增加硬门控：必须 `_ground_lock_ready` 且物理状态为 `detached`，否则直接进入 `FAIL_BASE_LOCK_NOT_READY`，不发出水位、机械臂或底盘动作。
 - [独立待查] Run #571 的 P85 自检记录 base=(0,0)，DrinkTask 配置服务位约 (1.75,0.35)，任务中 PLACE_ROBOT 的最终位置残差 1211.7mm。该位姿/场景初始化差异是物理锁握手修复后的下一项独立检查；不得通过改验收阈值或跳过位置确认规避。
 - [证据边界] Run #571 的 MCA 双臂服务 Smoke Test 通过，仅证明服务求解与 FK 复核可用；不证明完整机械臂动作或 DrinkTask E2E 通过。隔离 GroundFixedJoint 3/3 PASS 不等于生产 `work_area` PASS。完整任务仍未通过，E2E 成功轮数不增加。
-- [已提交代码待 CI] 本轮新增生产锁 topic 启动检查、主动 attach 状态探测、DrinkTask 任务入口 fail-closed 门控及对应离线回归断言；必须以本次提交后的 CI/Run 结果复验。不得降低底盘静止、杯体交接、IK、碰撞和释放门槛。
+- [已提交代码待 CI] 本轮新增生产锁 topic 启动检查、cmd_mux 锁定下的 detach→attach→detach 状态握手、DrinkTask 任务入口 fail-closed 门控，以及启动 home/hang 必须等待物理锁就绪并在物理保持下执行的保护；必须以本次提交后的 CI/Run 结果复验。不得降低底盘静止、杯体交接、IK、碰撞和释放门槛。
 
 ### 最新失败 Action 审计（2026-11-16）
 
@@ -142,6 +142,7 @@
 8. [未完成] Gazebo 实现使用已通过隔离测试的 DetachableJoint 适配器；SDF 拓扑、world/topic/entity 名称、Gazebo Sim 版本和 StringMsg 状态语义必须与运行环境一致。真实硬件通过独立外设接口实现，不能把仿真 joint 当成真实硬件方案。
 9. [未完成] 通过锁止状态注入 Nav2/follower/DrinkTask 命令、stale command、异常 detach/attach、Gazebo 插件丢失、状态 topic 超时等故障，验证 BT 不会启动手臂或错误释放物体。
 10. [正在进行中] `run_drink()` 入口已增加硬前置条件：物理锁必须完成启动握手且状态为 `detached`；检查位于水位重置、PREPARE、机械臂和底盘动作之前。对应源码回归测试已增加，等待 CI 验证。
+11. [正在进行中] `main()` 的开机 home/hang 曾在物理锁启动握手之前执行，属于任务入口门控之外的启动动作漏洞。现已改为等待物理锁握手完成、`set_base_lock(True)` 获得软件/物理双重确认后才执行 home/hang；任一步失败保持物理保持并中止启动，只有 home/hang 均成功才解锁导航。
 
 ### P105-06｜任务空间层级控制、双臂协同与杯体稳定
 
