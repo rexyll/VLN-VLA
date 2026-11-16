@@ -1706,3 +1706,13 @@
 - 新增 GroundFixedJoint verifier 后，Python 纯测试发现既有测试 `test_p104_stage_locks_are_commit_and_binary_bound` 仍通过精确步骤名称 `Verify immutable ChassisBrake stage locks` 检查 workflow 契约；步骤改名导致该测试失败（150 项中 149 项通过）。
 - 已保留原步骤名称前缀，并追加 `legacy non-authoritative diagnostic` 说明；继续保持 `continue-on-error: true`，不恢复旧门禁对 E2E 的阻断。
 - 此次为测试契约兼容性修正，不涉及物理参数、控制器或仿真模型。
+
+
+### 8.441 MCA ROS 2 工作区构建失败定位与 CMake 语言配置修正（2026-11-16）
+
+- 最新分支提交 `c9b1415445ef5418920eaecac6bf5743084e4e72` 的 E2E run `43861473838`（#572）已完成 GroundFixedJoint 隔离步骤和旧扰动非权威诊断，随后在 ROS 2 工作区构建阶段失败；完整 DrinkTask E2E 未启动。
+- 失败点为 `colcon build --packages-select vla_follow mca_drink_control` 配置 `mca_drink_control` 时，CMake 报告 `CMAKE_C_COMPILE_OBJECT`、`CMAKE_C_CREATE_SHARED_LIBRARY` 等 C 编译规则变量未设置。检查包的 `CMakeLists.txt` 发现项目仅声明 `project(mca_drink_control LANGUAGES CXX)`，而 ament/ROS 2 依赖配置过程中存在 C 语言目标，C 编译器语言未启用与错误直接吻合。
+- 已在提交 `da853e17a04facc7375c378727221e0696909154` 将项目语言声明改为 `LANGUAGES C CXX`，并添加注释说明启用 C 的原因。CI runner 已安装 `build-essential`，因此具备 C 编译器；此修正只完善 CMake 语言初始化，不更改算法、物理参数或验收阈值。
+- 已核对 `SolveIk.srv` 与 `mca_ik_server.cpp`：请求中的位置/姿态容差和最大迭代数字段均存在；双臂服务 smoke test 会设置这些字段，并通过独立 FK 复算限制位置残差 <=0.2mm、姿态残差 <=0.02°。当前尚未运行到服务测试，不能记为 DLS 服务通过。
+- 同一 #572 日志显示旧 ApplyLinkWrench baseline 的最大 yaw 响应约 `0.000115°`，低于既定 `0.5°` 物理响应门槛；该诊断保持 non-authoritative，不调整 torque、不降低门槛，也不阻断后续权威验收。
+- **当前状态：**等待 `da853e17` 的新 Actions 验证 CMake 配置、MCA 单元测试、双臂 DLS 服务 smoke test。只有这些步骤通过后，才继续 S-Curve 轨迹生成阶段；机械臂反作用力负载测试和连续两轮完整 Gazebo DrinkTask E2E 仍未通过，P104-10 总体保持进行中。
