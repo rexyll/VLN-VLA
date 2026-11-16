@@ -69,6 +69,41 @@ TEST(McaDrinkCore, RejectsInvalidDriveGeometry) {
   EXPECT_FALSE(drive.body_to_wheels(0.2, 0.0, left, right));
 }
 
+TEST(McaDrinkCore, SynchronizedSCurveAlignsAllJointFinishTimes) {
+  mca_drink_control::McaSynchronizedJointSCurve trajectory;
+  ASSERT_TRUE(trajectory.configure(
+      {0.0, 1.0, 2.0}, {1.0, -1.0, 2.0},
+      {0.5, 1.0, 0.3}, {1.0, 2.0, 1.0}, {4.0, 8.0, 4.0}));
+  ASSERT_TRUE(trajectory.valid());
+  ASSERT_EQ(trajectory.joint_count(), 3U);
+  ASSERT_GT(trajectory.duration_s(), 0.0);
+  std::vector<mca::trajectory::ScalarSample> finish;
+  ASSERT_TRUE(trajectory.sample(trajectory.duration_s(), finish));
+  ASSERT_EQ(finish.size(), 3U);
+  EXPECT_NEAR(finish[0].position, 1.0, 1e-10);
+  EXPECT_NEAR(finish[1].position, -1.0, 1e-10);
+  EXPECT_NEAR(finish[2].position, 2.0, 1e-10);
+  for (const auto& sample : finish) EXPECT_NEAR(sample.velocity, 0.0, 1e-10);
+
+  for (int i = 0; i <= 200; ++i) {
+    const double time = trajectory.duration_s() * i / 200.0;
+    std::vector<mca::trajectory::ScalarSample> values;
+    ASSERT_TRUE(trajectory.sample(time, values));
+    EXPECT_LE(std::abs(values[0].velocity), 0.5 + 1e-9);
+    EXPECT_LE(std::abs(values[1].velocity), 1.0 + 1e-9);
+    EXPECT_DOUBLE_EQ(values[2].position, 2.0);
+  }
+}
+
+TEST(McaDrinkCore, SynchronizedSCurveRejectsMismatchedOrUnsafeLimits) {
+  mca_drink_control::McaSynchronizedJointSCurve trajectory;
+  EXPECT_FALSE(trajectory.configure({0.0}, {1.0, 2.0}, {1.0},
+                                    {1.0}, {1.0}));
+  EXPECT_FALSE(trajectory.configure({0.0}, {1.0}, {0.0},
+                                    {1.0}, {1.0}));
+  EXPECT_FALSE(trajectory.valid());
+}
+
 TEST(McaDrinkCore, ParsesGeneratedRightAndLeftArmModelsAndMatchesPythonFK) {
   using namespace mca::kinematics;
   const std::pair<const char*, const char*> paths[] = {
