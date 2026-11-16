@@ -27,8 +27,8 @@
 - 最新完整 E2E 失败：#499（run `43852045489`，commit `f437098c24d4c241e87286622d655f1399b50f1e`）。`PRESENT_FOLLOW` 中杯体相对交接目标偏差 17.644mm、轴误差 1.544°，超过 6mm/0.5°硬门槛；follow 期间底盘被动移动，命令通道仍为零，轮端 effort 为零。该结果再次确认必须将物理锁止接入生产工作区。E2E 失败后保持持杯、不请求人手合拢、不交权的 fail-closed 行为正确。
 - MotionControlAlgorithms 当前审查基线：仓库 `rexyll/MotionControlAlgorithms`，main commit `c11091bd2bb3ce001eb09f2664c1ff5076f8a73b`，C++17 / Eigen3 / Apache-2.0。采用**选择性、固定版本引入**，不整仓合并；优先验证 Damped Least Squares IK、S-Curve 轨迹、差速运动学。Cartesian impedance/admittance、task-space hierarchy、CBF 等模块需先完成动力学/执行接口/约束建模适配审查，不作为第一批直接上线控制器。
 - 当前任务节点：**P105-05｜生产 Gazebo 物理底盘锁止接入与双层锁协议验证；并行推进 P105-02/03 的 MCA DLS ROS 2 服务接入**。
-- 总体状态：**正在进行中；MCA 首批算法头文件、DLS/S-Curve/差速运动学封装、同步多关节 S-Curve、左右臂 FK 交叉测试均已进入代码。#499 证明 MCA 单测通过不等于生产 E2E 通过。现已新增 MCA DLS ROS 2 service/server/client（CI 待验证），并将 DLS 作为 opt-in、硬门控后的候选精修，不替代 human IK/碰撞检查；同时已在生产 `work_area.sdf` 加入 Gazebo 8 DetachableJoint 世界锚点，并实现 startup verify 与软件 mux/物理 joint 双层锁协调（CI/E2E 待验证）。**
-- 本轮开始时 VLN-VLA 分支 HEAD 为 `acc45f8933f1bbb9aaea20511b1ba53c8291fd6e`。后续所有提交只允许落在本分支；不创建新分支，不修改/合并 main，不改变 PR #3 Draft/Open 状态。
+- 总体状态：**正在进行中；MCA 首批算法头文件、DLS/S-Curve/差速运动学封装、同步多关节 S-Curve、左右臂 FK 交叉测试均已进入代码。已新增 MCA DLS ROS 2 service/server/client 与双臂 service smoke test；DLS 仍为 opt-in、硬门控后的候选精修，不替代 human IK/碰撞检查。生产 `work_area.sdf` 已加入 Gazebo 8 DetachableJoint 世界锚点；DrinkTask 已实现启动 attached→detached 检查、软件 mux + 物理 joint 双层锁、锁止前新鲜 truth/joint/wheel 静止门控、attach/detach 前后位姿稳定性验证，以及软件锁/物理锁期间禁止主动底盘 pose correction。最新 CI/E2E 正在验证这些改动，尚未取得生产锁止 E2E PASS。**
+- 本轮开始时 VLN-VLA 分支 HEAD 为 `acc45f8933f1bbb9aaea20511b1ba53c8291fd6e`；当前代码基线已推进至 `7a8f60b4aac6a519c597b3666c7140ec8f6b00c9`（TaskPlan 本次更新后将再产生文档提交）。所有提交仍只允许落在本分支；不创建新分支，不修改/合并 main，不改变 PR #3 Draft/Open 状态。
 - 现有关键安全验收保持不变：交接位置误差 ≤6mm、轴向误差 ≤0.5°；底盘锁止目标线速度 <0.005m/s、角速度 <0.5°/s、1秒平移 <2mm、朝向变化 <0.5°。现有 IK、关节限位、碰撞与 swept-path、物体抓持/释放和任务后置条件均不得放宽。
 - 唯一指令出口约束继续有效：`drink_task.py` 的 39 路 `/drink/cmd/*` 仍须保持单一发布者和统一节拍。在 C++ 控制器迁移阶段，MCA 节点只提供经过验证的关节目标/轨迹，不得并行直接发布同一批 Gazebo joint command topic。
 - 历史记录中已完成的隔离 GroundFixedJoint 3/3 测试仍是有效的隔离测试证据，但不证明生产 `work_area` 已集成物理锁止，也不证明机械臂反作用力负载下生产场景通过。旧 ApplyLinkWrench/ChassisBrake 失败记录仅作历史诊断，不再作为当前主线前置门禁或优化方向。
@@ -88,7 +88,7 @@
 
 1. [正在进行中] 已建立无 ROS 依赖的 `McaArmCore`（DLS IK、同步多关节 S-Curve、差速运动学）；尚需补充实时性、奇异性指标、输入快照和 request_id 管理。
 2. [正在进行中] 已定义 `SolveIk.srv` 并新增 `mca_ik_server`：从安装的左右臂 URDF 加载 MCA RobotModel，接收 base-frame 末端 Pose + 7 轴实测 seed，返回关节解/残差/迭代数。CMake/rosidl 生成、类型支持链接、安装模型路径和 CI 编译仍待验证。
-3. [正在进行中] `drink_task.py` 已新增 MCA service client；`drink_motion.reach()` 仅在 `VLA_MCA_IK_ENABLED=1` 时调用 MCA DLS 作为现有 IK 的二次候选精修。候选必须通过有限值、关节限位、R1-R7 人体姿态、位置 ≤4mm、轴误差 ≤0.5°、human penalty 不恶化及后续 swept-path 碰撞门控；否则保留现有 IK，不下发 MCA 解。该 client 当前是同步有界调用，必须在进入固定周期执行路径前改为异步/非阻塞结果缓存；不得在实时发布 tick 中阻塞。
+3. [正在进行中] `drink_task.py` 已新增 MCA service client；`drink_motion.reach()` 仅在 `VLA_MCA_IK_ENABLED=1` 时调用 MCA DLS 作为现有 IK 的二次候选精修。CI 已新增双臂 ROS 2 service smoke test：由真实 `mca_ik_server` 载入生成的左右臂 URDF，分别执行近邻目标求解并用 Python FK 复核；待对应 colcon build/service job 完成。候选必须通过有限值、关节限位、R1-R7 人体姿态、位置 ≤4mm、轴误差 ≤0.5°、human penalty 不恶化及后续 swept-path 碰撞门控；否则保留现有 IK，不下发 MCA 解。该 client 当前是同步有界调用，必须在进入固定周期执行路径前改为异步/非阻塞结果缓存；不得在实时发布 tick 中阻塞。
 4. [未完成] Python `DrinkTask/CmdBus` 保留 39 路命令唯一发布者。MCA server 只返回候选解，不直接发布 `/drink/cmd/*`；经硬门控的唯一目标写入 CmdBus。控制器离线、状态过期、序列错乱、NaN/Inf、关节越限、规划失败时拒绝写入并触发 BT 安全恢复。
 5. [未完成] 所有输入输出统一 SI 单位：位置 m、角度 rad、速度 m/s 或 rad/s、加速度/jerk 对应 SI；消息字段与数组顺序必须显式命名，不允许仅依赖未文档化的数组索引。
 6. [未完成] 将控制器模式定义为 `IDLE → VALIDATING → PLANNING → EXECUTING → VERIFYING → SUCCEEDED/FAILED/SAFE_HOLD`；每次新目标有 request_id，旧目标/旧轨迹必须取消，不允许 stale trajectory 在任务切换后继续执行。
@@ -117,7 +117,7 @@
 
 1. [正在进行中] 已在生产 `work_area.sdf` 增加 `ground_lock_anchor` 静态锚点及 Gazebo Sim 8 `DetachableJoint`（world `follow_world`、child `robot::chassis`）；新增 `gazebo_ground_lock.py`，用 `gz.msgs10.StringMsg` 验证 `attached/detached`，用 `gz.msgs.Empty` topic command 切换状态。尚待 CI 的 SDF 加载与实际 attach/detach 结果。
 2. [正在进行中] `drink_task.py` 已新增 startup 检查：必须先观测初始 `attached`，再确认 detach 成功后才标记导航可用；状态缺失/未知/超时保持 fail-closed。尚需验证节点启动顺序、Gazebo callback 时序和启动失败时 Nav2 不会抢占。
-3. [正在进行中] 已将 `set_base_lock()` 改为双层协议：锁止时先 cmd_mux lock ACK，再物理 attach ACK；解锁时物理 detach ACK 后才允许 cmd_mux unlock。任何物理状态未确认均拒绝动作；mux 解锁失败则重新锁软件层并尝试物理 re-attach。需要补充锁止状态与 Gazebo truth pose/twist/wheel telemetry 的同步门控和故障注入测试。
+3. [正在进行中] 已将 `set_base_lock()` 改为双层协议：锁止时先 cmd_mux lock ACK→要求 truth twist 与 joint state 新鲜、双轮速度有效且连续 0.25s 满足线速度 <0.005m/s、角速度 <0.5°/s、轮速 <0.05rad/s→物理 attach ACK→再验证 0.30s 内底盘位移 <2mm、yaw <0.5°；解锁时先物理 detach ACK 并验证位姿稳定，再允许 cmd_mux unlock。任何状态/测量未确认均拒绝动作；mux 解锁失败则重新锁软件层并尝试物理 re-attach。已在软件锁或物理 joint attached 的整个窗口禁止主动底盘 pose correction；仍需故障注入及真实负载 E2E 验证。
 4. [未完成] 新增 `BaseMotionAuthority` 状态机，将 software cmd mux、Gazebo DetachableJoint/真实硬件外部制动器 adapter、底盘 truth monitor、Nav2/follower/DrinkTask command lease 纳入同一请求/确认协议。
 5. [未完成] 操作窗口申请保持时：先禁止新的普通底盘命令并清空缓存→确认底盘速度/轮速达到静止门槛→发起物理 attach/硬件锁止→等待 attached/locked 物理状态→用 truth pose/twist 和轮关节状态验证保持稳定；全部成功后才允许机械臂动作。
 6. [未完成] 保持期间，Nav2、follower、DrinkTask、旧 cmd_vel、CarryBus SetWorldPoseCmd 和其它普通移动入口全部拒绝；不得发送主动位姿补偿或底盘纠偏命令。急停/碰撞保护/故障保护保留最高优先级。
@@ -145,7 +145,7 @@
 
 ### P105-08｜诊断、基准、回归与完整 E2E 关闭
 
-1. [正在进行中] #499 已记录 `PRESENT_FOLLOW` 杯位偏差 17.644mm、轴误差 1.544°；机械臂 follow 期间 truth twist 出现非零脉冲，后续归零，wheel effort 仍为 0，命令通道峰值为 0。说明不是速度指令主动驱动，而是 chassis 被动响应 arm load。需从 artifact 导出峰值轨迹样本并在物理锁接入后做同条件 A/B。
+1. [正在进行中] #499（run `43852045489`）`PRESENT_FOLLOW` 共 111 个采样点、约 1.91s：底盘 max XY excursion 4.545mm、max yaw 1.579°、max speed 0.03040m/s、max yaw rate 14.554°/s、max wheel speed 1.252rad/s、wheel effort 0；`/drink/cmd_vel` 与 `/robot/cmd_vel` 峰值均为 0。最终杯体偏差 17.644mm、轴误差 1.544°。这是 arm load 被动激励底盘的直接证据；在物理锁接入后需同场景做 A/B，不能只以末端杯位误差推断底盘是否静止。
 2. [未完成] 新增统一 telemetry schema：单调时钟/仿真时钟、request_id、BT node、算法与版本、目标 pose、实际 pose、joint q/dq/effort、IK residual/iterations、trajectory q/dq/ddq/jerk、base truth pose/twist、wheel state、physical lock state、cup pose、碰撞距离、错误码。
 3. [未完成] 修复现有 `collect_base_arm_dynamics.py` 的 wheel_odometry 数据源契约：明确正确 Gazebo/ROS topic、消息类型、采样时钟和有效性标记；不得从 joint state 静默伪造 wheel odometry。collector 缺源时标记观测器失败，和产品功能失败分开统计。
 4. [未完成] 为 MCA 算法建立 C++ 单测、Python↔C++ 交叉测试、ROS adapter 测试、Gazebo 单动作测试和完整任务 E2E 五层测试；每层独立报告，不允许低层 PASS 推导高层 PASS。
