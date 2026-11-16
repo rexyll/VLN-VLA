@@ -18,6 +18,9 @@ import threading
 import time
 
 import gz.transport13 as gz_transport
+from google.protobuf import text_format
+from gz.msgs10.entity_pb2 import Entity
+from gz.msgs10.entity_wrench_pb2 import EntityWrench
 from gz.msgs10.model_pb2 import Model
 from gz.msgs10.pose_v_pb2 import Pose_V
 from gz.msgs10.stringmsg_pb2 import StringMsg
@@ -90,6 +93,24 @@ def publish(topic, msg_type, payload):
     return result.stdout
 
 
+class PersistentPublisher:
+    """Keep a Gazebo Transport publisher alive across repeated deliveries."""
+
+    def __init__(self, topic, message_type, payload):
+        self.topic = topic
+        self.node = gz_transport.Node()
+        self.publisher = self.node.advertise(topic, message_type)
+        if not self.publisher:
+            raise RuntimeError("cannot advertise Gazebo topic " + topic)
+        self.message = message_type()
+        text_format.Parse(payload, self.message)
+
+    def publish_once(self):
+        if not self.publisher.publish(self.message):
+            raise RuntimeError("Gazebo Transport publish returned false on " +
+                               self.topic)
+
+
 def topic_info(topic):
     result = subprocess.run(
         ["gz", "topic", "-i", "-t", topic],
@@ -126,6 +147,28 @@ def wait_for_subscriber(topic, message_type, timeout, log):
                        (message_type, topic))
 
 
+def wait_for_publisher(topic, message_type, timeout, log):
+    """Confirm our long-lived publisher is visible to Gazebo discovery."""
+    deadline = time.monotonic() + timeout
+    last_info = ""
+    while time.monotonic() < deadline:
+        last_info = topic_info(topic)
+        sections = re.split(r"Publishers\\s*\\[[^]]*\\]\\s*:", last_info,
+                            maxsplit=1, flags=re.IGNORECASE)
+        if len(sections) == 2:
+            publisher_section = sections[1].split("\\n\\n", 1)[0]
+            if message_type in publisher_section and "tcp://" in publisher_section:
+                log.write("publisher_visible topic=%s type=%s\\n%s\\n" %
+                          (topic, message_type, last_info))
+                log.flush()
+                return
+        time.sleep(0.1)
+    log.write("publisher_visibility_timeout topic=%s type=%s\\n%s\\n" %
+              (topic, message_type, last_info))
+    log.flush()
+    raise RuntimeError("Gazebo publisher not discovered for " + topic)
+
+
 def wait_until(predicate, timeout, description):
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
@@ -135,15 +178,23 @@ def wait_until(predicate, timeout, description):
     raise RuntimeError("timeout waiting for " + description)
 
 
-def measure(telemetry, duration):
+def measure_with_wrench(telemetry, duration, publisher, phase, log):
+    """Publish the same persistent wrench throughout the measurement window."""
     start_pose, _, _ = telemetry.snapshot()
     if start_pose is None:
         raise RuntimeError("robot pose not available")
     max_xy = 0.0
     max_yaw = 0.0
     max_wheel = 0.0
+    publish_count = 0
     deadline = time.monotonic() + duration
+    next_publish = time.monotonic()
     while time.monotonic() < deadline:
+        now = time.monotonic()
+        if now >= next_publish:
+            publisher.publish_once()
+            publish_count += 1
+            next_publish = now + 0.05
         pose, wheels, _ = telemetry.snapshot()
         if pose is not None:
             dx = pose[0] - start_pose[0]
@@ -155,9 +206,32 @@ def measure(telemetry, duration):
         if wheels:
             max_wheel = max(max_wheel, *(abs(v) for v in wheels.values()))
         time.sleep(0.01)
+    log.write("%s_wrench_publish_count=%d duration_s=%.3f\\n" %
+              (phase, publish_count, duration))
+    log.flush()
+    if publish_count < 5:
+        raise RuntimeError("%s wrench publisher delivered too few messages" % phase)
     return {"max_xy_mm": max_xy * 1000.0,
             "max_yaw_deg": max_yaw,
             "max_wheel_rad_s": max_wheel}
+
+
+def publish_clear_repeated(publisher, phase, log):
+    count = 0
+    deadline = time.monotonic() + 0.25
+    next_publish = time.monotonic()
+    while time.monotonic() < deadline:
+        publisher.publish_once()
+        count += 1
+        next_publish += 0.05
+        time.sleep(max(0.0, next_publish - time.monotonic()))
+    log.write("%s_wrench_clear_publish_count=%d entity=LINK:chassis\\n" %
+              (phase, count))
+    log.flush()
+    if count < 3:
+        raise RuntimeError("%s wrench clear published too few messages" % phase)
+
+
 
 
 def main():
@@ -193,38 +267,38 @@ def main():
                     "linear: {x: 0.0} angular: {z: 0.0}")
             time.sleep(0.5)
 
-            # Baseline: do not send a one-shot wrench until ApplyLinkWrench's
-            # transport subscriber is visible. A pose/joint-state publisher
-            # being alive does not imply this independent subscriber is ready.
+            # Both publishers are long-lived Gazebo Transport objects. Repeated
+            # messages span the complete measurement window so discovery startup
+            # cannot consume the only disturbance sample.
             wait_for_subscriber(WRENCH_TOPIC, "gz.msgs.EntityWrench", 15,
                                 runner_log)
-            # Target the canonical chassis link explicitly. ApplyLinkWrench
-            # supports both MODEL (canonical link) and LINK, but a direct LINK
-            # target removes model-to-canonical-link resolution ambiguity from
-            # this calibration experiment.
             wrench = ('entity: {name: "chassis" type: LINK} '
                       'wrench: {torque: {z: 18.0}}')
-            record("baseline_wrench_publish=" +
-                   publish(WRENCH_TOPIC, "gz.msgs.EntityWrench", wrench))
-            baseline = measure(telemetry, 1.0)
+            clear = 'name: "chassis" type: LINK'
+            wrench_pub = PersistentPublisher(WRENCH_TOPIC, EntityWrench, wrench)
+            clear_pub = PersistentPublisher(CLEAR_TOPIC, Entity, clear)
+            wait_for_publisher(WRENCH_TOPIC, "gz.msgs.EntityWrench", 15,
+                               runner_log)
+
+            # Baseline: the physical response gate remains the calibration
+            # proof that ApplyLinkWrench actually affected the chassis.
+            baseline = measure_with_wrench(
+                telemetry, 1.0, wrench_pub, "baseline", runner_log)
             record("baseline=" + repr(baseline))
-            publish(CLEAR_TOPIC, "gz.msgs.Entity",
-                    'name: "chassis" type: LINK')
+            publish_clear_repeated(clear_pub, "baseline", runner_log)
             time.sleep(0.5)
 
-            # Brake: latch current wheel angles, then apply the same disturbance.
+            # Brake: latch current wheel angles, then apply the identical,
+            # repeatedly published disturbance through the same publisher.
             publish(BRAKE_TOPIC, "gz.msgs.Boolean", "data: true")
             wait_until(lambda: any(s.startswith("LOCKED")
                                    for s in telemetry.snapshot()[2]),
                        5, "ChassisBrake LOCKED component acknowledgement")
-            wait_for_subscriber(WRENCH_TOPIC, "gz.msgs.EntityWrench", 15,
-                                runner_log)
-            record("locked_wrench_publish=" +
-                   publish(WRENCH_TOPIC, "gz.msgs.EntityWrench", wrench))
-            locked = measure(telemetry, 1.0)
+            locked = measure_with_wrench(
+                telemetry, 1.0, wrench_pub, "locked", runner_log)
             record("locked=" + repr(locked))
-            publish(CLEAR_TOPIC, "gz.msgs.Entity",
-                    'name: "robot" type: MODEL')
+            publish_clear_repeated(clear_pub, "locked", runner_log)
+            time.sleep(0.25)
 
             publish(BRAKE_TOPIC, "gz.msgs.Boolean", "data: false")
             wait_until(lambda: any(s.startswith("UNLOCKED")
