@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>mca_drink_control</name>
+  <version>0.1.0</version>
+  <description>Selected MotionControlAlgorithms integration for VLN-VLA DrinkTask.</description>
+  <maintainer email="rexyll@gmail.com">rexyll</maintainer>
+  <license>Apache-2.0</license>
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <test_depend>ament_cmake_gtest</test_depend>
+  <export><build_type>ament_cmake</build_type></export>
+</package>
