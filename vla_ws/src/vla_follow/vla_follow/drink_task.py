@@ -806,61 +806,162 @@ class DrinkTask(Node):
             self.get_logger().warn('DRINK_BASE_LOCK invalid mux acknowledgement')
 
     def _startup_ground_lock_tick(self):
-        """Actively verify the physical joint; do not rely on a one-shot boot event.
+        """Start a serialized, software-locked physical-joint handshake.
 
-        Gazebo may publish the initial attached state before drink_task subscribes.
-        Re-issuing attach is safe and forces a fresh state event before navigation
-        is enabled. If that acknowledgement cannot be observed, remain fail-closed.
+        DetachableJoint publishes state only when its attached state changes.
+        Its initial attached event can precede this subscriber, and an attach
+        request while already attached is intentionally ignored by Gazebo.
+        Therefore startup must lock the mux, observe a real detach→attach→detach
+        transition sequence, then unlock navigation.
         """
         if self._ground_lock_ready:
             self._ground_lock_start_timer.cancel()
             return
-        if self._ground_lock is None:
-            if not self._ground_lock_startup_reported:
+        if self._ground_lock_startup_reported or self._ground_lock is None:
+            if self._ground_lock is None and not self._ground_lock_startup_reported:
                 self.get_logger().error(
                     'PHYSICAL_CHASSIS_LOCK unavailable; navigation/task motion remains blocked')
                 self._ground_lock_startup_reported = True
             return
+        if self._ground_lock_probe_attempted:
+            return
+        if time.monotonic() - self._ground_lock_start_t < 2.0:
+            return
 
-        state = self._ground_lock.state
-        if state is None:
-            # Do not assume a missed, non-latched startup publication means the
-            # plugin is absent. Actively request attached once to obtain a fresh ACK.
-            if not self._ground_lock_probe_attempted:
-                if time.monotonic() - self._ground_lock_start_t < 2.0:
-                    return
-                self._ground_lock_probe_attempted = True
-                self.get_logger().warn(
-                    'PHYSICAL_CHASSIS_LOCK no initial state event; issuing active attach probe')
-                if not self._ground_lock.command('attached', timeout_s=5.0):
-                    self.get_logger().error(
-                        'PHYSICAL_CHASSIS_LOCK startup timeout: no DetachableJoint state '
-                        'after active attach probe; fail closed')
-                    self._ground_lock_start_timer.cancel()
-                    return
-                state = self._ground_lock.state
-            else:
-                if time.monotonic() - self._ground_lock_start_t > 20.0:
-                    self.get_logger().error(
-                        'PHYSICAL_CHASSIS_LOCK startup timeout: no DetachableJoint state')
-                    self._ground_lock_start_timer.cancel()
-                return
-
-        if state != 'attached':
+        initial_state = self._ground_lock.state
+        if initial_state not in (None, 'attached'):
             self.get_logger().error(
-                'PHYSICAL_CHASSIS_LOCK startup expected attached, got %s; fail closed'
-                % state)
+                'PHYSICAL_CHASSIS_LOCK startup expected attached or not-yet-observed, got %s; fail closed'
+                % initial_state)
+            self._ground_lock_startup_reported = True
             self._ground_lock_start_timer.cancel()
             return
-        if not self._ground_lock.command('detached', timeout_s=5.0):
-            self.get_logger().error(
-                'PHYSICAL_CHASSIS_LOCK startup detach unconfirmed; fail closed')
-            self._ground_lock_start_timer.cancel()
-            return
-        self._ground_lock_ready = True
-        self._ground_lock_start_timer.cancel()
+
+        self._ground_lock_probe_attempted = True
         self.get_logger().info(
-            'PHYSICAL_CHASSIS_LOCK startup verified attached then detached; navigation enabled')
+            'PHYSICAL_CHASSIS_LOCK starting mux-locked detach/attach/detach state probe')
+        self._ground_lock_startup_thread = threading.Thread(
+            target=self._startup_ground_lock_handshake,
+            name='physical-chassis-lock-startup', daemon=True)
+        self._ground_lock_startup_thread.start()
+
+    def _startup_ground_lock_handshake(self):
+        """Exercise real DetachableJoint state transitions while cmd_mux is locked."""
+        mux_locked = False
+        physical_may_be_detached = False
+
+        def mux_request(locked, timeout_s=5.0):
+            if self.pub_base_lock is None:
+                return False
+            self._base_lock_request_id += 1
+            request_id = self._base_lock_request_id
+            self._base_lock_active = bool(locked)
+            payload = String(data=json.dumps({
+                'locked': bool(locked), 'request_id': request_id}))
+            deadline = time.monotonic() + timeout_s
+            while time.monotonic() < deadline:
+                self.pub_base_lock.publish(payload)
+                ack = self._base_lock_ack
+                if (ack is not None and ack[0] == request_id
+                        and ack[1] == bool(locked)
+                        and time.monotonic() - ack[2] < 0.5):
+                    return True
+                time.sleep(0.1)
+            if not locked:
+                self._base_lock_active = True
+            return False
+
+        def wait_stationary(timeout_s=5.0, stable_s=0.25):
+            deadline = time.monotonic() + timeout_s
+            stable_since = None
+            while time.monotonic() < deadline:
+                now = time.monotonic()
+                if self._chassis_stationary_sample():
+                    if stable_since is None:
+                        stable_since = now
+                    if now - stable_since >= stable_s:
+                        return True
+                else:
+                    stable_since = None
+                time.sleep(0.02)
+            return False
+
+        def pose_stable(before, label, window_s=0.30):
+            if before is None or before[0] is None:
+                return False
+            deadline = time.monotonic() + window_s
+            while time.monotonic() < deadline:
+                if not self._chassis_stationary_sample():
+                    return False
+                time.sleep(0.02)
+            after = self.truth_base_pose_snapshot
+            if (after is None or time.monotonic() - after[1] > 0.25
+                    or not self._chassis_stationary_sample()):
+                return False
+            bx, by, byaw = before[0]
+            ax, ay, ayaw = after[0]
+            displacement_mm = math.hypot(ax - bx, ay - by) * 1000.0
+            yaw_delta = abs(math.degrees(math.atan2(
+                math.sin(ayaw - byaw), math.cos(ayaw - byaw))))
+            self.get_logger().info(
+                'PHYSICAL_CHASSIS_LOCK startup_%s displacement_mm=%.3f yaw_deg=%.4f'
+                % (label, displacement_mm, yaw_delta))
+            return displacement_mm < 2.0 and yaw_delta < 0.5
+
+        try:
+            # Do not send any physical transition until the software command
+            # arbiter has acknowledged LOCKED and truth/wheels are stationary.
+            if not mux_request(True):
+                raise RuntimeError('software mux lock acknowledgement timeout')
+            mux_locked = True
+            if not wait_stationary():
+                raise RuntimeError('fresh truth/joint/wheel stationary gate failed')
+
+            before = self.truth_base_pose_snapshot
+            if not self._ground_lock.command('detached', timeout_s=5.0):
+                raise RuntimeError('initial detach transition was not acknowledged')
+            physical_may_be_detached = True
+            if not pose_stable(before, 'detach'):
+                raise RuntimeError('base pose changed during startup detach')
+
+            before = self.truth_base_pose_snapshot
+            if not self._ground_lock.command('attached', timeout_s=5.0):
+                raise RuntimeError('attach transition was not acknowledged')
+            physical_may_be_detached = False
+            if not pose_stable(before, 'attach'):
+                raise RuntimeError('base pose changed during startup attach')
+
+            before = self.truth_base_pose_snapshot
+            if not self._ground_lock.command('detached', timeout_s=5.0):
+                raise RuntimeError('final detach transition was not acknowledged')
+            physical_may_be_detached = True
+            if not pose_stable(before, 'final_detach'):
+                raise RuntimeError('base pose changed during final startup detach')
+
+            if not mux_request(False):
+                # Restore physical hold if software navigation cannot safely
+                # regain authority. Never leave an ambiguous unlocked startup.
+                self._ground_lock.command('attached', timeout_s=5.0)
+                physical_may_be_detached = False
+                raise RuntimeError('software mux unlock acknowledgement timeout')
+            mux_locked = False
+            self._base_lock_active = False
+            self._ground_lock_ready = True
+            self.get_logger().info(
+                'PHYSICAL_CHASSIS_LOCK startup PASS: mux locked, '
+                'attached→detached→attached→detached verified; navigation enabled')
+        except Exception as exc:
+            # Keep the mux locked on every failure. If the last confirmed state
+            # may be detached, attempt to restore the physical anchor as well.
+            if mux_locked and physical_may_be_detached:
+                if self._ground_lock.command('attached', timeout_s=5.0):
+                    self.get_logger().warn(
+                        'PHYSICAL_CHASSIS_LOCK startup failure: physical anchor restored')
+            self._base_lock_active = True if mux_locked else self._base_lock_active
+            self._ground_lock_startup_reported = True
+            self.get_logger().error(
+                'PHYSICAL_CHASSIS_LOCK startup handshake failed: %s; '
+                'navigation/task motion remains blocked' % exc)
 
     def _set_mux_base_lock(self, locked, timeout=2.0):
         """Request the software command-arbitration lock and verify its ACK."""
