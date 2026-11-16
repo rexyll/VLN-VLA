@@ -79,7 +79,7 @@
 
 1. [已完成] 锁定上游 MCA commit `c11091bd2bb3ce001eb09f2664c1ff5076f8a73b`；审计第一批候选模块的依赖闭包：当前已选 DLS/Numerical IK、serial URDF model、FK、SE(3)、S-Curve、DifferentialDrive；DLS 当前使用有限差分，不依赖 MCA Jacobian 模块。首批已导入头文件为 C++17、header-only，当前这组算法未直接依赖 Eigen3 或外部子模块；Eigen-based impedance/QP/CBF 后续单独评估。
 2. [已完成｜初始模型一致性] 已新增 `tools/export_arm_urdf.py`，从 `vla_follow.arm_kin` 的唯一运动学参数生成左右臂串联 URDF 和 Python FK 参考样本；CI #489 的 C++ 测试已用 MCA `UrdfModelAdapter` 解析左右模型，并对两侧各 3 组姿态的 4×4 FK 变换逐项比对通过。后续仍需增加随机合法状态、限位边界、奇异邻域和左右镜像专门用例：两侧 7 轴关节名称/顺序、joint type、origin、axis、limits、左右镜像、base-to-shoulder transform、wrist-to-palm transform、角度单位；生成自动化模型一致性报告。不得通过更改现有模型参数让两套 FK 人为吻合。
-3. [已完成｜CI 首轮构建通过] 在 `vla_ws/src/mca_drink_control` 建立 ament_cmake ROS 2 Jazzy 包；保持 `vla_follow` 的 ament_python 包不被强制改造成混合构建。建立独立 `mca_drink_core` header-only 接口目标；当前 package 仅声明 ament_cmake 与 ament_cmake_gtest，不引入不必要的 Eigen3/ROS runtime 依赖。ROS 2 adapter 依赖留待 P105-02。CI 已加入该 package 的 colcon build/test 步骤及 MCA vendored 文件完整性校验，等待最新提交对应的首轮结果。
+3. [正在进行中] `mca_drink_control` 已由纯 header-only 核心包扩展为 ROS 2 Jazzy service package：新增 rosidl `SolveIk.srv`、`mca_ik_server`、ament_index_cpp/geometry_msgs/rclcpp 依赖，并安装由 `arm_kin.py` 生成的左右臂 URDF。当前提交等待 CI 验证 CMake/typesupport 链接、安装模型路径和运行时服务可用性。
 4. [已完成｜10/10 上游 blob 一致性通过] 仅 vendoring 经批准的最小源文件集合；同步 `LICENSE`、`NOTICE`，新增 `THIRD_PARTY_NOTICES.md`、`README.md` 与 `MCA_UPSTREAM.lock`（commit、路径、许可、修改记录）；已逐文件比对 GitHub 上游与 vendored Git blob SHA-1，10/10 文件完全一致；新增 `verify_vendor.py` 在 CI 复算 Git blob object ID。该值是 Git blob SHA-1，不冒称 SHA-256。不复制不相关 EtherCAT/FOC/UAV/legged 产物。
 5. [已完成｜首批 5 项 C++ 测试通过] 已增加 DLS 可达链、S-Curve 约束、差速运动学和左右臂 MCA FK 对 Python `arm_kin.fk` 三组姿态的交叉测试；CI #489 colcon test/test-result 通过。后续再增加随机合法状态、奇异邻域、非有限输入、关节越界和不可达目标：FK 基准点、随机合法关节状态、左右臂镜像、边界姿态、奇异邻域、非有限输入、关节越界、不可达目标。对每组输入比较 FK 位置/姿态差，定义并冻结模型一致性容差。
 6. [未完成] 验证 Windows/Linux 不作为本项目强制目标；当前最低交付平台为 CI 使用的 Ubuntu + ROS 2 Jazzy + Gazebo Harmonic。记录编译器、Eigen、ROS/Gazebo 版本及依赖 hash。
@@ -90,9 +90,9 @@
 2. [正在进行中] 已定义 `SolveIk.srv` 并新增 `mca_ik_server`：从安装的左右臂 URDF 加载 MCA RobotModel，接收 base-frame 末端 Pose + 7 轴实测 seed，返回关节解/残差/迭代数。CMake/rosidl 生成、类型支持链接、安装模型路径和 CI 编译仍待验证。
 3. [正在进行中] `drink_task.py` 已新增 MCA service client；`drink_motion.reach()` 仅在 `VLA_MCA_IK_ENABLED=1` 时调用 MCA DLS 作为现有 IK 的二次候选精修。候选必须通过有限值、关节限位、R1-R7 人体姿态、位置 ≤4mm、轴误差 ≤0.5°、human penalty 不恶化及后续 swept-path 碰撞门控；否则保留现有 IK，不下发 MCA 解。该 client 当前是同步有界调用，必须在进入固定周期执行路径前改为异步/非阻塞结果缓存；不得在实时发布 tick 中阻塞。
 4. [未完成] Python `DrinkTask/CmdBus` 保留 39 路命令唯一发布者。MCA server 只返回候选解，不直接发布 `/drink/cmd/*`；经硬门控的唯一目标写入 CmdBus。控制器离线、状态过期、序列错乱、NaN/Inf、关节越限、规划失败时拒绝写入并触发 BT 安全恢复。
-4. [未完成] 所有输入输出统一 SI 单位：位置 m、角度 rad、速度 m/s 或 rad/s、加速度/jerk 对应 SI；消息字段与数组顺序必须显式命名，不允许仅依赖未文档化的数组索引。
-5. [未完成] 将控制器模式定义为 `IDLE → VALIDATING → PLANNING → EXECUTING → VERIFYING → SUCCEEDED/FAILED/SAFE_HOLD`；每次新目标有 request_id，旧目标/旧轨迹必须取消，不允许 stale trajectory 在任务切换后继续执行。
-6. [未完成] 将 ROS callback 与控制计算隔离；控制循环采用固定周期、输入快照和有界计算；记录周期抖动、最大执行时间、丢帧和超时。不得在实时控制路径做阻塞服务调用、文件 IO 或无界内存分配。
+5. [未完成] 所有输入输出统一 SI 单位：位置 m、角度 rad、速度 m/s 或 rad/s、加速度/jerk 对应 SI；消息字段与数组顺序必须显式命名，不允许仅依赖未文档化的数组索引。
+6. [未完成] 将控制器模式定义为 `IDLE → VALIDATING → PLANNING → EXECUTING → VERIFYING → SUCCEEDED/FAILED/SAFE_HOLD`；每次新目标有 request_id，旧目标/旧轨迹必须取消，不允许 stale trajectory 在任务切换后继续执行。
+7. [未完成] 将 ROS callback 与控制计算隔离；控制循环采用固定周期、输入快照和有界计算；记录周期抖动、最大执行时间、丢帧和超时。不得在实时控制路径做阻塞服务调用、文件 IO 或无界内存分配。
 
 ### P105-03｜DLS IK 迁移与对照验收
 
