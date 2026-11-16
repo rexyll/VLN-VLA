@@ -3817,6 +3817,13 @@ class TestPhysicalGazeboChassisLock(unittest.TestCase):
         self.assertIn("command('attached'", handshake)
         self.assertIn("mux_request(False)", handshake)
         self.assertIn("physical anchor restored", handshake)
+        lock_client_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
+            'gazebo_ground_lock.py')
+        with open(lock_client_path, encoding='utf-8') as stream:
+            lock_client = stream.read()
+        self.assertIn("force=False", lock_client)
+        self.assertIn("self.state == expected and not force", lock_client)
         self.assertIn('self._ground_lock_ready = True', handshake)
 
     def test_drink_task_entry_fails_closed_before_any_actuator_command(self):
