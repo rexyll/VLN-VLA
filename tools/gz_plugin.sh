@@ -2,7 +2,7 @@
 # gz_plugin.sh —— 由 start_scene.sh / start_demo.sh **source**, 不要直接执行
 #
 # 负责两件事:
-#   1) 保证 gz 系统插件 `GraspCarry` 已编译(没有就现编)
+#   1) 保证 gz 系统插件 `GraspCarry` 与实验性 `ChassisBrake` 已编译(没有就现编)
 #   2) export GZ_SIM_SYSTEM_PLUGIN_PATH, 让 `gz sim` 能通过 SDF 里的
 #      <plugin filename="libGraspCarry.so" ...> 找到它
 #
@@ -16,19 +16,20 @@ export VLA_HOME="${VLA_HOME:-/home/earl/workspace/VLA}"
 
 _PLUG_SRC="$VLA_HOME/vla_ws/src/vla_follow/gz_plugins"
 _PLUG_SO="$_PLUG_SRC/build/libGraspCarry.so"
+_BRAKE_SO="$_PLUG_SRC/build/libChassisBrake.so"
 
-if [ ! -f "$_PLUG_SO" ]; then
-    echo ">>> 首次编译 gz 插件 GraspCarry ..."
+if [ ! -f "$_PLUG_SO" ] || [ ! -f "$_BRAKE_SO" ]; then
+    echo ">>> 编译 gz 插件 GraspCarry / ChassisBrake ..."
     mkdir -p "$VLA_HOME/vla_ws/logs"
     cmake -S "$_PLUG_SRC" -B "$_PLUG_SRC/build" -DCMAKE_BUILD_TYPE=Release \
         > "$VLA_HOME/vla_ws/logs/plugin_cmake.log" 2>&1
     cmake --build "$_PLUG_SRC/build" -j"$(nproc)" \
         >> "$VLA_HOME/vla_ws/logs/plugin_cmake.log" 2>&1
-    if [ -f "$_PLUG_SO" ]; then
-        echo ">>> GraspCarry 编译完成"
+    if [ -f "$_PLUG_SO" ] && [ -f "$_BRAKE_SO" ]; then
+        echo ">>> GraspCarry / ChassisBrake 编译完成"
     else
-        echo "!!! GraspCarry 编译失败, 见 logs/plugin_cmake.log"
-        echo "    (抓取附着会失效: 壶/杯不会被手带着走)"
+        echo "!!! Gazebo 插件编译失败, 见 logs/plugin_cmake.log"
+        echo "    missing: GraspCarry=$([ -f "$_PLUG_SO" ] && echo no || echo yes) ChassisBrake=$([ -f "$_BRAKE_SO" ] && echo no || echo yes)"
     fi
 fi
 
