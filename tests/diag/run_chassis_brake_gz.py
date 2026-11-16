@@ -122,7 +122,7 @@ def topic_info(topic):
 
 
 def wait_for_subscriber(topic, message_type, timeout, log):
-    """Require a live Gazebo Transport subscriber before one-shot publish."""
+    """Require the ApplyLinkWrench subscriber before advertising the publisher."""
     deadline = time.monotonic() + timeout
     last_info = ""
     while time.monotonic() < deadline:
@@ -153,17 +153,17 @@ def wait_for_publisher(topic, message_type, timeout, log):
     last_info = ""
     while time.monotonic() < deadline:
         last_info = topic_info(topic)
-        sections = re.split(r"Publishers\\s*\\[[^]]*\\]\\s*:", last_info,
+        sections = re.split(r"Publishers\s*\[[^]]*\]\s*:", last_info,
                             maxsplit=1, flags=re.IGNORECASE)
         if len(sections) == 2:
-            publisher_section = sections[1].split("\\n\\n", 1)[0]
+            publisher_section = sections[1].split("\n\n", 1)[0]
             if message_type in publisher_section and "tcp://" in publisher_section:
-                log.write("publisher_visible topic=%s type=%s\\n%s\\n" %
+                log.write("publisher_visible topic=%s type=%s\n%s\n" %
                           (topic, message_type, last_info))
                 log.flush()
                 return
         time.sleep(0.1)
-    log.write("publisher_visibility_timeout topic=%s type=%s\\n%s\\n" %
+    log.write("publisher_visibility_timeout topic=%s type=%s\n%s\n" %
               (topic, message_type, last_info))
     log.flush()
     raise RuntimeError("Gazebo publisher not discovered for " + topic)
@@ -206,7 +206,7 @@ def measure_with_wrench(telemetry, duration, publisher, phase, log):
         if wheels:
             max_wheel = max(max_wheel, *(abs(v) for v in wheels.values()))
         time.sleep(0.01)
-    log.write("%s_wrench_publish_count=%d duration_s=%.3f\\n" %
+    log.write("%s_wrench_publish_count=%d duration_s=%.3f\n" %
               (phase, publish_count, duration))
     log.flush()
     if publish_count < 5:
@@ -225,7 +225,7 @@ def publish_clear_repeated(publisher, phase, log):
         count += 1
         next_publish += 0.05
         time.sleep(max(0.0, next_publish - time.monotonic()))
-    log.write("%s_wrench_clear_publish_count=%d entity=LINK:chassis\\n" %
+    log.write("%s_wrench_clear_publish_count=%d entity=LINK:chassis\n" %
               (phase, count))
     log.flush()
     if count < 3:
@@ -276,8 +276,12 @@ def main():
                       'wrench: {torque: {z: 18.0}}')
             clear = 'name: "chassis" type: LINK'
             wrench_pub = PersistentPublisher(WRENCH_TOPIC, EntityWrench, wrench)
+            wait_for_subscriber(CLEAR_TOPIC, "gz.msgs.Entity", 15,
+                                runner_log)
             clear_pub = PersistentPublisher(CLEAR_TOPIC, Entity, clear)
             wait_for_publisher(WRENCH_TOPIC, "gz.msgs.EntityWrench", 15,
+                               runner_log)
+            wait_for_publisher(CLEAR_TOPIC, "gz.msgs.Entity", 15,
                                runner_log)
 
             # Baseline: the physical response gate remains the calibration
