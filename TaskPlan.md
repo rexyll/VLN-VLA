@@ -1256,3 +1256,13 @@
 - P104-10.1 物理制动插件仍未实现；本轮未修改轮端 effort/damping、摩擦、质量、控制器增益或交接阈值。P104-10.2/10.3 仍未完成。`main` 未修改，PR #3 继续 Draft/Open。
 
 - 追加遥测完整性门槛：collector 不仅要求收到 `joint_state` 消息，还必须在消息中观察到 `left_wheel_joint`、`right_wheel_joint` 及 14 个机械臂主关节；缺任意一个均以非零退出，不能再出现“JSONL 有数据但 wheel/arm 速度为空”仍被视为采集成功的情况。该门槛及静态回归已加入，等待最新 CI 实测。
+
+
+### 8.409 建立隔离式 Gazebo 轮端 PD 制动实验（2026-11-16）
+
+- 已核对 Gazebo Sim 8 源码：`DiffDrive::PreUpdate` 每个仿真周期持续写入驱动轮 `JointVelocityCmd`；`Physics` 处理关节命令时若存在 `JointForceCmd`，优先施加力矩且跳过 `JointVelocityCmd`。因此制动控制器必须持续更新 `JointForceCmd`，解锁时必须删除该组件，不能只发送零速度。
+- 新增实验性 `ChassisBrake` 系统插件：锁定时读取左右轮当前角度作为保持目标，使用有界 PD 力矩（SDF 参数配置，默认最大 5Nm，不超过现有轮关节 effort limit）；解锁时移除左右轮 `JointForceCmd`，让 DiffDrive 速度控制恢复。插件 ACK 只确认力矩命令组件已安装/移除，不宣称物理静止。
+- 新增独立测试世界 `tests/diag/chassis_brake_test.sdf`，包含 DiffDrive、JointStatePublisher、ApplyLinkWrench 和 ChassisBrake；新增 `test_chassis_brake_gz.py`，用可重复的外部 yaw wrench 对比零速度基线与 PD 制动，并验证解锁后底盘重新响应 DiffDrive 速度命令。
+- 新插件仅构建并在隔离测试世界加载，**没有**加入 `work_area.sdf`，未接入 DrinkTask / cmd_mux；生产 E2E 仍使用原始 DiffDrive，直到隔离测试与物理验收门槛通过。
+- CMake、`tools/gz_plugin.sh` 和 P104 workflow 已加入新插件构建、动态库依赖检查及隔离仿真实验步骤。当前状态为实现已提交、等待 CI 编译和真实 Gazebo 力矩/保持/解锁验证；不能将代码存在视为物理制动通过。
+- P104-10.1 仍为正在进行中；P104-10.2 独立位姿/轮速静止确认与 P104-10.3 机械臂反作用力回归仍未完成。不得修改生产世界的摩擦、阻尼、质量、5Nm effort limit 或任何任务验收阈值。
