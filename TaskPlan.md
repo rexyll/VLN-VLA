@@ -79,8 +79,8 @@
 
 1. [已完成] 锁定上游 MCA commit `c11091bd2bb3ce001eb09f2664c1ff5076f8a73b`；审计第一批候选模块的依赖闭包：当前已选 DLS/Numerical IK、serial URDF model、FK、SE(3)、S-Curve、DifferentialDrive；DLS 当前使用有限差分，不依赖 MCA Jacobian 模块。首批已导入头文件为 C++17、header-only，当前这组算法未直接依赖 Eigen3 或外部子模块；Eigen-based impedance/QP/CBF 后续单独评估。
 2. [正在进行中] 已新增 `tools/export_arm_urdf.py`，从 `vla_follow.arm_kin` 的唯一运动学参数生成左右臂串联 URDF 和 Python FK 参考样本；C++ 测试将用 MCA `UrdfModelAdapter` 解析生成模型，并逐点比较 FK。仍需 CI 实测验证肩部偏置、7 轴顺序、轴向、关节限位、左右镜像和掌端 35mm 偏置：两侧 7 轴关节名称/顺序、joint type、origin、axis、limits、左右镜像、base-to-shoulder transform、wrist-to-palm transform、角度单位；生成自动化模型一致性报告。不得通过更改现有模型参数让两套 FK 人为吻合。
-3. [已完成｜初始包骨架] 在 `vla_ws/src/mca_drink_control` 建立 ament_cmake ROS 2 Jazzy 包；保持 `vla_follow` 的 ament_python 包不被强制改造成混合构建。建立独立 `mca_drink_core` header-only 接口目标；当前 package 仅声明 ament_cmake 与 ament_cmake_gtest，不引入不必要的 Eigen3/ROS runtime 依赖。ROS 2 adapter 依赖留待 P105-02。CI 已加入该 package 的 colcon build/test 步骤，等待首轮结果。
-4. [已完成｜首批文件] 仅 vendoring 经批准的最小源文件集合；同步 `LICENSE`、`NOTICE`，新增 `THIRD_PARTY_NOTICES.md`、`README.md` 与 `MCA_UPSTREAM.lock`（commit、路径、许可、修改记录）；逐文件 SHA-256 核验尚待加入并在 CI 验证。不复制不相关 EtherCAT/FOC/UAV/legged 产物。
+3. [已完成｜初始包骨架] 在 `vla_ws/src/mca_drink_control` 建立 ament_cmake ROS 2 Jazzy 包；保持 `vla_follow` 的 ament_python 包不被强制改造成混合构建。建立独立 `mca_drink_core` header-only 接口目标；当前 package 仅声明 ament_cmake 与 ament_cmake_gtest，不引入不必要的 Eigen3/ROS runtime 依赖。ROS 2 adapter 依赖留待 P105-02。CI 已加入该 package 的 colcon build/test 步骤及 MCA vendored 文件完整性校验，等待最新提交对应的首轮结果。
+4. [已完成｜首批文件] 仅 vendoring 经批准的最小源文件集合；同步 `LICENSE`、`NOTICE`，新增 `THIRD_PARTY_NOTICES.md`、`README.md` 与 `MCA_UPSTREAM.lock`（commit、路径、许可、修改记录）；已逐文件比对 GitHub 上游与 vendored Git blob SHA-1，10/10 文件完全一致；新增 `verify_vendor.py` 在 CI 复算 Git blob object ID。该值是 Git blob SHA-1，不冒称 SHA-256。不复制不相关 EtherCAT/FOC/UAV/legged 产物。
 5. [正在进行中] 已增加 DLS 可达链、S-Curve 约束、差速运动学 C++ 单元测试，并新增左右臂 MCA FK 对 Python `arm_kin.fk` 三组姿态的交叉测试；待 CI 实际构建/执行通过后关闭本项。后续再增加随机合法状态、奇异邻域、非有限输入、关节越界和不可达目标：FK 基准点、随机合法关节状态、左右臂镜像、边界姿态、奇异邻域、非有限输入、关节越界、不可达目标。对每组输入比较 FK 位置/姿态差，定义并冻结模型一致性容差。
 6. [未完成] 验证 Windows/Linux 不作为本项目强制目标；当前最低交付平台为 CI 使用的 Ubuntu + ROS 2 Jazzy + Gazebo Harmonic。记录编译器、Eigen、ROS/Gazebo 版本及依赖 hash。
 
