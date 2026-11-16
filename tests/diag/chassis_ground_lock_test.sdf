@@ -1,5 +1,6 @@
 <?xml version="1.0" ?>
 <sdf version="1.9">
+  <!-- Dedicated fixed-joint test world: no ApplyLinkWrench or wheel-brake plugin. -->
   <world name="brake_test">
     <physics name="1ms" type="ignored">
       <max_step_size>0.001</max_step_size>
@@ -8,7 +9,6 @@
     <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"/>
     <plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands"/>
     <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"/>
-    <plugin filename="gz-sim-apply-link-wrench-system" name="gz::sim::systems::ApplyLinkWrench"/>
 
     <light name="sun" type="directional">
       <pose>0 0 10 0 0 0</pose>
@@ -99,15 +99,6 @@
         <min_linear_acceleration>-0.8</min_linear_acceleration>
         <max_angular_acceleration>3.0</max_angular_acceleration>
         <min_angular_acceleration>-3.0</min_angular_acceleration>
-      </plugin>
-      <plugin filename="libChassisBrake.so" name="vla::ChassisBrake">
-        <left_joint>left_wheel_joint</left_joint>
-        <right_joint>right_wheel_joint</right_joint>
-        <command_topic>/chassis_brake/enable</command_topic>
-        <status_topic>/chassis_brake/status</status_topic>
-        <position_kp>80.0</position_kp>
-        <velocity_kd>2.0</velocity_kd>
-        <max_torque>5.0</max_torque>
       </plugin>
       <plugin filename="gz-sim-joint-state-publisher-system"
               name="gz::sim::systems::JointStatePublisher">
