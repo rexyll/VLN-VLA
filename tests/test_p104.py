@@ -777,7 +777,14 @@ class TestP104(unittest.TestCase):
         self.assertIn('subprocess.run(', script)
         self.assertIn('0.05,0.075,0.1,0.15,0.25,0.4,0.6,0.9', script)
         self.assertIn('if baseline["max_yaw_deg"] < 0.5:', script)
-        self.assertIn('baseline disturbance too weak', script)
+        self.assertIn('baseline disturbance not physically observed', script)
+        self.assertIn('WRENCH_ENTITY_NAME = "robot"', script)
+        self.assertIn('WRENCH_ENTITY_TYPE = "MODEL"', script)
+        self.assertIn('world_ready gate failed', script)
+        self.assertIn('write_stage_lock(', script)
+        self.assertIn('verify_stage_lock(', script)
+        self.assertIn('input hashes changed during experiment', script)
+        self.assertIn('p104_chassis_brake_stage_locks.json', script)
         self.assertIn('max_wheel_rad_s', script)
         self.assertIn('pose_start', script)
         self.assertIn('pose_end', script)
@@ -795,6 +802,26 @@ class TestP104(unittest.TestCase):
         self.assertNotIn('HasField("velocity")', script)
         self.assertIn('float(joint.axis1.velocity)', script)
         self.assertIn('DiffDrive did not recover', script)
+
+    def test_p104_stage_locks_are_commit_and_binary_bound(self):
+        verifier_path = os.path.join(ROOT, 'tests', 'diag',
+                                     'verify_p104_stage_locks.py')
+        workflow_path = os.path.join(ROOT, '.github', 'workflows',
+                                     'p104-drinktask-headless.yml')
+        with open(verifier_path, encoding='utf-8') as stream:
+            verifier = stream.read()
+        with open(workflow_path, encoding='utf-8') as stream:
+            workflow = stream.read()
+        for stage in ('world_ready', 'baseline_disturbance',
+                      'locked_hold', 'unlock_recovery'):
+            self.assertIn(stage, verifier)
+        self.assertIn('GITHUB_SHA', verifier)
+        self.assertIn('sha256(path)', verifier)
+        self.assertIn('reduction_ratio', verifier)
+        self.assertIn('displacement_mm', verifier)
+        self.assertIn('Verify immutable ChassisBrake stage locks', workflow)
+        self.assertIn('python3 tests/diag/verify_p104_stage_locks.py', workflow)
+        self.assertIn('p104_stage_locks*.json', workflow)
 
     def test_dynamics_collector_uses_documented_gazebo_joint_state_topic(self):
         collector = open(os.path.join(ROOT, 'tests', 'diag',
