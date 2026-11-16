@@ -1537,3 +1537,15 @@
 - 已将 `run_chassis_ground_lock_gz.py` 的状态订阅从 Boolean 改为 StringMsg，并对 attached / detached 字符串做显式校验。该修正来自目标 Gazebo 8 源码，不是猜测。
 - 该发现说明 API 文档中“state topic”没有在摘要中直接展示消息类型；实现前必须以当前实际目标版本源码/运行时为准。TaskPlan、runner 和后续证据统一使用 StringMsg。
 - 当前 runner/SDF/workflow 已包含该修正，但新的 GitHub Actions 运行仍待完成；尚无真实 Gazebo attach/detach 结果。
+
+
+### 8.436 GroundFixedJoint 首轮运行结果与 Runner 判定缺陷修正（2026-11-16）
+
+- P104 DrinkTask E2E #442（run ID `43831512128`，head `05ce69553ea0caf2e9f5d4c228db73cf5039e01c`）在 Ground Fixed Joint runner 第三阶段失败，错误为 `timeout waiting for DetachableJoint second detach`。
+- 归档 JSON `ground_fixed_joint_01.json` 证明前两阶段的物理结果：
+  - 初始状态为 `attached`；
+  - 第一次 detach 后速度命令使底盘移动 214.785102 mm；
+  - 重新 attach 后，同样的速度命令使底盘位移 0.0 mm，yaw 变化 0°，轮速约 (3.80\times10^{-18}) rad/s。
+- 根因不是已证实的 Gazebo 固定关节物理失败，而是 Runner 的类型判断错误：Gazebo Sim 8 DetachableJoint 状态是 StringMsg，值为 `attached` / `detached`；第二次 detach 等待条件却使用 `tel.snapshot()[3] is False`，把字符串状态与布尔值 False 做身份比较，条件永远不可能成立。因此在状态已变为字符串 `detached` 时仍然超时。
+- 已修复为显式比较 `tel.snapshot()[3] == 'detached'`；同时在失败 JSON 中保存完整状态消息历史和最后一次报告状态，避免类似问题再次丢失诊断证据。
+- 本轮第三阶段的实际状态转换和解锁后恢复移动仍需修正后的 runner 重跑确认；不能把本轮标记为 GroundFixedJoint 全部通过。下轮仍要求三个独立 Gazebo 进程全部通过。
