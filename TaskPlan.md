@@ -1446,3 +1446,15 @@
 - 增加 world-ready 初始静止门槛：初始 twist 三轴和左右轮速度必须有限，且绝对值均不超过 `0.01`；否则不允许建立第一级锁。
 - 下游 verifier 现在额外检查 world-ready 静止证据、baseline 数值有限性、locked reduction ratio 和 unlock 位移有限性，不能仅凭 JSON 中存在 `status=passed` 就接受锁。
 - 修复 canonical JSON manifest 的换行序列化，并将最终 manifest 显式加入 workflow artifact。Python syntax / P104 regression / Gazebo E2E 对最新代码提交 `c3bb49b520db79137ab9af8e2bb1b8c559823521` 的运行尚在排队，不能提前认定通过。
+
+
+### 8.426 #423 物理扰动未作用于机器人实体：显式实体 ID 与阶段锁复核增强（2026-11-16）
+
+- E2E #423（run `43815482488`，commit `c3bb49b520db79137ab9af8e2bb1b8c559823521`）已完成离线测试、Gazebo 插件构建、CTest 和动态链接检查；失败步骤为 `Run isolated ChassisBrake hold and unlock experiment`。八个候选力矩 `0.05/0.075/0.1/0.15/0.25/0.4/0.6/0.9Nm` 全部未达到 baseline yaw `0.5°`。前六个候选 yaw 为 `0°`，后两个约 `0.000115°`；最大轮速仅约 `3.65e-9rad/s`，起止 pose 基本不变。没有任何候选进入 LOCKED / UNLOCKED。
+- 根因定位更新：本轮不是 18Nm 过强，也不是小力矩不足，而是 ApplyLinkWrench 输入虽然发布且 endpoint 可见，却没有产生可测物理响应。Gazebo Sim 8 官方 API 允许 EntityWrench 使用 MODEL 实体并作用于其 canonical link；但仅使用 name/type 的消息并未在当前实验中证明成功解析目标。当前结论是“目标实体寻址/施力路径未证实”，不是断言 API 不支持 MODEL。
+- 提交 `16ee1ece2fd468e848aef7bf5558d47b0da9d659` 修复 runner：从 `/world/brake_test/dynamic_pose/info` 中同时捕获 `robot` model 的实体 ID；wrench 和 clear 消息均携带相同的显式 ID、name、type；等待有效非零实体 ID 后才允许进入 world_ready；日志记录实际目标 ID。clear 日志修正为 MODEL:robot，避免此前误写为 LINK:chassis。
+- 阶段锁强化：每次写入锁和每次进入下一阶段前都重新计算 SDF、runner、ChassisBrake 源码、插件二进制和 stage verifier 的 SHA-256，检测实验进行期间的文件漂移；每次验证还检查锁 manifest 的 commit SHA。锁记录继续按 `world_ready → baseline_disturbance → locked_hold → unlock_recovery` 顺序写入。
+- CI workflow 在 ROS workspace build 后、完整 DrinkTask E2E 前验证一次 immutable lock；现在增加完整 E2E 结束后的第二次验证，确保下游构建和运行阶段没有改变锁定输入。离线测试增加显式实体 ID 和阶段间重哈希断言。
+- **当前验证状态：** `16ee1ece` 已提交，新的 E2E #426/#427 及 Python syntax #1262、GraspCarry C++ #237、CarryBus ROS2 #1001、base-arm collector syntax #154 正在运行/排队。尚无该提交后的 Gazebo 物理结果；不能认定实体 ID 修复有效，也不能认定任何 ChassisBrake 阶段通过。
+- 不修改 baseline yaw `0.5°`、轮速护栏 `100rad/s`、locked yaw reduction `>=50%`、unlock recovery `>=10mm`，不修改质量、惯量、摩擦、阻尼、轮端 effort limit 或 PD 增益。无完整四级 PASS lock 时，ROS workspace build、生产集成和完整 DrinkTask E2E 必须保持阻断。
+- 仅在 `experiment/drinktask-bt-ik-recovery` 修改；`main` 未修改；PR #3 保持 Draft/Open，不合并；不创建其他分支或定时监控。
