@@ -196,6 +196,10 @@ echo "[4/5] Auditing ROS and Gazebo chassis velocity publishers"
 {
     echo "===== Gazebo /model/robot/cmd_vel ====="
     gz topic -i -t /model/robot/cmd_vel || true
+    echo "===== Gazebo robot joint-state topic discovery ====="
+    gz topic -l | grep -E "joint_state$" || true
+    echo "===== Gazebo canonical robot joint-state endpoint ====="
+    gz topic -i -t /world/follow_world/model/robot/joint_state || true
 } > "$LOG_DIR/chassis_gz_publishers.log" 2>&1
 echo "ROS publisher audit:"
 cat "$LOG_DIR/chassis_ros_publishers.log"
