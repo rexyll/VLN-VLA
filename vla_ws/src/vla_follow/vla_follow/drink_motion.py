@@ -668,6 +668,54 @@ def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
                 % (side, exc, _target_xyz, _target_rpy,
                    [round(float(v), 5) for v in base_at_ik], _q_diag))
             return False, 9e9, 'human-ik-no-valid-solution'
+        # MCA DLS is a second-stage numerical refinement, never a replacement
+        # for the established human-posture branch selector. It is opt-in until
+        # paired simulator evidence demonstrates equal-or-better task outcomes.
+        if os.environ.get('VLA_MCA_IK_ENABLED', '0') == '1':
+            _mca_report = getattr(node, 'solve_mca_ik', lambda *args: None)(
+                side, T_world, base_at_ik, q)
+            if _mca_report is not None and bool(_mca_report.success):
+                _mca_q = np.asarray(_mca_report.joint_positions, dtype=float)
+                _mca_bad = (K.violation_list(side, _mca_q)
+                            if _mca_q.shape == (K.NJ,) else ['invalid_joint_count'])
+                if _mca_q.shape == (K.NJ,) and np.all(np.isfinite(_mca_q)):
+                    _mca_fk = K.fk_world(side, _mca_q, base_at_ik)
+                    _mca_pos_mm = pos_err_mm(_mca_fk, T_world)
+                    _mca_axis_deg = axis_angle_deg(_mca_fk, T_world)
+                    _mca_limits_ok = bool(
+                        np.all(_mca_q >= K.LIM_LO - 1e-8)
+                        and np.all(_mca_q <= K.LIM_HI + 1e-8))
+                    _mca_posture_ok = (
+                        not _mca_bad and
+                        (_mode != 'human' or
+                         K.human_penalty(side, _mca_q) <=
+                         K.human_penalty(side, q) + 0.05))
+                    _mca_accept = (
+                        _mca_limits_ok and _mca_posture_ok
+                        and math.isfinite(float(_mca_pos_mm))
+                        and math.isfinite(float(_mca_axis_deg))
+                        and _mca_pos_mm <= 4.0 and _mca_axis_deg <= 0.5
+                        and (_mca_pos_mm + 0.25 * _mca_axis_deg <
+                             ik_fk_mm + 0.25 * axis_angle_deg(
+                                 K.fk_world(side, q, base_at_ik), T_world)))
+                    if _mca_accept:
+                        q = _mca_q
+                        how = how + '/mca-dls-refine'
+                        node.get_logger().info(
+                            'MCA_IK accepted side=%s pos=%.3fmm axis=%.3fdeg iter=%d'
+                            % (side, _mca_pos_mm, _mca_axis_deg,
+                               int(_mca_report.iterations)))
+                    else:
+                        node.get_logger().info(
+                            'MCA_IK rejected side=%s pos=%.3fmm axis=%.3fdeg '
+                            'limits=%s posture=%s violations=%s'
+                            % (side, _mca_pos_mm, _mca_axis_deg,
+                               _mca_limits_ok, _mca_posture_ok, _mca_bad))
+            elif _mca_report is not None:
+                node.get_logger().debug(
+                    'MCA_IK no convergence side=%s reason=%s'
+                    % (side, getattr(_mca_report, 'message', 'unknown')))
+
         if _mode == 'human':
             _posture_bad = K.violation_list(side, q)
             if _posture_bad:
