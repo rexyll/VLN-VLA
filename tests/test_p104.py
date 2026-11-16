@@ -3779,6 +3779,55 @@ class TestPhysicalGazeboChassisLock(unittest.TestCase):
         self.assertIn('self._ground_lock_ready = True', startup)
         self.assertIn('startup timeout: no DetachableJoint state', startup)
 
+    def test_physical_lock_transition_waits_for_stationary_truth_and_verifies_pose(self):
+        task_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
+            'drink_task.py')
+        with open(task_path, encoding='utf-8') as stream:
+            source = stream.read()
+        lock = source[source.index('def set_base_lock(self, locked, timeout=2.0):'):
+                      source.index('def run_base_motion_window', source.index(
+                          'def set_base_lock(self, locked, timeout=2.0):'))]
+        self.assertLess(lock.index('self._set_mux_base_lock(True'),
+                        lock.index('self._wait_chassis_stationary()'))
+        self.assertLess(lock.index('self._wait_chassis_stationary()'),
+                        lock.index("self._ground_lock.command(\n                    'attached'"))
+        self.assertLess(lock.index("self._ground_lock.command(\n                'detached'"),
+                        lock.index('_verify_chassis_pose_stable(_pose_before_detach)'))
+        self.assertLess(lock.index('_verify_chassis_pose_stable(_pose_before_detach)'),
+                        lock.index('self._set_mux_base_lock(False)'))
+
+    def test_stationary_gate_uses_fresh_truth_joint_and_wheel_measurements(self):
+        task_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
+            'drink_task.py')
+        with open(task_path, encoding='utf-8') as stream:
+            source = stream.read()
+        start = source.index('def _chassis_stationary_sample')
+        end = source.index('def _wait_chassis_stationary', start)
+        sample = source[start:end]
+        self.assertIn('now - self.truth_base_twist_t > 0.25', sample)
+        self.assertIn('now - self.js_sample_t > 0.25', sample)
+        self.assertIn("left_wheel_joint", sample)
+        self.assertIn("right_wheel_joint", sample)
+        self.assertIn('math.hypot(vx, vy) < 0.005', sample)
+        self.assertIn('math.radians(0.5)', sample)
+        self.assertIn('max(abs(v) for v in wheel_values) < 0.05', sample)
+
+    def test_tick_disables_all_active_base_correction_while_joint_attached(self):
+        task_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
+            'drink_task.py')
+        with open(task_path, encoding='utf-8') as stream:
+            source = stream.read()
+        tick = source[source.index('def _tick(self):'):
+                      source.index('def _carry_tick(self):')]
+        self.assertIn("self._ground_lock.state == 'attached'", tick)
+        self.assertIn('if physical_lock_active:', tick)
+        self.assertIn('PHYSICAL_CHASSIS_LOCK active: chassis pose correction suppressed', tick)
+        self.assertLess(tick.index('if physical_lock_active:'),
+                        tick.index('elif hold_target is not None:'))
+
     def test_gazebo_lock_client_only_accepts_attached_or_detached_truth(self):
         helper_path = os.path.join(
             ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
