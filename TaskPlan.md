@@ -1356,3 +1356,15 @@
 - 下一步应将一次性发布改为有持续生命周期的 Gazebo Transport publisher（或等效可靠发布器），在一个已建立的 publisher 上重复发送/保持消息，并记录 publisher/subscriber 连接状态及每次发送结果；再增加明确的扰动接收/物理响应门控，确保 baseline 和 locked 使用相同且已生效的扰动。不可通过放宽 baseline 0.5°门槛、增加力矩或改变质量/摩擦/阻尼/effort limit 来制造通过。
 - 本轮解锁后位移达到 108.337mm，说明 DiffDrive 在解锁后仍能恢复运动；这只验证解锁路径的一部分，不代表锁定保持通过。P104-10.1 仍未验收；P104-10.2 独立静止确认、P104-10.3 机械臂反作用力回归及完整 DrinkTask E2E 均未执行。
 - `main` 未修改；PR #3 保持 Draft/Open；只在 `experiment/drinktask-bt-ik-recovery` 修改，不创建其他分支。
+
+
+### 8.418 将 ChassisBrake 扰动与清除改为长生命周期 Gazebo Transport publisher（2026-11-16）
+
+- 核对 Gazebo Transport 13 官方 Python API：Node.advertise(topic, MessageType) 可创建 publisher，Publisher.publish(message) 可通过同一 publisher 对象持续发送 protobuf 消息。官方 Python 支持文档示例使用 gz.transport13，与 CI 的 Gazebo Harmonic / Transport 13 版本匹配。参考：https://gazebosim.org/api/transport/13/python.html。
+- 更新 tests/diag/run_chassis_brake_gz.py：新增 PersistentPublisher，分别为 /world/brake_test/wrench/persistent（EntityWrench）和 /world/brake_test/wrench/clear（Entity）创建长生命周期 publisher；发布器对象与 Node 在整个 A/B 测试期间保持存活。
+- baseline 与 locked 各自完整 1 秒测量窗口内，每 50ms 重复发送相同的 18Nm yaw wrench；记录每阶段实际 publish() 成功次数，少于 5 次直接失败。发布前分别等待 wrench / clear subscriber，发布器 advertise 后再检查对应 publisher endpoint 是否被 Gazebo Transport discovery 观察到。
+- 两阶段 clear 均重复发布同一 Entity(name=chassis, type=LINK) 0.25 秒，并记录清除发布次数；修复此前 baseline 使用 LINK chassis、locked 使用 MODEL robot 的目标不一致。施力目标、清除目标现在完全一致。
+- **证据解释纠正**：Run #372 artifact 中 gz topic -i 的 No publishers 快照是在创建一次性 CLI publisher 之前采集的，因此该行本身是预期状态，不能作为消息丢失的直接证据。此前将该行描述为“publisher 交付竞态的直接日志证据”过强，应修正为：一次性 publisher 生命周期与交付时序是待验证假设；Run #372 只能确定 baseline 物理响应未达到 0.5°校准门槛，无法确认 wrench 是否被 ApplyLinkWrench 消费。
+- 本次只改进实验输入生命周期、发布次数可观测性和施力/清除实体一致性；18Nm 外部扰动、5Nm 轮端 effort 上限、质量、摩擦、阻尼、PD 增益、baseline 0.5°门槛、locked 50% reduction 门槛及解锁 10mm 门槛均未改变。尚未有新的 Gazebo CI 结果，不能声称 publisher API、端点可见性或物理 A/B 已通过；需由下一轮 P104 workflow 实际验证。
+- P104-10.1 仍未通过验收；P104-10.2 独立静止确认、P104-10.3 机械臂反作用力回归及完整 DrinkTask E2E 均未完成。实验通过前不将 ChassisBrake 接入生产 work_area.sdf。
+- 仅在 experiment/drinktask-bt-ik-recovery 修改；main 未修改，PR #3 保持 Draft/Open，不合并；未创建其他分支。
