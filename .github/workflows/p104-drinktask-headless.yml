@@ -175,6 +175,8 @@ jobs:
 
       - name: Build Gazebo system plugins
         run: |
+          python3 -m py_compile tests/diag/test_chassis_brake_gz.py
+          bash -n tools/gz_plugin.sh
           cmake -S vla_ws/src/vla_follow/gz_plugins \
             -B vla_ws/src/vla_follow/gz_plugins/build \
             -DCMAKE_BUILD_TYPE=Release
