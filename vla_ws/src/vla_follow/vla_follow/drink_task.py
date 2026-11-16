@@ -59,6 +59,10 @@ from vla_follow import scene_layout as L
 from vla_follow.carry import CarryBus
 from vla_follow.joint_servo import JointServo
 from vla_follow.gazebo_ground_lock import GazeboGroundLock
+try:
+    from mca_drink_control.srv import SolveIk as McaSolveIk
+except Exception:  # pragma: no cover - optional during source-only tooling
+    McaSolveIk = None
 from vla_follow import liquid as _liquid_mod
 from vla_follow import drink_motion as _motion_mod
 from vla_follow.liquid import LiquidCtl
@@ -304,6 +308,9 @@ class DrinkTask(Node):
         self._base_lock_request_id = 0
         self._base_lock_active = False
         self._base_motion_window_active = False
+        self._mca_ik_client = (
+            self.create_client(McaSolveIk, '/mca_drink/solve_ik')
+            if (not observer_only and McaSolveIk is not None) else None)
         self._ground_lock = None
         self._ground_lock_ready = bool(observer_only)
         self._ground_lock_start_t = time.monotonic()
@@ -607,6 +614,76 @@ class DrinkTask(Node):
         t0 = time.time()
         while time.time() - t0 < s:
             rclpy.spin_once(self, timeout_sec=0.005)
+
+    def solve_mca_ik(self, side, target_world, base, seed,
+                     timeout_s=2.0):
+        """Call the MCA C++ DLS service with a target expressed in robot-base coordinates."""
+        if self._mca_ik_client is None or side not in ('R', 'L'):
+            return None
+        if not self._mca_ik_client.service_is_ready():
+            return None
+        try:
+            target_local = np.linalg.inv(K.base_pose(*base)) @ np.asarray(
+                target_world, dtype=float)
+            request = McaSolveIk.Request()
+            request.side = side
+            request.target.position.x = float(target_local[0, 3])
+            request.target.position.y = float(target_local[1, 3])
+            request.target.position.z = float(target_local[2, 3])
+            # Stable matrix-to-quaternion conversion in ROS x,y,z,w ordering.
+            rotation = target_local[:3, :3]
+            trace = float(np.trace(rotation))
+            if trace > 0.0:
+                scale = math.sqrt(trace + 1.0) * 2.0
+                qw = 0.25 * scale
+                qx = (rotation[2, 1] - rotation[1, 2]) / scale
+                qy = (rotation[0, 2] - rotation[2, 0]) / scale
+                qz = (rotation[1, 0] - rotation[0, 1]) / scale
+            elif rotation[0, 0] > rotation[1, 1] and rotation[0, 0] > rotation[2, 2]:
+                scale = math.sqrt(1.0 + rotation[0, 0] -
+                                  rotation[1, 1] - rotation[2, 2]) * 2.0
+                qw = (rotation[2, 1] - rotation[1, 2]) / scale
+                qx = 0.25 * scale
+                qy = (rotation[0, 1] + rotation[1, 0]) / scale
+                qz = (rotation[0, 2] + rotation[2, 0]) / scale
+            elif rotation[1, 1] > rotation[2, 2]:
+                scale = math.sqrt(1.0 + rotation[1, 1] -
+                                  rotation[0, 0] - rotation[2, 2]) * 2.0
+                qw = (rotation[0, 2] - rotation[2, 0]) / scale
+                qx = (rotation[0, 1] + rotation[1, 0]) / scale
+                qy = 0.25 * scale
+                qz = (rotation[1, 2] + rotation[2, 1]) / scale
+            else:
+                scale = math.sqrt(1.0 + rotation[2, 2] -
+                                  rotation[0, 0] - rotation[1, 1]) * 2.0
+                qw = (rotation[1, 0] - rotation[0, 1]) / scale
+                qx = (rotation[0, 2] + rotation[2, 0]) / scale
+                qy = (rotation[1, 2] + rotation[2, 1]) / scale
+                qz = 0.25 * scale
+            request.target.orientation.x = float(qx)
+            request.target.orientation.y = float(qy)
+            request.target.orientation.z = float(qz)
+            request.target.orientation.w = float(qw)
+            request.seed = [float(value) for value in seed]
+            request.position_tolerance_m = float(os.environ.get(
+                'VLA_MCA_IK_POSITION_TOLERANCE_M', '0.0015'))
+            request.orientation_tolerance_rad = float(os.environ.get(
+                'VLA_MCA_IK_ORIENTATION_TOLERANCE_RAD', '0.005'))
+            request.max_iterations = int(os.environ.get(
+                'VLA_MCA_IK_MAX_ITERATIONS', '200'))
+            future = self._mca_ik_client.call_async(request)
+            deadline = time.monotonic() + max(0.1, float(timeout_s))
+            while not future.done() and time.monotonic() < deadline:
+                self.spin_for(0.01)
+            if not future.done():
+                future.cancel()
+                return None
+            return future.result()
+        except Exception as exc:
+            self.get_logger().warn(
+                'MCA_IK service call failed; retain established IK path: %s' % exc,
+                throttle_duration_sec=5.0)
+            return None
 
     def spin_sim(self, s, cap=6.0):
         """**按仿真时间**阻塞 s 秒(墙上时间放宽 cap 倍兜底)。
