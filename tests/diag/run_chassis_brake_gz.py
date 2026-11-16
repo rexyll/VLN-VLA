@@ -10,6 +10,7 @@ after the brake component is removed.
 """
 import math
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -86,6 +87,43 @@ def publish(topic, msg_type, payload):
         timeout=10)
     if result.returncode:
         raise RuntimeError("gz topic publish failed: " + result.stdout)
+    return result.stdout
+
+
+def topic_info(topic):
+    result = subprocess.run(
+        ["gz", "topic", "-i", "-t", topic],
+        text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        timeout=10)
+    if result.returncode:
+        return result.stdout
+    return result.stdout
+
+
+def wait_for_subscriber(topic, message_type, timeout, log):
+    """Require a live Gazebo Transport subscriber before one-shot publish."""
+    deadline = time.monotonic() + timeout
+    last_info = ""
+    while time.monotonic() < deadline:
+        last_info = topic_info(topic)
+        # gz topic -i prints endpoint rows below the Subscribers heading.
+        # Requiring the expected message type avoids mistaking a publisher
+        # endpoint or an unrelated subscriber for ApplyLinkWrench readiness.
+        sections = re.split(r"Subscribers\\s*\\[[^]]*\\]\\s*:", last_info,
+                            maxsplit=1, flags=re.IGNORECASE)
+        if len(sections) == 2:
+            subscriber_section = sections[1].split("\\n\\n", 1)[0]
+            if message_type in subscriber_section and "tcp://" in subscriber_section:
+                log.write("subscriber_ready topic=%s type=%s\\n%s\\n" %
+                          (topic, message_type, last_info))
+                log.flush()
+                return
+        time.sleep(0.1)
+    log.write("subscriber_timeout topic=%s type=%s\\n%s\\n" %
+              (topic, message_type, last_info))
+    log.flush()
+    raise RuntimeError("no %s subscriber discovered for %s" %
+                       (message_type, topic))
 
 
 def wait_until(predicate, timeout, description):
@@ -126,8 +164,15 @@ def main():
     if not os.path.isfile(WORLD):
         raise RuntimeError("test world missing: " + WORLD)
     log_path = os.path.join(ROOT, "vla_ws", "logs", "chassis_brake_isolated.log")
+    runner_log_path = os.path.join(ROOT, "vla_ws", "logs", "chassis_brake_runner.log")
     os.makedirs(os.path.dirname(log_path), exist_ok=True)
-    with open(log_path, "w", encoding="utf-8") as log:
+    with open(log_path, "w", encoding="utf-8") as log, \\
+         open(runner_log_path, "w", encoding="utf-8") as runner_log:
+        def record(message):
+            print(message, flush=True)
+            runner_log.write(message + "\\n")
+            runner_log.flush()
+
         env = os.environ.copy()
         plugin_dir = os.path.join(
             ROOT, "vla_ws", "src", "vla_follow", "gz_plugins", "build")
@@ -148,11 +193,17 @@ def main():
                     "linear: {x: 0.0} angular: {z: 0.0}")
             time.sleep(0.5)
 
-            # Baseline: DiffDrive receives zero velocity; brake is disabled.
-            publish(WRENCH_TOPIC, "gz.msgs.EntityWrench",
-                    'entity: {name: "robot" type: MODEL} '
-                    'wrench: {torque: {z: 18.0}}')
+            # Baseline: do not send a one-shot wrench until ApplyLinkWrench's
+            # transport subscriber is visible. A pose/joint-state publisher
+            # being alive does not imply this independent subscriber is ready.
+            wait_for_subscriber(WRENCH_TOPIC, "gz.msgs.EntityWrench", 15,
+                                runner_log)
+            wrench = ('entity: {name: "robot" type: MODEL} '
+                      'wrench: {torque: {z: 18.0}}')
+            record("baseline_wrench_publish=" +
+                   publish(WRENCH_TOPIC, "gz.msgs.EntityWrench", wrench))
             baseline = measure(telemetry, 1.0)
+            record("baseline=" + repr(baseline))
             publish(CLEAR_TOPIC, "gz.msgs.Entity",
                     'name: "robot" type: MODEL')
             time.sleep(0.5)
@@ -162,10 +213,12 @@ def main():
             wait_until(lambda: any(s.startswith("LOCKED")
                                    for s in telemetry.snapshot()[2]),
                        5, "ChassisBrake LOCKED component acknowledgement")
-            publish(WRENCH_TOPIC, "gz.msgs.EntityWrench",
-                    'entity: {name: "robot" type: MODEL} '
-                    'wrench: {torque: {z: 18.0}}')
+            wait_for_subscriber(WRENCH_TOPIC, "gz.msgs.EntityWrench", 15,
+                                runner_log)
+            record("locked_wrench_publish=" +
+                   publish(WRENCH_TOPIC, "gz.msgs.EntityWrench", wrench))
             locked = measure(telemetry, 1.0)
+            record("locked=" + repr(locked))
             publish(CLEAR_TOPIC, "gz.msgs.Entity",
                     'name: "robot" type: MODEL')
 
@@ -187,9 +240,7 @@ def main():
                 recovery_mm = math.hypot(drive_end[0] - drive_start[0],
                                          drive_end[1] - drive_start[1]) * 1000.0
 
-            print("baseline:", baseline)
-            print("locked:", locked)
-            print("unlock_recovery_displacement_mm:", round(recovery_mm, 3))
+            record("unlock_recovery_displacement_mm=" + str(round(recovery_mm, 3)))
 
             # First ensure the disturbance actually challenged the baseline.
             if baseline["max_yaw_deg"] < 0.5:
@@ -201,7 +252,7 @@ def main():
             if recovery_mm < 10.0:
                 raise RuntimeError(
                     "DiffDrive did not recover after JointForceCmd removal")
-            print("PASS: isolated brake hold and unlock recovery")
+            record("PASS: isolated brake hold and unlock recovery")
             return 0
         finally:
             try:
