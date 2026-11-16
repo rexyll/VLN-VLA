@@ -1438,3 +1438,11 @@
 - 当前实现已提交，**物理阶段仍未通过**：模型实体目标修正后的 baseline、LOCKED 和 UNLOCKED 尚无 CI 实测结果；没有生成有效完整阶段锁之前，后续 ROS build / 完整 DrinkTask E2E 必须继续被阻断。不得将本轮 transport 发布成功等同于物理验收通过。
 - 不修改 baseline `0.5°`、wheel speed 护栏 `100rad/s`、locked yaw reduction `>=50%`、unlock recovery `>=10mm`；不修改质量、惯量、摩擦、阻尼、轮端 effort limit 或 PD 增益。ChassisBrake 不接入生产 `work_area.sdf`，P104-10.2/10.3 暂不推进。
 - 仅在 `experiment/drinktask-bt-ik-recovery` 修改；`main` 未修改；PR #3 保持 Draft/Open，不合并；不创建其他分支或定时监控。
+
+
+### 8.425 阶段锁防止旧 PASS 证据复用（2026-11-16）
+
+- 在分级标定主流程开始时主动删除上一次运行遗留的 canonical lock manifest，防止同一工作目录中本轮失败却误用上一次成功的 `p104_chassis_brake_stage_locks.json`。
+- 增加 world-ready 初始静止门槛：初始 twist 三轴和左右轮速度必须有限，且绝对值均不超过 `0.01`；否则不允许建立第一级锁。
+- 下游 verifier 现在额外检查 world-ready 静止证据、baseline 数值有限性、locked reduction ratio 和 unlock 位移有限性，不能仅凭 JSON 中存在 `status=passed` 就接受锁。
+- 修复 canonical JSON manifest 的换行序列化，并将最终 manifest 显式加入 workflow artifact。Python syntax / P104 regression / Gazebo E2E 对最新代码提交 `c3bb49b520db79137ab9af8e2bb1b8c559823521` 的运行尚在排队，不能提前认定通过。
