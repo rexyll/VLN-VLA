@@ -3807,9 +3807,33 @@ class TestPhysicalGazeboChassisLock(unittest.TestCase):
         startup = source[source.index('def _startup_ground_lock_tick'):
                          source.index('def _set_mux_base_lock')]
         self.assertIn("state != 'attached'", startup)
+        self.assertIn("command('attached'", startup)
+        self.assertIn("_ground_lock_probe_attempted", startup)
         self.assertIn("command('detached'", startup)
         self.assertIn('self._ground_lock_ready = True', startup)
         self.assertIn('startup timeout: no DetachableJoint state', startup)
+
+    def test_drink_task_entry_fails_closed_before_any_actuator_command(self):
+        task_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow', 'drink_task.py')
+        with open(task_path, encoding='utf-8') as stream:
+            source = stream.read()
+        start = source.index('def run_drink(')
+        end = source.index('def _tick(', start)
+        run = source[start:end]
+        gate = run.index("FAIL_BASE_LOCK_NOT_READY")
+        water_reset = run.index("water_zero_ok = self.carry.joint_ramp")
+        prepare = run.index("self._set_state('PREPARE')")
+        self.assertLess(gate, water_reset)
+        self.assertLess(gate, prepare)
+        self.assertIn("self._ground_lock.state != 'detached'", run)
+
+    def test_start_scene_requires_production_ground_lock_topic(self):
+        path = os.path.join(ROOT, 'tools', 'start_scene.sh')
+        with open(path, encoding='utf-8') as stream:
+            source = stream.read()
+        self.assertIn('/world/follow_world/chassis_lock/state', source)
+        self.assertIn('Gazebo DetachableJoint state topic unavailable', source)
 
     def test_physical_lock_transition_waits_for_stationary_truth_and_verifies_pose(self):
         task_path = os.path.join(
