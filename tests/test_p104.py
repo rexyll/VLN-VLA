@@ -3806,12 +3806,18 @@ class TestPhysicalGazeboChassisLock(unittest.TestCase):
             source = stream.read()
         startup = source[source.index('def _startup_ground_lock_tick'):
                          source.index('def _set_mux_base_lock')]
-        self.assertIn("state != 'attached'", startup)
-        self.assertIn("command('attached'", startup)
+        self.assertIn("initial_state not in (None, 'attached')", startup)
+        self.assertIn("_ground_lock_startup_handshake", startup)
         self.assertIn("_ground_lock_probe_attempted", startup)
-        self.assertIn("command('detached'", startup)
-        self.assertIn('self._ground_lock_ready = True', startup)
-        self.assertIn('startup timeout: no DetachableJoint state', startup)
+        handshake_start = source.index('def _startup_ground_lock_handshake')
+        handshake_end = source.index('def _set_mux_base_lock', handshake_start)
+        handshake = source[handshake_start:handshake_end]
+        self.assertIn("mux_request(True)", handshake)
+        self.assertIn("command('detached'", handshake)
+        self.assertIn("command('attached'", handshake)
+        self.assertIn("mux_request(False)", handshake)
+        self.assertIn("physical anchor restored", handshake)
+        self.assertIn('self._ground_lock_ready = True', handshake)
 
     def test_drink_task_entry_fails_closed_before_any_actuator_command(self):
         task_path = os.path.join(
