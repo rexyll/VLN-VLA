@@ -245,7 +245,7 @@ def run_once(index, output_dir):
 
             # Stage 3: detach again and prove drive recovery.
             publish_empty(DETACH_TOPIC)
-            wait_for(lambda: tel.snapshot()[3] is False, 5,
+            wait_for(lambda: tel.snapshot()[3] == 'detached', 5,
                      "DetachableJoint second detach", proc)
             wait_stationary(tel, proc)
             recovery_start = tel.snapshot()[0]
@@ -271,6 +271,8 @@ def run_once(index, output_dir):
         except Exception as exc:
             report["result"] = "FAIL"
             report["error"] = str(exc)
+            report["state_messages"] = tel.snapshot()[4]
+            report["last_reported_joint_state"] = tel.snapshot()[3]
             log.write("\nGROUND_FIXED_JOINT_FAIL repeat=%d error=%s\n" %
                       (index, exc))
             raise
