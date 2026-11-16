@@ -24,6 +24,7 @@ KEEP_GZ=0
 
 pkill -9 -f 'ros2 launch vla_follow' 2>/dev/null
 pkill -9 -f 'vla_follow/lib/vla_follow' 2>/dev/null
+pkill -9 -f 'mca_drink_control/lib/mca_drink_control/mca_ik_server' 2>/dev/null
 pkill -9 -f 'parameter_bridge' 2>/dev/null
 pkill -9 -f '/opt/ros/jazzy/lib/nav2_' 2>/dev/null
 pkill -9 -f 'ros2 topic hz' 2>/dev/null
@@ -41,7 +42,7 @@ fi
 
 # 残留统计: 直接数 cmdline 里带 gz sim 的进程, 不看 comm
 left=$(ps -eo args --no-headers \
-    | grep -E 'gz sim|vla_follow/lib|parameter_bridge|nav2_' \
+    | grep -E 'gz sim|vla_follow/lib|mca_drink_control/lib|parameter_bridge|nav2_' \
     | grep -v grep | grep -v killall_demo | wc -l)
 echo ">>> 清理完成, 残留进程数: ${left}"
 if [ "$left" != "0" ]; then
