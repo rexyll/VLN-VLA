@@ -32,7 +32,7 @@ from gz.msgs10.double_pb2 import Double
 
 WORLD = "follow_world"
 POSE_TOPIC = f"/world/{WORLD}/dynamic_pose/info"
-JOINT_TOPIC = "/drink/joint_state"
+JOINT_TOPIC = "/world/follow_world/model/robot/joint_state"
 ODOM_TOPIC = "/model/robot/odometry"
 CLOCK_TOPIC = "/clock"
 BASE_CMD_TOPIC = "/model/robot/cmd_vel"
@@ -136,6 +136,7 @@ class Collector:
                             item[axis_name] = vals
                 joints.append(item)
         self.emit("joint_state", {
+            "topic": JOINT_TOPIC,
             "header_stamp": header_stamp,
             "model_name": msg.name,
             "joint_count": len(msg.joint),
