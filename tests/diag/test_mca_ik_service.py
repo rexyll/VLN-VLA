@@ -3,14 +3,8 @@
 import math
 import time
 
-import numpy as np
-import rclpy
-from mca_drink_control.srv import SolveIk
-from rclpy.node import Node
-from vla_follow import arm_kin as K
-
-
 def matrix_quaternion(rotation):
+    import numpy as np
     trace = float(np.trace(rotation))
     if trace > 0.0:
         scale = math.sqrt(trace + 1.0) * 2.0
@@ -41,6 +35,12 @@ def matrix_quaternion(rotation):
 
 
 def main():
+    import numpy as np
+    import rclpy
+    from mca_drink_control.srv import SolveIk
+    from rclpy.node import Node
+    from vla_follow import arm_kin as K
+
     rclpy.init()
     node = Node("mca_ik_service_smoke_test")
     client = node.create_client(SolveIk, "/mca_drink/solve_ik")
