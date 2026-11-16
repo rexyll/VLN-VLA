@@ -1458,3 +1458,15 @@
 - **当前验证状态：** `16ee1ece` 已提交，新的 E2E #426/#427 及 Python syntax #1262、GraspCarry C++ #237、CarryBus ROS2 #1001、base-arm collector syntax #154 正在运行/排队。尚无该提交后的 Gazebo 物理结果；不能认定实体 ID 修复有效，也不能认定任何 ChassisBrake 阶段通过。
 - 不修改 baseline yaw `0.5°`、轮速护栏 `100rad/s`、locked yaw reduction `>=50%`、unlock recovery `>=10mm`，不修改质量、惯量、摩擦、阻尼、轮端 effort limit 或 PD 增益。无完整四级 PASS lock 时，ROS workspace build、生产集成和完整 DrinkTask E2E 必须保持阻断。
 - 仅在 `experiment/drinktask-bt-ik-recovery` 修改；`main` 未修改；PR #3 保持 Draft/Open，不合并；不创建其他分支或定时监控。
+
+
+### 8.427 #428 显式 MODEL entity ID 后仍无有效 wrench 物理响应（2026-11-16）
+
+- E2E #428（run `43816366790`，commit `878840c1068ebd37bb476fddcecae76d45850440`，artifact `14202732246`）前置行为树离线测试、P104 offline regression、Gazebo 插件构建均通过；失败步骤仍为 `Run isolated ChassisBrake hold and unlock experiment`。ROS workspace build、immutable lock downstream verifier、完整 DrinkTask E2E 均按门禁正确 skipped。
+- Artifact runner 日志确认每个候选均从全新 Gazebo 进程启动；目标报告为 `wrench_target_model_entity_id=8 name=robot type=MODEL`；persistent 和 clear subscriber 均可见，publisher endpoint 均可见；baseline 发布 20 次、clear 发布 5 次，Gazebo 正常退出（exit 0），无本轮 ODE abort。
+- 八个候选 `0.05/0.075/0.1/0.15/0.25/0.4/0.6/0.9Nm` 全部未达到 yaw `0.5°`。前六档最大 yaw 为 0；0.6Nm 为 `0.00011459°`；0.9Nm 为 `0.00011474°`。最高轮速仅 `3.64885e-9rad/s`，最大 XY 位移约 `1.05e-14mm`。表现为几乎没有物理作用，且与前一轮仅按 name/type 寻址的 #423 结果基本相同。没有进入 LOCKED / UNLOCKED，没有完整四级锁。
+- **根因结论必须谨慎：** 显式 model ID 修正未解决“Transport endpoint 可见但未观察到物理响应”的问题。不能把它归因于力矩档位太低、底盘刹车控制或阶段锁回归。Gazebo Sim 8.15.0 官方 ApplyLinkWrench 文档明确说明消息目标可为 LINK，也可为 MODEL（将作用到 canonical link），所以 MODEL 类型本身并非不受支持。当前证据尚不能区分：消息是否被 ApplyLinkWrench 回调实际接收、EntityWrench 的 ID/name/type 组合是否正确匹配、persistent wrench 是否进入 ECM/Physics，以及模型 canonical link 是否按预期受力。
+- Artifact 中 `chassis_brake_isolated_torque_*.log` 只有 `gazebo_exit_code=0`，缺少 ApplyLinkWrench system 的 debug 级“Queueing persistent wrench”日志或 ECM 受力证据；runner 的 publisher visibility 仅证明 transport discovery，不证明系统消费了消息。#428 的低响应数值与 0.9Nm 单个 1ms physics step 量级相近，但目前不能仅凭该数值断言只施加了一帧。
+- **下一步诊断必须先增加可观测性，不得继续盲目扩大力矩：** (1) 以 Gazebo verbose/debug 日志运行隔离世界，捕获 ApplyLinkWrench 收到的完整 EntityWrench、实体解析和 persistent queue 记录；(2) 记录 dynamic_pose/info 中 robot MODEL 与 canonical chassis LINK 的名称、ID、pose，独立核对 ID 与层级；(3) 在全新 Gazebo 进程中做 MODEL-name、MODEL-id、canonical LINK-name/id 对照实验，保持同一 torque、同一初始状态和同一仿真时长；(4) 只有日志证明目标实体已解析且持续 wrench 被排入物理更新、baseline 产生可测响应后，才恢复分级标定及 LOCKED/UNLOCKED 验收。
+- 原门槛不变：baseline yaw `>=0.5°`、轮速诊断护栏 `<=100rad/s`、locked yaw 抑制 `>=50%`、unlock 位移 `>=10mm`；禁止通过修改质量、惯量、摩擦、阻尼、轮端 effort limit、PD 增益或降低阈值来掩盖问题。
+- 仅在 `experiment/drinktask-bt-ik-recovery` 修改；`main` 未修改；PR #3 保持 Draft/Open，不合并；不创建其他分支或定时监控。
