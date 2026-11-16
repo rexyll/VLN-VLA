@@ -80,4 +80,5 @@ class GazeboGroundLock:
             return False
         if result.returncode != 0:
             return False
-        return self.wait_for_state(expected, timeout_s=timeout_s, spin=spin,\n                                   after_time=command_started)
+        return self.wait_for_state(expected, timeout_s=timeout_s, spin=spin,
+                                   after_time=command_started)
