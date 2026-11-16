@@ -2895,10 +2895,39 @@ def main():
         while not node.sync_base_from_truth(quiet=True) \
                 and time.time() - t_sync < 15.0:
             node.spin_for(0.1)
-        node.home()
+        # Physical lock startup must complete before ANY boot-time arm command.
+        # The boot home/hang motion is also performed under an acknowledged
+        # software + Gazebo physical hold, then navigation authority is restored.
+        lock_deadline = time.monotonic() + 30.0
+        while (not node._ground_lock_ready
+               and not node._ground_lock_startup_reported
+               and time.monotonic() < lock_deadline):
+            node.spin_for(0.1)
+        if not node._ground_lock_ready:
+            node.get_logger().error(
+                'STARTUP_ABORT: physical chassis lock handshake not ready; '
+                'refusing boot home/hang and all task motion')
+            return 3
+        if not node.set_base_lock(True):
+            node.get_logger().error(
+                'STARTUP_ABORT: physical chassis hold could not be confirmed; '
+                'refusing boot home/hang')
+            return 4
+        home_ok = node.home()
         # P98: 初始状态 = 悬垂(双臂沿体侧竖直向下, 手指并拢伸直朝下)。
         # 抓取编排不受影响 —— run_drink 的 prepare_present 第一动作就是 home()。
-        node.hang()
+        hang_ok = node.hang() if home_ok else False
+        if not (home_ok and hang_ok):
+            node._set_state('FAIL_STARTUP_HOME')
+            node.get_logger().error(
+                'STARTUP_ABORT: boot home/hang not confirmed; physical chassis '
+                'hold remains engaged')
+            return 5
+        if not node.set_base_lock(False):
+            node.get_logger().error(
+                'STARTUP_ABORT: boot home/hang succeeded but chassis unlock '
+                'was not confirmed; keep physical hold')
+            return 6
         # P94: home() 不再顺手改 self.state(它会把 PREPARE 播成 IDLE), 所以
         # "上电回 home 完成 = 待命"这一步要显式广播。
         node._set_state('IDLE')               # noqa: SLF001
