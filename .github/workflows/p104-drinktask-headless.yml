@@ -238,6 +238,20 @@ jobs:
           test -s "$PKG_SHARE/maps/arena.pgm"
           grep -Fq "image: arena.pgm" "$PKG_SHARE/maps/arena.yaml"
 
+      - name: Test installed MCA DLS ROS 2 service on both arms
+        shell: bash
+        run: |
+          set -eo pipefail
+          set +u
+          source /opt/ros/jazzy/setup.bash
+          source vla_ws/install/setup.bash
+          set -u
+          python3 -m py_compile tests/diag/test_mca_ik_service.py
+          ros2 run mca_drink_control mca_ik_server > vla_ws/logs/mca_ik_service.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true; wait "$SERVER_PID" 2>/dev/null || true' EXIT
+          PYTHONPATH=vla_ws/src/vla_follow python3 tests/diag/test_mca_ik_service.py
+
       - name: Verify immutable ChassisBrake stage locks (legacy non-authoritative diagnostic)
         continue-on-error: true
         run: |
