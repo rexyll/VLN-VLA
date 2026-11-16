@@ -1498,3 +1498,10 @@
 - 需要注意：本次 SDF 创建发生在 #430 workflow 已经以 TaskPlan commit `bc264dc` 启动之后，因此 #430 不包含该新 SDF，不能把 #430 结果视为 Ground Fixed Joint 原型已构建或运行验证。
 - 后续必须新增专用 runner：订阅 state topic，核对 Boolean attach 状态；机器人静止启动后先 detach，再分别执行“detach 状态可移动→attach 状态不可移动→再次 detach 可移动→再次 attach 锁定”的同条件对照。再执行机械臂动作负载回归。状态消息、Gazebo truth pose/twist 和轮关节 telemetry 三者必须同时归档；不得只依据 topic ACK 判定物理锁止。
 - 当前仅完成 TaskPlan 与隔离 SDF 原型；尚未完成 SDF 解析、Gazebo 启动、attach/detach 运行验证和固定状态机械臂负载测试。P104-10.1 仍未通过。
+
+
+### 8.432 Ground Fixed Joint 锚点避免 DART 初始碰撞重叠（2026-11-16）
+
+- 复核 Gazebo 官方 DetachableJoint 示例的 DART 约束注意事项后，发现首版隔离 SDF 的 anchor link 在 chassis 内放置了小球 collision；这会使 parent/child 初始附着模型发生碰撞重叠，不符合官方文档对 DART 的约束要求。
+- 已从 `chassis_ground_lock_test.sdf` 移除 anchor link 的 collision/visual/inertial，仅保留静态模型中的无碰撞锚点 link。它只作为 Fixed Joint 的 parent link，不参与接触碰撞，不改变 robot 的质量、惯量、摩擦、阻尼或轮端参数。
+- 该修正属于 SDF 原型的静态结构审查；尚未由 Gazebo Sim 8.15.0 实际加载验证。后续 runner 必须检查 DetachableJoint 的状态输出与 Gazebo truth 位姿，若 SDF 加载/attach 报错则停止，不通过增加碰撞几何或移动 robot 初始位姿来绕过。
