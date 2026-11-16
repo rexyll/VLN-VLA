@@ -953,10 +953,11 @@ class DrinkTask(Node):
         except Exception as exc:
             # Keep the mux locked on every failure. If the last confirmed state
             # may be detached, attempt to restore the physical anchor as well.
-            if mux_locked and self._ground_lock.state != 'attached':
+            if mux_locked:
                 # Force a fresh attach request even if the last locally observed
-                # state is stale; the previous transition may have occurred while
-                # its state event was lost.
+                # state is stale; a previous transition may have occurred while
+                # its state event was lost. If already attached Gazebo may ignore
+                # it, but the software mux remains locked either way.
                 if self._ground_lock.command(
                         'attached', timeout_s=5.0, force=True):
                     self.get_logger().warn(
