@@ -3735,6 +3735,61 @@ class TestPresentBaseHoldAblation(unittest.TestCase):
         self.assertLess(guard, close)
 
 
+
+class TestPhysicalGazeboChassisLock(unittest.TestCase):
+    def test_work_area_has_static_detachable_joint_anchor(self):
+        world_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'worlds', 'work_area.sdf')
+        with open(world_path, encoding='utf-8') as stream:
+            world = stream.read()
+        self.assertIn('<model name="ground_lock_anchor">', world)
+        self.assertIn('gz-sim-detachable-joint-system', world)
+        self.assertIn('<parent_link>ground_lock_anchor_link</parent_link>', world)
+        self.assertIn('<child_model>robot</child_model>', world)
+        self.assertIn('<child_link>chassis</child_link>', world)
+        self.assertIn('/world/follow_world/chassis_lock/attach', world)
+        self.assertIn('/world/follow_world/chassis_lock/detach', world)
+        self.assertIn('/world/follow_world/chassis_lock/state', world)
+
+    def test_task_lock_orders_software_and_physical_transitions_fail_closed(self):
+        task_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow', 'drink_task.py')
+        with open(task_path, encoding='utf-8') as stream:
+            source = stream.read()
+        lock = source[source.index('def set_base_lock(self, locked, timeout=2.0):'):
+                      source.index('def run_base_motion_window', source.index(
+                          'def set_base_lock(self, locked, timeout=2.0):'))]
+        self.assertIn('if not self._ground_lock_ready or self._ground_lock is None:', lock)
+        self.assertLess(lock.index('self._set_mux_base_lock(True'),
+                        lock.index("self._ground_lock.command(\n                    'attached'"))
+        self.assertLess(lock.index("self._ground_lock.command(\n                'detached'"),
+                        lock.index('self._set_mux_base_lock(False'))
+        self.assertIn('software mux remains locked', lock)
+        self.assertIn("self._ground_lock.command(\n                    'attached'", lock)
+
+    def test_startup_requires_attached_ack_before_navigation_detach(self):
+        task_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow', 'drink_task.py')
+        with open(task_path, encoding='utf-8') as stream:
+            source = stream.read()
+        startup = source[source.index('def _startup_ground_lock_tick'):
+                         source.index('def _set_mux_base_lock')]
+        self.assertIn("state != 'attached'", startup)
+        self.assertIn("command('detached'", startup)
+        self.assertIn('self._ground_lock_ready = True', startup)
+        self.assertIn('startup timeout: no DetachableJoint state', startup)
+
+    def test_gazebo_lock_client_only_accepts_attached_or_detached_truth(self):
+        helper_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
+            'gazebo_ground_lock.py')
+        with open(helper_path, encoding='utf-8') as stream:
+            source = stream.read()
+        self.assertIn('state not in ("attached", "detached")', source)
+        self.assertIn('gz.msgs.Empty', source)
+        self.assertIn('self.wait_for_state(expected', source)
+
+
 class TestDrinkBaseLock(unittest.TestCase):
     def test_mux_lock_overrides_every_velocity_source_and_clears_stale_drink_cmd(self):
         mux_path = os.path.join(
