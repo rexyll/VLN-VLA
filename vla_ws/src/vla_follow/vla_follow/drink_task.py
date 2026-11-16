@@ -243,6 +243,7 @@ class DrinkTask(Node):
         self._follow_base_trace = None
         self._follow_base_hold_target = None
         self._follow_base_hold_zero_logged = False
+        self._physical_hold_correction_suppressed_logged = False
         self._prepare_base_hold_target = None
         self._prepare_base_reach_active = False
         self._last_prepare_hold_trace_t = 0.0
@@ -734,6 +735,62 @@ class DrinkTask(Node):
             (float(msg.linear.x), float(msg.angular.z)), time.monotonic())
         self._record_follow_cmd_trace('robot', msg)
 
+    def _chassis_stationary_sample(self):
+        """Require fresh Gazebo truth, fresh joint state and near-zero wheel speed."""
+        now = time.monotonic()
+        if (self.truth_base_twist is None
+                or now - self.truth_base_twist_t > 0.25
+                or not self.js_sample_t
+                or now - self.js_sample_t > 0.25):
+            return False
+        vx, vy, wz = (float(v) for v in self.truth_base_twist)
+        wheel_values = [
+            self.js_velocity.get('left_wheel_joint'),
+            self.js_velocity.get('right_wheel_joint')]
+        if any(v is None for v in wheel_values):
+            return False
+        values = [vx, vy, wz] + [float(v) for v in wheel_values]
+        if not all(math.isfinite(v) for v in values):
+            return False
+        return (math.hypot(vx, vy) < 0.005
+                and abs(wz) < math.radians(0.5)
+                and max(abs(v) for v in wheel_values) < 0.05)
+
+    def _wait_chassis_stationary(self, timeout=3.0, stable_s=0.25):
+        """Require a continuous stationary interval before changing physical lock."""
+        deadline = time.monotonic() + max(0.1, float(timeout))
+        stable_since = None
+        while time.monotonic() < deadline:
+            now = time.monotonic()
+            if self._chassis_stationary_sample():
+                if stable_since is None:
+                    stable_since = now
+                if now - stable_since >= stable_s:
+                    return True
+            else:
+                stable_since = None
+            self.spin_for(0.02)
+        return False
+
+    def _verify_chassis_pose_stable(self, before, window_s=0.30):
+        """Verify no measurable base excursion while attaching or detaching."""
+        if before is None or before[0] is None:
+            return False
+        self.spin_for(window_s)
+        after = self.truth_base_pose_snapshot
+        if (after is None or time.monotonic() - after[1] > 0.25
+                or not self._chassis_stationary_sample()):
+            return False
+        bx, by, byaw = before[0]
+        ax, ay, ayaw = after[0]
+        displacement_mm = math.hypot(ax - bx, ay - by) * 1000.0
+        yaw_delta = abs(math.degrees(math.atan2(
+            math.sin(ayaw - byaw), math.cos(ayaw - byaw))))
+        self.get_logger().info(
+            'PHYSICAL_CHASSIS_LOCK pose_check displacement_mm=%.3f yaw_deg=%.4f'
+            % (displacement_mm, yaw_delta))
+        return displacement_mm < 2.0 and yaw_delta < 0.5
+
     def _base_lock_state_cb(self, msg):
         try:
             payload = json.loads(msg.data)
@@ -832,13 +889,22 @@ class DrinkTask(Node):
         if locked:
             if not self._set_mux_base_lock(True, timeout=timeout):
                 return False
+            if not self._wait_chassis_stationary():
+                self.get_logger().error(
+                    'PHYSICAL_CHASSIS_LOCK refused attach: fresh truth/joint/wheel stationary gate failed')
+                return False
+            _pose_before_attach = self.truth_base_pose_snapshot
             if not self._ground_lock.command(
                     'attached', timeout_s=5.0, spin=self.spin_for):
                 self.get_logger().error(
                     'PHYSICAL_CHASSIS_LOCK attach not confirmed; software mux remains locked')
                 return False
+            if not self._verify_chassis_pose_stable(_pose_before_attach):
+                self.get_logger().error(
+                    'PHYSICAL_CHASSIS_LOCK attach pose/twist verification failed; software mux remains locked')
+                return False
             self.get_logger().info(
-                'DRINK_BASE_LOCK physical=ATTACHED + software=LOCKED')
+                'DRINK_BASE_LOCK physical=ATTACHED + software=LOCKED + truth_hold=PASS')
             return True
 
         # If a caller asks to unlock while the mux is not already locked, first
@@ -846,10 +912,17 @@ class DrinkTask(Node):
         if self._ground_lock.state != 'detached' and not self._base_lock_active:
             if not self._set_mux_base_lock(True, timeout=timeout):
                 return False
+        _pose_before_detach = self.truth_base_pose_snapshot
         if not self._ground_lock.command(
                 'detached', timeout_s=5.0, spin=self.spin_for):
             self.get_logger().error(
                 'PHYSICAL_CHASSIS_LOCK detach not confirmed; software mux remains locked')
+            return False
+        if not self._verify_chassis_pose_stable(_pose_before_detach):
+            self.get_logger().error(
+                'PHYSICAL_CHASSIS_LOCK detach stability verification failed; software mux remains locked')
+            self._ground_lock.command(
+                'attached', timeout_s=5.0, spin=self.spin_for)
             return False
         if not self._set_mux_base_lock(False, timeout=timeout):
             # Restore both layers to the safe state after an unlock failure.
