@@ -159,7 +159,7 @@ public:
     }
 
     const double leftError = std::remainder(
-        this->leftTarget - leftPosition, 2.0 * M_PI);
+        this->leftTarget - leftPosition, 6.28318530717958647692);
     const double rightError = std::remainder(
         this->rightTarget - rightPosition, 2.0 * M_PI);
     const double leftTorque = std::clamp(
