@@ -1400,3 +1400,14 @@
 - #384 的 112.244rad/s wheel velocity、约 -1.185rad yaw 与隔离模型 `Izz=0.1985kg·m²` 相符于 18Nm 持续强扭矩引起的高角加速度量级；这使扰动力矩幅值成为明确的首要问题。仍需通过独立重启的分级实验找出同时满足原 baseline 0.5°响应门槛和轮速/仿真稳定性约束的输入，不能直接按线性模型选定最终力矩。
 - 后续标定必须确保每个候选力矩均在全新仿真进程中单独运行，记录完整 1 秒物理响应，并在 baseline 达标后再用完全相同的输入做 locked/unlocked A-B。不得在一个已施加 persistent wrench 的仿真中仅修改消息数值并把它当成独立样本；每个候选点均须先 clear 并重启世界，以保证初始状态可比。
 - 本节补充并细化 §8.420 的标定计划；物理验收门槛和模型参数限制保持不变。
+
+
+### 8.422 #385 / #386 重复验证：18Nm baseline 仍触发轮速失稳护栏（2026-11-16）
+
+- TaskPlan 文档提交 `1e888462` 与 `b442a1a5` 分别触发 P104 E2E #385（run `43808734947`）和 #386（run `43808755363`）。两次均完成行为树单测、P104 offline regression、Gazebo 插件构建、CTest 和动态链接检查；均在 `Run isolated ChassisBrake hold and unlock experiment` 失败，后续 ROS workspace build 与完整 DrinkTask E2E 被跳过。对应辅助检查：#386 的 Python syntax #1238、GraspCarry C++ build #213、CarryBus ROS2 #977、base-arm collector syntax #130 均通过。
+- #385 artifact `14199368133` 的 runner 日志：subscriber 与两个 publisher endpoint 均已发现；baseline 左轮速度达到 `108.944655rad/s`，超过 `100rad/s` 诊断护栏；yaw 为 `-2.455686rad`。#386 artifact `14199717232`：相同 endpoint 条件下，baseline 左轮速度达到 `112.859282rad/s`，yaw 为 `-2.835219rad`。两次均在 baseline 阶段终止，没有 baseline 完整统计、LOCKED/UNLOCKED ACK、locked hold 或 unlock recovery 数据。
+- #386 的 `chassis_brake_isolated.log` 为空，没有复现 #379 的 DART/ODE AABB abort；Gazebo 在 runner 检测到轮速超限后被 finally 清理。故本轮失败不是插件编译、publisher discovery、ACK 超时或已证实的 ODE crash，而是 runner 主动触发的 baseline 失稳护栏。
+- 对照当前代码，标定计划尚未实现：`run_chassis_brake_gz.py` 仍固定发送 `torque.z=18.0`，每个 run 仅进行一次 1 秒 baseline；因此 #385/#386 只是相同强扰动的重复复现，并非分级标定。SDF chassis `Izz=0.1985kg·m²`，单按该惯量估算 `18Nm` 对应约 `90.7rad/s²` 角加速度；实测偏航和轮速已远超合理的保持实验窗口。该结果强烈支持 18Nm 对当前隔离模型过强，但由于模型还包含轮地接触、轮子惯量和关节约束，不能将简化刚体估算视为完整动力学证明。
+- 下一步修复方向：实现真正的分级标定模式，而不是继续以固定 18Nm 重跑。每个候选值需在全新 Gazebo 进程/相同初始条件下独立测试；记录从扰动开始到护栏触发的时间、pose/twist、两轮 position/velocity，并确认 wrench 清除和仿真正常退出。候选值须同时满足 baseline yaw `>=0.5°`、轮速 `<=100rad/s`、有限状态、无物理引擎异常；若在安全轮速范围内找不到达到 0.5°的输入，应停止并重新评估该外部扰动模型是否适合作为该物理验收方法，而不是放宽阈值。
+- 不得修改 `100rad/s` 诊断护栏、baseline `0.5°` 门槛、locked yaw reduction `>=50%`、unlock recovery `>=10mm`、质量/惯量、摩擦、阻尼、轮端 effort limit 或 PD 增益来制造通过。不得把未标定的候选力矩用于宣称 hold 成功。
+- P104-10.1 仍未通过；P104-10.2/10.3 和完整 DrinkTask E2E 尚未执行。生产 `work_area.sdf` 不接入 ChassisBrake。仅在 `experiment/drinktask-bt-ik-recovery` 修改；`main` 未修改，PR #3 保持 Draft/Open，不合并，不创建其他分支。
