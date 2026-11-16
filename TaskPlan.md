@@ -1489,3 +1489,12 @@
   4. Fixed Joint 验收使用同一扰动、同一初始条件、同一时长比较 unlocked 与 locked；locked yaw/XYZ 漂移必须满足 P104-10.2 原有门槛，且 locked yaw 相对 unlocked 至少抑制 50%。Detach 后相同驱动命令位移 >=10mm。任何候选失败都保留原始数据，不覆盖或复用前轮 PASS 锁。
   5. 如果实体解析阶段仍无法证明 ApplyLinkWrench 消息进入物理更新，不进行 torque 参数搜索；改用独立的 Gazebo 测试扰动系统/已验证的 Joint API 建立可观测负载注入，先验证 fixed joint 连接/释放本身。不得将替代注入路径伪装成 ApplyLinkWrench 已修复。
 - 现阶段不修改质量、惯量、摩擦、阻尼、轮端 effort、PD 增益、IK/碰撞/交接阈值；不把 Ground Fixed Joint 接入生产 `work_area.sdf`，直到独立 A–F 实验和阶段锁完整通过。所有改动仅限 `experiment/drinktask-bt-ik-recovery`；PR #3 保持 Draft/Open；main 不修改；不创建其他分支、不设置定时监控。
+
+
+### 8.431 新增 Ground Fixed Joint 隔离世界原型（2026-11-16）
+
+- 在 `tests/diag/chassis_ground_lock_test.sdf` 新增独立隔离世界：保留原机器人/轮组/机械臂简化模型，增加静态 `ground_lock_anchor`，并通过 Gazebo Sim `DetachableJoint` 将 anchor link 与 `robot::chassis` 连接。
+- attach/detach/output topic 分别为 `/world/brake_test/chassis_lock/attach`、`/world/brake_test/chassis_lock/detach`、`/world/brake_test/chassis_lock/state`。此文件仅为隔离原型，不接入生产 `work_area.sdf`，也不改变现有 E2E 的 ChassisBrake/ApplyLinkWrench runner。
+- 需要注意：本次 SDF 创建发生在 #430 workflow 已经以 TaskPlan commit `bc264dc` 启动之后，因此 #430 不包含该新 SDF，不能把 #430 结果视为 Ground Fixed Joint 原型已构建或运行验证。
+- 后续必须新增专用 runner：订阅 state topic，核对 Boolean attach 状态；机器人静止启动后先 detach，再分别执行“detach 状态可移动→attach 状态不可移动→再次 detach 可移动→再次 attach 锁定”的同条件对照。再执行机械臂动作负载回归。状态消息、Gazebo truth pose/twist 和轮关节 telemetry 三者必须同时归档；不得只依据 topic ACK 判定物理锁止。
+- 当前仅完成 TaskPlan 与隔离 SDF 原型；尚未完成 SDF 解析、Gazebo 启动、attach/detach 运行验证和固定状态机械臂负载测试。P104-10.1 仍未通过。
