@@ -1759,3 +1759,14 @@
 - 已在 `tests/test_p104.py` 新增 AST 回归测试，检查门控初值为关闭、`publish_all()` 必须位于门控分支内，并且门控只能在物理 attach 位姿验证之后打开。
 - **验收要求：**先通过离线 Python 回归；再运行生产 `work_area.sdf`，确认 startup handshake 的 detach/attach/final-detach 全程双臂目标发布量为 0、关节位置/速度保持静止、底盘位移 <2mm；随后通过物理 attach 和 mux ACK 后，boot home/hang 才开始发布并完成。至少重复 3 次独立生产 Gazebo 运行。不得降低 2mm 门槛、改惯量/摩擦或屏蔽真实物理响应。
 - 本修复目前已提交代码与回归测试，尚未取得新 CI 结果；在生产场景 A/B 验收通过前，不能将 P104-10.1 或 GroundFixedJoint 生产集成标记完成。PR #3 保持 Draft/Open；仅在 `experiment/drinktask-bt-ik-recovery` 工作，不修改 `main`，不创建新分支，不设置定时监控。
+
+
+### 8.445 生产物理锁状态事件确认失败及有界重试（2026-11-16）
+
+- 对 PR E2E run `43888696764`（提交 `dea8e60b6721330881e628b0531ffb1a31a68dd8`）检查完整 job 日志：环境安装、MCA vendor 校验、离线测试、Gazebo 插件构建、GroundFixedJoint 三次隔离实验、MCA 双臂服务测试均通过；失败发生在生产 `work_area.sdf` DrinkTask E2E。
+- 本轮确认启动双臂命令门控已生效：日志出现 `BOOT_ARM_COMMAND_GATE closed`；软件 mux 已确认 LOCKED；首次 startup detach 的底盘位移为 0.000mm / 0.0000°。但后续 attach 命令未收到新的 `attached` 状态事件，握手按 fail-closed 策略中止；异常恢复阶段重新发出 attach 后才收到物理锚点恢复确认。故本轮尚不能证明完整 detach→attach→detach 握手通过，也不能把生产底盘锁验收标记完成。
+- 另外，E2E 运行环境出现独立的 `ModuleNotFoundError: No module named 'vosk'`，voice 节点依赖未安装；目前日志表明主任务的明确中止原因仍是物理 attach ACK 超时。将其列为环境依赖缺口，后续确认是否影响语音链路验收，不得与物理锁根因混为一谈。
+- 修复方向：保留“每次状态转换必须收到命令发出之后的新状态事件”这一强验收；在 `GazeboGroundLock.command()` 中，仅当 CLI 发布成功但等待状态事件超时时，再发出一次有界重试。两次尝试都必须各自等待晚于各自命令时间戳的状态事件；命令发布失败、超时或状态未确认仍然返回失败，绝不以 wheel=0、mux LOCKED 或本地缓存状态替代物理 ACK。
+- 已提交实现：`a72718c181c9a538d7be73afec01755c9985ea05`；测试提交：`ae548f6c8cc4d6aa8ebab5ed42e9b034ff1d790f`。新增 AST 回归断言检查最多两次尝试以及每次等待新鲜状态事件。Python 语法与纯测试 workflow 当前已通过；完整生产 Gazebo E2E `43895621864` 尚待执行。
+- 下一验收：生产 `work_area.sdf` 至少 3 次独立启动均须通过真实 detach→attach→final-detach 事件确认；每阶段底盘位移 <2mm、yaw <0.5°，mux 在整个探测阶段保持 LOCKED；门控关闭期间不得发布任何双臂目标。只有 attach 与位姿保持验证通过后才允许打开双臂输出门控。不得跳过事件确认、降低物理阈值、改变机器人惯量/质量/摩擦或伪造物理响应。
+- PR #3 保持 Draft/Open；仅在 `experiment/drinktask-bt-ik-recovery` 工作，不修改 `main)，不创建新分支，不设置定时监控。
