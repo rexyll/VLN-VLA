@@ -785,6 +785,8 @@ class TestP104(unittest.TestCase):
         self.assertIn('verify_stage_lock(', script)
         self.assertIn('input hashes changed during experiment', script)
         self.assertIn('p104_chassis_brake_stage_locks.json', script)
+        self.assertIn('Never allow a previous successful run', script)
+        self.assertIn('if os.path.exists(canonical_lock):', script)
         self.assertIn('max_wheel_rad_s', script)
         self.assertIn('pose_start', script)
         self.assertIn('pose_end', script)
