@@ -1290,3 +1290,16 @@
 - 已修正测试 duplicate predicate，要求 op、model 和 requestId 三者相同才判定同一事务；并增强 CHECK 失败输出文件、行号和断言表达式，避免下次只看到无上下文的 Subprocess aborted。提交：`ecdfd4a8cc4450db8d302b798c015e448dda9d9b`，仅在 `experiment/drinktask-bt-ik-recovery`。
 - 当前修复等待 CI 重跑。必须先确认 CTest 通过，再进入隔离 ChassisBrake 物理保持/解锁实验；不得将插件编译成功或单元测试修复等同物理制动通过。P104-10.1 仍未验收，P104-10.2/10.3 未完成；生产 `work_area.sdf` 不接入插件，所有物理阈值与参数约束保持不变。
 - `main` 未修改；PR #3 继续 Draft/Open，不合并；未创建其他分支。
+
+
+### 8.412 #359 / PR validation ChassisBrake 隔离物理实验失败分析（2026-11-16）
+
+- PR 验证 E2E Run `43787865741`（head `e58bfe714efb3b2a6605259e178e658943a77c69`）通过行为树单测、P104 offline regression、Gazebo 插件构建；失败仅发生于 `Run isolated ChassisBrake hold and unlock experiment`，ROS 工作区构建和完整 DrinkTask E2E 被跳过。相同 head 的插件构建 Run `43787865835`、CarryBus Run `43787865747`、Python Run `43787865721` 均通过。
+- GraspCarryQueue 修复已验证：插件构建 workflow 的 bounded queue 8/8 passed，Gazebo 插件链接、headless ACK protocol、ROS2/ros_gz_bridge ACK fault injection 均通过。此前 #357 的 CTest 断言失败不再复现。
+- 隔离实验结果：baseline `max_xy_mm=1.128e-8`, `max_yaw_deg=0.0004589`, `max_wheel_rad_s=3.65e-9`；locked `max_xy_mm=61.977`, `max_yaw_deg=29.347`, `max_wheel_rad_s=7.968`；unlock recovery displacement `193.5mm`。脚本因 baseline yaw 小于 0.5° 的校准门槛失败，未进入 brake reduction 的有效 A/B 验收；locked 状态也明显不满足物理静止要求。
+- 代码检查发现 runner 对 `/world/brake_test/wrench/persistent` 只发送一次 `gz topic -p`，没有等待订阅端连接或验证基线扰动已被 ApplyLinkWrench 接收；随后马上测量。这是基线接近零的首要可疑原因（one-shot transport startup race），但需通过订阅发现/命令确认及重复实验实证，不能将其当作已完全证实的唯一原因。
+- 同一 runner 把 18Nm yaw wrench 施加到 `entity type MODEL`（Gazebo ApplyLinkWrench 会把模型目标映射到 canonical link），而 ChassisBrake 只对左右轮关节施加最大 5Nm 的位置 PD 力矩。当前实验的扰动路径与轮端保持机制之间尚未证明等效于真实机械臂反作用力；locked 阶段 29.347° yaw / 7.968rad/s wheel speed 表明现有配置未能抵抗该扰动，但在基线有效性和 wrench 接收状态未核实前，不应把失败单独归因于 PD 算法、轮胎摩擦或物理引擎。
+- 下一步：在不放宽任何验收阈值、不修改生产世界摩擦/阻尼/质量/effort limit 的前提下，修复实验可观测性：等待并记录 wrench topic subscriber readiness；发布后通过 Gazebo truth pose 确认 baseline disturbance 达到既定校准门槛；在同一扰动输入、同一持续时间、同一初始状态下执行 unlocked / locked A-B；记录插件 LOCKED/UNLOCKED/FAULT 状态、两轮 joint position/velocity、底盘 pose/twist 及 wrench 目标实体。若锁定仍发生漂移，再分析 JointForceCmd 与 DiffDrive 的控制优先级、轮胎接触约束和制动扭矩饱和。不得把单纯 ACK 当作物理锁定成功。
+- 本轮完整 E2E 尚未执行；P104-10.1 隔离物理验收未通过，P104-10.2 独立静止确认及 P104-10.3 机械臂反作用力回归未开始。生产 `work_area.sdf` 不接入 ChassisBrake。
+- 另：同 SHA 的 push-triggered E2E run `43787832273` 被 PR-triggered 同组 run 取消；workflow 的 `concurrency.group=p104-drinktask-headless-${{ github.ref }}` 且 `cancel-in-progress: true`，这是并发重复运行互相取消的 CI 调度问题，不是代码测试失败。PR-triggered run `43787865741` 已完整执行到物理隔离实验并提供真实失败证据。
+- `main` 未修改；PR #3 仍 Draft/Open，不合并；未创建其他分支。
