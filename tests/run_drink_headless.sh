@@ -67,7 +67,7 @@ cleanup() {
     trap - EXIT
     if (( status != 0 )); then
         echo "DrinkTask headless run failed (exit=$status); recent logs:" >&2
-        for file in gzsim bridge pw voice drink percept vision mux follower nav2; do
+        for file in gzsim bridge pw voice mca_ik drink percept vision mux follower nav2; do
             if [[ -s "$LOG_DIR/$file.log" ]]; then
                 echo "----- $file.log -----" >&2
                 tail -n 100 "$LOG_DIR/$file.log" >&2 || true
