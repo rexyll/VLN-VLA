@@ -27,7 +27,7 @@
 - 最新已确认完整 E2E 失败：#455（run `43838149602`，commit `acc45f8933f1bbb9aaea20511b1ba53c8291fd6e`）。任务失败点为 `PRESENT_FOLLOW`：杯子漂移约 45.049mm、杯轴误差约 3.912°；机械臂 follow 期间底盘真值最大 XY 移动约 20.494mm、yaw 变化约 3.962°、最大速度约 0.0770m/s，而 `/drink/cmd_vel` 与 `/robot/cmd_vel` 峰值均为 0，轮端 effort 为 0。根因证据指向机械臂运动反作用力造成被动底盘位移；仅靠 cmd_mux 软件锁和零速度命令不足以满足物理静止要求。交接门槛未降低，拒绝交权属于正确 fail-closed 行为。
 - MotionControlAlgorithms 当前审查基线：仓库 `rexyll/MotionControlAlgorithms`，main commit `c11091bd2bb3ce001eb09f2664c1ff5076f8a73b`，C++17 / Eigen3 / Apache-2.0。采用**选择性、固定版本引入**，不整仓合并；优先验证 Damped Least Squares IK、S-Curve 轨迹、差速运动学。Cartesian impedance/admittance、task-space hierarchy、CBF 等模块需先完成动力学/执行接口/约束建模适配审查，不作为第一批直接上线控制器。
 - 当前任务节点：**P105-01｜MCA 依赖审计、固定版本引入与可复现构建**。
-- 总体状态：**正在进行中；尚未完成 MCA 代码引入、ROS 2 适配、生产控制切换或新的完整 Gazebo E2E。不得将方案写入 TaskPlan 视为实现完成。**
+- 总体状态：**正在进行中；已将 MCA 固定版本的 8 个核心头文件、LICENSE/NOTICE 选择性引入，新增独立 ament_cmake 包、DLS/S-Curve/差速运动学封装和 C++ 单元测试，并把包构建/测试接入 CI。当前提交 `cbbdb3d1aeab3df078027bcb968b719c0859f651` 的 MCA 包构建与 C++ 测试尚待对应 CI job 完成；URDF 模型映射、ROS 2 adapter 和生产控制切换均未完成。不得将源文件复制或计划写入视为生产控制已启用。**
 - 本轮开始时 VLN-VLA 分支 HEAD 为 `acc45f8933f1bbb9aaea20511b1ba53c8291fd6e`。后续所有提交只允许落在本分支；不创建新分支，不修改/合并 main，不改变 PR #3 Draft/Open 状态。
 - 现有关键安全验收保持不变：交接位置误差 ≤6mm、轴向误差 ≤0.5°；底盘锁止目标线速度 <0.005m/s、角速度 <0.5°/s、1秒平移 <2mm、朝向变化 <0.5°。现有 IK、关节限位、碰撞与 swept-path、物体抓持/释放和任务后置条件均不得放宽。
 - 唯一指令出口约束继续有效：`drink_task.py` 的 39 路 `/drink/cmd/*` 仍须保持单一发布者和统一节拍。在 C++ 控制器迁移阶段，MCA 节点只提供经过验证的关节目标/轨迹，不得并行直接发布同一批 Gazebo joint command topic。
@@ -77,11 +77,11 @@
 
 ### P105-01｜依赖审计、模型映射与可复现构建
 
-1. [正在进行中] 锁定上游 MCA commit `c11091bd2bb3ce001eb09f2664c1ff5076f8a73b`；导出第一批候选模块的精确依赖闭包（DLS/Numerical IK、URDF/DH model、FK、Jacobian、SE(3)、S-Curve、DifferentialDrive、core types/math），确认是否依赖 Eigen3、C++17、外部子模块或动态库。
+1. [已完成] 锁定上游 MCA commit `c11091bd2bb3ce001eb09f2664c1ff5076f8a73b`；导出第一批候选模块的精确依赖闭包（DLS/Numerical IK、URDF/DH model、FK、Jacobian、SE(3)、S-Curve、DifferentialDrive、core types/math），确认是否依赖 Eigen3、C++17、外部子模块或动态库。
 2. [未完成] 对比 `arm_kin.py` 与 MCA 模型表达：两侧 7 轴关节名称/顺序、joint type、origin、axis、limits、左右镜像、base-to-shoulder transform、wrist-to-palm transform、角度单位；生成自动化模型一致性报告。不得通过更改现有模型参数让两套 FK 人为吻合。
-3. [未完成] 在 `vla_ws/src/mca_drink_control` 建立 ament_cmake ROS 2 Jazzy 包；保持 `vla_follow` 的 ament_python 包不被强制改造成混合构建。建立独立 `mca_core` 静态/接口目标，声明 Eigen3 与 ROS 2 依赖，CI 安装依赖并执行 clean build。
-4. [未完成] 仅 vendoring 经批准的最小源文件集合；同步 `LICENSE`、`NOTICE`，新增 `THIRD_PARTY_NOTICES.md` 与 `MCA_UPSTREAM.lock`（commit、路径、SHA256、许可、修改记录）。不复制不相关 EtherCAT/FOC/UAV/legged 产物。
-5. [未完成] 增加 C++ 单元测试与 Python 现有模型交叉测试：FK 基准点、随机合法关节状态、左右臂镜像、边界姿态、奇异邻域、非有限输入、关节越界、不可达目标。对每组输入比较 FK 位置/姿态差，定义并冻结模型一致性容差。
+3. [已完成｜初始包骨架] 在 `vla_ws/src/mca_drink_control` 建立 ament_cmake ROS 2 Jazzy 包；保持 `vla_follow` 的 ament_python 包不被强制改造成混合构建。建立独立 `mca_core` 静态/接口目标，声明 Eigen3 与 ROS 2 依赖，CI 安装依赖并执行 clean build。
+4. [已完成｜首批文件] 仅 vendoring 经批准的最小源文件集合；同步 `LICENSE`、`NOTICE`，新增 `THIRD_PARTY_NOTICES.md` 与 `MCA_UPSTREAM.lock`（commit、路径、SHA256、许可、修改记录）。不复制不相关 EtherCAT/FOC/UAV/legged 产物。
+5. [正在进行中] 已增加 DLS 可达链、S-Curve 约束和差速运动学 C++ 单元测试；待 CI 实际构建/执行通过后关闭本项。后续再增加 C++/Python 模型交叉测试：FK 基准点、随机合法关节状态、左右臂镜像、边界姿态、奇异邻域、非有限输入、关节越界、不可达目标。对每组输入比较 FK 位置/姿态差，定义并冻结模型一致性容差。
 6. [未完成] 验证 Windows/Linux 不作为本项目强制目标；当前最低交付平台为 CI 使用的 Ubuntu + ROS 2 Jazzy + Gazebo Harmonic。记录编译器、Eigen、ROS/Gazebo 版本及依赖 hash。
 
 ### P105-02｜建立 C++ 控制核心与 ROS 2 适配边界
