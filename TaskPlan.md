@@ -1738,3 +1738,10 @@
 - 修复提交：`731e3bc867883d2cc1bfc877d065fcfe8639b519`。等待该提交的离线回归与完整 CI 重跑；本项测试修复尚未因提交而自动视为通过。
 - 本轮失败时 Gazebo 插件构建、GroundFixedJoint 重复实验、MCA 双臂服务测试及生产 `work_area.sdf` DrinkTask E2E 均未执行，因此物理锁启动握手和生产集成状态仍未获得新验收证据。
 - 下一步：先检查该提交触发的 Python 回归结果；通过后确认 workflow 进入 Gazebo build、GroundFixedJoint 3 次独立重复、ROS 2/MCA build 与双臂服务 smoke test，最后检查生产场景 E2E artifact。PR #3 继续 Draft/Open；仅在 `experiment/drinktask-bt-ik-recovery` 工作，不修改 `main)、不创建分支、不降低物理门槛。
+
+
+### 8.443 AST 回归断言实现中的导入遗漏及二次修正（2026-11-16）
+
+- AST 方案首次 CI（run `43878966357`，Python syntax workflow）显示原来的 162 项源码断言误报已被消除，但测试函数出现 `NameError: name 'ast' is not defined`。原因是首次自动补丁未将 `import ast` 插入文件顶部；这属于测试修复自身的实现遗漏，不是产品代码故障。
+- 已在提交 `09bd95f36a32d2a46af1cf6666b58b9527928f0f` 显式添加模块级 `import ast`，并保留 AST 解析及 logger.error 字符串检查。
+- 下一轮必须确认 Python syntax workflow 中 162 项测试全部通过；在 CI 通过前不得将该回归测试节点标记完成。Gazebo E2E run #606 运行在前一提交上，且其离线回归尚未完成；不能将其结果当作本次最终修复的验收。
