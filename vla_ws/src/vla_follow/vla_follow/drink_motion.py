@@ -675,7 +675,12 @@ def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
             _mca_report = getattr(node, 'solve_mca_ik', lambda *args: None)(
                 side, T_world, base_at_ik, q)
             if _mca_report is not None and bool(_mca_report.success):
-                _mca_q = np.asarray(_mca_report.joint_positions, dtype=float)
+                _expected_names = [
+                    '%s_%s_joint' % (side, joint[0]) for joint in K.JOINTS]
+                _mca_q = np.asarray(
+                    _mca_report.solution.position
+                    if list(_mca_report.solution.name) == _expected_names
+                    else [], dtype=float)
                 _mca_bad = (K.violation_list(side, _mca_q)
                             if _mca_q.shape == (K.NJ,) else ['invalid_joint_count'])
                 if _mca_q.shape == (K.NJ,) and np.all(np.isfinite(_mca_q)):
