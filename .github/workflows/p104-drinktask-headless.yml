@@ -246,6 +246,8 @@ jobs:
       - name: Run headless DrinkTask E2E with read-only base-arm telemetry
         id: drinktask_e2e
         shell: bash
+        env:
+          VLA_MCA_IK_ENABLED: '1'
         run: |
           set -euo pipefail
           mkdir -p vla_ws/logs
