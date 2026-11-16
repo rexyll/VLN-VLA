@@ -8,6 +8,7 @@ a repeatable disturbance; the script compares DiffDrive zero-command behavior
 against the opt-in JointForceCmd PD brake, then verifies DiffDrive recovers
 after the brake component is removed.
 """
+import argparse
 import math
 import os
 import re
@@ -262,11 +263,11 @@ def publish_clear_repeated(publisher, phase, log):
 
 
 
-def main():
+def run_single(torque_nm, log_suffix=""):
     if not os.path.isfile(WORLD):
         raise RuntimeError("test world missing: " + WORLD)
-    log_path = os.path.join(ROOT, "vla_ws", "logs", "chassis_brake_isolated.log")
-    runner_log_path = os.path.join(ROOT, "vla_ws", "logs", "chassis_brake_runner.log")
+    log_path = os.path.join(ROOT, "vla_ws", "logs", "chassis_brake_isolated%s.log" % log_suffix)
+    runner_log_path = os.path.join(ROOT, "vla_ws", "logs", "chassis_brake_runner%s.log" % log_suffix)
     os.makedirs(os.path.dirname(log_path), exist_ok=True)
     with open(log_path, "w", encoding="utf-8") as log, \
          open(runner_log_path, "w", encoding="utf-8") as runner_log:
@@ -301,7 +302,7 @@ def main():
             wait_for_subscriber(WRENCH_TOPIC, "gz.msgs.EntityWrench", 15,
                                 runner_log)
             wrench = ('entity: {name: "chassis" type: LINK} '
-                      'wrench: {torque: {z: 18.0}}')
+                      'wrench: {torque: {z: %.9g}}' % torque_nm)
             clear = 'name: "chassis" type: LINK'
             wrench_pub = PersistentPublisher(WRENCH_TOPIC, EntityWrench, wrench)
             wait_for_subscriber(CLEAR_TOPIC, "gz.msgs.Entity", 15,
@@ -316,7 +317,7 @@ def main():
             # proof that ApplyLinkWrench actually affected the chassis.
             baseline = measure_with_wrench(
                 telemetry, 1.0, wrench_pub, "baseline", runner_log, process)
-            record("baseline=" + repr(baseline))
+            record("candidate_torque_nm=%.9g baseline=%r" % (torque_nm, baseline))
             publish_clear_repeated(clear_pub, "baseline", runner_log)
             time.sleep(0.5)
             ensure_sim_alive(process, "post-baseline settling")
@@ -330,7 +331,7 @@ def main():
                        process)
             locked = measure_with_wrench(
                 telemetry, 1.0, wrench_pub, "locked", runner_log, process)
-            record("locked=" + repr(locked))
+            record("candidate_torque_nm=%.9g locked=%r" % (torque_nm, locked))
             publish_clear_repeated(clear_pub, "locked", runner_log)
             time.sleep(0.25)
 
@@ -380,6 +381,69 @@ def main():
                 except ProcessLookupError:
                     pass
                 process.wait(timeout=5)
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Fresh-process ChassisBrake torque calibration")
+    parser.add_argument("--single-torque", type=float, default=None,
+                        help="run one isolated Gazebo experiment at this torque")
+    parser.add_argument("--log-suffix", default="",
+                        help="suffix used to preserve per-candidate logs")
+    parser.add_argument(
+        "--torque-candidates", default="0.05,0.075,0.1,0.15,0.25,0.4,0.6,0.9",
+        help="ascending comma-separated torque candidates in N m")
+    args = parser.parse_args()
+
+    if args.single_torque is not None:
+        if not math.isfinite(args.single_torque) or not 0.0 < args.single_torque <= 18.0:
+            raise ValueError("single torque must be finite and in (0, 18] N m")
+        return run_single(args.single_torque, args.log_suffix)
+
+    candidates = []
+    for token in args.torque_candidates.split(","):
+        value = float(token.strip())
+        if not math.isfinite(value) or not 0.0 < value <= 18.0:
+            raise ValueError("torque candidates must be finite and in (0, 18] N m")
+        candidates.append(value)
+    if not candidates or candidates != sorted(set(candidates)):
+        raise ValueError("torque candidates must be non-empty, unique and ascending")
+
+    log_dir = os.path.join(ROOT, "vla_ws", "logs")
+    os.makedirs(log_dir, exist_ok=True)
+    summary_path = os.path.join(log_dir, "chassis_brake_runner.log")
+    with open(summary_path, "w", encoding="utf-8") as summary:
+        summary.write("calibration_mode=fresh_gazebo_process_per_candidate\\n")
+        summary.write("torque_candidates_nm=%r\\n" % candidates)
+        summary.flush()
+        for index, torque_nm in enumerate(candidates):
+            suffix = "_torque_" + ("%.6g" % torque_nm).replace(".", "p")
+            command = [
+                sys.executable, os.path.abspath(__file__),
+                "--single-torque", "%.9g" % torque_nm,
+                "--log-suffix", suffix]
+            started = time.monotonic()
+            result = subprocess.run(
+                command, cwd=ROOT, env=os.environ.copy(),
+                text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            elapsed = time.monotonic() - started
+            summary.write(
+                "candidate_index=%d torque_nm=%.9g exit_code=%d elapsed_s=%.3f\\n"
+                % (index, torque_nm, result.returncode, elapsed))
+            summary.write(result.stdout)
+            summary.flush()
+            print(result.stdout, end="", flush=True)
+            if result.returncode == 0 and "PASS: isolated brake hold" in result.stdout:
+                summary.write("CALIBRATION_PASS torque_nm=%.9g\\n" % torque_nm)
+                summary.flush()
+                print("CALIBRATION_PASS torque_nm=%.9g" % torque_nm, flush=True)
+                return 0
+            print("CALIBRATION_REJECT torque_nm=%.9g exit_code=%d" %
+                  (torque_nm, result.returncode), flush=True)
+
+    print("FAIL: no torque candidate satisfied baseline, locked-hold and unlock gates",
+          file=sys.stderr)
+    return 1
 
 
 if __name__ == "__main__":
