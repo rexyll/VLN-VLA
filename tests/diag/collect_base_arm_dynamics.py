@@ -131,8 +131,11 @@ class Collector:
                         a = getattr(j, axis_name)
                         vals = {}
                         for field in ("position", "velocity", "force"):
-                            if a.HasField(field):
-                                vals[field] = float(getattr(a, field))
+                            # Axis scalar fields are proto3 scalars; only axis1 /
+                            # axis2 submessages have presence semantics.
+                            value = float(getattr(a, field))
+                            if math.isfinite(value):
+                                vals[field] = value
                         if vals:
                             item[axis_name] = vals
                 joints.append(item)
