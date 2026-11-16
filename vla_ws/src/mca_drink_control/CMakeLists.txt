@@ -24,5 +24,4 @@ install(FILES third_party/MotionControlAlgorithms/LICENSE
         DESTINATION share/${PROJECT_NAME}/third_party/MotionControlAlgorithms)
 
 ament_export_include_directories(include include/mca_upstream)
-ament_export_dependencies()
 ament_package()
