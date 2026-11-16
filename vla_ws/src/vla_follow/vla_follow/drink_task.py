@@ -58,6 +58,7 @@ from vla_follow import arm_kin as K
 from vla_follow import scene_layout as L
 from vla_follow.carry import CarryBus
 from vla_follow.joint_servo import JointServo
+from vla_follow.gazebo_ground_lock import GazeboGroundLock
 from vla_follow import liquid as _liquid_mod
 from vla_follow import drink_motion as _motion_mod
 from vla_follow.liquid import LiquidCtl
@@ -303,8 +304,25 @@ class DrinkTask(Node):
         self._base_lock_request_id = 0
         self._base_lock_active = False
         self._base_motion_window_active = False
+        self._ground_lock = None
+        self._ground_lock_ready = bool(observer_only)
+        self._ground_lock_start_t = time.monotonic()
+        self._ground_lock_startup_reported = False
+        if not observer_only and HAVE_GZ:
+            try:
+                self._ground_lock = GazeboGroundLock(self._gz, "follow_world")
+                self._ground_lock_ready = False
+            except Exception as exc:
+                self.get_logger().error(
+                    'PHYSICAL_CHASSIS_LOCK initialization failed: %s' % exc)
+        elif not observer_only:
+            self.get_logger().error(
+                'PHYSICAL_CHASSIS_LOCK unavailable: Gazebo transport bindings missing')
         self.create_subscription(String, '/drink/base_lock_state',
                                  self._base_lock_state_cb, 10)
+        if not observer_only:
+            self._ground_lock_start_timer = self.create_timer(
+                0.1, self._startup_ground_lock_tick)
         # P104: 订阅 follower 状态，在交权后确认 FOLLOW 指令确已被接收。
         self._follower_status_snapshot = ({}, 0.0)
         self.create_subscription(String, '/follower/status',
@@ -648,8 +666,42 @@ class DrinkTask(Node):
         except (ValueError, TypeError, KeyError):
             self.get_logger().warn('DRINK_BASE_LOCK invalid mux acknowledgement')
 
-    def set_base_lock(self, locked, timeout=2.0):
-        """Request an acknowledged mux lock; fail closed if the mux is absent."""
+    def _startup_ground_lock_tick(self):
+        """Verify Gazebo's boot-attached joint, then release it for navigation."""
+        if self._ground_lock_ready:
+            self._ground_lock_start_timer.cancel()
+            return
+        if self._ground_lock is None:
+            if not self._ground_lock_startup_reported:
+                self.get_logger().error(
+                    'PHYSICAL_CHASSIS_LOCK unavailable; navigation/task motion remains blocked')
+                self._ground_lock_startup_reported = True
+            return
+        state = self._ground_lock.state
+        if state is None:
+            if time.monotonic() - self._ground_lock_start_t > 20.0:
+                self.get_logger().error(
+                    'PHYSICAL_CHASSIS_LOCK startup timeout: no DetachableJoint state')
+                self._ground_lock_start_timer.cancel()
+            return
+        if state != 'attached':
+            self.get_logger().error(
+                'PHYSICAL_CHASSIS_LOCK startup expected attached, got %s; fail closed'
+                % state)
+            self._ground_lock_start_timer.cancel()
+            return
+        if not self._ground_lock.command('detached', timeout_s=5.0):
+            self.get_logger().error(
+                'PHYSICAL_CHASSIS_LOCK startup detach unconfirmed; fail closed')
+            self._ground_lock_start_timer.cancel()
+            return
+        self._ground_lock_ready = True
+        self._ground_lock_start_timer.cancel()
+        self.get_logger().info(
+            'PHYSICAL_CHASSIS_LOCK startup verified attached then detached; navigation enabled')
+
+    def _set_mux_base_lock(self, locked, timeout=2.0):
+        """Request the software command-arbitration lock and verify its ACK."""
         if self.pub_base_lock is None:
             self.get_logger().error(
                 'DRINK_BASE_LOCK unavailable in observer-only mode')
@@ -663,8 +715,6 @@ class DrinkTask(Node):
             return False
         self._base_lock_request_id += 1
         request_id = self._base_lock_request_id
-        # Begin heartbeating a lock immediately; stop heartbeating only while
-        # an unlock is being requested. A failed unlock restores the lock.
         self._base_lock_active = bool(locked)
         payload = String(data=json.dumps({
             'locked': bool(locked), 'request_id': request_id}))
@@ -677,15 +727,64 @@ class DrinkTask(Node):
                     and time.monotonic() - ack[2] < 0.5):
                 self._base_lock_active = bool(locked)
                 self.get_logger().info(
-                    'DRINK_BASE_LOCK state=%s request_id=%d acknowledged' %
+                    'DRINK_BASE_LOCK software=%s request_id=%d acknowledged' %
                     ('LOCKED' if locked else 'UNLOCKED', request_id))
                 return True
         if not locked:
             self._base_lock_active = True
         self.get_logger().error(
-            'DRINK_BASE_LOCK %s acknowledgement timeout; fail closed' %
+            'DRINK_BASE_LOCK software %s acknowledgement timeout; fail closed' %
             ('LOCK' if locked else 'UNLOCK'))
         return False
+
+    def set_base_lock(self, locked, timeout=2.0):
+        """Coordinate mux arbitration and the Gazebo ground-fixed joint.
+
+        Lock order: software mux lock first, then physical attach. Unlock order:
+        physical detach first while software lock remains active, then mux unlock.
+        Either unconfirmed transition blocks task progression.
+        """
+        if self.pub_base_lock is None:
+            self.get_logger().error('DRINK_BASE_LOCK unavailable in observer-only mode')
+            return False
+        if not self._ground_lock_ready or self._ground_lock is None:
+            self.get_logger().error(
+                'PHYSICAL_CHASSIS_LOCK not ready; refusing arm/base task motion')
+            return False
+
+        if locked:
+            if not self._set_mux_base_lock(True, timeout=timeout):
+                return False
+            if not self._ground_lock.command(
+                    'attached', timeout_s=5.0, spin=self.spin_for):
+                self.get_logger().error(
+                    'PHYSICAL_CHASSIS_LOCK attach not confirmed; software mux remains locked')
+                return False
+            self.get_logger().info(
+                'DRINK_BASE_LOCK physical=ATTACHED + software=LOCKED')
+            return True
+
+        # If a caller asks to unlock while the mux is not already locked, first
+        # establish the software lock before releasing a still-attached joint.
+        if self._ground_lock.state != 'detached' and not self._base_lock_active:
+            if not self._set_mux_base_lock(True, timeout=timeout):
+                return False
+        if not self._ground_lock.command(
+                'detached', timeout_s=5.0, spin=self.spin_for):
+            self.get_logger().error(
+                'PHYSICAL_CHASSIS_LOCK detach not confirmed; software mux remains locked')
+            return False
+        if not self._set_mux_base_lock(False, timeout=timeout):
+            # Restore both layers to the safe state after an unlock failure.
+            self._set_mux_base_lock(True, timeout=timeout)
+            if not self._ground_lock.command(
+                    'attached', timeout_s=5.0, spin=self.spin_for):
+                self.get_logger().error(
+                    'PHYSICAL_CHASSIS_LOCK re-attach also unconfirmed after mux unlock failure')
+            return False
+        self.get_logger().info(
+            'DRINK_BASE_LOCK physical=DETACHED + software=UNLOCKED')
+        return True
 
     def run_base_motion_window(self, label, motion):
         """Run one explicitly permitted chassis motion, then always re-lock.
