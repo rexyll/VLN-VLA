@@ -316,6 +316,9 @@ class DrinkTask(Node):
         self._ground_lock_ready = bool(observer_only)
         self._ground_lock_start_t = time.monotonic()
         self._ground_lock_startup_reported = False
+        # DetachableJoint may publish its initial state before this ROS node subscribes.
+        # An explicit attach probe below elicits a fresh state acknowledgement.
+        self._ground_lock_probe_attempted = False
         if not observer_only and HAVE_GZ:
             try:
                 self._ground_lock = GazeboGroundLock(self._gz, "follow_world")
@@ -803,7 +806,12 @@ class DrinkTask(Node):
             self.get_logger().warn('DRINK_BASE_LOCK invalid mux acknowledgement')
 
     def _startup_ground_lock_tick(self):
-        """Verify Gazebo's boot-attached joint, then release it for navigation."""
+        """Actively verify the physical joint; do not rely on a one-shot boot event.
+
+        Gazebo may publish the initial attached state before drink_task subscribes.
+        Re-issuing attach is safe and forces a fresh state event before navigation
+        is enabled. If that acknowledgement cannot be observed, remain fail-closed.
+        """
         if self._ground_lock_ready:
             self._ground_lock_start_timer.cancel()
             return
@@ -813,13 +821,31 @@ class DrinkTask(Node):
                     'PHYSICAL_CHASSIS_LOCK unavailable; navigation/task motion remains blocked')
                 self._ground_lock_startup_reported = True
             return
+
         state = self._ground_lock.state
         if state is None:
-            if time.monotonic() - self._ground_lock_start_t > 20.0:
-                self.get_logger().error(
-                    'PHYSICAL_CHASSIS_LOCK startup timeout: no DetachableJoint state')
-                self._ground_lock_start_timer.cancel()
-            return
+            # Do not assume a missed, non-latched startup publication means the
+            # plugin is absent. Actively request attached once to obtain a fresh ACK.
+            if not self._ground_lock_probe_attempted:
+                if time.monotonic() - self._ground_lock_start_t < 2.0:
+                    return
+                self._ground_lock_probe_attempted = True
+                self.get_logger().warn(
+                    'PHYSICAL_CHASSIS_LOCK no initial state event; issuing active attach probe')
+                if not self._ground_lock.command('attached', timeout_s=5.0):
+                    self.get_logger().error(
+                        'PHYSICAL_CHASSIS_LOCK startup timeout: no DetachableJoint state '
+                        'after active attach probe; fail closed')
+                    self._ground_lock_start_timer.cancel()
+                    return
+                state = self._ground_lock.state
+            else:
+                if time.monotonic() - self._ground_lock_start_t > 20.0:
+                    self.get_logger().error(
+                        'PHYSICAL_CHASSIS_LOCK startup timeout: no DetachableJoint state')
+                    self._ground_lock_start_timer.cancel()
+                return
+
         if state != 'attached':
             self.get_logger().error(
                 'PHYSICAL_CHASSIS_LOCK startup expected attached, got %s; fail closed'
@@ -1267,6 +1293,15 @@ class DrinkTask(Node):
         t0 = time.time()
         res = {'ok': False}
         try:
+            # Physical-lock startup is a hard task-entry precondition. Check it
+            # before water reset, arm home, base motion, or any other actuator command.
+            if (not self._ground_lock_ready or self._ground_lock is None
+                    or self._ground_lock.state != 'detached'):
+                self._set_state('FAIL_BASE_LOCK_NOT_READY')
+                self.get_logger().error(
+                    'DRINK 拒绝启动：物理底盘锁未完成 attached→detached 握手；'
+                    '不执行水位重置、机械臂或底盘动作')
+                return False
             # 0) 水位归零 —— 水面是两个滑动副、不是真流体, 不归零的话重复
             #    演示时"水涨"这一下就看不到了(上一轮还留在杯里)。
             if 'cup' in self.carry.holding():
