@@ -1,11 +1,15 @@
 #include "GraspCarryQueue.hh"
 
 #include <cstdlib>
+#include <cstdio>
 #include <string>
 #include <utility>
 #include <vector>
 
-#define CHECK(condition) do { if (!(condition)) std::abort(); } while (false)
+#define CHECK(condition) do { if (!(condition)) { \
+  std::fprintf(stderr, "CHECK failed at %s:%d: %s\\n", __FILE__, __LINE__, #condition); \
+  std::abort(); \
+} } while (false)
 
 namespace
 {
@@ -96,8 +100,10 @@ void TestQueueFullRejectionIsAtomicAndReplayable()
   const auto coalesce = [](const Command &, const Command &) {
     return false;
   };
-  const auto duplicate = [](const Command &, const Command &incoming) {
-    return incoming.requestId != 0;
+  const auto duplicate = [](const Command &queued, const Command &incoming) {
+    return incoming.requestId != 0 && queued.op == incoming.op &&
+           queued.model == incoming.model &&
+           queued.requestId == incoming.requestId;
   };
   const auto buildFailure = [](const Command &command) {
     return "fail joint " + command.model + " " + command.joint + " " +
