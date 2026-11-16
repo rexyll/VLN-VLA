@@ -1268,3 +1268,5 @@
 - P104-10.1 仍为正在进行中；P104-10.2 独立位姿/轮速静止确认与 P104-10.3 机械臂反作用力回归仍未完成。不得修改生产世界的摩擦、阻尼、质量、5Nm effort limit 或任何任务验收阈值。
 
 - 首轮 CI 发现 Gazebo runner 命名为 `test_*.py`，被无 Gazebo 依赖的通用 unittest 自动发现并导入，导致 `ModuleNotFoundError: gz`；已将它改名为 `run_chassis_brake_gz.py`（保留显式执行和 py_compile），避免误纳入纯 Python 分析测试。该 CI 失败属于测试发现规则冲突，不是 Gazebo 插件编译或物理实验失败；重命名后的 CI 尚待验证。
+
+- 首次隔离仿真实验已成功启动 Gazebo，但遥测回调使用了 `joint.axis1.HasField('velocity')`；Gazebo `Axis.velocity` 是 proto3 标量，运行时不支持标量 presence 检查，导致回调抛异常、轮速样本未写入并超时。已改为只检查子消息 `axis1`，直接读取标量 `velocity`。这次失败只说明测试采集器兼容问题，尚未得到制动效果数据；修复后重跑隔离实验。
