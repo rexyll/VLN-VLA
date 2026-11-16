@@ -54,6 +54,7 @@ class Telemetry:
     def __init__(self):
         self.lock = threading.Lock()
         self.pose = None
+        self.model_entity_id = None
         self.wheel_velocity = {}
         self.wheel_position = {}
         self.twist = None
@@ -75,6 +76,7 @@ class Telemetry:
                          yaw(item.orientation))
                 with self.lock:
                     self.pose = value
+                    self.model_entity_id = int(item.id)
                 return
 
     def on_joints(self, msg):
@@ -106,6 +108,10 @@ class Telemetry:
     def snapshot(self):
         with self.lock:
             return self.pose, dict(self.wheel_velocity), list(self.status)
+
+    def entity_id(self):
+        with self.lock:
+            return self.model_entity_id
 
     def motion_snapshot(self):
         with self.lock:
@@ -307,6 +313,8 @@ def stage_lock_inputs():
         "runner": os.path.abspath(__file__),
         "plugin_source": plugin_source,
         "plugin_binary": plugin_path,
+        "stage_verifier": os.path.join(
+            ROOT, "tests", "diag", "verify_p104_stage_locks.py"),
     }
 
 
@@ -325,6 +333,8 @@ def lock_inputs():
 
 
 def write_stage_lock(path, stage, torque_nm, metrics, inputs):
+    if lock_inputs() != inputs:
+        raise RuntimeError("stage lock inputs changed before stage commit")
     try:
         with open(path, encoding="utf-8") as stream:
             manifest = json.load(stream)
@@ -360,6 +370,8 @@ def write_stage_lock(path, stage, torque_nm, metrics, inputs):
 
 
 def verify_stage_lock(path, expected_stages, inputs, torque_nm):
+    if lock_inputs() != inputs:
+        raise RuntimeError("stage lock inputs changed between physical stages")
     with open(path, encoding="utf-8") as stream:
         manifest = json.load(stream)
     actual = [stage.get("name") for stage in manifest.get("stages", [])]
@@ -372,6 +384,9 @@ def verify_stage_lock(path, expected_stages, inputs, torque_nm):
         raise RuntimeError("stage lock source/binary checksum mismatch")
     if manifest.get("candidate_torque_nm") != torque_nm:
         raise RuntimeError("stage lock torque mismatch")
+    current_sha = os.environ.get("GITHUB_SHA")
+    if current_sha and manifest.get("git_sha") != current_sha:
+        raise RuntimeError("stage lock belongs to a different Git commit")
     return manifest
 
 
@@ -384,7 +399,7 @@ def publish_clear_repeated(publisher, phase, log):
         count += 1
         next_publish += 0.05
         time.sleep(max(0.0, next_publish - time.monotonic()))
-    log.write("%s_wrench_clear_publish_count=%d entity=LINK:chassis\n" %
+    log.write("%s_wrench_clear_publish_count=%d entity=MODEL:robot\n" %
               (phase, count))
     log.flush()
     if count < 3:
@@ -423,6 +438,8 @@ def run_single(torque_nm, log_suffix=""):
             telemetry = Telemetry()
             wait_until(lambda: telemetry.snapshot()[0] is not None, 30,
                        "initial Gazebo robot pose", process)
+            wait_until(lambda: telemetry.entity_id() not in (None, 0), 30,
+                       "robot model entity ID", process)
             wait_until(lambda: len(telemetry.snapshot()[1]) == 2, 30,
                        "both wheel joint states", process)
             wait_until(lambda: telemetry.motion_snapshot()[1] is not None, 30,
@@ -441,7 +458,8 @@ def run_single(torque_nm, log_suffix=""):
                     "world_ready gate failed: initial chassis is not stationary")
             write_stage_lock(
                 stage_lock_path, "world_ready", torque_nm,
-                {"pose": initial[0], "twist": initial_twist,
+                {"pose": initial[0], "model_entity_id": telemetry.entity_id(),
+                 "twist": initial_twist,
                  "wheel_positions": initial[2],
                  "wheel_velocities": initial[3]}, inputs)
             verify_stage_lock(stage_lock_path, ["world_ready"], inputs,
@@ -459,11 +477,19 @@ def run_single(torque_nm, log_suffix=""):
             # ApplyLinkWrench accepts a MODEL entity and routes the wrench to
             # its canonical link. The test model explicitly declares chassis
             # as canonical_link, avoiding an ambiguous unscoped link target.
-            wrench = ('entity: {name: "%s" type: %s} '
+            target_entity_id = telemetry.entity_id()
+            if target_entity_id in (None, 0):
+                raise RuntimeError("robot model entity ID is unavailable")
+            # Use the explicit entity ID observed in dynamic_pose/info; the
+            # identical ID is used for wrench application and persistent clear.
+            wrench = ('entity: {id: %d name: "%s" type: %s} '
                       'wrench: {torque: {z: %.9g}}' %
-                      (WRENCH_ENTITY_NAME, WRENCH_ENTITY_TYPE, torque_nm))
-            clear = 'name: "%s" type: %s' % (
-                WRENCH_ENTITY_NAME, WRENCH_ENTITY_TYPE)
+                      (target_entity_id, WRENCH_ENTITY_NAME,
+                       WRENCH_ENTITY_TYPE, torque_nm))
+            clear = 'id: %d name: "%s" type: %s' % (
+                target_entity_id, WRENCH_ENTITY_NAME, WRENCH_ENTITY_TYPE)
+            record("wrench_target_model_entity_id=%d name=%s type=%s" %
+                   (target_entity_id, WRENCH_ENTITY_NAME, WRENCH_ENTITY_TYPE))
             wrench_pub = PersistentPublisher(WRENCH_TOPIC, EntityWrench, wrench)
             wait_for_subscriber(CLEAR_TOPIC, "gz.msgs.Entity", 15,
                                 runner_log)

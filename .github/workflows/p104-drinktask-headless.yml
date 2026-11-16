@@ -223,6 +223,7 @@ jobs:
           python3 tests/diag/verify_p104_stage_locks.py
 
       - name: Run headless DrinkTask E2E with read-only base-arm telemetry
+        id: drinktask_e2e
         shell: bash
         run: |
           set -euo pipefail
@@ -265,6 +266,11 @@ jobs:
           if [ "$COLLECTOR_STATUS" -ne 0 ]; then
             exit "$COLLECTOR_STATUS"
           fi
+
+      - name: Re-verify immutable ChassisBrake stage locks after DrinkTask E2E
+        if: always() && steps.drinktask_e2e.outcome != 'skipped'
+        run: |
+          python3 tests/diag/verify_p104_stage_locks.py
 
       - name: Upload Gazebo logs, round JSON and screenshot evidence
         if: always()
