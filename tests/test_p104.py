@@ -3842,7 +3842,25 @@ class TestPhysicalGazeboChassisLock(unittest.TestCase):
         self.assertLess(home, hang)
         self.assertLess(hang, unlock)
         self.assertIn('STARTUP_ABORT: physical chassis lock handshake not ready', main)
-        self.assertIn('physical chassis hold remains engaged', main)
+
+        # Parse Python rather than matching raw source: adjacent string literals
+        # are concatenated by Python even when split across lines.
+        tree = ast.parse(source)
+        main_node = next(
+            node for node in tree.body
+            if isinstance(node, ast.FunctionDef) and node.name == 'main')
+        error_messages = []
+        for node in ast.walk(main_node):
+            if not isinstance(node, ast.Call):
+                continue
+            func = node.func
+            if (isinstance(func, ast.Attribute) and func.attr == 'error'
+                    and node.args and isinstance(node.args[0], ast.Constant)
+                    and isinstance(node.args[0].value, str)):
+                error_messages.append(node.args[0].value)
+        self.assertTrue(any(
+            'physical chassis hold remains engaged' in message
+            for message in error_messages), error_messages)
 
     def test_drink_task_entry_fails_closed_before_any_actuator_command(self):
         task_path = os.path.join(
