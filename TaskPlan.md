@@ -1332,3 +1332,15 @@
 - 依赖安装规模仍待分析；暂不删除 Nav2、Gazebo 或 ROS 运行依赖，也不通过减少测试环境制造通过。后续先逐项核对 headless 启动脚本和实际 launch/runtime 依赖，再考虑用更精确的包集合替代 meta-package。
 - P104-10.1 物理制动仍未通过验收；本轮没有运行隔离制动实验，没有修改任何物理参数、力矩限制或验收阈值。生产 work_area.sdf 不接入 ChassisBrake。P104-10.2/10.3 未完成。
 - main 未修改；PR #3 继续 Draft/Open；仅使用 experiment/drinktask-bt-ik-recovery，未创建新分支。
+
+
+
+### 8.416 #369 隔离 ChassisBrake 物理实验失败与扰动目标实体显式化（2026-11-16）
+
+- PR E2E Run #369（ID `43795316617`，job `133062700625`）已完成依赖安装、P104 offline regression、Gazebo system plugin build 和动态链接检查；行为树单测 12/12 通过。失败发生在 `Run isolated ChassisBrake hold and unlock experiment`，后续 ROS workspace build 与完整 DrinkTask E2E 被跳过。
+- 实测：baseline `max_xy_mm=1.1276e-8`、`max_yaw_deg=0.0004589`、`max_wheel_rad_s=3.6489e-9`；locked `max_xy_mm=0.6506`、`max_yaw_deg=0.3433`、`max_wheel_rad_s=0.6648`；解锁恢复位移 `195.059mm`。失败原因是 baseline 外部扰动响应低于 0.5°校准门槛，因此 A/B 对比无效；不得将 locked 的较小 yaw 解释为制动通过。隔离物理验收仍未通过。
+- Gazebo Sim 8 官方 ApplyLinkWrench 文档确认：EntityWrench 可指定 LINK，也可指定 MODEL（映射到 canonical link）；持续扰动 topic 为 `/world/<world>/wrench/persistent`，扰动按世界坐标表达。官方文档：https://gazebosim.org/api/sim/8/classgz_1_1sim_1_1systems_1_1ApplyLinkWrench.html。当前 runner 使用 MODEL `robot`，理论上有效，但为消除模型 canonical-link 解析歧义，已改为显式 LINK `chassis`，clear 请求也对应相同 link 实体。
+- 代码提交：`b127c352fcdfc09842b16877e7865569bc78f292`。该改动只调整隔离实验扰动目标实体标识，不改变 18Nm 扰动力矩、5Nm 轮端制动力矩上限、质量、摩擦、阻尼、effort limit、控制增益或任何验收阈值。
+- 订阅 readiness gate 已执行但尚不能证明消息被 ApplyLinkWrench 实际消费；下一次 CI 必须检查 `chassis_brake_runner.log` 中真实 subscriber endpoint，并用 baseline pose/yaw 响应门槛确认扰动生效。若仍无响应，继续检查 topic 订阅者、发布命令序列化、Gazebo system 日志及实体匹配；不能跳过 baseline gate 或降低门槛。
+- P104-10.1 隔离物理制动验收仍未通过；P104-10.2 独立静止确认和 P104-10.3 机械臂反作用力回归未开始；生产 `work_area.sdf` 不接入 ChassisBrake。完整 DrinkTask E2E 本轮未执行。
+- `main` 未修改；PR #3 保持 Draft/Open，不合并；仅在 `experiment/drinktask-bt-ik-recovery` 修改，未创建其他分支。
