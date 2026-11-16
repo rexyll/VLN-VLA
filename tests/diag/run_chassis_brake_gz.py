@@ -23,6 +23,7 @@ from google.protobuf import text_format
 from gz.msgs10.entity_pb2 import Entity
 from gz.msgs10.entity_wrench_pb2 import EntityWrench
 from gz.msgs10.model_pb2 import Model
+from gz.msgs10.odometry_pb2 import Odometry
 from gz.msgs10.pose_v_pb2 import Pose_V
 from gz.msgs10.stringmsg_pb2 import StringMsg
 
@@ -32,6 +33,7 @@ POSE_TOPIC = "/world/brake_test/dynamic_pose/info"
 JOINT_TOPIC = "/world/brake_test/model/robot/joint_state"
 STATUS_TOPIC = "/chassis_brake/status"
 CMD_TOPIC = "/model/robot/cmd_vel"
+ODOM_TOPIC = "/model/robot/odometry"
 WRENCH_TOPIC = "/world/brake_test/wrench/persistent"
 CLEAR_TOPIC = "/world/brake_test/wrench/clear"
 BRAKE_TOPIC = "/chassis_brake/enable"
@@ -49,6 +51,8 @@ class Telemetry:
         self.lock = threading.Lock()
         self.pose = None
         self.wheel_velocity = {}
+        self.wheel_position = {}
+        self.twist = None
         self.status = []
         self.node = gz_transport.Node()
         if not self.node.subscribe(Pose_V, POSE_TOPIC, self.on_pose):
@@ -57,6 +61,8 @@ class Telemetry:
             raise RuntimeError("cannot subscribe " + JOINT_TOPIC)
         if not self.node.subscribe(StringMsg, STATUS_TOPIC, self.on_status):
             raise RuntimeError("cannot subscribe " + STATUS_TOPIC)
+        if not self.node.subscribe(Odometry, ODOM_TOPIC, self.on_odometry):
+            raise RuntimeError("cannot subscribe " + ODOM_TOPIC)
 
     def on_pose(self, msg):
         for item in msg.pose:
@@ -74,8 +80,20 @@ class Telemetry:
                 if joint.HasField("axis1"):
                     # Axis.velocity is a proto3 scalar (no presence API).
                     values[joint.name] = float(joint.axis1.velocity)
+        positions = {}
+        for joint in msg.joint:
+            if joint.name in ("left_wheel_joint", "right_wheel_joint"):
+                if joint.HasField("axis1"):
+                    positions[joint.name] = float(joint.axis1.position)
         with self.lock:
             self.wheel_velocity = values
+            self.wheel_position = positions
+
+    def on_odometry(self, msg):
+        twist = (float(msg.twist.linear.x), float(msg.twist.linear.y),
+                 float(msg.twist.angular.z))
+        with self.lock:
+            self.twist = twist
 
     def on_status(self, msg):
         with self.lock:
@@ -84,6 +102,11 @@ class Telemetry:
     def snapshot(self):
         with self.lock:
             return self.pose, dict(self.wheel_velocity), list(self.status)
+
+    def motion_snapshot(self):
+        with self.lock:
+            return (self.pose, self.twist, dict(self.wheel_position),
+                    dict(self.wheel_velocity))
 
 
 def publish(topic, msg_type, payload):
@@ -195,7 +218,8 @@ def wait_until(predicate, timeout, description, process=None):
 
 def measure_with_wrench(telemetry, duration, publisher, phase, log, process):
     """Publish the same persistent wrench throughout the measurement window."""
-    start_pose, _, _ = telemetry.snapshot()
+    start_pose, start_twist, start_positions, start_velocities = (
+        telemetry.motion_snapshot())
     if start_pose is None:
         raise RuntimeError("robot pose not available")
     max_xy = 0.0
@@ -221,7 +245,13 @@ def measure_with_wrench(telemetry, duration, publisher, phase, log, process):
             max_yaw = max(max_yaw, abs(math.degrees(dyaw)))
         if wheels:
             max_wheel = max(max_wheel, *(abs(v) for v in wheels.values()))
-        if not all(math.isfinite(v) for v in (max_xy, max_yaw, max_wheel)):
+        motion = telemetry.motion_snapshot()
+        twist_values = motion[1] or (0.0, 0.0, 0.0)
+        position_values = motion[2].values()
+        velocity_values = motion[3].values()
+        if not all(math.isfinite(v) for v in
+                   (max_xy, max_yaw, max_wheel, *twist_values,
+                    *position_values, *velocity_values)):
             raise RuntimeError("%s produced non-finite physical telemetry" % phase)
         if max_wheel > MAX_DIAGNOSTIC_WHEEL_RAD_S:
             log.write(
@@ -248,6 +278,11 @@ def measure_with_wrench(telemetry, duration, publisher, phase, log, process):
             "max_yaw_deg": max_yaw,
             "max_wheel_rad_s": max_wheel,
             "pose_start": start_pose, "pose_end": end_pose,
+            "twist_start": start_twist, "twist_end": end_twist,
+            "wheel_position_start": start_positions,
+            "wheel_position_end": end_positions,
+            "wheel_velocity_start": start_velocities,
+            "wheel_velocity_end": end_velocities,
             "duration_s": duration}
 
 
