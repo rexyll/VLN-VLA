@@ -1301,5 +1301,15 @@
 - 同一 runner 把 18Nm yaw wrench 施加到 `entity type MODEL`（Gazebo ApplyLinkWrench 会把模型目标映射到 canonical link），而 ChassisBrake 只对左右轮关节施加最大 5Nm 的位置 PD 力矩。当前实验的扰动路径与轮端保持机制之间尚未证明等效于真实机械臂反作用力；locked 阶段 29.347° yaw / 7.968rad/s wheel speed 表明现有配置未能抵抗该扰动，但在基线有效性和 wrench 接收状态未核实前，不应把失败单独归因于 PD 算法、轮胎摩擦或物理引擎。
 - 下一步：在不放宽任何验收阈值、不修改生产世界摩擦/阻尼/质量/effort limit 的前提下，修复实验可观测性：等待并记录 wrench topic subscriber readiness；发布后通过 Gazebo truth pose 确认 baseline disturbance 达到既定校准门槛；在同一扰动输入、同一持续时间、同一初始状态下执行 unlocked / locked A-B；记录插件 LOCKED/UNLOCKED/FAULT 状态、两轮 joint position/velocity、底盘 pose/twist 及 wrench 目标实体。若锁定仍发生漂移，再分析 JointForceCmd 与 DiffDrive 的控制优先级、轮胎接触约束和制动扭矩饱和。不得把单纯 ACK 当作物理锁定成功。
 - 本轮完整 E2E 尚未执行；P104-10.1 隔离物理验收未通过，P104-10.2 独立静止确认及 P104-10.3 机械臂反作用力回归未开始。生产 `work_area.sdf` 不接入 ChassisBrake。
-- 另：同 SHA 的 push-triggered E2E run `43787832273` 被 PR-triggered 同组 run 取消；workflow 的 `concurrency.group=p104-drinktask-headless-${{ github.ref }}` 且 `cancel-in-progress: true`，这是并发重复运行互相取消的 CI 调度问题，不是代码测试失败。PR-triggered run `43787865741` 已完整执行到物理隔离实验并提供真实失败证据。
+- 另：push-triggered E2E run `43787832273` 被取消，但仅凭 `concurrency.group=p104-drinktask-headless-${{ github.ref }}` 不能断言是 push 与 PR 互相取消，因为 PR 的 `github.ref` 通常为 `refs/pull/<n>/merge`，push 则为 `refs/heads/<branch>`。需取得该 run 的完整元数据/取消事件上下文后再判定；在证据不足前不修改 concurrency 配置。PR-triggered run `43787865741` 已完整执行到物理隔离实验并提供真实失败证据。
 - `main` 未修改；PR #3 仍 Draft/Open，不合并；未创建其他分支。
+
+
+### 8.413 隔离制动 runner 的 wrench 订阅就绪门控与日志可追溯性（2026-11-16）
+
+- 在 `tests/diag/run_chassis_brake_gz.py` 中增加 Gazebo Transport topic info 轮询：发送 one-shot `EntityWrench` 前，必须从 `gz topic -i` 输出中确认目标 topic 存在 `gz.msgs.EntityWrench` 的真实 subscriber endpoint；超时则 fail-closed，并将最后一次 topic info 写入 runner 日志。仅收到 pose/joint-state 不再被视为 ApplyLinkWrench 已就绪。
+- baseline 与 locked 两次 wrench 发布均执行 subscriber readiness 检查；记录发布命令输出及 baseline/locked 遥测数据。新增独立 `chassis_brake_runner.log`，避免 runner 的关键数据只打印到 Actions console，而 `chassis_brake_isolated.log` 仅保存 Gazebo server 输出。
+- 实现提交：`406ff0a014aaafa6a78361c71fff8404758f2307`；随后修正 Python 源码中的转义错误，最终提交：`cf3dff732de3f79cdecf94a4a44905d6772dec29`。代码已通过远端内容复核；CI 尚未返回，因此 Python 语法、Gazebo topic-info 格式兼容性和实际物理 A/B 均待验证。
+- 本修复只提升扰动订阅就绪检测和日志可观测性；未修改 18Nm 外部扰动、5Nm effort limit、物理参数、控制器增益或任何验收阈值。它也不能单独证明 wrench 已作用于机器人，仍须由 baseline pose/yaw 响应门槛验证扰动确实生效。
+- 纠正 §8.412 对 run `43787832273` 取消原因的确定性表述：当前 workflow 的 group 包含 `github.ref`，push 与 PR ref 通常不同；尚无证据证明二者互相取消。该取消原因保持待核实，不据此改动 workflow。
+- 当前 P104-10.1 仍未通过物理隔离验收；P104-10.2/10.3 未开始。插件仍不接入生产 `work_area.sdf`。`main` 未修改，PR #3 保持 Draft/Open，不合并；未创建其他分支。
