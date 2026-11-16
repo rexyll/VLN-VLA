@@ -609,6 +609,11 @@ def main():
 
     log_dir = os.path.join(ROOT, "vla_ws", "logs")
     os.makedirs(log_dir, exist_ok=True)
+    # Never allow a previous successful run to satisfy a later failed run.
+    canonical_lock = os.path.join(
+        log_dir, "p104_chassis_brake_stage_locks.json")
+    if os.path.exists(canonical_lock):
+        os.remove(canonical_lock)
     summary_path = os.path.join(log_dir, "chassis_brake_runner.log")
     with open(summary_path, "w", encoding="utf-8") as summary:
         summary.write("calibration_mode=fresh_gazebo_process_per_candidate\n")
