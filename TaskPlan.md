@@ -36,6 +36,15 @@
 
 ### 最新失败 Action 审计（2026-11-16）
 
+- [已定位｜生产启动握手缺少主动探测] PR #3 最新 E2E Run #571（run `43863942010`，commit `41f6044ad298e0913771afb05e99f96da13258e6`）的生产 `work_area` 场景中，`drink_task` 在启动约 20s 后报告 `PHYSICAL_CHASSIS_LOCK startup timeout: no DetachableJoint state`。SDF 中存在 `ground_lock_anchor` 和对应 DetachableJoint 参数；隔离 runner 同一轮 3/3 PASS，attached challenge 位姿变化均为 0mm、轮速约为 1e-17rad/s，detached 对照移动约 212mm。说明插件机制在隔离场景可用，但生产世界启动/订阅时序尚未验证成功。
+- [根因假设｜待 CI 验证] 当前启动代码只被动等待初始 `attached` 状态事件。Gazebo 初始状态可能在 DrinkTask 订阅建立前以非持久事件发布，导致订阅端永远看不到该事件。已调整为订阅后主动发送一次 `attached` 请求并等待新的状态 ACK，再执行 `detached` 握手；若 ACK 缺失仍 fail-closed。另在 `start_scene.sh` 增加生产状态 topic 注册检查，topic 未注册则拒绝启动后续 ROS/DrinkTask 节点。此改动是对可验证握手链路的修复，不预先宣称插件根因已确认。
+- [已定位｜任务入口安全门控缺失] Run #571 的物理锁启动失败后，`run_drink()` 仍继续执行水位归零与 PREPARE 原语。日志后续记录 `PLACE_ROBOT 未收敛`，目标位姿残差 1211.7mm，随后 PREPARE 入场中止。现已在 `run_drink()` 最前面增加硬门控：必须 `_ground_lock_ready` 且物理状态为 `detached`，否则直接进入 `FAIL_BASE_LOCK_NOT_READY`，不发出水位、机械臂或底盘动作。
+- [独立待查] Run #571 的 P85 自检记录 base=(0,0)，DrinkTask 配置服务位约 (1.75,0.35)，任务中 PLACE_ROBOT 的最终位置残差 1211.7mm。该位姿/场景初始化差异是物理锁握手修复后的下一项独立检查；不得通过改验收阈值或跳过位置确认规避。
+- [证据边界] Run #571 的 MCA 双臂服务 Smoke Test 通过，仅证明服务求解与 FK 复核可用；不证明完整机械臂动作或 DrinkTask E2E 通过。隔离 GroundFixedJoint 3/3 PASS 不等于生产 `work_area` PASS。完整任务仍未通过，E2E 成功轮数不增加。
+- [已提交代码待 CI] 本轮新增生产锁 topic 启动检查、主动 attach 状态探测、DrinkTask 任务入口 fail-closed 门控及对应离线回归断言；必须以本次提交后的 CI/Run 结果复验。不得降低底盘静止、杯体交接、IK、碰撞和释放门槛。
+
+### 最新失败 Action 审计（2026-11-16）
+
 - [已定位并修复待 CI 复验] 最新 push run #567（run `43859548281`）与 PR run #568（run `43859554938`）均在 P104 offline safety/motion regression 的 `test_physical_lock_transition_waits_for_stationary_truth_and_verifies_pose` 失败；错误为 `ValueError: substring not found`，旧断言查找 `self._set_mux_base_lock(False)`，而实现已经改为带超时参数的 `self._set_mux_base_lock(False, timeout=timeout)`。这属于测试契约过期，不是运行时锁止逻辑失败。
 - [已修复｜离线回归通过] 已将断言更新为验证真实解锁顺序：物理 detach → pose/twist 稳定验证 → mux unlock → unlock 失败时重新 mux lock，并要求物理 joint re-attach 回滚路径存在。#570 对应代码提交 `32ae0268f28a0218b5fffbe1ca0a5b2f04db199a` 的 P104 pure math/kinematics regression、Python syntax、Base-arm collector syntax、CarryBus ROS 2 executor integration 均通过。没有删除或绕过任何 fail-closed 检查。
 - PR merge ref 对应的 pure math/kinematics run #1351（run `43859554833`）出现同一个测试错误；不是第二个独立数学算法故障。另有多个独立工作流成功，不能将失败误判为 MCA 所有模块均失败。
@@ -124,7 +133,7 @@
 ### P105-05｜底盘物理保持与运动权限统一管理
 
 1. [正在进行中] 已在生产 `work_area.sdf` 增加 `ground_lock_anchor` 静态锚点及 Gazebo Sim 8 `DetachableJoint`（world `follow_world`、child `robot::chassis`）；新增 `gazebo_ground_lock.py`，用 `gz.msgs10.StringMsg` 验证 `attached/detached`，用 `gz.msgs.Empty` topic command 切换状态。尚待 CI 的 SDF 加载与实际 attach/detach 结果。
-2. [正在进行中] `drink_task.py` 已新增 startup 检查：必须先观测初始 `attached`，再确认 detach 成功后才标记导航可用；状态缺失/未知/超时保持 fail-closed。尚需验证节点启动顺序、Gazebo callback 时序和启动失败时 Nav2 不会抢占。
+2. [正在进行中] `drink_task.py` 已改为在订阅后主动发送一次 `attached` 请求，等待新状态 ACK 后再执行 `detached`，避免漏收 Gazebo 非持久初始状态事件；`start_scene.sh` 在启动 ROS/DrinkTask 前检查生产状态 topic 已注册。该时序修复尚待 CI 验证，topic 不存在或状态 ACK 缺失均 fail-closed。
 3. [正在进行中] 已将 `set_base_lock()` 改为双层协议：锁止时先 cmd_mux lock ACK→要求 truth twist 与 joint state 新鲜、双轮速度有效且连续 0.25s 满足线速度 <0.005m/s、角速度 <0.5°/s、轮速 <0.05rad/s→物理 attach ACK→再验证 0.30s 内底盘位移 <2mm、yaw <0.5°；解锁时先物理 detach ACK 并验证位姿稳定，再允许 cmd_mux unlock。任何状态/测量未确认均拒绝动作；mux 解锁失败则重新锁软件层并尝试物理 re-attach。已在软件锁或物理 joint attached 的整个窗口禁止主动底盘 pose correction；仍需故障注入及真实负载 E2E 验证。
 4. [未完成] 新增 `BaseMotionAuthority` 状态机，将 software cmd mux、Gazebo DetachableJoint/真实硬件外部制动器 adapter、底盘 truth monitor、Nav2/follower/DrinkTask command lease 纳入同一请求/确认协议。
 5. [未完成] 操作窗口申请保持时：先禁止新的普通底盘命令并清空缓存→确认底盘速度/轮速达到静止门槛→发起物理 attach/硬件锁止→等待 attached/locked 物理状态→用 truth pose/twist 和轮关节状态验证保持稳定；全部成功后才允许机械臂动作。
@@ -132,6 +141,7 @@
 7. [未完成] 解锁必须在杯/壶状态安全、手臂净空、任务节点允许移动后执行：物理 detach/解除硬件锁止→确认 detached/unlocked→清空所有旧速度/目标缓存→要求新的授权 request_id 和新鲜命令→再开放底盘移动。任一步骤超时/状态未知均 fail-closed。
 8. [未完成] Gazebo 实现使用已通过隔离测试的 DetachableJoint 适配器；SDF 拓扑、world/topic/entity 名称、Gazebo Sim 版本和 StringMsg 状态语义必须与运行环境一致。真实硬件通过独立外设接口实现，不能把仿真 joint 当成真实硬件方案。
 9. [未完成] 通过锁止状态注入 Nav2/follower/DrinkTask 命令、stale command、异常 detach/attach、Gazebo 插件丢失、状态 topic 超时等故障，验证 BT 不会启动手臂或错误释放物体。
+10. [正在进行中] `run_drink()` 入口已增加硬前置条件：物理锁必须完成启动握手且状态为 `detached`；检查位于水位重置、PREPARE、机械臂和底盘动作之前。对应源码回归测试已增加，等待 CI 验证。
 
 ### P105-06｜任务空间层级控制、双臂协同与杯体稳定
 
