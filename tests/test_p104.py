@@ -3842,7 +3842,7 @@ class TestPhysicalGazeboChassisLock(unittest.TestCase):
         self.assertLess(home, hang)
         self.assertLess(hang, unlock)
         self.assertIn('STARTUP_ABORT: physical chassis lock handshake not ready', main)
-        self.assertIn('physical hold remains engaged', main)
+        self.assertIn('physical chassis hold remains engaged', main)
 
     def test_drink_task_entry_fails_closed_before_any_actuator_command(self):
         task_path = os.path.join(
