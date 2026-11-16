@@ -354,7 +354,7 @@ def write_stage_lock(path, stage, torque_nm, metrics, inputs):
     temporary = path + ".tmp"
     with open(temporary, "w", encoding="utf-8") as stream:
         json.dump(manifest, stream, indent=2, sort_keys=True)
-        stream.write("\\n")
+        stream.write("\n")
     os.replace(temporary, path)
     return manifest
 
@@ -431,9 +431,17 @@ def run_single(torque_nm, log_suffix=""):
                        "both wheel joint positions", process)
             inputs = lock_inputs()
             initial = telemetry.motion_snapshot()
+            initial_twist = initial[1] or (math.inf, math.inf, math.inf)
+            if (not all(math.isfinite(v) for v in
+                        (*initial[0], *initial_twist,
+                         *initial[2].values(), *initial[3].values())) or
+                    max(abs(v) for v in initial_twist) > 0.01 or
+                    max(abs(v) for v in initial[3].values()) > 0.01):
+                raise RuntimeError(
+                    "world_ready gate failed: initial chassis is not stationary")
             write_stage_lock(
                 stage_lock_path, "world_ready", torque_nm,
-                {"pose": initial[0], "twist": initial[1],
+                {"pose": initial[0], "twist": initial_twist,
                  "wheel_positions": initial[2],
                  "wheel_velocities": initial[3]}, inputs)
             verify_stage_lock(stage_lock_path, ["world_ready"], inputs,
@@ -569,7 +577,7 @@ def run_single(torque_nm, log_suffix=""):
                 except ProcessLookupError:
                     pass
                 process.wait(timeout=5)
-            log.write("gazebo_exit_code=%s\\n" % process.returncode)
+            log.write("gazebo_exit_code=%s\n" % process.returncode)
             log.flush()
 
 
