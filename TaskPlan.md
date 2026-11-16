@@ -1266,3 +1266,5 @@
 - 新插件仅构建并在隔离测试世界加载，**没有**加入 `work_area.sdf`，未接入 DrinkTask / cmd_mux；生产 E2E 仍使用原始 DiffDrive，直到隔离测试与物理验收门槛通过。
 - CMake、`tools/gz_plugin.sh` 和 P104 workflow 已加入新插件构建、动态库依赖检查及隔离仿真实验步骤。当前状态为实现已提交、等待 CI 编译和真实 Gazebo 力矩/保持/解锁验证；不能将代码存在视为物理制动通过。
 - P104-10.1 仍为正在进行中；P104-10.2 独立位姿/轮速静止确认与 P104-10.3 机械臂反作用力回归仍未完成。不得修改生产世界的摩擦、阻尼、质量、5Nm effort limit 或任何任务验收阈值。
+
+- 首轮 CI 发现 Gazebo runner 命名为 `test_*.py`，被无 Gazebo 依赖的通用 unittest 自动发现并导入，导致 `ModuleNotFoundError: gz`；已将它改名为 `run_chassis_brake_gz.py`（保留显式执行和 py_compile），避免误纳入纯 Python 分析测试。该 CI 失败属于测试发现规则冲突，不是 Gazebo 插件编译或物理实验失败；重命名后的 CI 尚待验证。
