@@ -22,17 +22,17 @@
 ## 当前进度
 
 - 当前工作分支：`experiment/drinktask-bt-ik-recovery`
-- PR：[#3](https://github.com/rexyll/VLN-VLA/pull/3)，draft/open，base `main`，未合并
-- 当前任务节点：**P104-10：底盘物理锁定与递杯抗反作用力验证**
-- 状态：**正在进行中；命令层锁定已实现，但最新 E2E 证明零速度命令与软件 LOCKED ACK 不能阻止底盘受机械臂动作影响而漂移；物理制动、锁定确认和抗反作用力测试尚未完成**
-- 完整真实 Gazebo DrinkTask E2E 成功轮数：**1（历史成功轮次；最新 P104 E2E 未通过，不得计入成功轮数；连续双轮稳定性未验收）**
-- 最新已分析的失败 E2E：push run `43723950705` 与 PR run `43723946330` 均在 PRESENT 后因杯子世界位姿漂移而拒绝 HANDOVER；零底盘命令组杯漂移约 81.104mm，主动位置修正对照组约 109.21mm。两轮均未通过，不计入成功轮数。
-- 用户已确认优先使用 A 方案：在桌边操作窗口由 cmd_mux 忽略 follower、Nav2 和 DrinkTask 的所有普通速度输入，持续向底盘控制器发布零速度；底盘控制器继续执行其本地速度闭环。急停、故障保护、碰撞与任务安全门保持不变。
-- 实现边界（阶段化修订）：桌边第一次抓壶前锁定；抓壶、倒水、放壶、双臂捧杯及精细手臂动作期间保持锁定。仅对状态机明确允许的底盘动作开启短窗口：PREPARE 服务位 CarryBus 复位、面向人员转身+转后位姿复位、PRESENT 递杯补位、PUT_BACK 转身、RETREAT 各段有界撤离；每个窗口均执行“解锁 ACK→指定任务动作→finally 重新锁定 ACK”，失败则不执行动作或中止后续阶段。`place_robot()` 的 CarryBus SetWorldPoseCmd 绕过 cmd_mux，已增加锁状态/窗口许可检查，禁止锁定阶段外的底盘位姿直写。PRESENT 双臂递杯、HANDOVER 人手接管与机器人松手、PERSON_DRINK、TAKE_BACK 全程保持锁定。只有放回、机械臂撤离净空和桌边安全距离均确认后，HANDBACK 才解锁并发送 FOLLOW；若 FOLLOW 状态未确认则重新锁定。解锁清空旧速度缓存；喝水租约仍屏蔽 follower/Nav2，只放行当前任务的 /drink/cmd_vel。
-- 当前实现基线：P104 分阶段命令锁定、受控底盘移动窗口、CarryBus 位姿直写保护、杯子预抓取对位与撤离恢复均在 `experiment/drinktask-bt-ik-recovery`；最新代码基线 `bd7968203673d569035497ad214a6fbbe1aaf87f`。本次 TaskPlan 更新提交 `f44327c58a56fb2a3943e52ed8761f0784786b14`，均未修改 main。
-- 回归测试已覆盖 mux 锁优先级与缓存清理、request_id ACK、锁心跳、ACK 前零速度、阶段化窗口 finally 重锁、CarryBus 位姿直写许可及 HANDBACK 失败重锁。最新代码基线 `bd7968203673d569035497ad214a6fbbe1aaf87f` 的 P104 Python syntax/pure regression 已通过（144 tests），base-arm diagnostic collector syntax 已通过；CarryBus 与 Gazebo E2E 以该 SHA 对应的最新 workflow 结果为准。Gazebo E2E 已失败，不得将离线测试通过视为仿真通过。
-- 下一步按三条独立验证链执行：① `DisturbanceInjectionTest`：单独验证 ApplyLinkWrench / 自定义 Gazebo System / Joint API 的消息接收、实体解析、物理更新和状态响应；② `GroundFixedJointTest`：独立验证 DetachableJoint attach/hold/detach 与物理位姿；③ `ChassisImmobilityE2E`：在固定关节期间验证速度输入、外部扰动和机械臂动作负载下的底盘静止。三个模块独立产生日志、JSON 和验收结果，不互相伪造 PASS。当前优先运行 Ground Fixed Joint 隔离验证；旧 ApplyLinkWrench 诊断保留为非替代证据，未证实之前不进行盲目 torque 扩大搜索。不得修改质量、惯量、摩擦、阻尼、effort limit 或控制器增益。
-- 不得修改 SDF、摩擦/质量/阻尼、控制器参数或放宽 IK、碰撞、关节、抓取、交接和释放安全门槛；不把 `in_band_pct` 当作跟随成功。
+- PR：[#3](https://github.com/rexyll/VLN-VLA/pull/3)，Draft/Open，base `main`，未合并
+- **当前权威技术路线：P105｜选择性引入 MotionControlAlgorithms，重构 DrinkTask 运动控制闭环。** 本路线覆盖并取代此前分散的底盘制动参数搜索、旧 ChassisBrake/ApplyLinkWrench 优化、独立 GroundFixedJoint 生产接入优先级，以及未经统一控制架构约束的局部 IK/轨迹参数微调计划。
+- 最新已确认完整 E2E 失败：#455（run `43838149602`，commit `acc45f8933f1bbb9aaea20511b1ba53c8291fd6e`）。任务失败点为 `PRESENT_FOLLOW`：杯子漂移约 45.049mm、杯轴误差约 3.912°；机械臂 follow 期间底盘真值最大 XY 移动约 20.494mm、yaw 变化约 3.962°、最大速度约 0.0770m/s，而 `/drink/cmd_vel` 与 `/robot/cmd_vel` 峰值均为 0，轮端 effort 为 0。根因证据指向机械臂运动反作用力造成被动底盘位移；仅靠 cmd_mux 软件锁和零速度命令不足以满足物理静止要求。交接门槛未降低，拒绝交权属于正确 fail-closed 行为。
+- MotionControlAlgorithms 当前审查基线：仓库 `rexyll/MotionControlAlgorithms`，main commit `c11091bd2bb3ce001eb09f2664c1ff5076f8a73b`，C++17 / Eigen3 / Apache-2.0。采用**选择性、固定版本引入**，不整仓合并；优先验证 Damped Least Squares IK、S-Curve 轨迹、差速运动学。Cartesian impedance/admittance、task-space hierarchy、CBF 等模块需先完成动力学/执行接口/约束建模适配审查，不作为第一批直接上线控制器。
+- 当前任务节点：**P105-01｜MCA 依赖审计、固定版本引入与可复现构建**。
+- 总体状态：**正在进行中；尚未完成 MCA 代码引入、ROS 2 适配、生产控制切换或新的完整 Gazebo E2E。不得将方案写入 TaskPlan 视为实现完成。**
+- 本轮开始时 VLN-VLA 分支 HEAD 为 `acc45f8933f1bbb9aaea20511b1ba53c8291fd6e`。后续所有提交只允许落在本分支；不创建新分支，不修改/合并 main，不改变 PR #3 Draft/Open 状态。
+- 现有关键安全验收保持不变：交接位置误差 ≤6mm、轴向误差 ≤0.5°；底盘锁止目标线速度 <0.005m/s、角速度 <0.5°/s、1秒平移 <2mm、朝向变化 <0.5°。现有 IK、关节限位、碰撞与 swept-path、物体抓持/释放和任务后置条件均不得放宽。
+- 唯一指令出口约束继续有效：`drink_task.py` 的 39 路 `/drink/cmd/*` 仍须保持单一发布者和统一节拍。在 C++ 控制器迁移阶段，MCA 节点只提供经过验证的关节目标/轨迹，不得并行直接发布同一批 Gazebo joint command topic。
+- 历史记录中已完成的隔离 GroundFixedJoint 3/3 测试仍是有效的隔离测试证据，但不证明生产 `work_area` 已集成物理锁止，也不证明机械臂反作用力负载下生产场景通过。旧 ApplyLinkWrench/ChassisBrake 失败记录仅作历史诊断，不再作为当前主线前置门禁或优化方向。
+- 不安排每日监控或定时任务；按本 TaskPlan 节点顺序推进，遇到新证据可修订当前路线并记录变更原因。
 
 ## 任务章节
 
@@ -45,15 +45,119 @@
 5. [正在进行中] 修复双手交接/交还相对杯轴的几何对位。
 6. [未完成] 连续完整 E2E 验收；必须所有轮次通过，才可关闭 P104-07。
 
-### P104-10 底盘物理锁定与递杯抗反作用力验证
+### P104-10 底盘物理锁定与递杯抗反作用力验证（历史阶段；生产验收未关闭）
 
-1. [正在进行中] **P104-10.1 将底盘物理锁止改为运行时 Ground Fixed Joint**：优先验证 Gazebo Sim 8.15.0 内置 `DetachableJoint`，由静态地面锚点模型提供 parent link、机器人 `chassis` 提供 child link，使用固定关节把整个 robot model 约束到 world；通过独立 attach/detach topic 控制，并以 output topic 状态和 Gazebo truth 双重确认。Gazebo 8.15 的官方接口确认支持 fixed joint、运行时 attach/detach 与状态输出；其文档未列出 Sim 10 后续版本的 `initial_attach` 参数，因此不得假定 Gazebo 8 支持该参数。隔离测试需在机器人开始移动前解除启动时的默认固定，再验证到达服务位后的重新固定。旧 `JointForceCmd` 轮端 PD 方案保留为对照，不再作为首选生产锁止方案。验收要求：固定状态下底盘 XYZ/yaw/roll/pitch 与轮速均保持在物理验收范围内；机械臂动作期间固定约束持续存在；解锁后 DiffDrive 可恢复至少 10mm 受控位移。未通过隔离实验前不接入生产 `work_area.sdf`。
-2. [未完成] **P104-10.2 增加物理锁定确认与运行期漂移监测**：软件 LOCKED ACK 仅表示命令层已锁定，不作为物理静止证明。以 Gazebo 真值底盘位姿/速度、左右轮关节位置/速度及可用的力矩/接触观测进行独立确认。初始验收目标：线速度 < 0.005m/s、角速度 < 0.5°/s、1秒窗口内位置变化 < 2mm、朝向变化 < 0.5°；阈值须结合仿真采样率和噪声验证，不得因测试失败而直接放宽。机械臂动作期间持续监测，超限立即暂停后续动作并保持抓持/释放安全状态。
-3. [未完成] **P104-10.3 建立底盘抗机械臂反作用力回归测试**：固定 world、初始底盘位姿、关节初态和仿真时长，依次执行机械臂静止基线、左臂分段低速动作、右臂跟随动作、双臂完整递杯动作；同步记录底盘 truth pose/twist、轮关节 position/velocity/effort、机械臂目标与实测关节状态、左右掌—杯相对变换和仿真时间戳。验证锁定时底盘满足 P104-10.2 指标、杯子世界坐标偏移满足既有交接 6mm/0.5°门槛。独立回归通过后再执行完整双轮 headless Gazebo E2E；不得把单元测试、插件构建或部分阶段通过记为 E2E 成功。
+> **路线状态：被 P105-MCA 统一运动控制架构取代，不再按本节旧优化步骤继续迭代。** 本节保留历史物理约束和测试证据，防止重复实验；当前生产方案由 P105 的底盘固定约束与机械臂任务空间控制统一设计。此前 GroundFixedJoint 隔离 runner 仍可作为回归测试资产，但不再单独推动生产集成。
 
-4. [正在进行中] **P104-10.4 DisturbanceInjectionTest：独立扰动注入验证**：将扰动发生器与状态采集/判定器解耦。先验证目标 MODEL/LINK 实体解析、消息回调接收、物理更新执行和 pose/twist 响应，再进行参数搜索。候选注入器包括 ApplyLinkWrench、自定义 Gazebo System（在 PreUpdate 受控施力）及 Joint API；每种方式明确记录实际使用的注入路径，不得把一种路径的 PASS 归因于另一种路径。只有接口接收、实体解析和物理作用均可观测，才允许进入参数搜索。
-5. [未完成] **P104-10.5 GroundFixedJointTest：独立物理锁止验证**：使用 Gazebo Sim 8.15.0 DetachableJoint 和无碰撞静态 world anchor；每个重复从全新 Gazebo 进程启动。确认启动 attach 状态→detach 后速度命令可移动至少 10mm→attach 后同一速度命令下 XYZ 位移 <2mm、yaw 变化 <0.5°→再次 detach 后恢复移动至少 10mm。每种状态同时检查 StringMsg 状态 topic（attached / detached）、Gazebo truth pose/twist 和轮关节速度；ACK 不等于物理 PASS。至少 3 次独立重复全部通过后才进入手臂负载测试。
-6. [未完成] **P104-10.6 ChassisImmobilityE2E：锁止期间综合抗扰动与手臂负载验证**：在 Ground Fixed Joint 保持期间，依次施加导航/follower/DrinkTask 普通速度指令、可观测外部扰动和机械臂分段/双臂完整动作；确认底盘无可测漂移、旧速度缓存不在解锁后执行，所有阶段锁止状态 fail-closed。验证完成前不得接入生产 work_area.sdf；完成后再执行完整双轮 DrinkTask E2E。
+1. [已完成｜仅隔离验证] GroundFixedJoint 隔离测试：Gazebo Sim 8.15 DetachableJoint 的 attach/hold/detach 状态转换和受控移动对照曾在 3 个独立 Gazebo 进程中通过。此结果不等于生产 `work_area` 集成，也未覆盖完整机械臂反作用力。
+2. [已完成｜仅问题诊断] #455 已证实软件 LOCKED ACK、零速度指令与 wheel effort=0 不能阻止 arm-follow 期间的被动底盘漂移；最大 XY 约 20.494mm、yaw 约 3.962°。P105 必须从物理约束与运动控制架构两端处理，不能再通过调小速度命令或主动位姿修正掩盖。
+3. [废弃/不再执行] 以旧 ApplyLinkWrench / ChassisBrake baseline yaw 响应为前置条件的 torque 搜索、四级 ChassisBrake stage-lock 优化及其生产门禁。旧实验结果继续保留为历史诊断，不得继续盲目增大 torque，也不得阻断 MCA 主线。
+4. [废弃/不再执行] 将 GroundFixedJoint 单独作为最终生产解决方案的旧计划。GroundFixedJoint 可作为隔离对照和可选物理执行器，但生产接口必须纳入 P105 统一 BaseMotionAuthority / PhysicalHold 状态机，明确 Gazebo 与真实硬件锁止适配器的边界。
+5. [废弃/不再执行] 不经统一控制器架构约束的局部 IK seed、姿态偏移、PID/PD 或单项轨迹参数反复微调。后续所有可调参数必须有 MCA 算法接口、物理模型依据、单变量试验和统一验收数据支撑。
+6. [未完成] 将 P105 的物理底盘保持、机械臂动作反作用力、杯体相对位姿及解锁恢复纳入同一 ChassisImmobilityE2E / DrinkTask E2E，满足原阈值后才可关闭该历史问题。
+
+
+## P105｜MotionControlAlgorithms 引入与 DrinkTask 运动控制闭环重构（当前唯一执行路线）
+
+### 目标与技术决策
+
+将 `rexyll/MotionControlAlgorithms` 作为项目的通用运动控制算法来源，建立可测试、可替换、可观测的 C++ 控制核心，并通过 ROS 2 adapter 与现有 Python 行为树/DrinkTask 协作。目标不是简单复制算法文件，而是把当前失败的 PRESENT_FOLLOW、抓壶/倒水/放壶/递杯和底盘反作用力问题统一到“任务空间目标 → 轨迹生成 → IK/约束求解 → 关节目标执行 → 真值反馈 → BT 验收/恢复”的闭环。
+
+**固定上游基线：** MotionControlAlgorithms main `c11091bd2bb3ce001eb09f2664c1ff5076f8a73b`（2026-11-14）。每次升级必须显式审查差异并重新跑完整算法与场景回归，不跟随浮动 main。
+
+**引入方式：** 首选在 VLN-VLA 中建立独立 `mca_drink_control` ROS 2 C++ package，并 vendoring 当前需要的最小 MCA 头文件/实现快照及其上游 commit 元数据；不把 MCA 全仓库、EtherCAT/FOC/电机实验、UAV/四足/多机器人无关模块整体合并进 VLN-VLA。保留 MCA 的 Apache-2.0 `LICENSE` 与 `NOTICE`，每个复制/修改的上游文件保留版权和来源标记；记录文件清单、上游路径、commit、SHA256、修改说明。若后续 CI 能安全读取私有 sibling repo，再评估 submodule；当前不得假设普通 GITHUB_TOKEN 能读取另一个私有仓库。
+
+**首批算法适用性判断：**
+- **DampedLeastSquaresIk / NumericalIk：首批核心。** 用于与现有 `arm_kin.py` 的 DLS 解法做数值 A/B；MCA 的 `RobotModel` / `ForwardKinematics` 采用其自身模型结构，必须先验证 URDF/SDF 关节顺序、joint origin/axis/limit、左右臂镜像、掌系末端偏置和单位一致。MCA 当前 DLS 使用有限差分 Jacobian，不能未经基准测试就假定优于现有解析/数值实现。
+- **SCurveTrajectory：首批核心。** 为每个可动关节生成有界速度/加速度/jerk 的 rest-to-rest 参考轨迹；轨迹必须在线重规划时保持位置/速度连续，且不能绕过现有 joint limit、collision/swept-path 和 measured-arrival 检查。各关节时间同步策略需单独实现并测试，不能把单轴 S 曲线直接等同于笛卡尔直线轨迹。
+- **DifferentialDriveKinematics：用于底盘移动窗口。** 只用于差速底盘 twist↔wheel 运动学与指令限幅/一致性检查；不能代替 Nav2，也不能充当物理锁止。移动窗口与操作窗口的权限由 BaseMotionAuthority 管理。
+- **Cartesian impedance/admittance：延后。** 当前 Gazebo 手臂以 joint-position 目标接口为主；MCA CartesianImpedance 输出关节 torque，Admittance 生成笛卡尔 pose/twist。未具备经验证的力/力矩测量、动力学参数、effort 控制接口和硬件安全限幅前，不得直接接入生产执行回路。可先做离线模型验证。
+- **TaskSpaceHierarchy / QP：延后并按真实需求适配。** MCA `TaskSpaceHierarchy` 当前位于 `mca::legged`，文档明确是 sequential damped least-squares/null-space differential IK，而非严格 lexicographic QP；不得宣称严格优先级保证。需先为双臂/杯体/相对交接任务建立约束定义，再判断复用或扩展。
+- **CBF：延后。** 当前 `ControlBarrierFilter` 是标量控制仿射系统过滤器；不能直接作为 7 轴机械臂完整碰撞安全层。需定义障碍距离函数、导数/相对阶、控制输入映射和可行性处理；CBF 只做附加软件安全过滤，不能替代碰撞检测、急停或物理锁止。
+
+### P105-01｜依赖审计、模型映射与可复现构建
+
+1. [正在进行中] 锁定上游 MCA commit `c11091bd2bb3ce001eb09f2664c1ff5076f8a73b`；导出第一批候选模块的精确依赖闭包（DLS/Numerical IK、URDF/DH model、FK、Jacobian、SE(3)、S-Curve、DifferentialDrive、core types/math），确认是否依赖 Eigen3、C++17、外部子模块或动态库。
+2. [未完成] 对比 `arm_kin.py` 与 MCA 模型表达：两侧 7 轴关节名称/顺序、joint type、origin、axis、limits、左右镜像、base-to-shoulder transform、wrist-to-palm transform、角度单位；生成自动化模型一致性报告。不得通过更改现有模型参数让两套 FK 人为吻合。
+3. [未完成] 在 `vla_ws/src/mca_drink_control` 建立 ament_cmake ROS 2 Jazzy 包；保持 `vla_follow` 的 ament_python 包不被强制改造成混合构建。建立独立 `mca_core` 静态/接口目标，声明 Eigen3 与 ROS 2 依赖，CI 安装依赖并执行 clean build。
+4. [未完成] 仅 vendoring 经批准的最小源文件集合；同步 `LICENSE`、`NOTICE`，新增 `THIRD_PARTY_NOTICES.md` 与 `MCA_UPSTREAM.lock`（commit、路径、SHA256、许可、修改记录）。不复制不相关 EtherCAT/FOC/UAV/legged 产物。
+5. [未完成] 增加 C++ 单元测试与 Python 现有模型交叉测试：FK 基准点、随机合法关节状态、左右臂镜像、边界姿态、奇异邻域、非有限输入、关节越界、不可达目标。对每组输入比较 FK 位置/姿态差，定义并冻结模型一致性容差。
+6. [未完成] 验证 Windows/Linux 不作为本项目强制目标；当前最低交付平台为 CI 使用的 Ubuntu + ROS 2 Jazzy + Gazebo Harmonic。记录编译器、Eigen、ROS/Gazebo 版本及依赖 hash。
+
+### P105-02｜建立 C++ 控制核心与 ROS 2 适配边界
+
+1. [未完成] 设计 `McaArmController` 无 ROS 依赖核心：输入当前实测 joint state、目标末端 pose、速度/加速度/jerk 限制、关节限位和场景约束；输出带时间戳的关节目标/轨迹样本、求解状态、残差、迭代次数、奇异性指标和失败原因。
+2. [未完成] 设计 ROS 2 adapter：订阅当前 `/drink/joint_state`、左右臂目标 pose/任务状态；发布专用 MCA 输出话题（例如 `/drink/mca/joint_targets`），并提供明确的超时、输入新鲜度和序列号。不得直接向 `/drink/cmd/*` 发布。
+3. [未完成] Python `DrinkTask/CmdBus` 保留 39 路命令唯一发布者。只允许经校验的 MCA 输出由一个桥接入口写入 CmdBus；控制器离线、状态过期、序列错乱、NaN/Inf、关节越限、规划失败时拒绝写入并触发 BT 安全恢复。
+4. [未完成] 所有输入输出统一 SI 单位：位置 m、角度 rad、速度 m/s 或 rad/s、加速度/jerk 对应 SI；消息字段与数组顺序必须显式命名，不允许仅依赖未文档化的数组索引。
+5. [未完成] 将控制器模式定义为 `IDLE → VALIDATING → PLANNING → EXECUTING → VERIFYING → SUCCEEDED/FAILED/SAFE_HOLD`；每次新目标有 request_id，旧目标/旧轨迹必须取消，不允许 stale trajectory 在任务切换后继续执行。
+6. [未完成] 将 ROS callback 与控制计算隔离；控制循环采用固定周期、输入快照和有界计算；记录周期抖动、最大执行时间、丢帧和超时。不得在实时控制路径做阻塞服务调用、文件 IO 或无界内存分配。
+
+### P105-03｜DLS IK 迁移与对照验收
+
+1. [未完成] 将现有 Python DLS 作为 reference baseline，固定一组真实 DrinkTask 目标：PREPARE、kettle grasp、pour、kettle return、PRESENT、TAKE_BACK、PUT_BACK、retreat；同时加入随机合法状态与奇异/边界样本。
+2. [未完成] 用同一 URDF/等价 MCA RobotModel、同一初始 joint state、同一目标 pose 分别运行 Python 与 MCA DLS；比较收敛率、位置/姿态残差、迭代数、耗时、joint-limit margin、解的连续性和肘部姿态规则。
+3. [未完成] 明确 MCA 目前有限差分 Jacobian 的数值误差与计算开销；评估其与现有实现的差异。若模型不支持、精度退化或实时预算不达标，先补模型 adapter/解析 Jacobian 或保留旧 solver，不允许强行切换。
+4. [未完成] 把碰撞检测、全路径 swept collision、R1-R7 姿态规则、关节限位和手臂自碰撞作为 IK 结果的硬性后置过滤；IK 收敛本身不等于可执行。
+5. [未完成] 增加 DLS solver A/B CI 报告；通过确定性回归和 Gazebo 单动作实测后，按动作节点逐个启用 MCA，保留可回退开关和版本记录。
+6. [未完成] BT 仅在控制器报告收敛且所有硬门控通过时允许执行；重试预算耗尽、输入状态不可信或连续失败时 fail-closed，不得以最近似但未达标的解伪造成功。
+
+### P105-04｜S-Curve 轨迹生成与执行
+
+1. [未完成] 用 MCA `SCurveTrajectory` 为每个关节从实测起点到 IK 目标生成位置/速度/加速度参考；每个轴设置来自现有执行器/仿真模型的合法限制，限制来源必须可追溯，不得凭空扩大。
+2. [未完成] 实现多关节同步：同一动作各轴在共同结束时间到达目标，较短轴通过时间缩放/保持策略同步；起终速度/加速度条件与当前控制接口兼容。
+3. [未完成] 实现轨迹中止、暂停、重规划、反向恢复与状态重置；新轨迹从最新实测状态开始，不从过期目标或软件缓存位置开始。
+4. [未完成] 离线验证位置/速度/加速度/jerk 上限、轨迹连续性、单调性、极短行程、反向运动、零行程和数值边界。
+5. [未完成] Gazebo 单臂动作 A/B：比较原有 setpoint 与 S-Curve 输出的峰值关节速度/加速度、末端误差、杯体扰动、执行时间及关节跟踪误差；不得以牺牲既有精度换取平滑。
+6. [未完成] 只有单臂、双臂和物体携带负载测试全部通过，才将 MCA 轨迹设为对应动作默认路径。
+
+### P105-05｜底盘物理保持与运动权限统一管理
+
+1. [未完成] 新增 `BaseMotionAuthority` 状态机，将 software cmd mux、Gazebo DetachableJoint/真实硬件外部制动器 adapter、底盘 truth monitor、Nav2/follower/DrinkTask command lease 纳入同一请求/确认协议。
+2. [未完成] 操作窗口申请保持时：先禁止新的普通底盘命令并清空缓存→确认底盘速度/轮速达到静止门槛→发起物理 attach/硬件锁止→等待 attached/locked 物理状态→用 truth pose/twist 和轮关节状态验证保持稳定；全部成功后才允许机械臂动作。
+3. [未完成] 保持期间，Nav2、follower、DrinkTask、旧 cmd_vel、CarryBus SetWorldPoseCmd 和其它普通移动入口全部拒绝；不得发送主动位姿补偿或底盘纠偏命令。急停/碰撞保护/故障保护保留最高优先级。
+4. [未完成] 解锁必须在杯/壶状态安全、手臂净空、任务节点允许移动后执行：物理 detach/解除硬件锁止→确认 detached/unlocked→清空所有旧速度/目标缓存→要求新的授权 request_id 和新鲜命令→再开放底盘移动。任一步骤超时/状态未知均 fail-closed。
+5. [未完成] Gazebo 实现使用已通过隔离测试的 DetachableJoint 适配器；SDF 拓扑、world/topic/entity 名称、Gazebo Sim 版本和 StringMsg 状态语义必须与运行环境一致。真实硬件通过独立外设接口实现，不能把仿真 joint 当成真实硬件方案。
+6. [未完成] 通过锁止状态注入 Nav2/follower/DrinkTask 命令、stale command、异常 detach/attach、Gazebo 插件丢失、状态 topic 超时等故障，验证 BT 不会启动手臂或错误释放物体。
+
+### P105-06｜任务空间层级控制、双臂协同与杯体稳定
+
+1. [未完成] 建立任务变量和约束：杯体世界/目标 pose、左右手相对杯轴 pose、双手间距、关节位置/速度/加速度、工作空间、桌面/人体/机器人碰撞距离、底盘固定状态。区分主任务（杯体稳定/交接位姿）和次任务（手腕姿态/冗余姿态/舒适姿态）。
+2. [未完成] 评估 MCA `TaskSpaceHierarchy` 的适配性：它是 sequential damped least-squares + null-space projection，不是严格 lexicographic QP；当前位于 `mca::legged` 命名空间。先建立纯数学测试，验证优先级残差与约束行为，必要时为双臂操作提取通用实现或开发专用优化器。
+3. [未完成] 不允许仅靠加权和把杯体主任务与手掌次任务混成一个目标；需证明主任务误差不被次任务牺牲。若采用 QP，明确变量、目标函数、等式/不等式约束、软硬约束和 infeasible 时安全动作。
+4. [未完成] 建立左右臂耦合模型与杯体刚体约束；检查两侧末端的相对变换、夹持力可观测性、杯体姿态和物体 attachment 约束。缺乏接触力/力矩传感数据时不得虚构力闭环。
+5. [未完成] 在 Gazebo 先做单臂持杯、双臂持杯、递杯 follow、handover 接触/释放阶段回归；记录杯体 world pose、手掌相对 pose、左右臂关节状态、底盘真值。位置 ≤6mm、轴误差 ≤0.5° 的既有门槛保持不变。
+6. [未完成] 如果当前 MCA hierarchy 无法提供严格主次优先级或约束可行性证明，则仅将其作为研究对照，不接管生产控制；生产方案必须有可验证的约束求解器与失败回退。
+
+### P105-07｜安全过滤、碰撞约束与可恢复行为树
+
+1. [未完成] 先整理现有碰撞检测与 swept-path 检查的输入输出和坐标基准；MCA CBF 不得替代这些现有硬安全门。
+2. [未完成] 评估 CBF 的 barrier function、Lie derivatives、控制输入映射、相对阶、离散时间稳定性与可行域；MCA 当前 scalar ControlBarrierFilter 不可直接作为多自由度碰撞过滤器。
+3. [未完成] 如实现机械臂 CBF，必须与现有碰撞检测独立交叉验证，并对障碍距离、测量噪声、计算延迟和约束不可行设置 fail-closed 策略；软件安全过滤不能代替物理锁止、急停和硬件限位。
+4. [未完成] 将 MCA 求解状态、轨迹进度、约束裕量、底盘物理锁状态和末端真值统一接入 BT checkpoint；每个动作前保存 joint state、末端 pose、base pose、物体 pose/ownership、碰撞场景版本和控制器 request_id。
+5. [未完成] 保留 bounded local recovery 与安全回退，但只允许在当前动作可逆、无不可逆事件且 checkpoint 不变量成立时回退上游动作；抓取/释放/倒水/人手接管等不可逆边界禁止自动回放。
+6. [未完成] 记录每次失败最接近成功的 3–5 个**诊断候选**，但只有通过全部硬约束的候选才允许执行；不以多次重试代替可证明的安全条件。
+
+### P105-08｜诊断、基准、回归与完整 E2E 关闭
+
+1. [未完成] 新增统一 telemetry schema：单调时钟/仿真时钟、request_id、BT node、算法与版本、目标 pose、实际 pose、joint q/dq/effort、IK residual/iterations、trajectory q/dq/ddq/jerk、base truth pose/twist、wheel state、physical lock state、cup pose、碰撞距离、错误码。
+2. [未完成] 修复现有 `collect_base_arm_dynamics.py` 的 wheel_odometry 数据源契约：明确正确 Gazebo/ROS topic、消息类型、采样时钟和有效性标记；不得从 joint state 静默伪造 wheel odometry。collector 缺源时标记观测器失败，和产品功能失败分开统计。
+3. [未完成] 为 MCA 算法建立 C++ 单测、Python↔C++ 交叉测试、ROS adapter 测试、Gazebo 单动作测试和完整任务 E2E 五层测试；每层独立报告，不允许低层 PASS 推导高层 PASS。
+4. [未完成] 首轮验收矩阵：左右臂各动作单测、持壶倒水、放壶撤离、双臂捧杯、PRESENT_FOLLOW、HANDOVER、TAKE_BACK、PUT_BACK、RETREAT、HANDBACK；每个节点至少 3 次独立仿真进程重复。
+5. [未完成] 完整 DrinkTask E2E 至少连续 3 轮全部到达 DONE，关键截图/JSON/原始日志完整；杯体回位、交接、跟随、底盘锁止、手臂精度和所有既有后置条件全部 PASS，方可关闭 P104/P105。
+6. [未完成] 性能验收：记录控制周期、P50/P95/P99/max 计算延迟、丢帧率、超时、CPU 使用和轨迹跟踪误差；实时性未达到目标时不得在动作中途切换算法或使用阻塞 fallback。
+7. [未完成] 只有 P105-01 至 P105-08 全部有可复现证据后，才评估是否将选定模块抽取回 MotionControlAlgorithms 上游；在此之前 VLN-VLA 仅固定快照使用，不自动修改 MCA 主仓库。
+
+### P105-09｜路线治理与旧优化方案废弃清单
+
+- [已废弃] 旧 ApplyLinkWrench/ChassisBrake 扰动力矩盲目扩大与四级 stage-lock 作为主线。
+- [已废弃] 单独 GroundFixedJoint 即视为生产底盘抗反作用力问题已解决。
+- [已废弃] 仅靠 cmd_mux 零速度/软件 LOCKED ACK 作为机械臂精细动作期间的物理静止保证。
+- [已废弃] 通过持续底盘 pose correction 抵消机械臂反作用力，或在 PRESENT_FOLLOW 期间以主动底盘修正维持杯位。
+- [已废弃] 不经模型一致性、路径碰撞和统一 telemetry 的局部 IK seed/目标偏移/增益微调作为长期方案。
+- [已废弃] 把 Cartesian impedance/admittance、CBF、legged task hierarchy 或 wheel kinematics 当成无需适配即可直接替换现有 ROS/Gazebo 控制器的方案。
+- [约束保留] 历史失败记录、原始 artifact、GroundFixedJoint 隔离 runner、旧 ChassisBrake 诊断程序可保留作回归/比较；不得删除历史证据，也不得让其旧门禁继续阻断 MCA 新主线。
+- [约束保留] 任何新发现若要求调整算法优先级，先更新 TaskPlan 并解释证据，不得并行启动旧路线。
 
 
 ## 失败记录与技术决策
