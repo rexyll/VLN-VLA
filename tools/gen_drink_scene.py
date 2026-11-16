@@ -544,7 +544,7 @@ def gen_robot_ext():
     #    唯一可信来源, 也是 P85 手掌 FK 自检的输入(用真实 q 算 FK 再比位姿)。
     parts.append("""      <plugin filename="gz-sim-joint-state-publisher-system"
               name="gz::sim::systems::JointStatePublisher">
-        <topic>/drink/joint_state</topic>
+        <!-- Gazebo Sim documented default: /world/follow_world/model/robot/joint_state -->
         <update_rate>50</update_rate>
       </plugin>""")
     # 链接位姿不在这里发: /world/follow_world/dynamic_pose/info 本来就把
@@ -961,7 +961,7 @@ def gen_bridge():
   direction: GZ_TO_ROS""")
     # 关节真实角度(Gazebo 官方 joint_state_publisher)
     lines.append("""- ros_topic_name: "/drink/joint_state"
-  gz_topic_name: "/drink/joint_state"
+  gz_topic_name: "/world/follow_world/model/robot/joint_state"
   ros_type_name: "sensor_msgs/msg/JointState"
   gz_type_name: "gz.msgs.Model"
   direction: GZ_TO_ROS""")
