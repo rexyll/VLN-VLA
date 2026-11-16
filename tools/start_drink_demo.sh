@@ -33,7 +33,7 @@ NAV2="${NAV2:-1}"
 
 # 先清掉上一轮的残留(按 cmdline 精确匹配, 别用 -x —— 进程名全是 python3)
 for pat in 'vla_follow/person_walk' 'vla_follow/voice_node' \
-           'vla_follow/drink_task' 'vla_follow/follower' \
+           'mca_drink_control/mca_ik_server' 'vla_follow/drink_task' 'vla_follow/follower' \
            'vla_follow/cmd_mux' 'vla_follow/depth_percept' \
            'vla_follow/person_vision' 'vla_follow/gt_tf' \
            'vla_follow/gz_viz' 'nav2_map_server' 'nav2_controller' \
@@ -64,14 +64,15 @@ if [ "$NAV2" = "1" ]; then
 fi
 launch pw ros2 run vla_follow person_walk $S
 launch voice ros2 run vla_follow voice_node
+launch mca_ik ros2 run mca_drink_control mca_ik_server
 launch drink ros2 run vla_follow drink_task $S
 
 sleep 8
-for n in percept vision mux follower gt_tf nav2 viz pw voice drink; do
+for n in percept vision mux follower gt_tf nav2 viz pw voice mca_ik drink; do
     printf '>>> %-8s %s\n' "$n" "$(tail -1 "$LOG/$n.log" 2>/dev/null | cut -c1-100)"
 done
 if [ "$NAV2" = "1" ]; then
-    echo ">>> 已起 感知/follower/cmd_mux/person_walk/voice_node/drink_task + gt_tf/Nav2/gz_viz"
+    echo ">>> 已起 感知/follower/cmd_mux/person_walk/voice_node/mca_ik_server/drink_task + gt_tf/Nav2/gz_viz"
 else
     echo ">>> 已起 感知/follower/cmd_mux/person_walk/voice_node/drink_task (NAV2=0, 无导航)"
 fi
