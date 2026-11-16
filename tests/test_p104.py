@@ -3788,6 +3788,9 @@ class TestPhysicalGazeboChassisLock(unittest.TestCase):
         self.assertIn('state not in ("attached", "detached")', source)
         self.assertIn('gz.msgs.Empty', source)
         self.assertIn('self.wait_for_state(expected', source)
+        self.assertIn('state_time >= after_time', source)
+        self.assertIn('after_time=command_started', source)
+        self.assertNotIn('state_age_s <= 0.5', source)
 
 
 class TestDrinkBaseLock(unittest.TestCase):
