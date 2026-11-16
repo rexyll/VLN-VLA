@@ -186,7 +186,7 @@ jobs:
 
       - name: Build Gazebo system plugins
         run: |
-          python3 -m py_compile tests/diag/run_chassis_brake_gz.py tests/diag/run_chassis_ground_lock_gz.py tests/diag/verify_p104_stage_locks.py
+          python3 -m py_compile tests/diag/run_chassis_brake_gz.py tests/diag/run_chassis_ground_lock_gz.py tests/diag/verify_p104_stage_locks.py tests/diag/verify_ground_fixed_joint.py
           bash -n tools/gz_plugin.sh
           cmake -S vla_ws/src/vla_follow/gz_plugins \
             -B vla_ws/src/vla_follow/gz_plugins/build \
@@ -202,7 +202,11 @@ jobs:
         run: |
           python3 tests/diag/run_chassis_ground_lock_gz.py --repeats 3
 
-      - name: Verify Ground Fixed Joint physical evidence (3 independent Gazebo runs)\n        run: |\n          python3 tests/diag/verify_ground_fixed_joint.py\n\n      - name: Run legacy ApplyLinkWrench and ChassisBrake diagnostic (non-authoritative; does not gate E2E)
+      - name: Verify Ground Fixed Joint physical evidence (3 independent Gazebo runs)
+        run: |
+          python3 tests/diag/verify_ground_fixed_joint.py
+
+      - name: Run legacy ApplyLinkWrench and ChassisBrake diagnostic (non-authoritative; does not gate E2E)
         continue-on-error: true
         run: |
           python3 tests/diag/run_chassis_brake_gz.py
@@ -225,7 +229,8 @@ jobs:
           test -s "$PKG_SHARE/maps/arena.pgm"
           grep -Fq "image: arena.pgm" "$PKG_SHARE/maps/arena.yaml"
 
-      - name: Verify immutable ChassisBrake stage locks after downstream build
+      - name: Verify legacy immutable ChassisBrake stage locks (non-authoritative diagnostic)
+        continue-on-error: true
         run: |
           python3 tests/diag/verify_p104_stage_locks.py
 
@@ -274,8 +279,9 @@ jobs:
             exit "$COLLECTOR_STATUS"
           fi
 
-      - name: Re-verify immutable ChassisBrake stage locks after DrinkTask E2E
+      - name: Re-verify legacy immutable ChassisBrake stage locks (non-authoritative diagnostic)
         if: always() && steps.drinktask_e2e.outcome != 'skipped'
+        continue-on-error: true
         run: |
           python3 tests/diag/verify_p104_stage_locks.py
 
