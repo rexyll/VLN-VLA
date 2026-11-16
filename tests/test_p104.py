@@ -761,6 +761,8 @@ class TestP104(unittest.TestCase):
         self.assertIn('gz_topic_name: "' + topic + '"', generator)
         self.assertIn('gz_topic_name: "' + topic + '"', bridge)
         self.assertIn('"topic": JOINT_TOPIC', collector)
+        self.assertIn('required_joint_names = {"left_wheel_joint", "right_wheel_joint", *ARM_JOINTS}', collector)
+        self.assertIn("MISSING REQUIRED JOINTS:", collector)
 
     def test_headless_cleanup_does_not_sigkill_diagnostic_collector(self):
         cleanup = open(os.path.join(ROOT, 'tools', 'killall_demo.sh'),
