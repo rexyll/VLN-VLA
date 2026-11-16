@@ -68,6 +68,7 @@ class Collector:
         self.lock = threading.Lock()
         self.file_lock = threading.Lock()
         self.counts = Counter()
+        self.observed_joint_names = set()
         self.latest_sim = None
         self.started = time.monotonic()
         self.stop_at = None
@@ -135,6 +136,8 @@ class Collector:
                         if vals:
                             item[axis_name] = vals
                 joints.append(item)
+        with self.lock:
+            self.observed_joint_names.update(joint["name"] for joint in joints)
         self.emit("joint_state", {
             "topic": JOINT_TOPIC,
             "header_stamp": header_stamp,
@@ -216,11 +219,21 @@ def main():
         c.close()
         print(f"\nJSONL: {os.path.abspath(output)}")
         print("records:", json.dumps(counts, ensure_ascii=False, sort_keys=True))
+        with c.lock:
+            observed_joint_names = sorted(c.observed_joint_names)
+        print("observed_joint_names:", json.dumps(
+            observed_joint_names, ensure_ascii=False))
+        required_joint_names = {"left_wheel_joint", "right_wheel_joint", *ARM_JOINTS}
+        missing_joints = sorted(required_joint_names - set(observed_joint_names))
+        if missing_joints:
+            print("MISSING REQUIRED JOINTS:", ", ".join(missing_joints))
         missing = [name for name in
                    ("clock", "dynamic_pose", "joint_state", "wheel_odometry",
                     "base_cmd_vel") if not counts.get(name)]
         if missing:
             print("MISSING REQUIRED SOURCES:", ", ".join(missing))
+            return 2
+        if missing_joints:
             return 2
         if not counts.get("arm_position_target"):
             print("WARNING: no arm target messages observed during capture")
