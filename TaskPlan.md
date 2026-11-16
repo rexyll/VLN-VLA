@@ -1321,3 +1321,14 @@
 - 已通过 GitHub job rerun 对同一 E2E job 发起重跑（新 job ID `133050059738`）。重跑已完成 checkout 和行为树单元测试，12/12 passed；截至本记录更新时仍在 `Configure Gazebo Harmonic apt repository`，隔离制动实验尚未开始。
 - 新 runner 的语法检查与实际 topic-info parser 兼容性仍待该重跑执行至 plugin build / isolated test 后验证。若订阅检查因 topic-info 输出格式不匹配而超时，先保存原始 topic info 并修正解析，不绕过 readiness gate。
 - `main` 未修改；PR #3 保持 Draft/Open；未创建其他分支。P104-10.1 物理验收状态仍为未通过/待重新验证，不能因 12 项行为树测试通过而更新为完成。
+
+
+### 8.415 修复 P104 PR E2E 并发取消风险（2026-11-16）
+
+- 核对真实 workflow .github/workflows/p104-drinktask-headless.yml：原配置使用 group: p104-drinktask-headless-\${{ github.ref }} 与 cancel-in-progress: true。同一 PR 的多次 pull_request 运行共享 refs/pull/<number>/merge 并发组，新运行可能取消正在执行的完整 E2E；这是已确认存在的配置风险。
+- 已调整并发策略：PR 运行按 PR number 分组，cancel-in-progress 对 pull_request 设为 false；push / workflow_dispatch 仍保留同分支新运行 supersede 旧运行的策略。这样同一 PR 的新提交不会中断已经开始的物理仿真验证，同时避免不同 PR 互相影响。
+- Workflow 修复提交：974ed3a24ece63edbd05334c89615b2dcb16d3f4。由于 workflow 文件本身在 PR paths 触发范围内，修复提交应触发新的验证运行；等待该运行验证 YAML 解析、依赖安装、插件构建和隔离制动实验。
+- Run #365（43790255970）Job 133050059738 的 apt 安装日志在下载包过程中收到取消信号；Job 总超时为 60 分钟，取消发生约一分钟内，因此不是已证实的 job timeout。当前 run metadata 显示 attempt 2 由仓库所有者触发重跑，但没有提供首次/第二次取消的操作者审计信息；不能断言 #365 的具体取消事件一定由 concurrency 触发，也不能排除手动取消或其他 GitHub 运行级中断。
+- 依赖安装规模仍待分析；暂不删除 Nav2、Gazebo 或 ROS 运行依赖，也不通过减少测试环境制造通过。后续先逐项核对 headless 启动脚本和实际 launch/runtime 依赖，再考虑用更精确的包集合替代 meta-package。
+- P104-10.1 物理制动仍未通过验收；本轮没有运行隔离制动实验，没有修改任何物理参数、力矩限制或验收阈值。生产 work_area.sdf 不接入 ChassisBrake。P104-10.2/10.3 未完成。
+- main 未修改；PR #3 继续 Draft/Open；仅使用 experiment/drinktask-bt-ik-recovery，未创建新分支。
