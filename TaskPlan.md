@@ -1391,3 +1391,12 @@
 - 标定只用于找到有效、稳定且可重复的扰动输入；不得降低 baseline `0.5°`、locked yaw drift 小于 baseline 的 `50%`、解锁位移至少 `10mm` 等验收门槛，不得放宽 `100rad/s` 诊断护栏，不得更改质量、惯量、摩擦、阻尼、轮端 effort limit 或 PD 增益来制造通过。不得直接把 18Nm 改成一个未经实验验证的较小常数。
 - P104-10.1 仍未通过；P104-10.2 独立静止确认、P104-10.3 机械臂反作用力回归和完整 DrinkTask E2E 尚未执行。生产 `work_area.sdf` 不接入 ChassisBrake。
 - 仅在 `experiment/drinktask-bt-ik-recovery` 修改；`main` 未修改，PR #3 保持 Draft/Open，不合并；未创建其他分支。
+
+
+### 8.421 ApplyLinkWrench persistent 语义核验与标定输入结论（2026-11-16）
+
+- 已核对 Gazebo Sim 8.15.0 官方 ApplyLinkWrench API 文档：`/world/<world>/wrench/persistent` 的语义是将给定 wrench 持续应用于每个仿真时间步；`/wrench/clear` 清除指定实体上的持续 wrench。普通 `/wrench` 则只作用于单个时间步。官方来源：https://gazebosim.org/api/sim/8/classgz_1_1sim_1_1systems_1_1ApplyLinkWrench.html。
+- 因此 runner 每 50ms 重复发布相同的 persistent wrench **不会把 18Nm 累加成 20 倍扭矩**；只要 persistent 条目仍有效，仿真系统每个时间步持续施加该 18Nm wrench。之前“重复发布可能累计”的疑虑已由官方语义排除。重复发布在当前实现中主要是持续维持/刷新输入，而非把每条消息当作一次性冲量。
+- #384 的 112.244rad/s wheel velocity、约 -1.185rad yaw 与隔离模型 `Izz=0.1985kg·m²` 相符于 18Nm 持续强扭矩引起的高角加速度量级；这使扰动力矩幅值成为明确的首要问题。仍需通过独立重启的分级实验找出同时满足原 baseline 0.5°响应门槛和轮速/仿真稳定性约束的输入，不能直接按线性模型选定最终力矩。
+- 后续标定必须确保每个候选力矩均在全新仿真进程中单独运行，记录完整 1 秒物理响应，并在 baseline 达标后再用完全相同的输入做 locked/unlocked A-B。不得在一个已施加 persistent wrench 的仿真中仅修改消息数值并把它当成独立样本；每个候选点均须先 clear 并重启世界，以保证初始状态可比。
+- 本节补充并细化 §8.420 的标定计划；物理验收门槛和模型参数限制保持不变。
