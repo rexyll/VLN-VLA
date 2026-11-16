@@ -70,15 +70,22 @@ class GazeboGroundLock:
         if self.state == expected and not force:
             return True
         topic = self.attach_topic if expected == "attached" else self.detach_topic
-        command_started = time.monotonic()
-        try:
-            result = subprocess.run(
-                ["gz", "topic", "-t", topic, "-m", "gz.msgs.Empty", "-p", " "],
-                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                text=True, timeout=3.0, check=False)
-        except (OSError, subprocess.TimeoutExpired):
-            return False
-        if result.returncode != 0:
-            return False
-        return self.wait_for_state(expected, timeout_s=timeout_s, spin=spin,
-                                   after_time=command_started)
+        # Gazebo transport can accept a CLI publication while the system plugin
+        # misses that one-shot message during startup. Retry once only when the
+        # state transition was not acknowledged; each attempt still requires a
+        # fresh state event newer than its own command timestamp.
+        for attempt in range(2):
+            command_started = time.monotonic()
+            try:
+                result = subprocess.run(
+                    ["gz", "topic", "-t", topic, "-m", "gz.msgs.Empty", "-p", " "],
+                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                    text=True, timeout=3.0, check=False)
+            except (OSError, subprocess.TimeoutExpired):
+                return False
+            if result.returncode != 0:
+                return False
+            if self.wait_for_state(expected, timeout_s=timeout_s, spin=spin,
+                                   after_time=command_started):
+                return True
+        return False
