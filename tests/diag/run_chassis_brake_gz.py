@@ -256,9 +256,9 @@ def measure_with_wrench(telemetry, duration, publisher, phase, log, process):
         if max_wheel > MAX_DIAGNOSTIC_WHEEL_RAD_S:
             log.write(
                 "%s runaway_wheel_velocity_rad_s=%.6f limit=%.1f "
-                "pose=%r wheels=%r\n" %
+                "motion_snapshot=%r\n" %
                 (phase, max_wheel, MAX_DIAGNOSTIC_WHEEL_RAD_S,
-                 pose, wheels))
+                 telemetry.motion_snapshot()))
             log.flush()
             raise RuntimeError(
                 "%s unstable dynamics: wheel velocity %.3f rad/s "
@@ -270,9 +270,15 @@ def measure_with_wrench(telemetry, duration, publisher, phase, log, process):
     log.flush()
     if publish_count < 5:
         raise RuntimeError("%s wrench publisher delivered too few messages" % phase)
-    end_pose = telemetry.snapshot()[0]
-    log.write("%s_pose_start=%r pose_end=%r elapsed_s=%.3f\n" %
-              (phase, start_pose, end_pose, duration))
+    end_pose, end_twist, end_positions, end_velocities = (
+        telemetry.motion_snapshot())
+    log.write(
+        "%s_pose_start=%r pose_end=%r twist_start=%r twist_end=%r "
+        "wheel_position_start=%r wheel_position_end=%r "
+        "wheel_velocity_start=%r wheel_velocity_end=%r elapsed_s=%.3f\n" %
+        (phase, start_pose, end_pose, start_twist, end_twist,
+         start_positions, end_positions, start_velocities, end_velocities,
+         duration))
     log.flush()
     return {"max_xy_mm": max_xy * 1000.0,
             "max_yaw_deg": max_yaw,
@@ -332,6 +338,8 @@ def run_single(torque_nm, log_suffix=""):
                        "initial Gazebo robot pose", process)
             wait_until(lambda: len(telemetry.snapshot()[1]) == 2, 30,
                        "both wheel joint states", process)
+            wait_until(lambda: telemetry.motion_snapshot()[1] is not None, 30,
+                       "DiffDrive odometry twist", process)
 
             publish(CMD_TOPIC, "gz.msgs.Twist",
                     "linear: {x: 0.0} angular: {z: 0.0}")
