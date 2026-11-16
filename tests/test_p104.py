@@ -3826,6 +3826,24 @@ class TestPhysicalGazeboChassisLock(unittest.TestCase):
         self.assertIn("self.state == expected and not force", lock_client)
         self.assertIn('self._ground_lock_ready = True', handshake)
 
+    def test_main_waits_for_physical_lock_and_holds_base_during_boot_home(self):
+        task_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow', 'drink_task.py')
+        with open(task_path, encoding='utf-8') as stream:
+            source = stream.read()
+        main = source[source.index('def main():'):]
+        ready_wait = main.index('while (not node._ground_lock_ready')
+        hold = main.index('if not node.set_base_lock(True):')
+        home = main.index('home_ok = node.home()')
+        hang = main.index('hang_ok = node.hang()')
+        unlock = main.index('if not node.set_base_lock(False):')
+        self.assertLess(ready_wait, hold)
+        self.assertLess(hold, home)
+        self.assertLess(home, hang)
+        self.assertLess(hang, unlock)
+        self.assertIn('STARTUP_ABORT: physical chassis lock handshake not ready', main)
+        self.assertIn('physical hold remains engaged', main)
+
     def test_drink_task_entry_fails_closed_before_any_actuator_command(self):
         task_path = os.path.join(
             ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow', 'drink_task.py')
