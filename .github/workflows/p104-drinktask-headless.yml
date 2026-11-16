@@ -202,7 +202,7 @@ jobs:
         run: |
           python3 tests/diag/run_chassis_ground_lock_gz.py --repeats 3
 
-      - name: Run legacy ApplyLinkWrench and ChassisBrake diagnostic (non-authoritative; does not gate E2E)
+      - name: Verify Ground Fixed Joint physical evidence (3 independent Gazebo runs)\n        run: |\n          python3 tests/diag/verify_ground_fixed_joint.py\n\n      - name: Run legacy ApplyLinkWrench and ChassisBrake diagnostic (non-authoritative; does not gate E2E)
         continue-on-error: true
         run: |
           python3 tests/diag/run_chassis_brake_gz.py
