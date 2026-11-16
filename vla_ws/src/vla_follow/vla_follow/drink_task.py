@@ -2238,8 +2238,9 @@ class DrinkTask(Node):
         hold_target = (self._follow_base_hold_target
                        or self._prepare_base_hold_target)
         physical_lock_active = (
-            self._ground_lock is not None
-            and self._ground_lock.state == 'attached')
+            self._base_lock_active
+            or (self._ground_lock is not None
+                and self._ground_lock.state == 'attached'))
         if physical_lock_active:
             # A fixed joint is the physical hold. Do not issue pose-correction
             # or any other active chassis command while the arm is manipulating.
