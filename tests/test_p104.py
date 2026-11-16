@@ -790,6 +790,8 @@ class TestP104(unittest.TestCase):
         self.assertIn('gz_topic_name: "' + topic + '"', generator)
         self.assertIn('gz_topic_name: "' + topic + '"', bridge)
         self.assertIn('"topic": JOINT_TOPIC', collector)
+        self.assertNotIn("a.HasField(field)", collector)
+        self.assertIn("math.isfinite(value)", collector)
         self.assertIn('required_joint_names = {"left_wheel_joint", "right_wheel_joint", *ARM_JOINTS}', collector)
         self.assertIn("MISSING REQUIRED JOINTS:", collector)
         self.assertIn("missing_joints = sorted(required_joint_names - set(observed_joint_names))", collector)
