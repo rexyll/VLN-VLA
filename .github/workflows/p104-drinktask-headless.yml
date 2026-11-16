@@ -250,7 +250,7 @@ jobs:
           ros2 run mca_drink_control mca_ik_server > vla_ws/logs/mca_ik_service.log 2>&1 &
           SERVER_PID=$!
           trap 'kill "$SERVER_PID" 2>/dev/null || true; wait "$SERVER_PID" 2>/dev/null || true' EXIT
-          PYTHONPATH=vla_ws/src/vla_follow python3 tests/diag/test_mca_ik_service.py
+          PYTHONPATH="vla_ws/src/vla_follow:${PYTHONPATH:-}" python3 tests/diag/test_mca_ik_service.py
 
       - name: Verify immutable ChassisBrake stage locks (legacy non-authoritative diagnostic)
         continue-on-error: true
