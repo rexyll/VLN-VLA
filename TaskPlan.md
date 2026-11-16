@@ -37,7 +37,7 @@
 ### 最新失败 Action 审计（2026-11-16）
 
 - [已定位并修复待 CI 复验] 最新 push run #567（run `43859548281`）与 PR run #568（run `43859554938`）均在 P104 offline safety/motion regression 的 `test_physical_lock_transition_waits_for_stationary_truth_and_verifies_pose` 失败；错误为 `ValueError: substring not found`，旧断言查找 `self._set_mux_base_lock(False)`，而实现已经改为带超时参数的 `self._set_mux_base_lock(False, timeout=timeout)`。这属于测试契约过期，不是运行时锁止逻辑失败。
-- [已修复，等待新 CI] 已将断言更新为验证真实解锁顺序：物理 detach → pose/twist 稳定验证 → mux unlock → unlock 失败时重新 mux lock，并要求物理 joint re-attach 回滚路径存在。没有删除或绕过任何 fail-closed 检查。
+- [已修复｜离线回归通过] 已将断言更新为验证真实解锁顺序：物理 detach → pose/twist 稳定验证 → mux unlock → unlock 失败时重新 mux lock，并要求物理 joint re-attach 回滚路径存在。#570 对应代码提交 `32ae0268f28a0218b5fffbe1ca0a5b2f04db199a` 的 P104 pure math/kinematics regression、Python syntax、Base-arm collector syntax、CarryBus ROS 2 executor integration 均通过。没有删除或绕过任何 fail-closed 检查。
 - PR merge ref 对应的 pure math/kinematics run #1351（run `43859554833`）出现同一个测试错误；不是第二个独立数学算法故障。另有多个独立工作流成功，不能将失败误判为 MCA 所有模块均失败。
 - 当前修复提交：`32ae0268f28a0218b5fffbe1ca0a5b2f04db199a`。必须以该提交及其后续最新 SHA 的 CI 结果为准；不得将测试断言修复描述为 E2E 通过。
 - 下一步：确认纯 Python 回归全部通过；确认 MCA ROS 2 service 双臂 smoke test 和 colcon 测试通过；再检查 production Gazebo attach/detach、arm-follow 负载下 truth pose/twist/wheel telemetry，以及连续两轮完整 DrinkTask E2E。任何阶段失败均按真实失败处理，不降低交接 6mm/0.5°和底盘静止阈值。
