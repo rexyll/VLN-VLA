@@ -4105,5 +4105,55 @@ class TestDrinkBaseLock(unittest.TestCase):
         self.assertNotIn('node.set_base_lock(False)', body)
 
 
+    def test_boot_joint_targets_are_suppressed_until_physical_hold_acknowledged(self):
+        task_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow', 'drink_task.py')
+        with open(task_path, encoding='utf-8') as stream:
+            source = stream.read()
+        tree = ast.parse(source)
+        drink_class = next(
+            node for node in tree.body
+            if isinstance(node, ast.ClassDef) and node.name == 'DrinkTask')
+        methods = {
+            node.name: node for node in drink_class.body
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))}
+        init_source = ast.get_source_segment(source, methods['__init__'])
+        self.assertIn('self._arm_command_output_enabled = False', init_source)
+
+        tick = methods['_tick']
+        publish_calls = [
+            node for node in ast.walk(tick)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == 'publish_all'
+        ]
+        self.assertEqual(len(publish_calls), 1)
+        publish_line = publish_calls[0].lineno
+        guarded = any(
+            isinstance(node, ast.If)
+            and isinstance(node.test, ast.Attribute)
+            and node.test.attr == '_arm_command_output_enabled'
+            and any(
+                isinstance(child, ast.Call)
+                and isinstance(child.func, ast.Attribute)
+                and child.func.attr == 'publish_all'
+                for child in ast.walk(node))
+            and node.lineno < publish_line < node.end_lineno
+            for node in ast.walk(tick))
+        self.assertTrue(
+            guarded,
+            '39-channel arm targets must not publish before the physical hold')
+
+        lock = methods['set_base_lock']
+        lock_source = ast.get_source_segment(source, lock)
+        verified = lock_source.index('self._verify_chassis_pose_stable')
+        enabled = lock_source.index(
+            'self._arm_command_output_enabled = True')
+        self.assertLess(
+            verified, enabled,
+            'arm command gate opens only after physical attach pose verification')
+        self.assertIn('BOOT_ARM_COMMAND_GATE open', lock_source)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)
