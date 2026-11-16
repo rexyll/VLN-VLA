@@ -3736,6 +3736,35 @@ class TestPresentBaseHoldAblation(unittest.TestCase):
 
 
 
+class TestMcaIkRosServiceContract(unittest.TestCase):
+    def test_service_uses_named_joint_state_and_base_frame_pose(self):
+        srv_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'mca_drink_control', 'srv', 'SolveIk.srv')
+        server_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'mca_drink_control', 'src',
+            'mca_ik_server.cpp')
+        task_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
+            'drink_task.py')
+        with open(srv_path, encoding='utf-8') as stream:
+            srv = stream.read()
+        with open(server_path, encoding='utf-8') as stream:
+            server = stream.read()
+        with open(task_path, encoding='utf-8') as stream:
+            task = stream.read()
+        self.assertIn('Target pose is expressed in the robot model base frame', srv)
+        self.assertIn('sensor_msgs/JointState seed', srv)
+        self.assertIn('sensor_msgs/JointState solution', srv)
+        self.assertIn('request->seed.name[seed_index] != joint.name', server)
+        self.assertIn('response->solution.name.push_back(joint.name)', server)
+        self.assertIn('request.seed.name = [', task)
+        self.assertIn('request.seed.position = [', task)
+        self.assertIn('list(_mca_report.solution.name) == _expected_names',
+                      open(os.path.join(
+                          ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
+                          'drink_motion.py'), encoding='utf-8').read())
+
+
 class TestPhysicalGazeboChassisLock(unittest.TestCase):
     def test_work_area_has_static_detachable_joint_anchor(self):
         world_path = os.path.join(
