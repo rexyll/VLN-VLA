@@ -27,7 +27,7 @@
 - 最新已确认完整 E2E 失败：#455（run `43838149602`，commit `acc45f8933f1bbb9aaea20511b1ba53c8291fd6e`）。任务失败点为 `PRESENT_FOLLOW`：杯子漂移约 45.049mm、杯轴误差约 3.912°；机械臂 follow 期间底盘真值最大 XY 移动约 20.494mm、yaw 变化约 3.962°、最大速度约 0.0770m/s，而 `/drink/cmd_vel` 与 `/robot/cmd_vel` 峰值均为 0，轮端 effort 为 0。根因证据指向机械臂运动反作用力造成被动底盘位移；仅靠 cmd_mux 软件锁和零速度命令不足以满足物理静止要求。交接门槛未降低，拒绝交权属于正确 fail-closed 行为。
 - MotionControlAlgorithms 当前审查基线：仓库 `rexyll/MotionControlAlgorithms`，main commit `c11091bd2bb3ce001eb09f2664c1ff5076f8a73b`，C++17 / Eigen3 / Apache-2.0。采用**选择性、固定版本引入**，不整仓合并；优先验证 Damped Least Squares IK、S-Curve 轨迹、差速运动学。Cartesian impedance/admittance、task-space hierarchy、CBF 等模块需先完成动力学/执行接口/约束建模适配审查，不作为第一批直接上线控制器。
 - 当前任务节点：**P105-01｜MCA 依赖审计、固定版本引入与可复现构建**。
-- 总体状态：**正在进行中；已将 MCA 固定版本的 8 个核心头文件、LICENSE/NOTICE 选择性引入，新增独立 ament_cmake 包、DLS/S-Curve/差速运动学封装和 C++ 单元测试，并把包构建/测试接入 CI。当前提交 `02debdd69625d2c2aac5c9080e3851a046b71c9c` 的 MCA 包构建与 C++ 测试尚待对应 CI job 完成；URDF 模型映射、ROS 2 adapter 和生产控制切换均未完成。不得将源文件复制或计划写入视为生产控制已启用。**
+- 总体状态：**正在进行中；已将 MCA 固定版本的 8 个核心头文件、LICENSE/NOTICE 选择性引入，新增独立 ament_cmake 包、DLS/S-Curve/差速运动学封装和 C++ 单元测试，并把包构建/测试接入 CI。当前 MCA 代码与 CI 配置基线为 `f0a3554c2ed336141d32b838486309e70c9e3a81`，TaskPlan 最新提交为 `138b108467200e3b64490f7a0bca8522af708c6f`；MCA 包构建与 C++ 测试尚待对应 CI job 完成；URDF 模型映射、ROS 2 adapter 和生产控制切换均未完成。不得将源文件复制或计划写入视为生产控制已启用。**
 - 本轮开始时 VLN-VLA 分支 HEAD 为 `acc45f8933f1bbb9aaea20511b1ba53c8291fd6e`。后续所有提交只允许落在本分支；不创建新分支，不修改/合并 main，不改变 PR #3 Draft/Open 状态。
 - 现有关键安全验收保持不变：交接位置误差 ≤6mm、轴向误差 ≤0.5°；底盘锁止目标线速度 <0.005m/s、角速度 <0.5°/s、1秒平移 <2mm、朝向变化 <0.5°。现有 IK、关节限位、碰撞与 swept-path、物体抓持/释放和任务后置条件均不得放宽。
 - 唯一指令出口约束继续有效：`drink_task.py` 的 39 路 `/drink/cmd/*` 仍须保持单一发布者和统一节拍。在 C++ 控制器迁移阶段，MCA 节点只提供经过验证的关节目标/轨迹，不得并行直接发布同一批 Gazebo joint command topic。
@@ -159,6 +159,10 @@
 - [约束保留] 历史失败记录、原始 artifact、GroundFixedJoint 隔离 runner、旧 ChassisBrake 诊断程序可保留作回归/比较；不得删除历史证据，也不得让其旧门禁继续阻断 MCA 新主线。
 - [约束保留] 任何新发现若要求调整算法优先级，先更新 TaskPlan 并解释证据，不得并行启动旧路线。
 
+
+## 历史记录适用范围声明
+
+> 本文件后续的 8.430–8.440 等历史条目用于保留旧实验的原始证据、失败原因和代码变更记录。它们内部出现的“下一步”或“当前优先级”仅代表当时决策，现已由本文件前面的 P105 路线治理条款及 P105-01 至 P105-09 取代，不再执行旧优化步骤。任何旧参数搜索或旧门禁不得绕过 P105 的统一控制架构重新成为主线。
 
 ## 失败记录与技术决策
 
