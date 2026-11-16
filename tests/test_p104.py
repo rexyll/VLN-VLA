@@ -747,6 +747,21 @@ class TestP104(unittest.TestCase):
         self.assertIn("res['downstream_checks'] = 'NOT_RUN'", observer)
         self.assertIn("tag = ('failure' if isinstance(w.state, str)", observer)
 
+    def test_dynamics_collector_uses_documented_gazebo_joint_state_topic(self):
+        collector = open(os.path.join(ROOT, 'tests', 'diag',
+                                      'collect_base_arm_dynamics.py'),
+                         encoding='utf-8').read()
+        generator = open(os.path.join(ROOT, 'tools', 'gen_drink_scene.py'),
+                         encoding='utf-8').read()
+        bridge = open(os.path.join(ROOT, 'vla_ws', 'src', 'vla_follow',
+                                   'config', 'bridge.yml'),
+                      encoding='utf-8').read()
+        topic = '/world/follow_world/model/robot/joint_state'
+        self.assertIn('JOINT_TOPIC = "' + topic + '"', collector)
+        self.assertIn('gz_topic_name: "' + topic + '"', generator)
+        self.assertIn('gz_topic_name: "' + topic + '"', bridge)
+        self.assertIn('"topic": JOINT_TOPIC', collector)
+
     def test_headless_cleanup_does_not_sigkill_diagnostic_collector(self):
         cleanup = open(os.path.join(ROOT, 'tools', 'killall_demo.sh'),
                        encoding='utf-8').read()
