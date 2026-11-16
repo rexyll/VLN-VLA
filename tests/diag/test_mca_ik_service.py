@@ -62,7 +62,9 @@ def main():
             request.target.orientation.y = qy
             request.target.orientation.z = qz
             request.target.orientation.w = qw
-            request.seed = [float(v) for v in seed]
+            request.seed.name = [
+                '%s_%s_joint' % (side, joint[0]) for joint in K.JOINTS]
+            request.seed.position = [float(v) for v in seed]
             request.position_tolerance_m = 1e-4
             request.orientation_tolerance_rad = 1e-4
             request.max_iterations = 300
@@ -77,7 +79,11 @@ def main():
                 raise RuntimeError(
                     f"{side}: MCA DLS failed: "
                     f"{getattr(response, 'message', 'no response')}")
-            solved = np.asarray(response.joint_positions, dtype=float)
+            expected_names = [
+                '%s_%s_joint' % (side, joint[0]) for joint in K.JOINTS]
+            if list(response.solution.name) != expected_names:
+                raise RuntimeError(f"{side}: returned joint names/order mismatch")
+            solved = np.asarray(response.solution.position, dtype=float)
             if solved.shape != (K.NJ,) or not np.all(np.isfinite(solved)):
                 raise RuntimeError(f"{side}: invalid returned joint vector")
             actual = K.fk(side, solved)
