@@ -230,10 +230,15 @@ jobs:
           fi
 
           if [ "$E2E_STATUS" -ne 0 ]; then
+            echo "ERROR: DrinkTask E2E failed with exit code $E2E_STATUS"
+          fi
+          if [ "$COLLECTOR_STATUS" -ne 0 ]; then
+            echo "ERROR: telemetry collector reported missing required sources (exit=$COLLECTOR_STATUS)"
+          fi
+          if [ "$E2E_STATUS" -ne 0 ]; then
             exit "$E2E_STATUS"
           fi
           if [ "$COLLECTOR_STATUS" -ne 0 ]; then
-            echo "ERROR: telemetry collector reported missing required sources"
             exit "$COLLECTOR_STATUS"
           fi
 
