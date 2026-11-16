@@ -1,0 +1,22 @@
+# MotionControlAlgorithms vendored source lock
+upstream_repository: https://github.com/rexyll/MotionControlAlgorithms
+upstream_commit: c11091bd2bb3ce001eb09f2664c1ff5076f8a73b
+upstream_branch_at_import: main
+license: Apache-2.0
+import_policy: selective-source-snapshot
+runtime_claim: none; these headers are not yet connected to production ROS 2 command topics
+
+Imported files:
+- include/mca/geometry/se3_so3.hpp
+- include/mca/kinematics/dh_urdf_model.hpp
+- include/mca/kinematics/forward_kinematics.hpp
+- include/mca/kinematics/numerical_ik.hpp
+- include/mca/kinematics/damped_least_squares_ik.hpp
+- include/mca/kinematics/differential_drive.hpp
+- include/mca/trajectory/scalar.hpp
+- include/mca/trajectory/s_curve.hpp
+- LICENSE
+- NOTICE
+
+All source files above are copied byte-for-byte from the pinned upstream commit.
+Per-file SHA-256 verification is pending the first clean CI build; do not treat Git blob SHA-1 as SHA-256.
