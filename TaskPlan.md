@@ -1378,3 +1378,16 @@
 - runner 已增加 Gazebo 子进程存活检查，并在等待 pose、轮速、LOCKED/UNLOCKED ACK 及 baseline/locked 测量期间检测进程退出；新增 100rad/s 轮速诊断保护，用于在失稳时提前终止实验并记录 pose/wheel telemetry。该保护仅为诊断护栏，不改变物理验收门槛、扰动力矩、质量、摩擦、阻尼或 effort limit。
 - 下一步：运行 Python syntax / 离线回归 / Gazebo 插件构建和隔离实验；若诊断护栏首先触发，则基于实测响应开展扰动力矩标定与接触/关节状态排查。不得在未获得有效 baseline 与物理 hold 数据前接入生产 `work_area.sdf`，不得推进 P104-10.2/10.3。
 - P104-10.1 仍未通过；P104-10.2/10.3 未完成；PR #3 保持 Draft/Open，`main` 不修改，不创建其他分支。
+
+
+
+### 8.420 #383 / #384 baseline 轮速失稳护栏验证与 18Nm 扰动力矩标定（2026-11-16）
+
+- 最新提交 `5eb779271859afac4bd5089b223ff1cf1e03f632` 对应 P104 DrinkTask headless Gazebo E2E #383（run `43805199206`）和 #384（run `43805204957`）均失败；两个 run 的失败步骤相同：`Run isolated ChassisBrake hold and unlock experiment`。行为树单测、P104 离线回归、Gazebo 插件构建及动态链接检查均通过；ROS workspace build 与完整 DrinkTask E2E 因前置隔离实验失败而跳过。
+- #384 artifact（`14197439713`）中的 `chassis_brake_runner.log` 显示：wrench 与 clear subscriber 均已发现，两个长生命周期 publisher endpoint 均可见；baseline 期间轮速先达到 `112.243560rad/s`，超过新增的 `100rad/s` 诊断护栏，runner 立即以 `baseline unstable dynamics` 失败退出。此时底盘 pose yaw 为 `-1.185116rad`，左右轮速度分别为 `-32.397859` 与 `112.243560rad/s`。因此本轮没有 LOCKED / UNLOCKED ACK、locked hold 或 unlock recovery 数据。
+- 本轮确认：上次增加的快速失稳诊断有效；失败已从不透明的 ODE 崩溃/ACK timeout 转换为明确的 baseline 轮速超限。publisher endpoint 可见性不等于物理输入幅值合理，也不证明当前 wrench 方案适合用作保持验收扰动。
+- 隔离 SDF 的 chassis 质量为 13kg，惯量 `Izz=0.1985kg·m²`；当前 runner 对 chassis LINK 的世界 Z 轴施加持续 `18Nm` yaw torque，测量持续 1 秒、每 50ms 发布一次。刚体近似角加速度为 `18 / 0.1985 ≈ 90.7rad/s²`。结合本轮实测高速轮转和约 `-1.185rad` yaw，18Nm 对该隔离模型明显属于强扰动，是首要待验证原因；但还需确认 ApplyLinkWrench 对重复 persistent 消息的时域语义，并排除轮地接触/几何/关节约束问题，不能仅凭惯量计算断言唯一根因。
+- 下一步必须进行**独立重启仿真的逐级扰动力矩标定**：每个候选力矩均从干净 Gazebo 进程和相同初始状态开始；先测无扰动基线，再施加该候选力矩并记录 yaw、XY 位移、左右轮 position/velocity、Gazebo 进程状态和接触/碰撞异常。筛选条件同时要求：baseline yaw 响应达到原有 `0.5°` 门槛、轮速未触发诊断护栏、无非有限状态或物理引擎崩溃。只有找到满足条件的候选力矩后，才在同一力矩、同一持续时间、同一初始条件下执行 unlocked / locked A-B 对比。
+- 标定只用于找到有效、稳定且可重复的扰动输入；不得降低 baseline `0.5°`、locked yaw drift 小于 baseline 的 `50%`、解锁位移至少 `10mm` 等验收门槛，不得放宽 `100rad/s` 诊断护栏，不得更改质量、惯量、摩擦、阻尼、轮端 effort limit 或 PD 增益来制造通过。不得直接把 18Nm 改成一个未经实验验证的较小常数。
+- P104-10.1 仍未通过；P104-10.2 独立静止确认、P104-10.3 机械臂反作用力回归和完整 DrinkTask E2E 尚未执行。生产 `work_area.sdf` 不接入 ChassisBrake。
+- 仅在 `experiment/drinktask-bt-ik-recovery` 修改；`main` 未修改，PR #3 保持 Draft/Open，不合并；未创建其他分支。
