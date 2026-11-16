@@ -31,7 +31,7 @@
 - 实现边界（阶段化修订）：桌边第一次抓壶前锁定；抓壶、倒水、放壶、双臂捧杯及精细手臂动作期间保持锁定。仅对状态机明确允许的底盘动作开启短窗口：PREPARE 服务位 CarryBus 复位、面向人员转身+转后位姿复位、PRESENT 递杯补位、PUT_BACK 转身、RETREAT 各段有界撤离；每个窗口均执行“解锁 ACK→指定任务动作→finally 重新锁定 ACK”，失败则不执行动作或中止后续阶段。`place_robot()` 的 CarryBus SetWorldPoseCmd 绕过 cmd_mux，已增加锁状态/窗口许可检查，禁止锁定阶段外的底盘位姿直写。PRESENT 双臂递杯、HANDOVER 人手接管与机器人松手、PERSON_DRINK、TAKE_BACK 全程保持锁定。只有放回、机械臂撤离净空和桌边安全距离均确认后，HANDBACK 才解锁并发送 FOLLOW；若 FOLLOW 状态未确认则重新锁定。解锁清空旧速度缓存；喝水租约仍屏蔽 follower/Nav2，只放行当前任务的 /drink/cmd_vel。
 - 当前实现基线：P104 分阶段命令锁定、受控底盘移动窗口、CarryBus 位姿直写保护、杯子预抓取对位与撤离恢复均在 `experiment/drinktask-bt-ik-recovery`；最新代码基线 `bd7968203673d569035497ad214a6fbbe1aaf87f`。本次 TaskPlan 更新提交 `f44327c58a56fb2a3943e52ed8761f0784786b14`，均未修改 main。
 - 回归测试已覆盖 mux 锁优先级与缓存清理、request_id ACK、锁心跳、ACK 前零速度、阶段化窗口 finally 重锁、CarryBus 位姿直写许可及 HANDBACK 失败重锁。最新代码基线 `bd7968203673d569035497ad214a6fbbe1aaf87f` 的 P104 Python syntax/pure regression 已通过（144 tests），base-arm diagnostic collector syntax 已通过；CarryBus 与 Gazebo E2E 以该 SHA 对应的最新 workflow 结果为准。Gazebo E2E 已失败，不得将离线测试通过视为仿真通过。
-- 下一步按 P104-10 的三个节点执行：①实现 Gazebo 轮端物理制动/保持机制；②增加独立于软件 ACK 的物理锁定确认与运行期漂移监测；③建立机械臂反作用力回归测试并通过后重跑双轮完整 E2E。当前 `work_area.sdf` 使用 DiffDrive，未配置独立轮端抱闸；Gazebo `JointForceCmd` 是候选接口，但必须核对与 DiffDrive `JointVelocityCmd` 的优先级、力矩限幅、饱和和释放行为。不得未经实验直接修改现有 5Nm effort limit、0.5 damping、摩擦、质量或控制器增益。
+- 下一步按三条独立验证链执行：① `DisturbanceInjectionTest`：单独验证 ApplyLinkWrench / 自定义 Gazebo System / Joint API 的消息接收、实体解析、物理更新和状态响应；② `GroundFixedJointTest`：独立验证 DetachableJoint attach/hold/detach 与物理位姿；③ `ChassisImmobilityE2E`：在固定关节期间验证速度输入、外部扰动和机械臂动作负载下的底盘静止。三个模块独立产生日志、JSON 和验收结果，不互相伪造 PASS。当前优先运行 Ground Fixed Joint 隔离验证；旧 ApplyLinkWrench 诊断保留为非替代证据，未证实之前不进行盲目 torque 扩大搜索。不得修改质量、惯量、摩擦、阻尼、effort limit 或控制器增益。
 - 不得修改 SDF、摩擦/质量/阻尼、控制器参数或放宽 IK、碰撞、关节、抓取、交接和释放安全门槛；不把 `in_band_pct` 当作跟随成功。
 
 ## 任务章节
@@ -50,6 +50,11 @@
 1. [正在进行中] **P104-10.1 将底盘物理锁止改为运行时 Ground Fixed Joint**：优先验证 Gazebo Sim 8.15.0 内置 `DetachableJoint`，由静态地面锚点模型提供 parent link、机器人 `chassis` 提供 child link，使用固定关节把整个 robot model 约束到 world；通过独立 attach/detach topic 控制，并以 output topic 状态和 Gazebo truth 双重确认。Gazebo 8.15 的官方接口确认支持 fixed joint、运行时 attach/detach 与状态输出；其文档未列出 Sim 10 后续版本的 `initial_attach` 参数，因此不得假定 Gazebo 8 支持该参数。隔离测试需在机器人开始移动前解除启动时的默认固定，再验证到达服务位后的重新固定。旧 `JointForceCmd` 轮端 PD 方案保留为对照，不再作为首选生产锁止方案。验收要求：固定状态下底盘 XYZ/yaw/roll/pitch 与轮速均保持在物理验收范围内；机械臂动作期间固定约束持续存在；解锁后 DiffDrive 可恢复至少 10mm 受控位移。未通过隔离实验前不接入生产 `work_area.sdf`。
 2. [未完成] **P104-10.2 增加物理锁定确认与运行期漂移监测**：软件 LOCKED ACK 仅表示命令层已锁定，不作为物理静止证明。以 Gazebo 真值底盘位姿/速度、左右轮关节位置/速度及可用的力矩/接触观测进行独立确认。初始验收目标：线速度 < 0.005m/s、角速度 < 0.5°/s、1秒窗口内位置变化 < 2mm、朝向变化 < 0.5°；阈值须结合仿真采样率和噪声验证，不得因测试失败而直接放宽。机械臂动作期间持续监测，超限立即暂停后续动作并保持抓持/释放安全状态。
 3. [未完成] **P104-10.3 建立底盘抗机械臂反作用力回归测试**：固定 world、初始底盘位姿、关节初态和仿真时长，依次执行机械臂静止基线、左臂分段低速动作、右臂跟随动作、双臂完整递杯动作；同步记录底盘 truth pose/twist、轮关节 position/velocity/effort、机械臂目标与实测关节状态、左右掌—杯相对变换和仿真时间戳。验证锁定时底盘满足 P104-10.2 指标、杯子世界坐标偏移满足既有交接 6mm/0.5°门槛。独立回归通过后再执行完整双轮 headless Gazebo E2E；不得把单元测试、插件构建或部分阶段通过记为 E2E 成功。
+
+4. [正在进行中] **P104-10.4 DisturbanceInjectionTest：独立扰动注入验证**：将扰动发生器与状态采集/判定器解耦。先验证目标 MODEL/LINK 实体解析、消息回调接收、物理更新执行和 pose/twist 响应，再进行参数搜索。候选注入器包括 ApplyLinkWrench、自定义 Gazebo System（在 PreUpdate 受控施力）及 Joint API；每种方式明确记录实际使用的注入路径，不得把一种路径的 PASS 归因于另一种路径。只有接口接收、实体解析和物理作用均可观测，才允许进入参数搜索。
+5. [未完成] **P104-10.5 GroundFixedJointTest：独立物理锁止验证**：使用 Gazebo Sim 8.15.0 DetachableJoint 和无碰撞静态 world anchor；每个重复从全新 Gazebo 进程启动。确认启动 attach 状态→detach 后速度命令可移动至少 10mm→attach 后同一速度命令下 XYZ 位移 <2mm、yaw 变化 <0.5°→再次 detach 后恢复移动至少 10mm。每种状态同时检查 Boolean 状态 topic、Gazebo truth pose/twist 和轮关节速度；ACK 不等于物理 PASS。至少 3 次独立重复全部通过后才进入手臂负载测试。
+6. [未完成] **P104-10.6 ChassisImmobilityE2E：锁止期间综合抗扰动与手臂负载验证**：在 Ground Fixed Joint 保持期间，依次施加导航/follower/DrinkTask 普通速度指令、可观测外部扰动和机械臂分段/双臂完整动作；确认底盘无可测漂移、旧速度缓存不在解锁后执行，所有阶段锁止状态 fail-closed。验证完成前不得接入生产 work_area.sdf；完成后再执行完整双轮 DrinkTask E2E。
+
 
 ## 失败记录与技术决策
 
@@ -1505,3 +1510,21 @@
 - 复核 Gazebo 官方 DetachableJoint 示例的 DART 约束注意事项后，发现首版隔离 SDF 的 anchor link 在 chassis 内放置了小球 collision；这会使 parent/child 初始附着模型发生碰撞重叠，不符合官方文档对 DART 的约束要求。
 - 已从 `chassis_ground_lock_test.sdf` 移除 anchor link 的 collision/visual/inertial，仅保留静态模型中的无碰撞锚点 link。它只作为 Fixed Joint 的 parent link，不参与接触碰撞，不改变 robot 的质量、惯量、摩擦、阻尼或轮端参数。
 - 该修正属于 SDF 原型的静态结构审查；尚未由 Gazebo Sim 8.15.0 实际加载验证。后续 runner 必须检查 DetachableJoint 的状态输出与 Gazebo truth 位姿，若 SDF 加载/attach 报错则停止，不通过增加碰撞几何或移动 robot 初始位姿来绕过。
+
+
+### 8.433 将底盘物理验证拆分为三个独立测试模块（2026-11-16）
+
+- 根据行业常用验证方式，将原先单一 ChassisBrake 实验拆分为三个独立模块：
+  1. `DisturbanceInjectionTest`：验证扰动接口的传输、目标实体解析、物理更新执行和测量响应；优先采用可观测的 Gazebo System 插件作独立注入器，ApplyLinkWrench 保留对照，不以 Transport publisher/subscriber endpoint 可见替代物理作用证据。
+  2. `GroundFixedJointTest`：通过静态地面锚点 + Gazebo Sim 8.15 `DetachableJoint` 实现真实 Fixed Joint；分别验证 detach 可移动、attach 不移动、再次 detach 恢复移动。必须以 Boolean 状态消息和 Gazebo truth pose/twist 双重确认。
+  3. `ChassisImmobilityE2E`：在物理固定期间综合验证普通速度输入屏蔽、外部扰动、手臂动作反作用力、任务阶段状态和解锁后旧命令清理。
+- 每个模块使用独立 runner、结构化 JSON、原始日志和独立验收结果。某个模块通过不得自动推导其它模块通过；不能用 Ground Fixed Joint 测试结果宣称 ApplyLinkWrench 已修复。
+- 参数收敛规则：先证明接口接收/实体解析/物理执行，再搜索幅值；固定初始位姿、仿真时间、消息频率和其余条件，一次只改变一个参数。粗搜索形成有效区间后才做中点细化；每个候选至少 3 个独立 Gazebo 进程重复。触发非有限状态、Gazebo abort、轮速 >100rad/s 或 pose/twist 异常立即停止，不向更高幅值继续。无物理作用证据时禁止参数搜索。
+- 不降低 P104-10.2 的锁定验收门槛，不修改质量、惯量、摩擦、阻尼、轮端 effort limit 或控制器增益。固定关节在隔离验证和手臂负载测试全部通过前不得进入生产场景。
+
+### 8.434 新增 GroundFixedJointTest 专用 runner 并接入 CI（2026-11-16）
+
+- 新增 `tests/diag/run_chassis_ground_lock_gz.py`：每个重复独立启动 Gazebo Sim；订阅 DetachableJoint Boolean 状态、world dynamic pose、DiffDrive odometry 和轮关节状态；确认默认 attached 后先 detach，验证 0.12m/s 速度命令可产生至少 10mm 位移，再 attach 并施加相同速度命令，要求锁定期间位移 <2mm、yaw 变化 <0.5°，最后 detach 并再次验证至少 10mm 恢复位移。默认 3 次独立重复。
+- 隔离 SDF 移除 ApplyLinkWrench 和 ChassisBrake 插件，避免扰动/轮端控制系统干扰 Ground Fixed Joint 的独立验证；保留 DiffDrive 作为可移动性对照。静态锚点 link 无碰撞几何，避免 DART 初始 parent/child 碰撞重叠。
+- 在 `.github/workflows/p104-drinktask-headless.yml` 增加 runner 的语法检查、独立运行步骤和日志/JSON artifact 上传。旧 ApplyLinkWrench/ChassisBrake 测试仍单独保留，失败不得被解释为 Ground Fixed Joint 失败，Ground Fixed Joint PASS 也不得解释为旧扰动接口修复。
+- **当前状态：** runner、SDF 和 workflow 已提交，但尚未取得 GitHub Actions 的 Gazebo Sim 8.15 运行结果；Python syntax 通过也不能代替实际 attach/detach 物理验收。若运行中发现 Gazebo 8 消息类型、状态语义、DetachableJoint 拓扑或动力学问题，应先记录证据并修正 runner/SDF/TaskPlan，再继续，不得跳过失败阶段。
