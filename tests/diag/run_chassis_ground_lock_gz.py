@@ -17,7 +17,7 @@ import threading
 import time
 
 import gz.transport13 as gz_transport
-from gz.msgs10.boolean_pb2 import Boolean
+from gz.msgs10.stringmsg_pb2 import StringMsg
 from gz.msgs10.empty_pb2 import Empty
 from gz.msgs10.odometry_pb2 import Odometry
 from gz.msgs10.pose_v_pb2 import Pose_V
@@ -57,7 +57,7 @@ class Telemetry:
             (Pose_V, POSE_TOPIC, self.on_pose),
             (Odometry, ODOM_TOPIC, self.on_odom),
             (Model, JOINT_TOPIC, self.on_joints),
-            (Boolean, STATE_TOPIC, self.on_state),
+            (StringMsg, STATE_TOPIC, self.on_state),
         ):
             if not self.node.subscribe(typ, topic, cb):
                 raise RuntimeError("cannot subscribe " + topic)
@@ -91,8 +91,11 @@ class Telemetry:
 
     def on_state(self, msg):
         with self.lock:
-            self.attached = bool(msg.data)
-            self.state_messages.append(bool(msg.data))
+            state = str(msg.data).strip().lower()
+            if state not in ('attached', 'detached'):
+                return
+            self.attached = state
+            self.state_messages.append(state)
 
     def snapshot(self):
         with self.lock:
@@ -178,14 +181,14 @@ def run_once(index, output_dir):
             initial = tel.snapshot()
             report["initial_pose"] = initial[0]
             report["initial_attached"] = initial[3]
-            if not initial[3]:
+            if initial[3] != 'attached':
                 raise RuntimeError("Gazebo 8 DetachableJoint did not start attached")
             if max(abs(v) for v in initial[1]) > 0.01:
                 raise RuntimeError("world_ready failed: chassis not stationary")
 
             # Stage 1: detach while stationary, then prove normal drive mobility.
             publish_empty(DETACH_TOPIC)
-            wait_for(lambda: tel.snapshot()[3] is False, 5,
+            wait_for(lambda: tel.snapshot()[3] == 'detached', 5,
                      "DetachableJoint detached state", proc)
             wait_stationary(tel, proc)
             free_start = tel.snapshot()[0]
@@ -207,7 +210,7 @@ def run_once(index, output_dir):
             # drive commands. The Boolean ACK is necessary but not sufficient.
             attach_reference = tel.snapshot()[0]
             publish_empty(ATTACH_TOPIC)
-            wait_for(lambda: tel.snapshot()[3] is True, 5,
+            wait_for(lambda: tel.snapshot()[3] == 'attached', 5,
                      "DetachableJoint attached state", proc)
             wait_stationary(tel, proc)
             lock_start = tel.snapshot()[0]
