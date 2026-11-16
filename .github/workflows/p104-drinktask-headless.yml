@@ -181,12 +181,12 @@ jobs:
           cmake --build vla_ws/src/vla_follow/gz_plugins/build --parallel 2
           test -s vla_ws/src/vla_follow/gz_plugins/build/libGraspCarry.so
           test -s vla_ws/src/vla_follow/gz_plugins/build/libChassisBrake.so
+          ldd -r vla_ws/src/vla_follow/gz_plugins/build/libGraspCarry.so
+          ldd -r vla_ws/src/vla_follow/gz_plugins/build/libChassisBrake.so
 
       - name: Run isolated ChassisBrake hold and unlock experiment
         run: |
           python3 tests/diag/test_chassis_brake_gz.py
-          test -s vla_ws/src/vla_follow/gz_plugins/build/libGraspCarry.so
-          ldd -r vla_ws/src/vla_follow/gz_plugins/build/libGraspCarry.so
 
       - name: Build ROS 2 workspace and verify installed Nav2 map assets
         shell: bash
