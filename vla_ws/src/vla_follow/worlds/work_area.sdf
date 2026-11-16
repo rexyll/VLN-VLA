@@ -2372,7 +2372,7 @@
       </plugin>
       <plugin filename="gz-sim-joint-state-publisher-system"
               name="gz::sim::systems::JointStatePublisher">
-        <topic>/drink/joint_state</topic>
+        <!-- Gazebo Sim documented default: /world/follow_world/model/robot/joint_state -->
         <update_rate>50</update_rate>
       </plugin>
 <!-- DRINK:END robot_ext -->
