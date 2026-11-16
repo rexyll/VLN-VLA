@@ -1254,3 +1254,5 @@
 - Workflow 调整为即使 E2E 本身失败，也继续打印并报告 collector 的退出状态，不再因优先返回 E2E 错误而隐藏遥测缺失诊断。
 - 新增静态回归检查 generator/bridge/collector 使用同一 canonical joint-state topic。当前改动已提交至指定实验分支，等待最新 SHA 的 Python、shell、plugin build、collector 采集和 headless E2E 验证；在新 CI 证明收到 wheel/arm joint_state 前，不将遥测修复标记为通过。
 - P104-10.1 物理制动插件仍未实现；本轮未修改轮端 effort/damping、摩擦、质量、控制器增益或交接阈值。P104-10.2/10.3 仍未完成。`main` 未修改，PR #3 继续 Draft/Open。
+
+- 追加遥测完整性门槛：collector 不仅要求收到 `joint_state` 消息，还必须在消息中观察到 `left_wheel_joint`、`right_wheel_joint` 及 14 个机械臂主关节；缺任意一个均以非零退出，不能再出现“JSONL 有数据但 wheel/arm 速度为空”仍被视为采集成功的情况。该门槛及静态回归已加入，等待最新 CI 实测。
