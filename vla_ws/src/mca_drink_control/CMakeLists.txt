@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
-project(mca_drink_control LANGUAGES CXX)
+# Enable C as well as C++: ROS/ament dependency configuration may define C targets.
+project(mca_drink_control LANGUAGES C CXX)
 
 find_package(ament_cmake REQUIRED)
 find_package(ament_index_cpp REQUIRED)
