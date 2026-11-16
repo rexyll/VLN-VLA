@@ -1745,3 +1745,17 @@
 - AST 方案首次 CI（run `43878966357`，Python syntax workflow）显示原来的 162 项源码断言误报已被消除，但测试函数出现 `NameError: name 'ast' is not defined`。原因是首次自动补丁未将 `import ast` 插入文件顶部；这属于测试修复自身的实现遗漏，不是产品代码故障。
 - 已在提交 `09bd95f36a32d2a46af1cf6666b58b9527928f0f` 显式添加模块级 `import ast`，并保留 AST 解析及 logger.error 字符串检查。
 - 下一轮必须确认 Python syntax workflow 中 162 项测试全部通过；在 CI 通过前不得将该回归测试节点标记完成。Gazebo E2E run #606 运行在前一提交上，且其离线回归尚未完成；不能将其结果当作本次最终修复的验收。
+
+
+### 8.444 修复生产启动握手期间双臂默认目标提前发布（2026-11-16）
+
+- 对 PR E2E #608（run `43879154464`）的 artifact `base_arm_dynamics_ci_43879154464.jsonl` 做逐仿真时间对齐，发现生产场景底盘位姿首次偏移与双臂开始执行默认关节目标几乎同时发生：
+  - 双臂目标值从仿真时间约 18.603s 起持续发布：左右 lift=-0.55rad、elbow=-0.85rad、wrist_pitch=0.35rad 等，正是 `default_cmd()` 中的 home/rest 目标。
+  - 18.5–19.4s 期间双臂关节实测位置仍为 0、速度为 0；约 19.42s 开始左右臂多个关节运动，lift/wrist/elbow 峰值速度达到 2.5rad/s，手指关节短时达到 4rad/s。
+  - 底盘也从约 19.415s 开始向 X 负方向移动，最终平移 47.73mm；同一遥测窗口内 `/drink/cmd_vel` 记录的最大绝对分量为 0，左右轮角速度最大约 4.21×10^-10rad/s。
+- 源码根因已定位：`DrinkTask.__init__()` 在创建 `CmdBus(self)` 后立即注册 20Hz `_tick` 定时器；`_tick()` 无条件调用 `self.bus.publish_all()`。而 `CmdBus` 默认值来自 `default_cmd()`，其值为 home/rest 姿态。该定时器在 `_startup_ground_lock_handshake()` 完成前就开始发布关节目标。
+- `main()` 中“物理锁握手完成前不执行 boot home/hang”的保护只阻止显式调用 `home()/hang()`，没有阻止 20Hz 总线提前发布默认 home 目标。因此实际执行顺序违反了代码注释所声明的启动安全顺序：软件 mux 已锁定，但物理 DetachableJoint 正在 detach 探测时，双臂已经开始移动；双臂动力学反作用是本轮 47.73mm 底盘漂移的强关联候选根因。现有遥测没有记录关节实际力矩，故仍需修复后 A/B 重跑确认因果，不能把相关性表述为已经完成力学证明。
+- 已在 `drink_task.py` 增加 fail-closed 的 `_arm_command_output_enabled=False` 门控：启动握手期间 `_tick()` 不发布 39 路关节目标；只有 `set_base_lock(True)` 完成软件 mux LOCKED、物理 attach ACK 和 attach 后位姿稳定验证后，才打开关节命令输出。失败路径不会打开门控；后续运行期锁/解锁不反复关闭门控，以免中断已获安全许可的任务动作。
+- 已在 `tests/test_p104.py` 新增 AST 回归测试，检查门控初值为关闭、`publish_all()` 必须位于门控分支内，并且门控只能在物理 attach 位姿验证之后打开。
+- **验收要求：**先通过离线 Python 回归；再运行生产 `work_area.sdf`，确认 startup handshake 的 detach/attach/final-detach 全程双臂目标发布量为 0、关节位置/速度保持静止、底盘位移 <2mm；随后通过物理 attach 和 mux ACK 后，boot home/hang 才开始发布并完成。至少重复 3 次独立生产 Gazebo 运行。不得降低 2mm 门槛、改惯量/摩擦或屏蔽真实物理响应。
+- 本修复目前已提交代码与回归测试，尚未取得新 CI 结果；在生产场景 A/B 验收通过前，不能将 P104-10.1 或 GroundFixedJoint 生产集成标记完成。PR #3 保持 Draft/Open；仅在 `experiment/drinktask-bt-ik-recovery` 工作，不修改 `main`，不创建新分支，不设置定时监控。
