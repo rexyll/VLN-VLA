@@ -1728,3 +1728,13 @@
 - 已核对 `SolveIk.srv` 与 `mca_ik_server.cpp`：请求中的位置/姿态容差和最大迭代数字段均存在；双臂服务 smoke test 会设置这些字段，并通过独立 FK 复算限制位置残差 <=0.2mm、姿态残差 <=0.02°。当前尚未运行到服务测试，不能记为 DLS 服务通过。
 - 同一 #572 日志显示旧 ApplyLinkWrench baseline 的最大 yaw 响应约 `0.000115°`，低于既定 `0.5°` 物理响应门槛；该诊断保持 non-authoritative，不调整 torque、不降低门槛，也不阻断后续权威验收。
 - **当前状态：**等待 `da853e17` 的新 Actions 验证 CMake 配置、MCA 单元测试、双臂 DLS 服务 smoke test。只有这些步骤通过后，才继续 S-Curve 轨迹生成阶段；机械臂反作用力负载测试和连续两轮完整 Gazebo DrinkTask E2E 仍未通过，P104-10 总体保持进行中。
+
+
+### 8.442 修复物理锁启动回归测试的源码字符串误报（2026-11-16）
+
+- 最新提交 `dbb8e1f87f00b718a6de2200d580f33069d44da6` 对应 PR E2E #604（run `43876003647`）和 push E2E #603（run `43875995591`）均在离线回归阶段失败；162 项中仅 `test_main_waits_for_physical_lock_and_holds_base_during_boot_home` 失败。
+- 根因已由 runner 日志和源码逐项确认：测试用 `assertIn('physical chassis hold remains engaged', main)` 对原始源码做连续子串匹配；生产代码将同一日志拆为两个相邻 Python 字符串字面量，Python AST/运行时会自动拼接，但原始源码文本中该短语不连续，导致误报。产品代码的 fail-closed 顺序未因此被证明有缺陷。
+- 已在 `tests/test_p104.py` 改为 AST 检查：定位 `main()` 中 logger.error 调用，读取解析后的字符串常量并检查物理保持日志语义；保留原有 ready→physical hold→home→hang→unlock 顺序断言，不删除安全断言、不改变产品代码。
+- 修复提交：`731e3bc867883d2cc1bfc877d065fcfe8639b519`。等待该提交的离线回归与完整 CI 重跑；本项测试修复尚未因提交而自动视为通过。
+- 本轮失败时 Gazebo 插件构建、GroundFixedJoint 重复实验、MCA 双臂服务测试及生产 `work_area.sdf` DrinkTask E2E 均未执行，因此物理锁启动握手和生产集成状态仍未获得新验收证据。
+- 下一步：先检查该提交触发的 Python 回归结果；通过后确认 workflow 进入 Gazebo build、GroundFixedJoint 3 次独立重复、ROS 2/MCA build 与双臂服务 smoke test，最后检查生产场景 E2E artifact。PR #3 继续 Draft/Open；仅在 `experiment/drinktask-bt-ik-recovery` 工作，不修改 `main)、不创建分支、不降低物理门槛。
