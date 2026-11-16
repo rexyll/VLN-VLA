@@ -3,6 +3,7 @@
 """Verify that downstream P104 jobs use the exact isolated-stage evidence."""
 import hashlib
 import json
+import math
 import os
 import sys
 
@@ -45,16 +46,29 @@ def main():
             raise RuntimeError("locked input changed after isolated validation: " + name)
 
     by_name = {stage["name"]: stage.get("metrics", {}) for stage in stages}
+    world_ready = by_name["world_ready"]
     baseline = by_name["baseline_disturbance"]
     locked = by_name["locked_hold"]
     unlock = by_name["unlock_recovery"]
+    initial_twist = world_ready.get("twist", [])
+    initial_wheels = world_ready.get("wheel_velocities", {})
+    if (len(initial_twist) != 3 or
+            not all(math.isfinite(value) and abs(value) <= 0.01
+                    for value in initial_twist) or
+            not initial_wheels or
+            not all(math.isfinite(value) and abs(value) <= 0.01
+                    for value in initial_wheels.values())):
+        raise RuntimeError("world-ready lock does not prove a stationary base")
+    for key in ("max_yaw_deg", "max_wheel_rad_s"):
+        if not math.isfinite(baseline.get(key, float("nan"))):
+            raise RuntimeError("baseline metric is missing or non-finite: " + key)
     if baseline.get("max_yaw_deg", 0.0) < 0.5:
         raise RuntimeError("locked baseline evidence is below 0.5 degree")
     if baseline.get("max_wheel_rad_s", float("inf")) > 100.0:
         raise RuntimeError("locked baseline evidence exceeded 100 rad/s guard")
-    if locked.get("reduction_ratio", 0.0) < 0.5:
+    if not math.isfinite(locked.get("reduction_ratio", float("nan"))) or locked.get("reduction_ratio", 0.0) < 0.5:
         raise RuntimeError("locked hold evidence did not suppress yaw by 50 percent")
-    if unlock.get("displacement_mm", 0.0) < 10.0:
+    if not math.isfinite(unlock.get("displacement_mm", float("nan"))) or unlock.get("displacement_mm", 0.0) < 10.0:
         raise RuntimeError("unlock recovery evidence is below 10 mm")
 
     print("PASS: immutable P104 stage locks verified")
