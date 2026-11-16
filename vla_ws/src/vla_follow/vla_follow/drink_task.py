@@ -665,7 +665,9 @@ class DrinkTask(Node):
             request.target.orientation.y = float(qy)
             request.target.orientation.z = float(qz)
             request.target.orientation.w = float(qw)
-            request.seed = [float(value) for value in seed]
+            request.seed.name = [
+                '%s_%s_joint' % (side, joint[0]) for joint in K.JOINTS]
+            request.seed.position = [float(value) for value in seed]
             request.position_tolerance_m = float(os.environ.get(
                 'VLA_MCA_IK_POSITION_TOLERANCE_M', '0.0015'))
             request.orientation_tolerance_rad = float(os.environ.get(
