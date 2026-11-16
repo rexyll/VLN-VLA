@@ -4041,6 +4041,27 @@ class TestDrinkBaseLock(unittest.TestCase):
         self.assertLess(unlock, follow)
         self.assertIn('self.set_base_lock(True)', run[follow:])
 
+    def test_pour_approach_holds_chassis_during_home_and_lift(self):
+        motion_path = os.path.join(
+            ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
+            'drink_motion.py')
+        with open(motion_path, encoding='utf-8') as stream:
+            source = stream.read()
+        start = source.index('def pour_approach(')
+        end = source.index('def prepare_present(', start)
+        body = source[start:end]
+        lock = body.index('if not node.set_base_lock(True):')
+        home = body.index('home_ok = node.home()')
+        lift = body.index('ok_l, errs = lift_ready(node)')
+        unlock = body.index('if not node.set_base_lock(False):')
+        drive = body.index('ok_d, res_d = drive_to(')
+        self.assertLess(lock, home)
+        self.assertLess(home, lift)
+        self.assertLess(lift, unlock)
+        self.assertLess(unlock, drive)
+        self.assertIn("reason='home_failed'", body)
+        self.assertIn("reason='lift_ready_failed'", body)
+
     def test_prepare_robot_pose_writes_are_guarded_by_motion_windows(self):
         motion_path = os.path.join(
             ROOT, 'vla_ws', 'src', 'vla_follow', 'vla_follow',
