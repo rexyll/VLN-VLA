@@ -47,7 +47,7 @@
 
 ### P104-10 底盘物理锁定与递杯抗反作用力验证
 
-1. [正在进行中] **P104-10.1 实现 Gazebo 底盘物理制动/保持机制**：先核实 Gazebo Sim 8 `DiffDrive` 与轮关节 `JointForceCmd` 的实际命令优先级和更新周期，再设计可独立启停的轮端制动控制器/插件。锁定时对驱动轮提供可控保持力矩或位置保持；解锁时必须可靠撤销力矩组件并恢复 DiffDrive 速度控制。保留现有急停、碰撞与任务安全门，不以增大摩擦、阻尼或质量替代制动设计。验收需证明机械臂动作负载下轮端保持有效、无持续饱和/明显滑移，且解锁后正常移动能力恢复。
+1. [正在进行中] **P104-10.1 将底盘物理锁止改为运行时 Ground Fixed Joint**：优先验证 Gazebo Sim 8.15.0 内置 `DetachableJoint`，由静态地面锚点模型提供 parent link、机器人 `chassis` 提供 child link，使用固定关节把整个 robot model 约束到 world；通过独立 attach/detach topic 控制，并以 output topic 状态和 Gazebo truth 双重确认。Gazebo 8.15 的官方接口确认支持 fixed joint、运行时 attach/detach 与状态输出；其文档未列出 Sim 10 后续版本的 `initial_attach` 参数，因此不得假定 Gazebo 8 支持该参数。隔离测试需在机器人开始移动前解除启动时的默认固定，再验证到达服务位后的重新固定。旧 `JointForceCmd` 轮端 PD 方案保留为对照，不再作为首选生产锁止方案。验收要求：固定状态下底盘 XYZ/yaw/roll/pitch 与轮速均保持在物理验收范围内；机械臂动作期间固定约束持续存在；解锁后 DiffDrive 可恢复至少 10mm 受控位移。未通过隔离实验前不接入生产 `work_area.sdf`。
 2. [未完成] **P104-10.2 增加物理锁定确认与运行期漂移监测**：软件 LOCKED ACK 仅表示命令层已锁定，不作为物理静止证明。以 Gazebo 真值底盘位姿/速度、左右轮关节位置/速度及可用的力矩/接触观测进行独立确认。初始验收目标：线速度 < 0.005m/s、角速度 < 0.5°/s、1秒窗口内位置变化 < 2mm、朝向变化 < 0.5°；阈值须结合仿真采样率和噪声验证，不得因测试失败而直接放宽。机械臂动作期间持续监测，超限立即暂停后续动作并保持抓持/释放安全状态。
 3. [未完成] **P104-10.3 建立底盘抗机械臂反作用力回归测试**：固定 world、初始底盘位姿、关节初态和仿真时长，依次执行机械臂静止基线、左臂分段低速动作、右臂跟随动作、双臂完整递杯动作；同步记录底盘 truth pose/twist、轮关节 position/velocity/effort、机械臂目标与实测关节状态、左右掌—杯相对变换和仿真时间戳。验证锁定时底盘满足 P104-10.2 指标、杯子世界坐标偏移满足既有交接 6mm/0.5°门槛。独立回归通过后再执行完整双轮 headless Gazebo E2E；不得把单元测试、插件构建或部分阶段通过记为 E2E 成功。
 
@@ -1470,3 +1470,22 @@
 - **下一步诊断必须先增加可观测性，不得继续盲目扩大力矩：** (1) 以 Gazebo verbose/debug 日志运行隔离世界，捕获 ApplyLinkWrench 收到的完整 EntityWrench、实体解析和 persistent queue 记录；(2) 记录 dynamic_pose/info 中 robot MODEL 与 canonical chassis LINK 的名称、ID、pose，独立核对 ID 与层级；(3) 在全新 Gazebo 进程中做 MODEL-name、MODEL-id、canonical LINK-name/id 对照实验，保持同一 torque、同一初始状态和同一仿真时长；(4) 只有日志证明目标实体已解析且持续 wrench 被排入物理更新、baseline 产生可测响应后，才恢复分级标定及 LOCKED/UNLOCKED 验收。
 - 原门槛不变：baseline yaw `>=0.5°`、轮速诊断护栏 `<=100rad/s`、locked yaw 抑制 `>=50%`、unlock 位移 `>=10mm`；禁止通过修改质量、惯量、摩擦、阻尼、轮端 effort limit、PD 增益或降低阈值来掩盖问题。
 - 仅在 `experiment/drinktask-bt-ik-recovery` 修改；`main` 未修改；PR #3 保持 Draft/Open，不合并；不创建其他分支或定时监控。
+
+
+### 8.430 采用地面 Fixed Joint 取代轮端 PD 作为底盘锁止首选，并建立可收敛参数验证流程（2026-11-16）
+
+- 用户明确要求：机器人进入机械臂动作窗口时，将底盘通过物理 joint 固定到地面；真实设备会使用外部锁止机构阻止底盘发生位移。锁止期间不接收普通底盘速度指令、不执行主动底盘控制；直到机械臂动作结束且任务允许恢复移动，才解除固定约束。
+- 技术选择：优先验证 Gazebo Sim 8.15.0 内置 `gz::sim::systems::DetachableJoint`。官方 API 说明它通过 fixed joint 连接 parent model link 与 child model link，支持运行时 detach、重新 attach 和状态输出；参数包含 `parent_link`、`child_model`、`child_link`、`attach_topic`、`detach_topic`、`output_topic`。官方示例也说明静态 parent model 可作为固定锚点。来源：Gazebo Sim 8.15.0 DetachableJoint API（https://gazebosim.org/api/sim/8/classgz_1_1sim_1_1systems_1_1DetachableJoint.html）及官方示例（https://gazebosim.org/api/sim/8/triggeredpublisher.html）。
+- 拓扑设计：静态 `ground_lock_anchor` model/link 固定于 world；在 anchor model 上加载 DetachableJoint system；parent_link 指向 anchor link，child_model 指向 `robot`，child_link 指向机器人 `chassis`。固定关节约束 chassis，机器人其它连杆/轮组通过既有内部关节保持原结构。必须确保 world 运动学拓扑为树，不建立重复/闭环约束。
+- Gazebo 8.15 兼容性注意：8.15 API 列出 attach/detach/output topic，但没有列出后续 Gazebo 10 文档中的 `initial_attach` 参数；不能把较新版本参数直接写入 Harmonic SDF。按 8.15 默认启动附着语义设计：机器人启动静止时先确认 attach 状态，再在导航前显式 detach；到达服务位、底盘完全停止后再 attach。任何 attach/detach 状态超时或状态不明均 fail-closed，不开始/不继续机械臂动作。
+- 控制契约：固定期间屏蔽 follower、Nav2、DrinkTask 和其它普通速度输入；不向底盘发布位姿补偿或速度保持命令，不运行底盘主动纠偏。急停、碰撞保护和任务安全状态仍有效。只有所有机械臂动作完成、物体已安全放置/交接、机械臂撤离净空、任务状态机明确允许移动后，才 detach；detach 后清理旧速度缓存，要求新的速度命令/导航目标重新授权。
+- 独立验收阶段：A) 初始静止、读取 model/chassis/anchor entity 与 pose；B) 启动后确认默认固定并在固定状态发布 0.12m/s 测试速度，底盘位移必须保持在锁止门槛内；C) detach 后用同一速度命令验证位移至少 10mm；D) 重新 attach 后重复相同命令并确认再次锁止；E) 在 fixed joint 保持期间执行左臂、右臂、双臂代表性动作，记录底盘完整 pose/quaternion、truth twist、轮关节位置/速度、杯体相对 world 和 chassis 的变换；F) 任务安全窗口结束后 detach，确认正常导航/移动恢复。每个阶段使用全新 Gazebo 进程或可证明相同初始状态，保存结构化 JSON 和完整日志。
+- 物理验收不以软件 ACK 代替：固定期间线速度目标 <0.005m/s、角速度目标 <0.5°/s、1秒窗口内 XYZ 平移 <2mm、朝向变化 <0.5°；额外记录 roll/pitch/yaw 和轮速。任何样本超限立即停止机械臂后续动作并保持抓持/释放安全状态。阈值不得为制造通过而放宽。
+- 当前失败节点仍包括旧 ApplyLinkWrench baseline 无物理响应。#428/#429 的 0.05/0.075/0.1/0.15/0.25/0.4/0.6/0.9Nm 八档均未达到 baseline yaw >=0.5°，Transport endpoint 可见但缺少系统实际接收/入队证据；不得把这些结果解释为力矩太小，也不得继续盲目增加 torque。先完成 Gazebo verbose/debug 日志和实体解析诊断。
+- **可收敛的参数试验策略（一次只改变一个维度）：**
+  1. 消息目标解析阶段：固定 torque=0.9Nm、固定仿真时长=1.0s、固定初始状态；依次测试 MODEL name、MODEL ID、canonical LINK name、canonical LINK ID。每个候选独立启动新 Gazebo 进程。只有 ApplyLinkWrench 日志证明消息接收、实体解析、persistent queue 入队且 baseline yaw >=0.5°，才进入下一阶段。
+  2. 扰动幅值粗搜索：先按递增几何档位 0.05、0.10、0.20、0.40、0.80、1.20Nm；每档使用相同初始 pose、相同 1.0s 窗口、相同发布周期和独立 Gazebo 进程。硬停止条件为轮速 >100rad/s、非有限状态、Gazebo physics abort 或 pose/twist 异常；不得继续更高档位。粗搜索找到首个 baseline yaw >=0.5° 且轮速 <=100rad/s 的候选后，形成“前一档未达响应—当前档有效”的区间。
+  3. 区间细化：仅在已形成有效上下界后做二分/中点试验，停止条件为区间宽度 <=0.05Nm 或相邻候选结果在重复 3 次时稳定一致。每个候选至少重复 3 次；每次全新 Gazebo 进程。最终选择满足 baseline 门槛且不触发轮速护栏的最低扰动档位，避免不必要地增大负载。
+  4. Fixed Joint 验收使用同一扰动、同一初始条件、同一时长比较 unlocked 与 locked；locked yaw/XYZ 漂移必须满足 P104-10.2 原有门槛，且 locked yaw 相对 unlocked 至少抑制 50%。Detach 后相同驱动命令位移 >=10mm。任何候选失败都保留原始数据，不覆盖或复用前轮 PASS 锁。
+  5. 如果实体解析阶段仍无法证明 ApplyLinkWrench 消息进入物理更新，不进行 torque 参数搜索；改用独立的 Gazebo 测试扰动系统/已验证的 Joint API 建立可观测负载注入，先验证 fixed joint 连接/释放本身。不得将替代注入路径伪装成 ApplyLinkWrench 已修复。
+- 现阶段不修改质量、惯量、摩擦、阻尼、轮端 effort、PD 增益、IK/碰撞/交接阈值；不把 Ground Fixed Joint 接入生产 `work_area.sdf`，直到独立 A–F 实验和阶段锁完整通过。所有改动仅限 `experiment/drinktask-bt-ik-recovery`；PR #3 保持 Draft/Open；main 不修改；不创建其他分支、不设置定时监控。
