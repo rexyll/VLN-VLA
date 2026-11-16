@@ -127,9 +127,14 @@ def main():
     log_path = os.path.join(ROOT, "vla_ws", "logs", "chassis_brake_isolated.log")
     os.makedirs(os.path.dirname(log_path), exist_ok=True)
     with open(log_path, "w", encoding="utf-8") as log:
+        env = os.environ.copy()
+        plugin_dir = os.path.join(
+            ROOT, "vla_ws", "src", "vla_follow", "gz_plugins", "build")
+        env["GZ_SIM_SYSTEM_PLUGIN_PATH"] = (
+            plugin_dir + ":" + env.get("GZ_SIM_SYSTEM_PLUGIN_PATH", ""))
         process = subprocess.Popen(
             ["gz", "sim", "-s", "-r", WORLD],
-            cwd=ROOT, stdout=log, stderr=subprocess.STDOUT,
+            cwd=ROOT, env=env, stdout=log, stderr=subprocess.STDOUT,
             start_new_session=True)
         try:
             telemetry = Telemetry()
