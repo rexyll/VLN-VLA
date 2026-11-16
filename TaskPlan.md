@@ -1272,3 +1272,12 @@
 - 首次隔离仿真实验已成功启动 Gazebo，但遥测回调使用了 `joint.axis1.HasField('velocity')`；Gazebo `Axis.velocity` 是 proto3 标量，运行时不支持标量 presence 检查，导致回调抛异常、轮速样本未写入并超时。已改为只检查子消息 `axis1`，直接读取标量 `velocity`。这次失败只说明测试采集器兼容问题，尚未得到制动效果数据；修复后重跑隔离实验。
 
 - 同步修复正式 base-arm collector 中相同的 proto3 问题：`gz.msgs.Axis.position/velocity/force` 都是非 optional 标量，不能用 `HasField` 检查；现在仅对 `axis1/axis2` 子消息做 presence 检查，对三个标量直接读取并过滤非有限值。新增静态回归防止两处采集器再次引入标量 `HasField`。后续 E2E 必须证明 wheel 与 arm joint 记录均非空，才算遥测完整。
+
+
+### 8.410 #342 隔离实验采集器修复及最新 CI（2026-11-16）
+
+- Run #342（`43785335434`，head `67bf1ac`）中 P104 offline regression 与 `Build Gazebo system plugins` 均通过，确认 `libChassisBrake.so` 可编译；隔离实验没有进入物理对比阶段，失败在 wheel-state 回调对 proto3 标量调用 `HasField('velocity')`，异常后等待两侧轮速超时。
+- 修复 `run_chassis_brake_gz.py`：只对 `axis1` 子消息检查 presence，直接读取标量 `axis1.velocity`。同类问题也在正式 `collect_base_arm_dynamics.py` 中发现并修复：`Axis.position/velocity/force` 直接读取并过滤非有限值，不再对标量调用 `HasField`。
+- 回归测试增加两处约束，确保隔离 runner 和正式 collector 均不再对 proto3 标量调用 `HasField`。P104 workflow 路径过滤也补入 collector/analyzer 文件，后续改动会重新触发完整 E2E，而不只触发诊断工具语法工作流。
+- 新 head `3a6e313` 已触发重跑：P104 Python #1216、诊断语法 #108、CarryBus #955 和 P104 E2E #354；截至本记录写入时仍在排队/执行，尚未获得新的物理制动数据。
+- #342 的失败不代表制动效果失败；之前的成功构建只证明插件可编译，不证明物理保持。P104-10.1 仍未验收，生产世界不加载该插件。
