@@ -101,9 +101,11 @@ permissions:
   contents: read
 
 concurrency:
-  group: p104-drinktask-headless-${{ github.ref }}
-  # New main revisions supersede stale E2E runs; keep only the newest code under test.
-  cancel-in-progress: true
+  # PR runs share the pull-request number. Do not cancel an in-progress physical
+  # E2E run merely because another commit/run is queued for the same PR.
+  # Branch pushes and manual dispatches retain supersession behavior.
+  group: p104-drinktask-headless-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'pull_request' }}
 
 jobs:
   drinktask-e2e:
