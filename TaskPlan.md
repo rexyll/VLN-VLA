@@ -24,11 +24,11 @@
 - 当前工作分支：`experiment/drinktask-bt-ik-recovery`
 - PR：[#3](https://github.com/rexyll/VLN-VLA/pull/3)，Draft/Open，base `main`，未合并
 - **当前权威技术路线：P105｜选择性引入 MotionControlAlgorithms，重构 DrinkTask 运动控制闭环。** 本路线覆盖并取代此前分散的底盘制动参数搜索、旧 ChassisBrake/ApplyLinkWrench 优化、独立 GroundFixedJoint 生产接入优先级，以及未经统一控制架构约束的局部 IK/轨迹参数微调计划。
-- 最新完整 E2E 失败：#499（run `43852045489`，commit `f437098c24d4c241e87286622d655f1399b50f1e`）。`PRESENT_FOLLOW` 中杯体相对交接目标偏差 17.644mm、轴误差 1.544°，超过 6mm/0.5°硬门槛；follow 期间底盘被动移动，命令通道仍为零，轮端 effort 为零。该结果再次确认必须将物理锁止接入生产工作区。E2E 失败后保持持杯、不请求人手合拢、不交权的 fail-closed 行为正确。
+- 最新完整 E2E 失败：#571（run `43863942010`，commit `41f6044ad298e0913771afb05e99f96da13258e6`）。生产 `work_area` 中 DrinkTask 没有观测到 DetachableJoint 状态，启动握手超时；同时启动流程仍执行 boot home/hang，任务入口仍执行水位重置和 PREPARE，随后 PLACE_ROBOT 位姿残差 1211.7mm，最终未进入有效 DrinkTask 动作阶段。#499（run `43852045489`）仍保留为此前 PRESENT_FOLLOW 杯体偏差 17.644mm、轴误差 1.544° 的历史失败证据。#571 不能证明最新物理锁方案失败，因为其后续代码仍有启动订阅时序和动作入口门控漏洞；当前修复待新 CI/E2E 验证。
 - MotionControlAlgorithms 当前审查基线：仓库 `rexyll/MotionControlAlgorithms`，main commit `c11091bd2bb3ce001eb09f2664c1ff5076f8a73b`，C++17 / Eigen3 / Apache-2.0。采用**选择性、固定版本引入**，不整仓合并；优先验证 Damped Least Squares IK、S-Curve 轨迹、差速运动学。Cartesian impedance/admittance、task-space hierarchy、CBF 等模块需先完成动力学/执行接口/约束建模适配审查，不作为第一批直接上线控制器。
 - 当前任务节点：**P105-05｜生产 Gazebo 物理底盘锁止接入与双层锁协议验证；并行推进 P105-02/03 的 MCA DLS ROS 2 服务接入**。
 - 总体状态：**正在进行中；MCA 首批算法头文件、DLS/S-Curve/差速运动学封装、同步多关节 S-Curve、左右臂 FK 交叉测试均已进入代码。已新增 MCA DLS ROS 2 service/server/client 与双臂 service smoke test；DLS 仍为 opt-in、硬门控后的候选精修，不替代 human IK/碰撞检查。生产 `work_area.sdf` 已加入 Gazebo 8 DetachableJoint 世界锚点；DrinkTask 已实现启动 attached→detached 检查、软件 mux + 物理 joint 双层锁、锁止前新鲜 truth/joint/wheel 静止门控、attach/detach 前后位姿稳定性验证，以及软件锁/物理锁期间禁止主动底盘 pose correction。最新 CI/E2E 正在验证这些改动，尚未取得生产锁止 E2E PASS。**
-- 本轮开始时 VLN-VLA 分支 HEAD 为 `acc45f8933f1bbb9aaea20511b1ba53c8291fd6e`；当前代码基线已推进至 `7a8f60b4aac6a519c597b3666c7140ec8f6b00c9`（TaskPlan 本次更新后将再产生文档提交）。所有提交仍只允许落在本分支；不创建新分支，不修改/合并 main，不改变 PR #3 Draft/Open 状态。
+- 当前代码修复已提交至 `51d2f29a70ff04dfc0f71a62c2e8b4eb87678213`；包含 mux-locked detach→attach→detach 启动握手、状态丢失时强制物理 re-attach、任务入口硬门控、boot home/hang 物理保持，以及远端入场 home/lift 期间的物理保持。TaskPlan 随后续文档提交更新。所有提交仍只允许落在本分支；不创建新分支，不修改/合并 main，不改变 PR #3 Draft/Open 状态。
 - 现有关键安全验收保持不变：交接位置误差 ≤6mm、轴向误差 ≤0.5°；底盘锁止目标线速度 <0.005m/s、角速度 <0.5°/s、1秒平移 <2mm、朝向变化 <0.5°。现有 IK、关节限位、碰撞与 swept-path、物体抓持/释放和任务后置条件均不得放宽。
 - 唯一指令出口约束继续有效：`drink_task.py` 的 39 路 `/drink/cmd/*` 仍须保持单一发布者和统一节拍。在 C++ 控制器迁移阶段，MCA 节点只提供经过验证的关节目标/轨迹，不得并行直接发布同一批 Gazebo joint command topic。
 - 历史记录中已完成的隔离 GroundFixedJoint 3/3 测试仍是有效的隔离测试证据，但不证明生产 `work_area` 已集成物理锁止，也不证明机械臂反作用力负载下生产场景通过。旧 ApplyLinkWrench/ChassisBrake 失败记录仅作历史诊断，不再作为当前主线前置门禁或优化方向。
@@ -143,6 +143,7 @@
 9. [未完成] 通过锁止状态注入 Nav2/follower/DrinkTask 命令、stale command、异常 detach/attach、Gazebo 插件丢失、状态 topic 超时等故障，验证 BT 不会启动手臂或错误释放物体。
 10. [正在进行中] `run_drink()` 入口已增加硬前置条件：物理锁必须完成启动握手且状态为 `detached`；检查位于水位重置、PREPARE、机械臂和底盘动作之前。对应源码回归测试已增加，等待 CI 验证。
 11. [正在进行中] `main()` 的开机 home/hang 曾在物理锁启动握手之前执行，属于任务入口门控之外的启动动作漏洞。现已改为等待物理锁握手完成、`set_base_lock(True)` 获得软件/物理双重确认后才执行 home/hang；任一步失败保持物理保持并中止启动，只有 home/hang 均成功才解锁导航。
+12. [正在进行中] `pour_approach()` 在远端待命位的 home 与 lift_ready 原先发生在底盘解锁状态。现已在两段机械臂动作前确认物理锁止，只有 home/lift_ready 均成功后才解锁并允许驶入；失败时保持底盘锁并中止。对应回归测试检查锁定→home→lift→解锁→drive 顺序。
 
 ### P105-06｜任务空间层级控制、双臂协同与杯体稳定
 
