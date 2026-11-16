@@ -37,7 +37,7 @@
 ### 最新失败 Action 审计（2026-11-16）
 
 - [已定位｜生产启动握手缺少主动探测] PR #3 最新 E2E Run #571（run `43863942010`，commit `41f6044ad298e0913771afb05e99f96da13258e6`）的生产 `work_area` 场景中，`drink_task` 在启动约 20s 后报告 `PHYSICAL_CHASSIS_LOCK startup timeout: no DetachableJoint state`。SDF 中存在 `ground_lock_anchor` 和对应 DetachableJoint 参数；隔离 runner 同一轮 3/3 PASS，attached challenge 位姿变化均为 0mm、轮速约为 1e-17rad/s，detached 对照移动约 212mm。说明插件机制在隔离场景可用，但生产世界启动/订阅时序尚未验证成功。
-- [根因假设｜待 CI 验证] 当前启动代码只被动等待初始 `attached` 状态事件。Gazebo 初始状态可能在 DrinkTask 订阅建立前以非持久事件发布，导致订阅端永远看不到该事件。已调整为订阅后主动发送一次 `attached` 请求并等待新的状态 ACK，再执行 `detached` 握手；若 ACK 缺失仍 fail-closed。另在 `start_scene.sh` 增加生产状态 topic 注册检查，topic 未注册则拒绝启动后续 ROS/DrinkTask 节点。此改动是对可验证握手链路的修复，不预先宣称插件根因已确认。
+- [根因假设｜待 CI 验证] 当前启动代码只被动等待初始 `attached` 状态事件。Gazebo Sim 8 源码确认：DetachableJoint 仅在状态变化时发布状态；初始 `attached` 事件可能在 DrinkTask 订阅建立前发出，而且对已 attached 状态重复发送 `attach` 会被忽略、不重新发布 ACK。已修正方案：先获得 cmd_mux LOCKED ACK、等待新鲜 truth/joint/wheel 静止，再执行 `detached→attached→detached` 状态转换并逐步验证底盘位姿，最后才解开 cmd_mux。任一步失败都保持软件锁并尽力恢复物理 attached。另在 `start_scene.sh` 增加生产状态 topic 注册检查，topic 未注册则拒绝启动后续 ROS/DrinkTask 节点。此改动是对可验证握手链路的修复，不预先宣称插件根因已确认。
 - [已定位｜任务入口安全门控缺失] Run #571 的物理锁启动失败后，`run_drink()` 仍继续执行水位归零与 PREPARE 原语。日志后续记录 `PLACE_ROBOT 未收敛`，目标位姿残差 1211.7mm，随后 PREPARE 入场中止。现已在 `run_drink()` 最前面增加硬门控：必须 `_ground_lock_ready` 且物理状态为 `detached`，否则直接进入 `FAIL_BASE_LOCK_NOT_READY`，不发出水位、机械臂或底盘动作。
 - [独立待查] Run #571 的 P85 自检记录 base=(0,0)，DrinkTask 配置服务位约 (1.75,0.35)，任务中 PLACE_ROBOT 的最终位置残差 1211.7mm。该位姿/场景初始化差异是物理锁握手修复后的下一项独立检查；不得通过改验收阈值或跳过位置确认规避。
 - [证据边界] Run #571 的 MCA 双臂服务 Smoke Test 通过，仅证明服务求解与 FK 复核可用；不证明完整机械臂动作或 DrinkTask E2E 通过。隔离 GroundFixedJoint 3/3 PASS 不等于生产 `work_area` PASS。完整任务仍未通过，E2E 成功轮数不增加。
@@ -133,7 +133,7 @@
 ### P105-05｜底盘物理保持与运动权限统一管理
 
 1. [正在进行中] 已在生产 `work_area.sdf` 增加 `ground_lock_anchor` 静态锚点及 Gazebo Sim 8 `DetachableJoint`（world `follow_world`、child `robot::chassis`）；新增 `gazebo_ground_lock.py`，用 `gz.msgs10.StringMsg` 验证 `attached/detached`，用 `gz.msgs.Empty` topic command 切换状态。尚待 CI 的 SDF 加载与实际 attach/detach 结果。
-2. [正在进行中] `drink_task.py` 已改为在订阅后主动发送一次 `attached` 请求，等待新状态 ACK 后再执行 `detached`，避免漏收 Gazebo 非持久初始状态事件；`start_scene.sh` 在启动 ROS/DrinkTask 前检查生产状态 topic 已注册。该时序修复尚待 CI 验证，topic 不存在或状态 ACK 缺失均 fail-closed。
+2. [正在进行中] `drink_task.py` 已改为在订阅后先锁定 cmd_mux 并确认底盘静止，再主动执行 `detached→attached→detached` 三次真实状态转换，避免依赖可能已错过的初始 attached 单次事件；`start_scene.sh` 在启动 ROS/DrinkTask 前检查生产状态 topic 已注册。该时序修复尚待 CI 验证，topic 不存在或状态 ACK 缺失均 fail-closed。
 3. [正在进行中] 已将 `set_base_lock()` 改为双层协议：锁止时先 cmd_mux lock ACK→要求 truth twist 与 joint state 新鲜、双轮速度有效且连续 0.25s 满足线速度 <0.005m/s、角速度 <0.5°/s、轮速 <0.05rad/s→物理 attach ACK→再验证 0.30s 内底盘位移 <2mm、yaw <0.5°；解锁时先物理 detach ACK 并验证位姿稳定，再允许 cmd_mux unlock。任何状态/测量未确认均拒绝动作；mux 解锁失败则重新锁软件层并尝试物理 re-attach。已在软件锁或物理 joint attached 的整个窗口禁止主动底盘 pose correction；仍需故障注入及真实负载 E2E 验证。
 4. [未完成] 新增 `BaseMotionAuthority` 状态机，将 software cmd mux、Gazebo DetachableJoint/真实硬件外部制动器 adapter、底盘 truth monitor、Nav2/follower/DrinkTask command lease 纳入同一请求/确认协议。
 5. [未完成] 操作窗口申请保持时：先禁止新的普通底盘命令并清空缓存→确认底盘速度/轮速达到静止门槛→发起物理 attach/硬件锁止→等待 attached/locked 物理状态→用 truth pose/twist 和轮关节状态验证保持稳定；全部成功后才允许机械臂动作。
