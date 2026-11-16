@@ -64,10 +64,10 @@ class GazeboGroundLock:
             return (self._state == expected and
                     (after_time is None or self._state_time >= after_time))
 
-    def command(self, expected, timeout_s=5.0, spin=None):
+    def command(self, expected, timeout_s=5.0, spin=None, force=False):
         if expected not in ("attached", "detached"):
             raise ValueError("expected state must be attached or detached")
-        if self.state == expected:
+        if self.state == expected and not force:
             return True
         topic = self.attach_topic if expected == "attached" else self.detach_topic
         command_started = time.monotonic()
