@@ -45,23 +45,32 @@ class GazeboGroundLock:
             return (time.monotonic() - self._state_time
                     if self._state_time else float("inf"))
 
-    def wait_for_state(self, expected, timeout_s=5.0, spin=None):
+    def wait_for_state(self, expected, timeout_s=5.0, spin=None,
+                       after_time=None):
+        """Wait for a transition newer than command start; states are event-driven."""
         deadline = time.monotonic() + max(0.0, float(timeout_s))
         while time.monotonic() < deadline:
-            if self.state == expected and self.state_age_s <= 0.5:
+            with self._mutex:
+                state = self._state
+                state_time = self._state_time
+            if state == expected and (
+                    after_time is None or state_time >= after_time):
                 return True
             if spin is None:
                 time.sleep(0.02)
             else:
                 spin(0.02)
-        return self.state == expected and self.state_age_s <= 0.5
+        with self._mutex:
+            return (self._state == expected and
+                    (after_time is None or self._state_time >= after_time))
 
     def command(self, expected, timeout_s=5.0, spin=None):
         if expected not in ("attached", "detached"):
             raise ValueError("expected state must be attached or detached")
-        if self.state == expected and self.state_age_s <= 0.5:
+        if self.state == expected:
             return True
         topic = self.attach_topic if expected == "attached" else self.detach_topic
+        command_started = time.monotonic()
         try:
             result = subprocess.run(
                 ["gz", "topic", "-t", topic, "-m", "gz.msgs.Empty", "-p", " "],
@@ -71,4 +80,4 @@ class GazeboGroundLock:
             return False
         if result.returncode != 0:
             return False
-        return self.wait_for_state(expected, timeout_s=timeout_s, spin=spin)
+        return self.wait_for_state(expected, timeout_s=timeout_s, spin=spin,\n                                   after_time=command_started)
