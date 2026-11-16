@@ -1270,3 +1270,5 @@
 - 首轮 CI 发现 Gazebo runner 命名为 `test_*.py`，被无 Gazebo 依赖的通用 unittest 自动发现并导入，导致 `ModuleNotFoundError: gz`；已将它改名为 `run_chassis_brake_gz.py`（保留显式执行和 py_compile），避免误纳入纯 Python 分析测试。该 CI 失败属于测试发现规则冲突，不是 Gazebo 插件编译或物理实验失败；重命名后的 CI 尚待验证。
 
 - 首次隔离仿真实验已成功启动 Gazebo，但遥测回调使用了 `joint.axis1.HasField('velocity')`；Gazebo `Axis.velocity` 是 proto3 标量，运行时不支持标量 presence 检查，导致回调抛异常、轮速样本未写入并超时。已改为只检查子消息 `axis1`，直接读取标量 `velocity`。这次失败只说明测试采集器兼容问题，尚未得到制动效果数据；修复后重跑隔离实验。
+
+- 同步修复正式 base-arm collector 中相同的 proto3 问题：`gz.msgs.Axis.position/velocity/force` 都是非 optional 标量，不能用 `HasField` 检查；现在仅对 `axis1/axis2` 子消息做 presence 检查，对三个标量直接读取并过滤非有限值。新增静态回归防止两处采集器再次引入标量 `HasField`。后续 E2E 必须证明 wheel 与 arm joint 记录均非空，才算遥测完整。
