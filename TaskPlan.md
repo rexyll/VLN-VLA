@@ -1559,3 +1559,14 @@
 - **CI 编排缺陷：**workflow 虽将该诊断标为 `non-authoritative`，但步骤未设置 `continue-on-error`，导致其非权威失败仍使 Job 失败，并跳过 ROS 2 workspace build、阶段锁验证和完整 DrinkTask E2E。已将该步骤改为非阻断（`continue-on-error: true`）；诊断仍执行并保留日志/artifact，但其失败不再阻止后续权威验收链。
 - 此修改不伪造旧诊断 PASS、不降低物理阈值，也不更改扰动力参数；GroundFixedJoint 通过只证明隔离环境中的速度命令屏蔽与锁止/解锁，不证明机械臂反作用力负载测试或生产场景集成通过。
 - 下一轮必须检查旧诊断失败是否被保留为可见的 warning/outcome，并确认 ROS 2 build、阶段锁验证和完整双轮 DrinkTask E2E 确实执行。GroundFixedJoint 隔离模块可记为 3/3 通过；P104-10.1 的机械臂负载与生产集成验证仍未完成，P104-10 总体保持进行中。
+
+
+### 8.438 #445/#446 对比结果：CI 再次推进及阶段锁门禁错配（2026-11-16）
+
+- #445（run `43835880824`，workflow commit `c45972c1`）与 #446（run `43835898111`，workflow commit `fba06f44`）均通过离线回归、Gazebo 插件构建、GroundFixedJoint 隔离测试和 ROS 2 `vla_follow` 工作区构建。相较 #443/#444，旧 ApplyLinkWrench 诊断失败已不再阻断后续步骤，ROS 2 build 首次实际完成。
+- 两轮均在 `Verify immutable ChassisBrake stage locks after downstream build` 失败，错误 `missing completed isolated-stage lock manifest`，因此完整 DrinkTask E2E 被跳过。
+- artifact 证据显示 GroundFixedJoint 两轮均为 3/3 PASS：三轮 detach-drive 位移约 212.15–212.39mm，attach-drive 位移 0mm、yaw 0°、轮速远低于护栏；再次 detach 后恢复位移约 225.83–226.08mm；状态序列均为 `attached → detached → attached → detached`。
+- 根因是验收对象错配：`verify_p104_stage_locks.py` 查找 `p104_chassis_brake_stage_locks.json`，但旧 runner 实际写出 `p104_stage_locks_torque_*.json`；而每个候选在 baseline disturbance 物理响应门槛失败后只留下 `world_ready` 阶段。该门禁验证的是旧 ApplyLinkWrench/ChassisBrake 实验，不是 GroundFixedJoint 物理证据。不能将 GroundFixedJoint PASS 伪装成 ChassisBrake 阶段锁 PASS。
+- 新增 `tests/diag/verify_ground_fixed_joint.py`，对三轮独立 Gazebo 的 summary 做物理证据检查：3/3 PASS、状态序列完整、detach 可移动 >=10mm、attach 位移 <2mm、yaw <0.5°、轮速护栏满足、unlock recovery >=10mm。
+- workflow 已增加独立 GroundFixedJoint manifest 验证，并将旧 ChassisBrake stage-lock verifier 明确降为 non-authoritative、continue-on-error 诊断；它继续执行并保留失败证据，但不再阻断完整 DrinkTask E2E。该处理不改变旧扰动门槛，也不把两个模块合并验收。
+- #445/#446 尚未执行完整 DrinkTask E2E；新 workflow 需要下一轮验证 GroundFixedJoint verifier 和 ROS 2 build 后，能否真正进入 headless DrinkTask。即使 E2E 通过，也只证明当前生产流程回归，不代表 GroundFixedJoint 已集成到生产 `work_area.sdf` 或完成手臂反作用力负载测试。
