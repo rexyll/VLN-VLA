@@ -109,17 +109,17 @@ def wait_for_subscriber(topic, message_type, timeout, log):
         # gz topic -i prints endpoint rows below the Subscribers heading.
         # Requiring the expected message type avoids mistaking a publisher
         # endpoint or an unrelated subscriber for ApplyLinkWrench readiness.
-        sections = re.split(r"Subscribers\\s*\\[[^]]*\\]\\s*:", last_info,
+        sections = re.split(r"Subscribers\s*\[[^]]*\]\s*:", last_info,
                             maxsplit=1, flags=re.IGNORECASE)
         if len(sections) == 2:
-            subscriber_section = sections[1].split("\\n\\n", 1)[0]
+            subscriber_section = sections[1].split("\n\n", 1)[0]
             if message_type in subscriber_section and "tcp://" in subscriber_section:
-                log.write("subscriber_ready topic=%s type=%s\\n%s\\n" %
+                log.write("subscriber_ready topic=%s type=%s\n%s\n" %
                           (topic, message_type, last_info))
                 log.flush()
                 return
         time.sleep(0.1)
-    log.write("subscriber_timeout topic=%s type=%s\\n%s\\n" %
+    log.write("subscriber_timeout topic=%s type=%s\n%s\n" %
               (topic, message_type, last_info))
     log.flush()
     raise RuntimeError("no %s subscriber discovered for %s" %
@@ -166,11 +166,11 @@ def main():
     log_path = os.path.join(ROOT, "vla_ws", "logs", "chassis_brake_isolated.log")
     runner_log_path = os.path.join(ROOT, "vla_ws", "logs", "chassis_brake_runner.log")
     os.makedirs(os.path.dirname(log_path), exist_ok=True)
-    with open(log_path, "w", encoding="utf-8") as log, \\
+    with open(log_path, "w", encoding="utf-8") as log, \
          open(runner_log_path, "w", encoding="utf-8") as runner_log:
         def record(message):
             print(message, flush=True)
-            runner_log.write(message + "\\n")
+            runner_log.write(message + "\n")
             runner_log.flush()
 
         env = os.environ.copy()
