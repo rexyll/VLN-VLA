@@ -1313,3 +1313,11 @@
 - 本修复只提升扰动订阅就绪检测和日志可观测性；未修改 18Nm 外部扰动、5Nm effort limit、物理参数、控制器增益或任何验收阈值。它也不能单独证明 wrench 已作用于机器人，仍须由 baseline pose/yaw 响应门槛验证扰动确实生效。
 - 纠正 §8.412 对 run `43787832273` 取消原因的确定性表述：当前 workflow 的 group 包含 `github.ref`，push 与 PR ref 通常不同；尚无证据证明二者互相取消。该取消原因保持待核实，不据此改动 workflow。
 - 当前 P104-10.1 仍未通过物理隔离验收；P104-10.2/10.3 未开始。插件仍不接入生产 `work_area.sdf`。`main` 未修改，PR #3 保持 Draft/Open，不合并；未创建其他分支。
+
+
+### 8.414 wrench subscriber 修复后的 PR CI 重跑状态（2026-11-16）
+
+- 修复提交 `cf3dff732de3f79cdecf94a4a44905d6772dec29` 对应 PR E2E run #365（ID `43790255970`，checkout merge SHA `455150fe2ed22e972a596617235a7c699cb10e7a`）首次运行被取消。日志显示取消发生在 `Configure Gazebo Harmonic apt repository` 的 `apt-get update` 后，尚未执行 P104 离线测试、插件构建或隔离 ChassisBrake 实验；因此该取消不是物理实验结果，不能据此判定新 runner 成败。取消发起方/触发原因仍未从现有日志证实，不猜测为 push/PR concurrency。
+- 已通过 GitHub job rerun 对同一 E2E job 发起重跑（新 job ID `133050059738`）。重跑已完成 checkout 和行为树单元测试，12/12 passed；截至本记录更新时仍在 `Configure Gazebo Harmonic apt repository`，隔离制动实验尚未开始。
+- 新 runner 的语法检查与实际 topic-info parser 兼容性仍待该重跑执行至 plugin build / isolated test 后验证。若订阅检查因 topic-info 输出格式不匹配而超时，先保存原始 topic info 并修正解析，不绕过 readiness gate。
+- `main` 未修改；PR #3 保持 Draft/Open；未创建其他分支。P104-10.1 物理验收状态仍为未通过/待重新验证，不能因 12 项行为树测试通过而更新为完成。
