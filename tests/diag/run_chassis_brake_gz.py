@@ -198,14 +198,18 @@ def main():
             # being alive does not imply this independent subscriber is ready.
             wait_for_subscriber(WRENCH_TOPIC, "gz.msgs.EntityWrench", 15,
                                 runner_log)
-            wrench = ('entity: {name: "robot" type: MODEL} '
+            # Target the canonical chassis link explicitly. ApplyLinkWrench
+            # supports both MODEL (canonical link) and LINK, but a direct LINK
+            # target removes model-to-canonical-link resolution ambiguity from
+            # this calibration experiment.
+            wrench = ('entity: {name: "chassis" type: LINK} '
                       'wrench: {torque: {z: 18.0}}')
             record("baseline_wrench_publish=" +
                    publish(WRENCH_TOPIC, "gz.msgs.EntityWrench", wrench))
             baseline = measure(telemetry, 1.0)
             record("baseline=" + repr(baseline))
             publish(CLEAR_TOPIC, "gz.msgs.Entity",
-                    'name: "robot" type: MODEL')
+                    'name: "chassis" type: LINK')
             time.sleep(0.5)
 
             # Brake: latch current wheel angles, then apply the same disturbance.
