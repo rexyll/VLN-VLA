@@ -12,7 +12,7 @@ on:
       - "tests/test_drink.py"
       - "tests/test_p104.py"
       - "tests/test_manipulation_bt.py"
-      - "tests/diag/test_chassis_brake_gz.py"
+      - "tests/diag/run_chassis_brake_gz.py"
       - "tests/diag/chassis_brake_test.sdf"
       - "vla_ws/src/vla_follow/**"
       - "tools/start_scene.sh"
@@ -175,7 +175,7 @@ jobs:
 
       - name: Build Gazebo system plugins
         run: |
-          python3 -m py_compile tests/diag/test_chassis_brake_gz.py
+          python3 -m py_compile tests/diag/run_chassis_brake_gz.py
           bash -n tools/gz_plugin.sh
           cmake -S vla_ws/src/vla_follow/gz_plugins \
             -B vla_ws/src/vla_follow/gz_plugins/build \
@@ -188,7 +188,7 @@ jobs:
 
       - name: Run isolated ChassisBrake hold and unlock experiment
         run: |
-          python3 tests/diag/test_chassis_brake_gz.py
+          python3 tests/diag/run_chassis_brake_gz.py
 
       - name: Build ROS 2 workspace and verify installed Nav2 map assets
         shell: bash
