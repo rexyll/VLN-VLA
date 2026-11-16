@@ -1,12 +1,15 @@
 string side
+# Target pose is expressed in the robot model base frame.
 geometry_msgs/Pose target
-float64[] seed
+# Ordered, named 7-axis joint state; names must match the generated arm URDF.
+sensor_msgs/JointState seed
 float64 position_tolerance_m
 float64 orientation_tolerance_rad
 uint32 max_iterations
 ---
 bool success
-float64[] joint_positions
+# Named joint solution in the same model-defined order as the seed.
+sensor_msgs/JointState solution
 uint32 iterations
 float64 position_error_m
 float64 orientation_error_rad
