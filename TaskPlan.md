@@ -1501,7 +1501,7 @@
 - 在 `tests/diag/chassis_ground_lock_test.sdf` 新增独立隔离世界：保留原机器人/轮组/机械臂简化模型，增加静态 `ground_lock_anchor`，并通过 Gazebo Sim `DetachableJoint` 将 anchor link 与 `robot::chassis` 连接。
 - attach/detach/output topic 分别为 `/world/brake_test/chassis_lock/attach`、`/world/brake_test/chassis_lock/detach`、`/world/brake_test/chassis_lock/state`。此文件仅为隔离原型，不接入生产 `work_area.sdf`，也不改变现有 E2E 的 ChassisBrake/ApplyLinkWrench runner。
 - 需要注意：本次 SDF 创建发生在 #430 workflow 已经以 TaskPlan commit `bc264dc` 启动之后，因此 #430 不包含该新 SDF，不能把 #430 结果视为 Ground Fixed Joint 原型已构建或运行验证。
-- 后续必须新增专用 runner：订阅 state topic，核对 Boolean attach 状态；机器人静止启动后先 detach，再分别执行“detach 状态可移动→attach 状态不可移动→再次 detach 可移动→再次 attach 锁定”的同条件对照。再执行机械臂动作负载回归。状态消息、Gazebo truth pose/twist 和轮关节 telemetry 三者必须同时归档；不得只依据 topic ACK 判定物理锁止。
+- 后续必须新增专用 runner：订阅 state topic，核对 StringMsg attach 状态（attached / detached）；机器人静止启动后先 detach，再分别执行“detach 状态可移动→attach 状态不可移动→再次 detach 可移动→再次 attach 锁定”的同条件对照。再执行机械臂动作负载回归。状态消息、Gazebo truth pose/twist 和轮关节 telemetry 三者必须同时归档；不得只依据 topic ACK 判定物理锁止。
 - 当前仅完成 TaskPlan 与隔离 SDF 原型；尚未完成 SDF 解析、Gazebo 启动、attach/detach 运行验证和固定状态机械臂负载测试。P104-10.1 仍未通过。
 
 
@@ -1516,7 +1516,7 @@
 
 - 根据行业常用验证方式，将原先单一 ChassisBrake 实验拆分为三个独立模块：
   1. `DisturbanceInjectionTest`：验证扰动接口的传输、目标实体解析、物理更新执行和测量响应；优先采用可观测的 Gazebo System 插件作独立注入器，ApplyLinkWrench 保留对照，不以 Transport publisher/subscriber endpoint 可见替代物理作用证据。
-  2. `GroundFixedJointTest`：通过静态地面锚点 + Gazebo Sim 8.15 `DetachableJoint` 实现真实 Fixed Joint；分别验证 detach 可移动、attach 不移动、再次 detach 恢复移动。必须以 Boolean 状态消息和 Gazebo truth pose/twist 双重确认。
+  2. `GroundFixedJointTest`：通过静态地面锚点 + Gazebo Sim 8.15 `DetachableJoint` 实现真实 Fixed Joint；分别验证 detach 可移动、attach 不移动、再次 detach 恢复移动。必须以 StringMsg 状态消息和 Gazebo truth pose/twist 双重确认。
   3. `ChassisImmobilityE2E`：在物理固定期间综合验证普通速度输入屏蔽、外部扰动、手臂动作反作用力、任务阶段状态和解锁后旧命令清理。
 - 每个模块使用独立 runner、结构化 JSON、原始日志和独立验收结果。某个模块通过不得自动推导其它模块通过；不能用 Ground Fixed Joint 测试结果宣称 ApplyLinkWrench 已修复。
 - 参数收敛规则：先证明接口接收/实体解析/物理执行，再搜索幅值；固定初始位姿、仿真时间、消息频率和其余条件，一次只改变一个参数。粗搜索形成有效区间后才做中点细化；每个候选至少 3 个独立 Gazebo 进程重复。触发非有限状态、Gazebo abort、轮速 >100rad/s 或 pose/twist 异常立即停止，不向更高幅值继续。无物理作用证据时禁止参数搜索。
@@ -1524,7 +1524,16 @@
 
 ### 8.434 新增 GroundFixedJointTest 专用 runner 并接入 CI（2026-11-16）
 
-- 新增 `tests/diag/run_chassis_ground_lock_gz.py`：每个重复独立启动 Gazebo Sim；订阅 DetachableJoint Boolean 状态、world dynamic pose、DiffDrive odometry 和轮关节状态；确认默认 attached 后先 detach，验证 0.12m/s 速度命令可产生至少 10mm 位移，再 attach 并施加相同速度命令，要求锁定期间位移 <2mm、yaw 变化 <0.5°，最后 detach 并再次验证至少 10mm 恢复位移。默认 3 次独立重复。
+- 新增 `tests/diag/run_chassis_ground_lock_gz.py`：每个重复独立启动 Gazebo Sim；订阅 DetachableJoint StringMsg 状态（attached / detached）、world dynamic pose、DiffDrive odometry 和轮关节状态；确认默认 attached 后先 detach，验证 0.12m/s 速度命令可产生至少 10mm 位移，再 attach 并施加相同速度命令，要求锁定期间位移 <2mm、yaw 变化 <0.5°，最后 detach 并再次验证至少 10mm 恢复位移。默认 3 次独立重复。
 - 隔离 SDF 移除 ApplyLinkWrench 和 ChassisBrake 插件，避免扰动/轮端控制系统干扰 Ground Fixed Joint 的独立验证；保留 DiffDrive 作为可移动性对照。静态锚点 link 无碰撞几何，避免 DART 初始 parent/child 碰撞重叠。
 - 在 `.github/workflows/p104-drinktask-headless.yml` 增加 runner 的语法检查、独立运行步骤和日志/JSON artifact 上传。旧 ApplyLinkWrench/ChassisBrake 测试仍单独保留，失败不得被解释为 Ground Fixed Joint 失败，Ground Fixed Joint PASS 也不得解释为旧扰动接口修复。
 - **当前状态：** runner、SDF 和 workflow 已提交，但尚未取得 GitHub Actions 的 Gazebo Sim 8.15 运行结果；Python syntax 通过也不能代替实际 attach/detach 物理验收。若运行中发现 Gazebo 8 消息类型、状态语义、DetachableJoint 拓扑或动力学问题，应先记录证据并修正 runner/SDF/TaskPlan，再继续，不得跳过失败阶段。
+
+
+### 8.435 按 Gazebo Sim 8 源码修正 DetachableJoint 状态消息类型（2026-11-16）
+
+- 在实现运行器前直接核对 Gazebo Sim 8 分支源码 `gazebosim/gz-sim/src/systems/detachable_joint/DetachableJoint.cc`，发现一个会导致测试无法启动的 API 细节：Sim 8 的 `output_topic` 发布类型不是 `gz.msgs.Boolean`，而是 `gz.msgs.StringMsg`；消息内容为 `attached` 或 `detached`。Attach 与 detach 输入均订阅 `gz.msgs.Empty`。
+- 源码还确认 Sim 8 的 `attachRequested` 初始值为 true，故默认启动附着；每次创建/移除固定关节后分别发布 `attached` / `detached`。不需要、也不得添加 Sim 10 才有的 `initial_attach` 参数。
+- 已将 `run_chassis_ground_lock_gz.py` 的状态订阅从 Boolean 改为 StringMsg，并对 attached / detached 字符串做显式校验。该修正来自目标 Gazebo 8 源码，不是猜测。
+- 该发现说明 API 文档中“state topic”没有在摘要中直接展示消息类型；实现前必须以当前实际目标版本源码/运行时为准。TaskPlan、runner 和后续证据统一使用 StringMsg。
+- 当前 runner/SDF/workflow 已包含该修正，但新的 GitHub Actions 运行仍待完成；尚无真实 Gazebo attach/detach 结果。
