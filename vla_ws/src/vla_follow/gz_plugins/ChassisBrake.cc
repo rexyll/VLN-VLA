@@ -106,6 +106,7 @@ public:
 
     bool hasRequest = false;
     bool requested = false;
+    bool newlyEnabled = false;
     {
       std::lock_guard<std::mutex> guard(this->mutex);
       hasRequest = this->hasPendingRequest;
@@ -137,7 +138,7 @@ public:
       this->leftTarget = leftPosition;
       this->rightTarget = rightPosition;
       this->enabled = true;
-      this->PublishStatus("LOCKED force_components_installed");
+      newlyEnabled = true;
     }
 
     if (!this->enabled)
@@ -171,6 +172,8 @@ public:
 
     this->SetForce(_ecm, this->leftJoint, leftTorque);
     this->SetForce(_ecm, this->rightJoint, rightTorque);
+    if (newlyEnabled)
+      this->PublishStatus("LOCKED force_components_installed");
   }
 
 private:
