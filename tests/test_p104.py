@@ -817,11 +817,17 @@ class TestP104(unittest.TestCase):
             self.assertIn(stage, verifier)
         self.assertIn('GITHUB_SHA', verifier)
         self.assertIn('sha256(path)', verifier)
+        self.assertIn('math.isfinite', verifier)
+        self.assertIn('world-ready lock does not prove a stationary base', verifier)
         self.assertIn('reduction_ratio', verifier)
         self.assertIn('displacement_mm', verifier)
         self.assertIn('Verify immutable ChassisBrake stage locks', workflow)
         self.assertIn('python3 tests/diag/verify_p104_stage_locks.py', workflow)
         self.assertIn('p104_stage_locks*.json', workflow)
+        self.assertIn('p104_chassis_brake_stage_locks.json', workflow)
+        self.assertLess(
+            workflow.index('Verify immutable ChassisBrake stage locks'),
+            workflow.index('Run headless DrinkTask E2E with read-only base-arm telemetry'))
 
     def test_dynamics_collector_uses_documented_gazebo_joint_state_topic(self):
         collector = open(os.path.join(ROOT, 'tests', 'diag',
