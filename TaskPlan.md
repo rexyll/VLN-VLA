@@ -1411,3 +1411,16 @@
 - 下一步修复方向：实现真正的分级标定模式，而不是继续以固定 18Nm 重跑。每个候选值需在全新 Gazebo 进程/相同初始条件下独立测试；记录从扰动开始到护栏触发的时间、pose/twist、两轮 position/velocity，并确认 wrench 清除和仿真正常退出。候选值须同时满足 baseline yaw `>=0.5°`、轮速 `<=100rad/s`、有限状态、无物理引擎异常；若在安全轮速范围内找不到达到 0.5°的输入，应停止并重新评估该外部扰动模型是否适合作为该物理验收方法，而不是放宽阈值。
 - 不得修改 `100rad/s` 诊断护栏、baseline `0.5°` 门槛、locked yaw reduction `>=50%`、unlock recovery `>=10mm`、质量/惯量、摩擦、阻尼、轮端 effort limit 或 PD 增益来制造通过。不得把未标定的候选力矩用于宣称 hold 成功。
 - P104-10.1 仍未通过；P104-10.2/10.3 和完整 DrinkTask E2E 尚未执行。生产 `work_area.sdf` 不接入 ChassisBrake。仅在 `experiment/drinktask-bt-ik-recovery` 修改；`main` 未修改，PR #3 保持 Draft/Open，不合并，不创建其他分支。
+
+
+### 8.423 实现独立 Gazebo 进程的 ChassisBrake 分级扰动力矩标定（2026-11-16）
+
+- 最新基线 E2E #387（run `43810174578`，commit `b16953d`）仍在隔离 ChassisBrake baseline 失败：轮速达到 `108.449rad/s`，超过既有 `100rad/s` 诊断护栏；尚未执行 LOCKED / UNLOCKED 与完整 DrinkTask E2E。
+- 修复 `tests/diag/run_chassis_brake_gz.py`：删除固定 `18Nm` 输入，增加升序候选标定 `0.05, 0.075, 0.1, 0.15, 0.25, 0.4, 0.6, 0.9Nm`。每个候选由父 runner 启动独立 Python 子进程；每个子进程单独启动并最终终止全新的 Gazebo 进程，保证候选之间不共享 world 状态或 persistent wrench。
+- 每个候选首先执行相同 1 秒 baseline；baseline yaw 必须达到原有 `0.5°` 门槛，且任何时刻轮速不得超过 `100rad/s`，状态必须有限。baseline 不达标时先发送 wrench clear 并终止该候选，不进入无意义的 LOCKED 阶段；候选失败后父 runner 记录退出码/耗时并继续下一个候选。
+- 只有 baseline 达标的候选才执行相同持续时间、相同 wrench 的 LOCKED 测量，并验证 yaw drift 至少抑制 50%；随后解除 ChassisBrake，验证普通 DiffDrive 指令恢复至少 10mm 位移。只有 baseline、locked、unlock 三道原验收全部通过，候选才被标记为 CALIBRATION_PASS；未找到候选时整个实验明确失败。
+- 增加每阶段物理遥测：起止 pose、DiffDrive odometry twist、左右轮 position/velocity、最大 XY/yaw 响应、最大轮速、持续时间、wrench 发布/clear 发布次数；记录每个候选的 Gazebo 退出码与 runner 退出码。baseline 和 locked 测量都通过 `finally` 尝试 clear persistent wrench，防止失败路径遗留扰动。
+- 新增 `tests/test_p104.py` 静态回归，检查固定 18Nm 已移除、候选列表与独立子进程隔离、baseline 门槛、clear finally、odometry/twist 与轮端完整遥测字段。
+- **验证状态：代码已提交，CI 待执行。** 本地/离线语法、P104 回归、Gazebo 插件构建和实际 Gazebo 标定尚未取得本次提交后的新结果；不能声称候选已找到或 P104-10.1 已通过。下一步必须先检查 Python syntax / P104 regression / 插件构建，再读取新的 Gazebo artifact，确认每个候选的真实测量值与清除/退出记录。
+- 不改变 baseline `0.5°`、轮速诊断护栏 `100rad/s`、locked yaw reduction `>=50%`、unlock recovery `>=10mm`；不修改质量、惯量、摩擦、阻尼、轮端 effort limit 或 PD 增益。隔离实验通过前不将插件接入生产 `work_area.sdf`，不推进 P104-10.2/10.3。
+- 仅在 `experiment/drinktask-bt-ik-recovery` 修改；`main` 未修改；PR #3 保持 Draft/Open，不合并；不创建其他分支或定时监控。
