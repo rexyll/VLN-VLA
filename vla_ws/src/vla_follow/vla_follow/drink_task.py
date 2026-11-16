@@ -275,6 +275,10 @@ class DrinkTask(Node):
 
         # ---- 输出: 39 路指令总线(唯一发布者)
         self.bus = CmdBus(self)
+        # Never send the default home posture to Gazebo until the physical
+        # chassis anchor and software mux hold have both been acknowledged.
+        # Otherwise the arms can start moving while startup is probing detach.
+        self._arm_command_output_enabled = False
         # observer_only: 端到端验收脚本只**看**不动手。此时不挂 20Hz/50Hz
         # 定时器, 于是 39 路指令和抓取位姿一帧都不会发出去 —— 否则会和
         # 常驻的 drink_task 抢同一个发布者, 杯子被两个目标拽来拽去。
@@ -1041,6 +1045,9 @@ class DrinkTask(Node):
                 self.get_logger().error(
                     'PHYSICAL_CHASSIS_LOCK attach pose/twist verification failed; software mux remains locked')
                 return False
+            self._arm_command_output_enabled = True
+            self.get_logger().info(
+                'BOOT_ARM_COMMAND_GATE open: physical chassis hold confirmed')
             self.get_logger().info(
                 'DRINK_BASE_LOCK physical=ATTACHED + software=LOCKED + truth_hold=PASS')
             return True
@@ -2608,7 +2615,13 @@ class DrinkTask(Node):
                                    math.degrees(yaw_err), tvx, tvy, twz,
                                    vx, wz))
                             self._last_prepare_hold_trace_t = trace_now
-        self.bus.publish_all()
+        if self._arm_command_output_enabled:
+            self.bus.publish_all()
+        elif not getattr(self, '_arm_command_gate_logged', False):
+            self._arm_command_gate_logged = True
+            self.get_logger().info(
+                'BOOT_ARM_COMMAND_GATE closed: suppressing joint targets '
+                'until physical chassis hold is confirmed')
         now = time.time()
         # P98: 道具自愈 —— 壶/杯是自由体, 速度只增不减, 漂出场外后喝水
         # 链路就死了; 长驻进程的 gz 服务调用才可靠(§2.1), 所以重建只能
