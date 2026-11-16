@@ -3807,7 +3807,7 @@ class TestPhysicalGazeboChassisLock(unittest.TestCase):
         startup = source[source.index('def _startup_ground_lock_tick'):
                          source.index('def _set_mux_base_lock')]
         self.assertIn("initial_state not in (None, 'attached')", startup)
-        self.assertIn("_ground_lock_startup_handshake", startup)
+        self.assertIn("_ground_lock_startup_thread = threading.Thread", startup)
         self.assertIn("_ground_lock_probe_attempted", startup)
         handshake_start = source.index('def _startup_ground_lock_handshake')
         handshake_end = source.index('def _set_mux_base_lock', handshake_start)
