@@ -1577,3 +1577,10 @@
 - 在 #449（run `43837705749`）发现新增 GroundFixedJoint verifier 步骤时，自动写入的换行被错误保存为字面量 `\\n`，导致 workflow 文件无法被 GitHub Actions 正常解析，未创建 Job。
 - 已将该步骤恢复为真实 YAML 换行，并复核 `py_compile` 包含新 verifier；旧 ChassisBrake stage-lock verifier（前置及 E2E 后复核）均设置 `continue-on-error: true`，GroundFixedJoint 独立 verifier 仍是阻断性验收。
 - 该错误只影响 workflow 编排文件解析，不改变仿真代码、物理参数或此前 #445/#446 的测试证据。修复后的 workflow 等待新 Actions 运行验证。
+
+
+### 8.440 保留既有阶段锁测试契约名称（2026-11-16）
+
+- 新增 GroundFixedJoint verifier 后，Python 纯测试发现既有测试 `test_p104_stage_locks_are_commit_and_binary_bound` 仍通过精确步骤名称 `Verify immutable ChassisBrake stage locks` 检查 workflow 契约；步骤改名导致该测试失败（150 项中 149 项通过）。
+- 已保留原步骤名称前缀，并追加 `legacy non-authoritative diagnostic` 说明；继续保持 `continue-on-error: true`，不恢复旧门禁对 E2E 的阻断。
+- 此次为测试契约兼容性修正，不涉及物理参数、控制器或仿真模型。
