@@ -9,6 +9,8 @@ against the opt-in JointForceCmd PD brake, then verifies DiffDrive recovers
 after the brake component is removed.
 """
 import argparse
+import hashlib
+import json
 import math
 import os
 import re
@@ -36,6 +38,8 @@ CMD_TOPIC = "/model/robot/cmd_vel"
 ODOM_TOPIC = "/model/robot/odometry"
 WRENCH_TOPIC = "/world/brake_test/wrench/persistent"
 CLEAR_TOPIC = "/world/brake_test/wrench/clear"
+WRENCH_ENTITY_NAME = "robot"
+WRENCH_ENTITY_TYPE = "MODEL"
 BRAKE_TOPIC = "/chassis_brake/enable"
 # Diagnostic guard only; not a physical acceptance threshold.
 MAX_DIAGNOSTIC_WHEEL_RAD_S = 100.0
@@ -292,6 +296,85 @@ def measure_with_wrench(telemetry, duration, publisher, phase, log, process):
             "duration_s": duration}
 
 
+def stage_lock_inputs():
+    plugin_path = os.path.join(
+        ROOT, "vla_ws", "src", "vla_follow", "gz_plugins", "build",
+        "libChassisBrake.so")
+    plugin_source = os.path.join(
+        ROOT, "vla_ws", "src", "vla_follow", "gz_plugins", "ChassisBrake.cc")
+    return {
+        "world": WORLD,
+        "runner": os.path.abspath(__file__),
+        "plugin_source": plugin_source,
+        "plugin_binary": plugin_path,
+    }
+
+
+def sha256_file(path):
+    digest = hashlib.sha256()
+    with open(path, "rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def lock_inputs():
+    return {name: {"path": os.path.relpath(path, ROOT),
+                   "sha256": sha256_file(path)}
+            for name, path in stage_lock_inputs().items()}
+
+
+def write_stage_lock(path, stage, torque_nm, metrics, inputs):
+    try:
+        with open(path, encoding="utf-8") as stream:
+            manifest = json.load(stream)
+    except FileNotFoundError:
+        manifest = {
+            "schema_version": 1,
+            "git_sha": os.environ.get("GITHUB_SHA", "local"),
+            "candidate_torque_nm": torque_nm,
+            "input_hashes": inputs,
+            "stages": [],
+        }
+    if manifest["input_hashes"] != inputs:
+        raise RuntimeError("stage lock input hashes changed during experiment")
+    if manifest["candidate_torque_nm"] != torque_nm:
+        raise RuntimeError("stage lock candidate torque mismatch")
+    expected = ["world_ready", "baseline_disturbance",
+                "locked_hold", "unlock_recovery"]
+    next_index = len(manifest["stages"])
+    if next_index >= len(expected) or expected[next_index] != stage:
+        raise RuntimeError("out-of-order stage lock: %s at index %d" %
+                           (stage, next_index))
+    manifest["stages"].append({
+        "name": stage,
+        "status": "passed",
+        "metrics": metrics,
+    })
+    temporary = path + ".tmp"
+    with open(temporary, "w", encoding="utf-8") as stream:
+        json.dump(manifest, stream, indent=2, sort_keys=True)
+        stream.write("\\n")
+    os.replace(temporary, path)
+    return manifest
+
+
+def verify_stage_lock(path, expected_stages, inputs, torque_nm):
+    with open(path, encoding="utf-8") as stream:
+        manifest = json.load(stream)
+    actual = [stage.get("name") for stage in manifest.get("stages", [])]
+    if actual != expected_stages:
+        raise RuntimeError("stage lock sequence mismatch: %r" % actual)
+    if any(stage.get("status") != "passed"
+           for stage in manifest.get("stages", [])):
+        raise RuntimeError("stage lock contains a non-passed stage")
+    if manifest.get("input_hashes") != inputs:
+        raise RuntimeError("stage lock source/binary checksum mismatch")
+    if manifest.get("candidate_torque_nm") != torque_nm:
+        raise RuntimeError("stage lock torque mismatch")
+    return manifest
+
+
 def publish_clear_repeated(publisher, phase, log):
     count = 0
     deadline = time.monotonic() + 0.25
@@ -315,7 +398,11 @@ def run_single(torque_nm, log_suffix=""):
         raise RuntimeError("test world missing: " + WORLD)
     log_path = os.path.join(ROOT, "vla_ws", "logs", "chassis_brake_isolated%s.log" % log_suffix)
     runner_log_path = os.path.join(ROOT, "vla_ws", "logs", "chassis_brake_runner%s.log" % log_suffix)
+    stage_lock_path = os.path.join(
+        ROOT, "vla_ws", "logs", "p104_stage_locks%s.json" % log_suffix)
     os.makedirs(os.path.dirname(log_path), exist_ok=True)
+    if os.path.exists(stage_lock_path):
+        os.remove(stage_lock_path)
     with open(log_path, "w", encoding="utf-8") as log, \
          open(runner_log_path, "w", encoding="utf-8") as runner_log:
         def record(message):
@@ -342,6 +429,15 @@ def run_single(torque_nm, log_suffix=""):
                        "DiffDrive odometry twist", process)
             wait_until(lambda: len(telemetry.motion_snapshot()[2]) == 2, 30,
                        "both wheel joint positions", process)
+            inputs = lock_inputs()
+            initial = telemetry.motion_snapshot()
+            write_stage_lock(
+                stage_lock_path, "world_ready", torque_nm,
+                {"pose": initial[0], "twist": initial[1],
+                 "wheel_positions": initial[2],
+                 "wheel_velocities": initial[3]}, inputs)
+            verify_stage_lock(stage_lock_path, ["world_ready"], inputs,
+                              torque_nm)
 
             publish(CMD_TOPIC, "gz.msgs.Twist",
                     "linear: {x: 0.0} angular: {z: 0.0}")
@@ -352,9 +448,14 @@ def run_single(torque_nm, log_suffix=""):
             # cannot consume the only disturbance sample.
             wait_for_subscriber(WRENCH_TOPIC, "gz.msgs.EntityWrench", 15,
                                 runner_log)
-            wrench = ('entity: {name: "chassis" type: LINK} '
-                      'wrench: {torque: {z: %.9g}}' % torque_nm)
-            clear = 'name: "chassis" type: LINK'
+            # ApplyLinkWrench accepts a MODEL entity and routes the wrench to
+            # its canonical link. The test model explicitly declares chassis
+            # as canonical_link, avoiding an ambiguous unscoped link target.
+            wrench = ('entity: {name: "%s" type: %s} '
+                      'wrench: {torque: {z: %.9g}}' %
+                      (WRENCH_ENTITY_NAME, WRENCH_ENTITY_TYPE, torque_nm))
+            clear = 'name: "%s" type: %s' % (
+                WRENCH_ENTITY_NAME, WRENCH_ENTITY_TYPE)
             wrench_pub = PersistentPublisher(WRENCH_TOPIC, EntityWrench, wrench)
             wait_for_subscriber(CLEAR_TOPIC, "gz.msgs.Entity", 15,
                                 runner_log)
@@ -374,8 +475,15 @@ def run_single(torque_nm, log_suffix=""):
             record("candidate_torque_nm=%.9g baseline=%r" % (torque_nm, baseline))
             if baseline["max_yaw_deg"] < 0.5:
                 raise RuntimeError(
-                    "baseline disturbance too weak: yaw %.3f deg < 0.5 deg" %
+                    "baseline disturbance not physically observed: yaw %.6f deg "
+                    "< 0.5 deg (transport delivery alone is not a stage pass)" %
                     baseline["max_yaw_deg"])
+            write_stage_lock(
+                stage_lock_path, "baseline_disturbance", torque_nm,
+                baseline, inputs)
+            verify_stage_lock(
+                stage_lock_path,
+                ["world_ready", "baseline_disturbance"], inputs, torque_nm)
             time.sleep(0.5)
             ensure_sim_alive(process, "post-baseline settling")
 
@@ -392,6 +500,20 @@ def run_single(torque_nm, log_suffix=""):
             finally:
                 publish_clear_repeated(clear_pub, "locked", runner_log)
             record("candidate_torque_nm=%.9g locked=%r" % (torque_nm, locked))
+            if locked["max_yaw_deg"] >= baseline["max_yaw_deg"] * 0.5:
+                raise RuntimeError(
+                    "brake did not reduce yaw drift by at least 50 percent")
+            write_stage_lock(
+                stage_lock_path, "locked_hold", torque_nm,
+                {"baseline_yaw_deg": baseline["max_yaw_deg"],
+                 "locked_yaw_deg": locked["max_yaw_deg"],
+                 "reduction_ratio": 1.0 - locked["max_yaw_deg"] /
+                                    baseline["max_yaw_deg"],
+                 "locked": locked}, inputs)
+            verify_stage_lock(
+                stage_lock_path,
+                ["world_ready", "baseline_disturbance", "locked_hold"],
+                inputs, torque_nm)
             time.sleep(0.25)
 
             publish(BRAKE_TOPIC, "gz.msgs.Boolean", "data: false")
@@ -414,18 +536,25 @@ def run_single(torque_nm, log_suffix=""):
                                          drive_end[1] - drive_start[1]) * 1000.0
 
             record("unlock_recovery_displacement_mm=" + str(round(recovery_mm, 3)))
-
-            # First ensure the disturbance actually challenged the baseline.
-            if baseline["max_yaw_deg"] < 0.5:
-                raise RuntimeError(
-                    "baseline disturbance too weak to distinguish brake hold")
-            if locked["max_yaw_deg"] >= baseline["max_yaw_deg"] * 0.5:
-                raise RuntimeError(
-                    "brake did not reduce yaw drift by at least 50 percent")
             if recovery_mm < 10.0:
                 raise RuntimeError(
                     "DiffDrive did not recover after JointForceCmd removal")
+            write_stage_lock(
+                stage_lock_path, "unlock_recovery", torque_nm,
+                {"displacement_mm": recovery_mm}, inputs)
+            manifest = verify_stage_lock(
+                stage_lock_path,
+                ["world_ready", "baseline_disturbance",
+                 "locked_hold", "unlock_recovery"], inputs, torque_nm)
+            canonical_lock = os.path.join(
+                ROOT, "vla_ws", "logs", "p104_chassis_brake_stage_locks.json")
+            temporary_lock = canonical_lock + ".tmp"
+            with open(temporary_lock, "w", encoding="utf-8") as stream:
+                json.dump(manifest, stream, indent=2, sort_keys=True)
+                stream.write("\\n")
+            os.replace(temporary_lock, canonical_lock)
             record("PASS: isolated brake hold and unlock recovery")
+            record("STAGE_LOCKS_VERIFIED=" + canonical_lock)
             return 0
         finally:
             try:
