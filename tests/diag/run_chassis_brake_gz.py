@@ -225,7 +225,7 @@ def measure_with_wrench(telemetry, duration, publisher, phase, log, process):
         if max_wheel > MAX_DIAGNOSTIC_WHEEL_RAD_S:
             log.write(
                 "%s runaway_wheel_velocity_rad_s=%.6f limit=%.1f "
-                "pose=%r wheels=%r\\n" %
+                "pose=%r wheels=%r\n" %
                 (phase, max_wheel, MAX_DIAGNOSTIC_WHEEL_RAD_S,
                  pose, wheels))
             log.flush()
