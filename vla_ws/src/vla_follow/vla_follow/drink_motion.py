@@ -3203,16 +3203,33 @@ def pour_approach(node, v_max=0.16, info=None):
         node.get_logger().error(
             'POUR 入场无法确认远端待命位（%.1fmm），不执行 home/抬臂' % stand_mm)
         return out
+    # Home and lift are arm motions and can react against the free-rolling base.
+    # Acquire the physical hold before either motion; retain it on any failure.
+    if not node.set_base_lock(True):
+        out.update(ok=False, reason='chassis_lock_unconfirmed')
+        node.get_logger().error(
+            'POUR 入场 home 前物理底盘锁未确认，拒绝执行机械臂动作')
+        return out
     home_ok = node.home()            # 在远处复位(臂 Q_REST、十指张开、水流归零)
     if not home_ok:
         out.update(ok=False, reason='home_failed')
-        node.get_logger().error('POUR 入场 home 复位失败，停止抬臂')
+        node.get_logger().error('POUR 入场 home 复位失败，保持底盘锁并停止抬臂')
         return out
     out['gap_before'] = round(table_gap_m(node), 3)
     out['gap_at_arrival'] = round(d0, 3)
     out['reach_m'] = K.ARM_REACH
     ok_l, errs = lift_ready(node)
     out['lift'] = errs
+    if not ok_l:
+        out.update(ok=False, reason='lift_ready_failed')
+        node.get_logger().error(
+            'POUR 入场抬臂未确认，保持物理底盘锁并停止驶入')
+        return out
+    if not node.set_base_lock(False):
+        out.update(ok=False, reason='chassis_unlock_unconfirmed')
+        node.get_logger().error(
+            'POUR 入场 home/抬臂完成但底盘解锁未确认，拒绝驶入')
+        return out
     node.get_logger().info(
         'POUR 入场: 车→桌沿 %.2fm(臂+手 %.2fm, 余量 %+.0fmm) 双手抬到 %.2fm'
         % (out['gap_before'], K.ARM_REACH,
