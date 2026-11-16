@@ -685,19 +685,23 @@ def reach(node, side, T_world, tol_mm=3.0, passes=len(TOL_SCHED),
                     _mca_limits_ok = bool(
                         np.all(_mca_q >= K.LIM_LO - 1e-8)
                         and np.all(_mca_q <= K.LIM_HI + 1e-8))
+                    _current_fk = K.fk_world(side, q, base_at_ik)
+                    _current_pos_mm = pos_err_mm(_current_fk, T_world)
+                    _current_axis_deg = axis_angle_deg(_current_fk, T_world)
                     _mca_posture_ok = (
                         not _mca_bad and
                         (_mode != 'human' or
                          K.human_penalty(side, _mca_q) <=
-                         K.human_penalty(side, q) + 0.05))
+                         K.human_penalty(side, q) + 1e-9))
                     _mca_accept = (
                         _mca_limits_ok and _mca_posture_ok
                         and math.isfinite(float(_mca_pos_mm))
                         and math.isfinite(float(_mca_axis_deg))
                         and _mca_pos_mm <= 4.0 and _mca_axis_deg <= 0.5
-                        and (_mca_pos_mm + 0.25 * _mca_axis_deg <
-                             ik_fk_mm + 0.25 * axis_angle_deg(
-                                 K.fk_world(side, q, base_at_ik), T_world)))
+                        and _mca_pos_mm <= _current_pos_mm + 1e-6
+                        and _mca_axis_deg <= _current_axis_deg + 1e-6
+                        and (_mca_pos_mm < _current_pos_mm - 1e-6
+                             or _mca_axis_deg < _current_axis_deg - 1e-6))
                     if _mca_accept:
                         q = _mca_q
                         how = how + '/mca-dls-refine'
