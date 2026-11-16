@@ -1424,3 +1424,17 @@
 - **验证状态：代码已提交，CI 待执行。** 本地/离线语法、P104 回归、Gazebo 插件构建和实际 Gazebo 标定尚未取得本次提交后的新结果；不能声称候选已找到或 P104-10.1 已通过。下一步必须先检查 Python syntax / P104 regression / 插件构建，再读取新的 Gazebo artifact，确认每个候选的真实测量值与清除/退出记录。
 - 不改变 baseline `0.5°`、轮速诊断护栏 `100rad/s`、locked yaw reduction `>=50%`、unlock recovery `>=10mm`；不修改质量、惯量、摩擦、阻尼、轮端 effort limit 或 PD 增益。隔离实验通过前不将插件接入生产 `work_area.sdf`，不推进 P104-10.2/10.3。
 - 仅在 `experiment/drinktask-bt-ik-recovery` 修改；`main` 未修改；PR #3 保持 Draft/Open，不合并；不创建其他分支或定时监控。
+
+
+### 8.424 #403 / #404 失败根因复核与 P104 隔离阶段锁（2026-11-16）
+
+- 检查 E2E #403（run `43812792236`，artifact `14201660689`）和 #404（run `43812799466`，artifact `14201129723`）。两次都通过行为树单测、P104 offline regression、Gazebo 插件构建、CTest 和动态链接检查；均失败于 `Run isolated ChassisBrake hold and unlock experiment`，后续 ROS workspace build 和完整 DrinkTask E2E 因前置失败而未执行。辅助 workflow Python syntax #1248、CarryBus ROS2 #987、GraspCarry C++ build #223、base-arm collector syntax #140 均通过。
+- 两次均发现 wrench/clear subscriber，且 publisher endpoint 可见；每个候选持续发布约 1 秒（20 次 persistent wrench），并在失败路径发布 5 次 clear。0.05、0.075、0.1、0.15、0.25、0.4、0.6、0.9Nm 八个候选全部未通过 baseline 的 yaw `>=0.5°` 门槛；最大观测 yaw 仅约 `0.000115°`，最大轮速约 `3.65e-9rad/s`，起止 pose 和轮端状态几乎不变。故本轮不是轮速护栏触发，也没有 LOCKED / UNLOCKED 证据。
+- **根因判断必须分层表述：** 已证实的是 Gazebo Transport endpoint 可发现、发布调用成功，但物理响应没有发生；endpoint 可见不等于 ApplyLinkWrench 已将 wrench 施加到预期实体。当前日志缺少“目标实体成功解析/施力”的独立确认，故不能将本轮归因为候选力矩不足，也不能声称已经验证目标 link 的物理响应。#403/#404 是实验输入路径/实体目标验证缺失，而非 ChassisBrake 锁定逻辑失败。
+- 修正输入目标描述：隔离 SDF 的 robot model 明确声明 `canonical_link="chassis"`，runner 改为向 ApplyLinkWrench 指定 `entity.name="robot", type=MODEL`，由 Gazebo 将 wrench 作用到模型 canonical link；clear 使用相同 model entity。该选择依据 Gazebo Sim 8 ApplyLinkWrench 官方 API 对 MODEL canonical link 行为的说明。此修正仍属待 CI 物理验证的修复假设，只有后续测得 baseline yaw 响应且轮速/状态稳定，才能确认目标作用正确。官方 API：https://gazebosim.org/api/sim/8/classgz_1_1sim_1_1systems_1_1ApplyLinkWrench.html。
+- 新增隔离实验四级锁：`world_ready`（初始 pose/twist/双轮速度有限且静止）、`baseline_disturbance`（真实物理响应 yaw >=0.5° 且 wheel speed <=100rad/s）、`locked_hold`（yaw 抑制 >=50%）、`unlock_recovery`（恢复位移 >=10mm）。每一级必须按顺序成功后才能写入锁记录；后一级开始前验证前序锁记录仍完整。
+- 每份阶段锁绑定 Git commit SHA，以及隔离 SDF、runner、ChassisBrake 源码和已构建 `libChassisBrake.so` 的 SHA-256。完整四级锁成功后生成 `p104_chassis_brake_stage_locks.json`；后续 ROS workspace build 结束、完整 DrinkTask E2E 开始前必须再次验证 commit、输入哈希、阶段顺序和物理指标。若源码/仿真世界/插件二进制在下游步骤被更改，验证立即失败并要求重新跑隔离阶段，不允许沿用旧的 PASS。
+- workflow 上传每轮候选阶段锁及最终锁 manifest，作为可审计证据。阶段锁是“已验证输入与产物不可静默漂移”的门禁，不是对未来任何环境/代码变化的绝对成功保证；当绑定输入改变时必须重新验收。
+- 当前实现已提交，**物理阶段仍未通过**：模型实体目标修正后的 baseline、LOCKED 和 UNLOCKED 尚无 CI 实测结果；没有生成有效完整阶段锁之前，后续 ROS build / 完整 DrinkTask E2E 必须继续被阻断。不得将本轮 transport 发布成功等同于物理验收通过。
+- 不修改 baseline `0.5°`、wheel speed 护栏 `100rad/s`、locked yaw reduction `>=50%`、unlock recovery `>=10mm`；不修改质量、惯量、摩擦、阻尼、轮端 effort limit 或 PD 增益。ChassisBrake 不接入生产 `work_area.sdf`，P104-10.2/10.3 暂不推进。
+- 仅在 `experiment/drinktask-bt-ik-recovery` 修改；`main` 未修改；PR #3 保持 Draft/Open，不合并；不创建其他分支或定时监控。
