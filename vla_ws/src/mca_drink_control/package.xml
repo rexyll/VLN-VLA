@@ -6,6 +6,7 @@
   <maintainer email="rexyll@gmail.com">rexyll</maintainer>
   <license>Apache-2.0</license>
   <buildtool_depend>ament_cmake</buildtool_depend>
+  <build_depend>python3-numpy</build_depend>
   <test_depend>ament_cmake_gtest</test_depend>
   <export><build_type>ament_cmake</build_type></export>
 </package>
