@@ -1344,3 +1344,15 @@
 - 订阅 readiness gate 已执行但尚不能证明消息被 ApplyLinkWrench 实际消费；下一次 CI 必须检查 `chassis_brake_runner.log` 中真实 subscriber endpoint，并用 baseline pose/yaw 响应门槛确认扰动生效。若仍无响应，继续检查 topic 订阅者、发布命令序列化、Gazebo system 日志及实体匹配；不能跳过 baseline gate 或降低门槛。
 - P104-10.1 隔离物理制动验收仍未通过；P104-10.2 独立静止确认和 P104-10.3 机械臂反作用力回归未开始；生产 `work_area.sdf` 不接入 ChassisBrake。完整 DrinkTask E2E 本轮未执行。
 - `main` 未修改；PR #3 保持 Draft/Open，不合并；仅在 `experiment/drinktask-bt-ik-recovery` 修改，未创建其他分支。
+
+
+
+### 8.417 #372 LINK chassis 扰动实验仍失败：一次性 publisher 交付竞态待验证（2026-11-16）
+
+- PR E2E Run #372（ID `43798796342`，job `133073702137`，head `b127c352fcdfc09842b16877e7865569bc78f292`）依赖安装、行为树单测、P104 offline regression、Gazebo 插件构建、CTest 与插件动态链接检查均通过；失败仅发生在隔离 ChassisBrake 实验，后续 ROS workspace build 和完整 DrinkTask E2E 被跳过。
+- 实验数据：baseline `max_xy_mm=1.1276e-8`、`max_yaw_deg=0.0004589`、`max_wheel_rad_s=3.6489e-9`；locked `max_xy_mm=0.6215`、`max_yaw_deg=0.33746`、`max_wheel_rad_s=0.64466`；解锁恢复位移 `108.337mm`。直接失败断言为 `baseline disturbance too weak to distinguish brake hold`。baseline 不具备足够扰动响应，A/B 对比无效；locked 也不能据此验收通过。
+- 已将扰动目标改为显式 `LINK chassis`，但失败复现。Gazebo Sim 8 官方文档说明 ApplyLinkWrench 支持 LINK 或 MODEL，MODEL 目标会作用于 canonical link；力矩以世界坐标表达。因而不能继续仅凭目标实体名称认定根因。
+- runner 目前以 `gz topic -i` 检查 subscriber endpoint，但发送使用短生命周期的一次性 `gz topic -p` 进程。subscriber 可见不等于临时 publisher 已完成发现/连接并确保消息被接收。baseline 近零、locked 阶段有明显响应的非对称结果，使一次性 publisher 传输握手竞态成为首要待验证假设，但尚无 receiver-side 消息确认，不能写成已证实根因。
+- 下一步应将一次性发布改为有持续生命周期的 Gazebo Transport publisher（或等效可靠发布器），在一个已建立的 publisher 上重复发送/保持消息，并记录 publisher/subscriber 连接状态及每次发送结果；再增加明确的扰动接收/物理响应门控，确保 baseline 和 locked 使用相同且已生效的扰动。不可通过放宽 baseline 0.5°门槛、增加力矩或改变质量/摩擦/阻尼/effort limit 来制造通过。
+- 本轮解锁后位移达到 108.337mm，说明 DiffDrive 在解锁后仍能恢复运动；这只验证解锁路径的一部分，不代表锁定保持通过。P104-10.1 仍未验收；P104-10.2 独立静止确认、P104-10.3 机械臂反作用力回归及完整 DrinkTask E2E 均未执行。
+- `main` 未修改；PR #3 保持 Draft/Open；只在 `experiment/drinktask-bt-ik-recovery` 修改，不创建其他分支。
