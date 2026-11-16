@@ -229,7 +229,7 @@ jobs:
           test -s "$PKG_SHARE/maps/arena.pgm"
           grep -Fq "image: arena.pgm" "$PKG_SHARE/maps/arena.yaml"
 
-      - name: Verify legacy immutable ChassisBrake stage locks (non-authoritative diagnostic)
+      - name: Verify immutable ChassisBrake stage locks (legacy non-authoritative diagnostic)
         continue-on-error: true
         run: |
           python3 tests/diag/verify_p104_stage_locks.py
