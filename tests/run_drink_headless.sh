@@ -152,7 +152,7 @@ echo "[2/5] Starting full DrinkTask node set (Nav2 enabled; random auto-drink of
 PW_AUTO_DRINK=0 NAV2=1 bash "$ROOT/tools/start_drink_demo.sh"
 
 echo "[3/5] Waiting for required ROS nodes and Nav2 action server"
-required_nodes=(/person_walk /voice_node /drink_task /follower /cmd_mux)
+required_nodes=(/person_walk /voice_node /mca_ik_server /drink_task /follower /cmd_mux)
 for node in "${required_nodes[@]}"; do
     ready=0
     for _ in $(seq 1 90); do
