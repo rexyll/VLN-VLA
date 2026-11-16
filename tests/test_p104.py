@@ -3826,8 +3826,15 @@ class TestPhysicalGazeboChassisLock(unittest.TestCase):
                         lock.index("self._ground_lock.command(\n                    'attached'"))
         self.assertLess(lock.index("self._ground_lock.command(\n                'detached'"),
                         lock.index('_verify_chassis_pose_stable(_pose_before_detach)'))
-        self.assertLess(lock.index('_verify_chassis_pose_stable(_pose_before_detach)'),
-                        lock.index('self._set_mux_base_lock(False)'))
+        detach_verify = lock.index(
+            '_verify_chassis_pose_stable(_pose_before_detach)')
+        mux_unlock = lock.index('self._set_mux_base_lock(False, timeout=timeout)')
+        self.assertLess(detach_verify, mux_unlock)
+        self.assertLess(
+            mux_unlock,
+            lock.index('self._set_mux_base_lock(True, timeout=timeout)',
+                       mux_unlock))
+        self.assertIn("self._ground_lock.command(\n                    'attached'", lock)
 
     def test_stationary_gate_uses_fresh_truth_joint_and_wheel_measurements(self):
         task_path = os.path.join(
