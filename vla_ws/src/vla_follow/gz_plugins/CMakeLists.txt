@@ -40,6 +40,20 @@ target_link_libraries(GraspCarry
 set_target_properties(GraspCarry PROPERTIES
   LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
+# P104-10.1 experimental wheel-joint PD brake. This library is loaded only
+# by the isolated brake test world until its physical hold/release gates pass.
+add_library(ChassisBrake SHARED ChassisBrake.cc)
+target_link_libraries(ChassisBrake
+  gz-sim8::gz-sim8
+  gz-plugin2::register
+  gz-transport13::gz-transport13
+  gz-msgs10::gz-msgs10
+  gz-common5::gz-common5
+  gz-math7::gz-math7
+)
+set_target_properties(ChassisBrake PROPERTIES
+  LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+
 
 # Standalone unit tests for the transport-thread queue/cache primitives.
 # The test executable itself has no Gazebo link dependency; project configure still
