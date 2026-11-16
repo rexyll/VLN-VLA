@@ -1570,3 +1570,10 @@
 - 新增 `tests/diag/verify_ground_fixed_joint.py`，对三轮独立 Gazebo 的 summary 做物理证据检查：3/3 PASS、状态序列完整、detach 可移动 >=10mm、attach 位移 <2mm、yaw <0.5°、轮速护栏满足、unlock recovery >=10mm。
 - workflow 已增加独立 GroundFixedJoint manifest 验证，并将旧 ChassisBrake stage-lock verifier 明确降为 non-authoritative、continue-on-error 诊断；它继续执行并保留失败证据，但不再阻断完整 DrinkTask E2E。该处理不改变旧扰动门槛，也不把两个模块合并验收。
 - #445/#446 尚未执行完整 DrinkTask E2E；新 workflow 需要下一轮验证 GroundFixedJoint verifier 和 ROS 2 build 后，能否真正进入 headless DrinkTask。即使 E2E 通过，也只证明当前生产流程回归，不代表 GroundFixedJoint 已集成到生产 `work_area.sdf` 或完成手臂反作用力负载测试。
+
+
+### 8.439 Workflow 修复提交的 YAML 转义错误修正（2026-11-16）
+
+- 在 #449（run `43837705749`）发现新增 GroundFixedJoint verifier 步骤时，自动写入的换行被错误保存为字面量 `\\n`，导致 workflow 文件无法被 GitHub Actions 正常解析，未创建 Job。
+- 已将该步骤恢复为真实 YAML 换行，并复核 `py_compile` 包含新 verifier；旧 ChassisBrake stage-lock verifier（前置及 E2E 后复核）均设置 `continue-on-error: true`，GroundFixedJoint 独立 verifier 仍是阻断性验收。
+- 该错误只影响 workflow 编排文件解析，不改变仿真代码、物理参数或此前 #445/#446 的测试证据。修复后的 workflow 等待新 Actions 运行验证。
