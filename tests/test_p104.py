@@ -747,6 +747,32 @@ class TestP104(unittest.TestCase):
         self.assertIn("res['downstream_checks'] = 'NOT_RUN'", observer)
         self.assertIn("tag = ('failure' if isinstance(w.state, str)", observer)
 
+    def test_chassis_brake_isolated_plugin_overrides_and_releases_diffdrive(self):
+        plugin_path = os.path.join(ROOT, 'vla_ws', 'src', 'vla_follow',
+                                   'gz_plugins', 'ChassisBrake.cc')
+        world_path = os.path.join(ROOT, 'tests', 'diag',
+                                  'chassis_brake_test.sdf')
+        script_path = os.path.join(ROOT, 'tests', 'diag',
+                                   'test_chassis_brake_gz.py')
+        production_world = os.path.join(ROOT, 'vla_ws', 'src', 'vla_follow',
+                                        'worlds', 'work_area.sdf')
+        with open(plugin_path, encoding='utf-8') as stream:
+            plugin = stream.read()
+        with open(world_path, encoding='utf-8') as stream:
+            world = stream.read()
+        with open(script_path, encoding='utf-8') as stream:
+            script = stream.read()
+        with open(production_world, encoding='utf-8') as stream:
+            production = stream.read()
+        self.assertIn('components::JointForceCmd', plugin)
+        self.assertIn('RemoveComponent<gz::sim::components::JointForceCmd>', plugin)
+        self.assertIn('LOCKED force_components_installed', plugin)
+        self.assertIn('UNLOCKED force_components_removed', plugin)
+        self.assertIn('libChassisBrake.so', world)
+        self.assertNotIn('libChassisBrake.so', production)
+        self.assertIn('wrench: {torque: {z: 18.0}}', script)
+        self.assertIn('DiffDrive did not recover', script)
+
     def test_dynamics_collector_uses_documented_gazebo_joint_state_topic(self):
         collector = open(os.path.join(ROOT, 'tests', 'diag',
                                       'collect_base_arm_dynamics.py'),
