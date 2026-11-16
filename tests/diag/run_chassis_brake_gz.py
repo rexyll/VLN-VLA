@@ -240,9 +240,15 @@ def measure_with_wrench(telemetry, duration, publisher, phase, log, process):
     log.flush()
     if publish_count < 5:
         raise RuntimeError("%s wrench publisher delivered too few messages" % phase)
+    end_pose = telemetry.snapshot()[0]
+    log.write("%s_pose_start=%r pose_end=%r elapsed_s=%.3f\n" %
+              (phase, start_pose, end_pose, duration))
+    log.flush()
     return {"max_xy_mm": max_xy * 1000.0,
             "max_yaw_deg": max_yaw,
-            "max_wheel_rad_s": max_wheel}
+            "max_wheel_rad_s": max_wheel,
+            "pose_start": start_pose, "pose_end": end_pose,
+            "duration_s": duration}
 
 
 def publish_clear_repeated(publisher, phase, log):
@@ -315,10 +321,16 @@ def run_single(torque_nm, log_suffix=""):
 
             # Baseline: the physical response gate remains the calibration
             # proof that ApplyLinkWrench actually affected the chassis.
-            baseline = measure_with_wrench(
-                telemetry, 1.0, wrench_pub, "baseline", runner_log, process)
+            try:
+                baseline = measure_with_wrench(
+                    telemetry, 1.0, wrench_pub, "baseline", runner_log, process)
+            finally:
+                publish_clear_repeated(clear_pub, "baseline", runner_log)
             record("candidate_torque_nm=%.9g baseline=%r" % (torque_nm, baseline))
-            publish_clear_repeated(clear_pub, "baseline", runner_log)
+            if baseline["max_yaw_deg"] < 0.5:
+                raise RuntimeError(
+                    "baseline disturbance too weak: yaw %.3f deg < 0.5 deg" %
+                    baseline["max_yaw_deg"])
             time.sleep(0.5)
             ensure_sim_alive(process, "post-baseline settling")
 
@@ -329,10 +341,12 @@ def run_single(torque_nm, log_suffix=""):
                                    for s in telemetry.snapshot()[2]),
                        5, "ChassisBrake LOCKED component acknowledgement",
                        process)
-            locked = measure_with_wrench(
-                telemetry, 1.0, wrench_pub, "locked", runner_log, process)
+            try:
+                locked = measure_with_wrench(
+                    telemetry, 1.0, wrench_pub, "locked", runner_log, process)
+            finally:
+                publish_clear_repeated(clear_pub, "locked", runner_log)
             record("candidate_torque_nm=%.9g locked=%r" % (torque_nm, locked))
-            publish_clear_repeated(clear_pub, "locked", runner_log)
             time.sleep(0.25)
 
             publish(BRAKE_TOPIC, "gz.msgs.Boolean", "data: false")
@@ -381,6 +395,8 @@ def run_single(torque_nm, log_suffix=""):
                 except ProcessLookupError:
                     pass
                 process.wait(timeout=5)
+            log.write("gazebo_exit_code=%s\\n" % process.returncode)
+            log.flush()
 
 
 def main():
@@ -413,8 +429,8 @@ def main():
     os.makedirs(log_dir, exist_ok=True)
     summary_path = os.path.join(log_dir, "chassis_brake_runner.log")
     with open(summary_path, "w", encoding="utf-8") as summary:
-        summary.write("calibration_mode=fresh_gazebo_process_per_candidate\\n")
-        summary.write("torque_candidates_nm=%r\\n" % candidates)
+        summary.write("calibration_mode=fresh_gazebo_process_per_candidate\n")
+        summary.write("torque_candidates_nm=%r\n" % candidates)
         summary.flush()
         for index, torque_nm in enumerate(candidates):
             suffix = "_torque_" + ("%.6g" % torque_nm).replace(".", "p")
@@ -428,13 +444,13 @@ def main():
                 text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
             elapsed = time.monotonic() - started
             summary.write(
-                "candidate_index=%d torque_nm=%.9g exit_code=%d elapsed_s=%.3f\\n"
+                "candidate_index=%d torque_nm=%.9g exit_code=%d elapsed_s=%.3f\n"
                 % (index, torque_nm, result.returncode, elapsed))
             summary.write(result.stdout)
             summary.flush()
             print(result.stdout, end="", flush=True)
             if result.returncode == 0 and "PASS: isolated brake hold" in result.stdout:
-                summary.write("CALIBRATION_PASS torque_nm=%.9g\\n" % torque_nm)
+                summary.write("CALIBRATION_PASS torque_nm=%.9g\n" % torque_nm)
                 summary.flush()
                 print("CALIBRATION_PASS torque_nm=%.9g" % torque_nm, flush=True)
                 return 0
