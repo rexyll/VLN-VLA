@@ -34,6 +34,8 @@ CMD_TOPIC = "/model/robot/cmd_vel"
 WRENCH_TOPIC = "/world/brake_test/wrench/persistent"
 CLEAR_TOPIC = "/world/brake_test/wrench/clear"
 BRAKE_TOPIC = "/chassis_brake/enable"
+# Diagnostic guard only; not a physical acceptance threshold.
+MAX_DIAGNOSTIC_WHEEL_RAD_S = 100.0
 
 
 def yaw(q):
@@ -169,16 +171,28 @@ def wait_for_publisher(topic, message_type, timeout, log):
     raise RuntimeError("Gazebo publisher not discovered for " + topic)
 
 
-def wait_until(predicate, timeout, description):
+def ensure_sim_alive(process, phase):
+    return_code = process.poll()
+    if return_code is not None:
+        raise RuntimeError(
+            "Gazebo process exited during %s (exit_code=%s)" %
+            (phase, return_code))
+
+
+def wait_until(predicate, timeout, description, process=None):
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
+        if process is not None:
+            ensure_sim_alive(process, description)
         if predicate():
             return
         time.sleep(0.02)
+    if process is not None:
+        ensure_sim_alive(process, description)
     raise RuntimeError("timeout waiting for " + description)
 
 
-def measure_with_wrench(telemetry, duration, publisher, phase, log):
+def measure_with_wrench(telemetry, duration, publisher, phase, log, process):
     """Publish the same persistent wrench throughout the measurement window."""
     start_pose, _, _ = telemetry.snapshot()
     if start_pose is None:
@@ -190,6 +204,7 @@ def measure_with_wrench(telemetry, duration, publisher, phase, log):
     deadline = time.monotonic() + duration
     next_publish = time.monotonic()
     while time.monotonic() < deadline:
+        ensure_sim_alive(process, phase + " wrench measurement")
         now = time.monotonic()
         if now >= next_publish:
             publisher.publish_once()
@@ -205,6 +220,19 @@ def measure_with_wrench(telemetry, duration, publisher, phase, log):
             max_yaw = max(max_yaw, abs(math.degrees(dyaw)))
         if wheels:
             max_wheel = max(max_wheel, *(abs(v) for v in wheels.values()))
+        if not all(math.isfinite(v) for v in (max_xy, max_yaw, max_wheel)):
+            raise RuntimeError("%s produced non-finite physical telemetry" % phase)
+        if max_wheel > MAX_DIAGNOSTIC_WHEEL_RAD_S:
+            log.write(
+                "%s runaway_wheel_velocity_rad_s=%.6f limit=%.1f "
+                "pose=%r wheels=%r\\n" %
+                (phase, max_wheel, MAX_DIAGNOSTIC_WHEEL_RAD_S,
+                 pose, wheels))
+            log.flush()
+            raise RuntimeError(
+                "%s unstable dynamics: wheel velocity %.3f rad/s "
+                "exceeded diagnostic guard %.1f rad/s" %
+                (phase, max_wheel, MAX_DIAGNOSTIC_WHEEL_RAD_S))
         time.sleep(0.01)
     log.write("%s_wrench_publish_count=%d duration_s=%.3f\n" %
               (phase, publish_count, duration))
@@ -259,9 +287,9 @@ def main():
         try:
             telemetry = Telemetry()
             wait_until(lambda: telemetry.snapshot()[0] is not None, 30,
-                       "initial Gazebo robot pose")
+                       "initial Gazebo robot pose", process)
             wait_until(lambda: len(telemetry.snapshot()[1]) == 2, 30,
-                       "both wheel joint states")
+                       "both wheel joint states", process)
 
             publish(CMD_TOPIC, "gz.msgs.Twist",
                     "linear: {x: 0.0} angular: {z: 0.0}")
@@ -287,19 +315,21 @@ def main():
             # Baseline: the physical response gate remains the calibration
             # proof that ApplyLinkWrench actually affected the chassis.
             baseline = measure_with_wrench(
-                telemetry, 1.0, wrench_pub, "baseline", runner_log)
+                telemetry, 1.0, wrench_pub, "baseline", runner_log, process)
             record("baseline=" + repr(baseline))
             publish_clear_repeated(clear_pub, "baseline", runner_log)
             time.sleep(0.5)
+            ensure_sim_alive(process, "post-baseline settling")
 
             # Brake: latch current wheel angles, then apply the identical,
             # repeatedly published disturbance through the same publisher.
             publish(BRAKE_TOPIC, "gz.msgs.Boolean", "data: true")
             wait_until(lambda: any(s.startswith("LOCKED")
                                    for s in telemetry.snapshot()[2]),
-                       5, "ChassisBrake LOCKED component acknowledgement")
+                       5, "ChassisBrake LOCKED component acknowledgement",
+                       process)
             locked = measure_with_wrench(
-                telemetry, 1.0, wrench_pub, "locked", runner_log)
+                telemetry, 1.0, wrench_pub, "locked", runner_log, process)
             record("locked=" + repr(locked))
             publish_clear_repeated(clear_pub, "locked", runner_log)
             time.sleep(0.25)
@@ -307,7 +337,8 @@ def main():
             publish(BRAKE_TOPIC, "gz.msgs.Boolean", "data: false")
             wait_until(lambda: any(s.startswith("UNLOCKED")
                                    for s in telemetry.snapshot()[2]),
-                       5, "ChassisBrake UNLOCKED component removal")
+                       5, "ChassisBrake UNLOCKED component removal",
+                       process)
 
             # Release recovery: ordinary DiffDrive command must move the base.
             drive_start = telemetry.snapshot()[0]
