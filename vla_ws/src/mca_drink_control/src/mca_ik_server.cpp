@@ -60,9 +60,25 @@ class McaIkServer final : public rclcpp::Node {
       response->message = "side must be R or L";
       return;
     }
-    if (request->seed.size() != 7U) {
-      response->message = "seed must contain exactly seven arm joint positions";
+    if (request->seed.name.size() != 7U ||
+        request->seed.position.size() != 7U) {
+      response->message = "seed must contain seven named arm joint positions";
       return;
+    }
+    std::vector<double> seed;
+    seed.reserve(7U);
+    std::size_t seed_index = 0;
+    for (const auto& joint : model_it->second.joints) {
+      if (joint.type == mca::kinematics::JointType::Fixed) continue;
+      if (request->seed.name[seed_index] != joint.name) {
+        response->message = "seed joint name/order mismatch at index " +
+                            std::to_string(seed_index) + ": expected " +
+                            joint.name + ", got " +
+                            request->seed.name[seed_index];
+        return;
+      }
+      seed.push_back(request->seed.position[seed_index]);
+      ++seed_index;
     }
     auto options = mca::kinematics::DampedLeastSquaresIkOptions{};
     if (request->position_tolerance_m > 0.0)
@@ -73,9 +89,17 @@ class McaIkServer final : public rclcpp::Node {
       options.max_iterations = request->max_iterations;
 
     const auto report = McaArmCore::solve_ik(
-        model_it->second, to_mca_pose(request->target), request->seed, options);
+        model_it->second, to_mca_pose(request->target), seed, options);
     response->success = report.converged;
-    response->joint_positions = report.joint_positions;
+    seed_index = 0;
+    for (const auto& joint : model_it->second.joints) {
+      if (joint.type == mca::kinematics::JointType::Fixed) continue;
+      response->solution.name.push_back(joint.name);
+      if (seed_index < report.joint_positions.size())
+        response->solution.position.push_back(report.joint_positions[seed_index]);
+      ++seed_index;
+    }
+    response->solution.header.stamp = now();
     response->iterations = static_cast<uint32_t>(report.iterations);
     response->position_error_m = report.position_error_m;
     response->orientation_error_rad = report.orientation_error_rad;
