@@ -753,7 +753,7 @@ class TestP104(unittest.TestCase):
         world_path = os.path.join(ROOT, 'tests', 'diag',
                                   'chassis_brake_test.sdf')
         script_path = os.path.join(ROOT, 'tests', 'diag',
-                                   'test_chassis_brake_gz.py')
+                                   'run_chassis_brake_gz.py')
         production_world = os.path.join(ROOT, 'vla_ws', 'src', 'vla_follow',
                                         'worlds', 'work_area.sdf')
         with open(plugin_path, encoding='utf-8') as stream:
