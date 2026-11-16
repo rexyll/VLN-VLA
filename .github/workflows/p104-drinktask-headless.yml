@@ -187,6 +187,7 @@ jobs:
             -B vla_ws/src/vla_follow/gz_plugins/build \
             -DCMAKE_BUILD_TYPE=Release
           cmake --build vla_ws/src/vla_follow/gz_plugins/build --parallel 2
+          ctest --test-dir vla_ws/src/vla_follow/gz_plugins/build --output-on-failure
           test -s vla_ws/src/vla_follow/gz_plugins/build/libGraspCarry.so
           test -s vla_ws/src/vla_follow/gz_plugins/build/libChassisBrake.so
           ldd -r vla_ws/src/vla_follow/gz_plugins/build/libGraspCarry.so
