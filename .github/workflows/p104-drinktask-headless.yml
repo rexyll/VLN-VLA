@@ -182,6 +182,11 @@ jobs:
             python3-gz-transport13 python3-gz-msgs10 \
             xvfb x11-utils libgl1-mesa-dri libglx-mesa0
 
+      - name: Verify pinned MotionControlAlgorithms vendor snapshot
+        run: |
+          python3 -m py_compile vla_ws/src/mca_drink_control/tools/export_arm_urdf.py vla_ws/src/mca_drink_control/tools/verify_vendor.py
+          python3 vla_ws/src/mca_drink_control/tools/verify_vendor.py
+
       - name: Run P104 offline safety and motion regression tests
         run: |
           PYTHONPATH=vla_ws/src/vla_follow python3 tests/test_p104.py
