@@ -12,6 +12,8 @@ on:
       - "tests/test_drink.py"
       - "tests/test_p104.py"
       - "tests/test_manipulation_bt.py"
+      - "tests/diag/test_chassis_brake_gz.py"
+      - "tests/diag/chassis_brake_test.sdf"
       - "vla_ws/src/vla_follow/**"
       - "tools/start_scene.sh"
       - "tools/start_drink_demo.sh"
@@ -171,12 +173,18 @@ jobs:
         run: |
           PYTHONPATH=vla_ws/src/vla_follow python3 tests/test_p104.py
 
-      - name: Build GraspCarry Gazebo system plugin
+      - name: Build Gazebo system plugins
         run: |
           cmake -S vla_ws/src/vla_follow/gz_plugins \
             -B vla_ws/src/vla_follow/gz_plugins/build \
             -DCMAKE_BUILD_TYPE=Release
           cmake --build vla_ws/src/vla_follow/gz_plugins/build --parallel 2
+          test -s vla_ws/src/vla_follow/gz_plugins/build/libGraspCarry.so
+          test -s vla_ws/src/vla_follow/gz_plugins/build/libChassisBrake.so
+
+      - name: Run isolated ChassisBrake hold and unlock experiment
+        run: |
+          python3 tests/diag/test_chassis_brake_gz.py
           test -s vla_ws/src/vla_follow/gz_plugins/build/libGraspCarry.so
           ldd -r vla_ws/src/vla_follow/gz_plugins/build/libGraspCarry.so
 
