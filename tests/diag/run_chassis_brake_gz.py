@@ -64,7 +64,8 @@ class Telemetry:
         values = {}
         for joint in msg.joint:
             if joint.name in ("left_wheel_joint", "right_wheel_joint"):
-                if joint.HasField("axis1") and joint.axis1.HasField("velocity"):
+                if joint.HasField("axis1"):
+                    # Axis.velocity is a proto3 scalar (no presence API).
                     values[joint.name] = float(joint.axis1.velocity)
         with self.lock:
             self.wheel_velocity = values
