@@ -1,4 +1,8 @@
+#include <cstdint>
+#include <functional>
 #include <fstream>
+#include <iostream>
+#include <iterator>
 #include <memory>
 #include <stdexcept>
 #include <string>
