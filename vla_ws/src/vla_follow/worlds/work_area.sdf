@@ -2378,6 +2378,27 @@
 <!-- DRINK:END robot_ext -->
     </model>
 
+    <!-- Physical chassis immobilizer for table-side manipulation.
+         Gazebo Sim 8 DetachableJoint starts attached; drink_task verifies this
+         state and detaches it before navigation is allowed. During arm work it
+         re-attaches this static world anchor to robot::chassis. -->
+    <model name="ground_lock_anchor">
+      <static>true</static>
+      <pose>0 0 0.13 0 0 0</pose>
+      <link name="ground_lock_anchor_link">
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <plugin filename="gz-sim-detachable-joint-system"
+              name="gz::sim::systems::DetachableJoint">
+        <parent_link>ground_lock_anchor_link</parent_link>
+        <child_model>robot</child_model>
+        <child_link>chassis</child_link>
+        <attach_topic>/world/follow_world/chassis_lock/attach</attach_topic>
+        <detach_topic>/world/follow_world/chassis_lock/detach</detach_topic>
+        <output_topic>/world/follow_world/chassis_lock/state</output_topic>
+      </plugin>
+    </model>
+
     <!-- "人": 人形外观(裙摆/躯干/头部合并为单一刚体 link, 物理上不可能掉落)
          + 隐藏轮组差速驱动, 初始位于机器人前方 1m -->
     <model name="person" canonical_link="skirt">
