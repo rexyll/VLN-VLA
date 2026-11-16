@@ -46,6 +46,7 @@ on:
       - "tests/diag/run_chassis_brake_gz.py"
       - "tests/diag/chassis_brake_test.sdf"
       - "vla_ws/src/vla_follow/**"
+      - "vla_ws/src/mca_drink_control/**"
       - "tools/start_scene.sh"
       - "tools/start_drink_demo.sh"
       - "tools/killall_demo.sh"
@@ -222,11 +223,11 @@ jobs:
           set -u
           cd vla_ws
           colcon build --symlink-install --packages-select vla_follow mca_drink_control
-          colcon test --packages-select mca_drink_control --event-handlers console_direct+
-          colcon test-result --verbose
           set +u
           source install/setup.bash
           set -u
+          colcon test --packages-select mca_drink_control --event-handlers console_direct+
+          colcon test-result --verbose
           PKG_SHARE="$(ros2 pkg prefix vla_follow)/share/vla_follow"
           test -s "$PKG_SHARE/maps/arena.yaml"
           test -s "$PKG_SHARE/maps/arena.pgm"
