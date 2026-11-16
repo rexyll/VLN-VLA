@@ -7,16 +7,15 @@ import pathlib
 import re
 import sys
 
-ROOT = pathlib.Path(__file__).resolve().parents[4]
 LOCK = pathlib.Path(__file__).resolve().parents[1] / "MCA_UPSTREAM.lock"
 VENDOR = pathlib.Path(__file__).resolve().parents[1] / "third_party" / "MotionControlAlgorithms"
 
 
 def main() -> int:
-    text = LOCK.read_text(encoding="utf-8")
+    lock_text = LOCK.read_text(encoding="utf-8")
     pairs = re.findall(
         r"^  - path: (.+)\n    git_blob_sha1: ([0-9a-f]{40})$",
-        text,
+        lock_text,
         flags=re.MULTILINE,
     )
     if not pairs:
@@ -29,12 +28,12 @@ def main() -> int:
             failures.append(f"missing: {relative}")
             continue
         data = path.read_bytes()
-        header = f"blob {len(data)}\\0".encode("ascii")
+        header = f"blob {len(data)}\0".encode("ascii")
         actual = hashlib.sha1(header + data).hexdigest()
         if actual != expected:
             failures.append(f"hash mismatch: {relative}: expected {expected}, got {actual}")
     if failures:
-        print("\\n".join(failures), file=sys.stderr)
+        print("\n".join(failures), file=sys.stderr)
         return 1
     print(f"verified {len(pairs)} pinned MCA files byte-for-byte (Git blob SHA-1)")
     return 0
