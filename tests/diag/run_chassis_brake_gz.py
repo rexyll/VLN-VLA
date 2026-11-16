@@ -559,7 +559,7 @@ def run_single(torque_nm, log_suffix=""):
             temporary_lock = canonical_lock + ".tmp"
             with open(temporary_lock, "w", encoding="utf-8") as stream:
                 json.dump(manifest, stream, indent=2, sort_keys=True)
-                stream.write("\\n")
+                stream.write("\n")
             os.replace(temporary_lock, canonical_lock)
             record("PASS: isolated brake hold and unlock recovery")
             record("STAGE_LOCKS_VERIFIED=" + canonical_lock)
