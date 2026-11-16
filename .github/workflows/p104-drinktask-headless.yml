@@ -13,6 +13,8 @@ on:
       - "tests/test_p104.py"
       - "tests/test_manipulation_bt.py"
       - "tests/diag/run_chassis_brake_gz.py"
+      - "tests/diag/run_chassis_ground_lock_gz.py"
+      - "tests/diag/chassis_ground_lock_test.sdf"
       - "tests/diag/verify_p104_stage_locks.py"
       - "tests/diag/chassis_brake_test.sdf"
       - "tests/diag/collect_base_arm_dynamics.py"
@@ -184,7 +186,7 @@ jobs:
 
       - name: Build Gazebo system plugins
         run: |
-          python3 -m py_compile tests/diag/run_chassis_brake_gz.py tests/diag/verify_p104_stage_locks.py
+          python3 -m py_compile tests/diag/run_chassis_brake_gz.py tests/diag/run_chassis_ground_lock_gz.py tests/diag/verify_p104_stage_locks.py
           bash -n tools/gz_plugin.sh
           cmake -S vla_ws/src/vla_follow/gz_plugins \
             -B vla_ws/src/vla_follow/gz_plugins/build \
@@ -196,7 +198,11 @@ jobs:
           ldd -r vla_ws/src/vla_follow/gz_plugins/build/libGraspCarry.so
           ldd -r vla_ws/src/vla_follow/gz_plugins/build/libChassisBrake.so
 
-      - name: Run isolated ChassisBrake hold and unlock experiment
+      - name: Run isolated Ground Fixed Joint attach, hold and release experiment
+        run: |
+          python3 tests/diag/run_chassis_ground_lock_gz.py --repeats 3
+
+      - name: Run legacy ApplyLinkWrench and ChassisBrake diagnostic (non-authoritative)
         run: |
           python3 tests/diag/run_chassis_brake_gz.py
 
@@ -282,6 +288,9 @@ jobs:
           path: |
             vla_ws/logs/*.log
             vla_ws/logs/p104_stage_locks*.json
+            vla_ws/logs/ground_fixed_joint_*.log
+            vla_ws/logs/ground_fixed_joint_*.json
+            vla_ws/logs/ground_fixed_joint_summary.json
             vla_ws/logs/p104_chassis_brake_stage_locks.json
             vla_ws/logs/base_arm_dynamics_ci_*.jsonl
             vla_ws/logs/base_arm_dynamics_summary_ci_*.json
