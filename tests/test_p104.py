@@ -771,6 +771,9 @@ class TestP104(unittest.TestCase):
         self.assertIn('libChassisBrake.so', world)
         self.assertNotIn('libChassisBrake.so', production)
         self.assertIn('wrench: {torque: {z: 18.0}}', script)
+        self.assertIn('if joint.HasField("axis1"):', script)
+        self.assertNotIn('HasField("velocity")', script)
+        self.assertIn('float(joint.axis1.velocity)', script)
         self.assertIn('DiffDrive did not recover', script)
 
     def test_dynamics_collector_uses_documented_gazebo_joint_state_topic(self):
