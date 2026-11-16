@@ -13,6 +13,7 @@ on:
       - "tests/test_p104.py"
       - "tests/test_manipulation_bt.py"
       - "tests/diag/run_chassis_brake_gz.py"
+      - "tests/diag/verify_p104_stage_locks.py"
       - "tests/diag/chassis_brake_test.sdf"
       - "tests/diag/collect_base_arm_dynamics.py"
       - "tests/diag/analyze_base_arm_dynamics.py"
@@ -183,7 +184,7 @@ jobs:
 
       - name: Build Gazebo system plugins
         run: |
-          python3 -m py_compile tests/diag/run_chassis_brake_gz.py
+          python3 -m py_compile tests/diag/run_chassis_brake_gz.py tests/diag/verify_p104_stage_locks.py
           bash -n tools/gz_plugin.sh
           cmake -S vla_ws/src/vla_follow/gz_plugins \
             -B vla_ws/src/vla_follow/gz_plugins/build \
@@ -216,6 +217,10 @@ jobs:
           test -s "$PKG_SHARE/maps/arena.yaml"
           test -s "$PKG_SHARE/maps/arena.pgm"
           grep -Fq "image: arena.pgm" "$PKG_SHARE/maps/arena.yaml"
+
+      - name: Verify immutable ChassisBrake stage locks after downstream build
+        run: |
+          python3 tests/diag/verify_p104_stage_locks.py
 
       - name: Run headless DrinkTask E2E with read-only base-arm telemetry
         shell: bash
@@ -270,6 +275,8 @@ jobs:
           retention-days: 14
           path: |
             vla_ws/logs/*.log
+            vla_ws/logs/p104_stage_locks*.json
+            vla_ws/logs/p104_chassis_brake_stage_locks.json
             vla_ws/logs/base_arm_dynamics_ci_*.jsonl
             vla_ws/logs/base_arm_dynamics_summary_ci_*.json
             vla_ws/logs/test_drink.json
