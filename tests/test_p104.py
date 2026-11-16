@@ -3825,6 +3825,9 @@ class TestPhysicalGazeboChassisLock(unittest.TestCase):
             lock_client = stream.read()
         self.assertIn("force=False", lock_client)
         self.assertIn("self.state == expected and not force", lock_client)
+        self.assertIn('for attempt in range(2):', lock_client)
+        self.assertIn('after_time=command_started', lock_client)
+        self.assertIn('if self.wait_for_state(expected', lock_client)
         self.assertIn('self._ground_lock_ready = True', handshake)
 
     def test_main_waits_for_physical_lock_and_holds_base_during_boot_home(self):
