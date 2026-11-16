@@ -2237,7 +2237,18 @@ class DrinkTask(Node):
         # a low-speed pose hold. Never run this while Nav2 owns the chassis.
         hold_target = (self._follow_base_hold_target
                        or self._prepare_base_hold_target)
-        if hold_target is not None:
+        physical_lock_active = (
+            self._ground_lock is not None
+            and self._ground_lock.state == 'attached')
+        if physical_lock_active:
+            # A fixed joint is the physical hold. Do not issue pose-correction
+            # or any other active chassis command while the arm is manipulating.
+            if hold_target is not None:
+                if not self._physical_hold_correction_suppressed_logged:
+                    self.get_logger().info(
+                        'PHYSICAL_CHASSIS_LOCK active: chassis pose correction suppressed')
+                    self._physical_hold_correction_suppressed_logged = True
+        elif hold_target is not None:
             if (self._follow_base_hold_target is not None
                     and os.environ.get(
                         'VLA_PRESENT_BASE_HOLD_ZERO_DURING_FOLLOW', '0') == '1'):
