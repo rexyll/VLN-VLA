@@ -1,0 +1,13 @@
+string side
+geometry_msgs/Pose target
+float64[] seed
+float64 position_tolerance_m
+float64 orientation_tolerance_rad
+uint32 max_iterations
+---
+bool success
+float64[] joint_positions
+uint32 iterations
+float64 position_error_m
+float64 orientation_error_rad
+string message
