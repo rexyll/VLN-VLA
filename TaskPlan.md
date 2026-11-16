@@ -1243,3 +1243,14 @@
 - `DONE` 的原有规则保持不变：有 `placed` 截图立即结束，否则最多等待既有 grace window。
 - 首轮 Python run `43732185466` 的纯测试失败（2 项均为上述终态边界断言），编译通过；该失败不被计为通过。修正后最新 SHA `6a9555787346a80c6a1b6bd81f22d86eff8738f9` 已触发新的 Python run `43732262356`、CarryBus run `43732262424`、Gazebo E2E run `43732262307` 与 collector syntax run `43732262386`，当前仍在执行/排队，等待最终结果。
 - PR #3 通过 `is:open is:draft` 查询仍保持 Draft/Open；main 未修改。物理制动与底盘抗反作用力任务仍未实现/验收。
+
+
+### 8.408 修正 Gazebo 关节遥测话题并补全 #294 失败诊断（2026-11-16）
+
+- Run #294（`43732324553`，提交 `3d015fd0677004be642af1893884b2a668b8158`）构建、离线安全回归、Gazebo 插件构建、ROS 工作空间构建均成功；完整 DrinkTask E2E 在 PRESENT follow 处失败。唯一完成的 round 1 状态为 `PREPARE → PRESENT → FAIL_PRESENT_FOLLOW_DRIFT`，round 2 未执行，故不能计为双轮完成。
+- 本轮杯子交接目标偏差 `59.66 mm / 5.493°`，安全门保持 fail-closed；右手跟随误差 `0.921 mm`，左掌—杯相对位姿变化仅 `0.001 mm / 0°`，因此不是右手 IK 失败或左手抓持滑脱。
+- PRESENT follow 约 3.53s 窗口内，底盘最大平面位移 `36.485 mm`、最大偏航变化 `5.779°`、最大线速度 `0.0660 m/s`、最大角速度 `17.846°/s`；轮速瞬态峰值 `1.334 rad/s`。窗口内 `/drink/cmd_vel` 与 `/robot/cmd_vel` 峰值均为零。底盘真值位姿变化和轮速瞬态与机械臂跟随同时出现，仍需受控 A/B/C 实验进一步区分轮端驱动响应、地面滑移与车体反作用力，不能仅凭相关性认定唯一因果。
+- 新发现的遥测缺口：collector JSONL 已完整落盘约 49 MB，但 `joint_state` 来源为 0 条，导致 wheel/arm 关节速度摘要为空。根因是当前配置的非标准 `/drink/joint_state` 话题未收到 Gazebo `JointStatePublisher` 消息。按 Gazebo Sim 8 文档使用模型默认话题 `/world/follow_world/model/robot/joint_state`：生成器移除自定义 `<topic>`，bridge、collector 改用该 canonical topic；headless runner 增加 `gz topic -l` 和 `gz topic -i` 运行时审计。
+- Workflow 调整为即使 E2E 本身失败，也继续打印并报告 collector 的退出状态，不再因优先返回 E2E 错误而隐藏遥测缺失诊断。
+- 新增静态回归检查 generator/bridge/collector 使用同一 canonical joint-state topic。当前改动已提交至指定实验分支，等待最新 SHA 的 Python、shell、plugin build、collector 采集和 headless E2E 验证；在新 CI 证明收到 wheel/arm joint_state 前，不将遥测修复标记为通过。
+- P104-10.1 物理制动插件仍未实现；本轮未修改轮端 effort/damping、摩擦、质量、控制器增益或交接阈值。P104-10.2/10.3 仍未完成。`main` 未修改，PR #3 继续 Draft/Open。
