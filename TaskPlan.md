@@ -1281,3 +1281,12 @@
 - 回归测试增加两处约束，确保隔离 runner 和正式 collector 均不再对 proto3 标量调用 `HasField`。P104 workflow 路径过滤也补入 collector/analyzer 文件，后续改动会重新触发完整 E2E，而不只触发诊断工具语法工作流。
 - 新 head `3a6e313` 已触发重跑：P104 Python #1216、诊断语法 #108、CarryBus #955 和 P104 E2E #354；截至本记录写入时仍在排队/执行，尚未获得新的物理制动数据。
 - #342 的失败不代表制动效果失败；之前的成功构建只证明插件可编译，不证明物理保持。P104-10.1 仍未验收，生产世界不加载该插件。
+
+
+### 8.411 #357 CTest 异常终止根因与回归测试修正（2026-11-16）
+
+- Run #357（`43786114630`，PR merge checkout `70d4ddd`，head `3eee631`）中 P104 offline regression 通过，`ChassisBrake` 与 `GraspCarry` 两个 Gazebo 插件均成功编译；失败发生在 CTest 的 `GraspCarryQueue`，进程 `Subprocess aborted`，退出码 8。因此隔离 ChassisBrake hold/unlock、ROS 工作空间构建和完整 DrinkTask E2E 均被跳过，本轮没有任何物理制动结果。
+- 已定位为单元测试自身的 duplicate predicate 错误，而非队列实现或 Gazebo 插件构建错误：`TestQueueFullRejectionIsAtomicAndReplayable` 的测试 lambda 只判断 incoming.requestId 非零，导致队列中已有 request_id=1 时，把不同事务 request_id=77 错判为 Duplicate；`BoundedCommandQueue::Push` 按设计先做 duplicate 检查再做容量检查，所以实际返回 Duplicate，测试却错误期待 Full，最终由无诊断信息的 `CHECK` 宏调用 `std::abort()`。
+- 已修正测试 duplicate predicate，要求 op、model 和 requestId 三者相同才判定同一事务；并增强 CHECK 失败输出文件、行号和断言表达式，避免下次只看到无上下文的 Subprocess aborted。提交：`ecdfd4a8cc4450db8d302b798c015e448dda9d9b`，仅在 `experiment/drinktask-bt-ik-recovery`。
+- 当前修复等待 CI 重跑。必须先确认 CTest 通过，再进入隔离 ChassisBrake 物理保持/解锁实验；不得将插件编译成功或单元测试修复等同物理制动通过。P104-10.1 仍未验收，P104-10.2/10.3 未完成；生产 `work_area.sdf` 不接入插件，所有物理阈值与参数约束保持不变。
+- `main` 未修改；PR #3 继续 Draft/Open，不合并；未创建其他分支。
