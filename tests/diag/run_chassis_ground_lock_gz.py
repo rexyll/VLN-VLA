@@ -169,7 +169,16 @@ def wait_stationary(tel, proc, timeout=5.0):
         return (pose is not None and twist is not None and
                 max(abs(x) for x in twist) < 0.005 and
                 (not wheels or max(abs(x) for x in wheels.values()) < 0.05))
-    wait_for(stationary, timeout, "robot stationary", proc)
+    try:
+        wait_for(stationary, timeout, "robot stationary", proc)
+    except RuntimeError as exc:
+        pose, twist, wheels, attached, states, names = tel.snapshot()
+        raise RuntimeError(
+            "timeout waiting for robot stationary; pose=%r twist=%r "
+            "wheel_velocity=%r lock_state=%r state_messages=%r "
+            "joint_names=%r" %
+            (pose, twist, wheels, attached, states[-8:], sorted(names))
+        ) from exc
 
 
 def displacement(a, b):
