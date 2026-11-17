@@ -64,7 +64,9 @@ class Telemetry:
 
 def publish(topic, msg_type, payload=""):
     cmd = ["gz", "topic", "-t", topic, "-m", msg_type]
-    if payload:
+    if msg_type == "gz.msgs.Empty":
+        cmd += ["-p", " "]
+    elif payload:
         cmd += ["-p", payload]
     result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                             text=True, timeout=10)
