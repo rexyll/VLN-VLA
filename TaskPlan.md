@@ -1872,3 +1872,11 @@
 - MotionControlAlgorithms 继续按 P105-01 决策：只把实际使用的最小算法依赖 vendoring 到当前项目，固定上游 commit，保留 Apache-2.0 LICENSE / NOTICE、来源路径和修改记录；不复制整个上游仓库，不依赖本地测试时临时从另一个仓库拉取浮动代码。
 - 当前状态：采集器、部署/采集说明和 MCA service 诊断日志已提交，尚待 CI 构建验证及用户本地实际运行验证。用户上传完整日志包后再据证据推进修复；在本地生产 E2E 获得完整 PASS 前，不增加成功轮数，不宣称物理锁或 DrinkTask 问题已解决。
 - PR #3 仍保持 Draft/Open；仅在 `experiment/drinktask-bt-ik-recovery` 分支工作，不修改/合并 main，不创建分支，不设置定时监控。
+
+
+### 8.455 本地诊断工具集成补充（2026-11-17）
+
+- 新增采集器 Python 语法检查到 P104 workflow 的 py_compile 步骤，确保本地遥测工具随项目 CI 一起做静态语法验证。
+- 更新 mca_drink_control README，准确说明当前 ROS 2 Jazzy /mca_drink/solve_ik service 已存在、DrinkTask 可选调用并保留既有 IK fallback；该包仍不发布 39 路关节命令，S-Curve / differential-drive 算法尚未整体替换生产执行回路。
+- 本地采集器与文档当前提交链：recorder `1ef5549556ee7fe56ee9bf070650622d82653e25`；本地测试指南 `f5a820b37fce5c6f9a2d05c3759f8cd2fe5d9495`（CLI 自检修正 `7d1e4a477177460db7e116523ebdd642c4045b3c`）；MCA 服务诊断日志 `b07cd511e503a4662a980d408988eff82d0f54a0`；MCA README 更新 `4d9a79ba496c81a262520e519efd130a7728dc43`；CI Python syntax 检查 `6749b274e7128fede42804b6b393e83b4f766713`。
+- 尚未取得这些新提交对应的 CI 执行结果，也没有本地 VM 运行数据。用户开始测试前须先拉取最新分支并完成 colcon build；正式测试时确认采集器的三个 Gazebo 订阅均成功。任何 CI 或本地运行错误都保留完整日志再处理。
