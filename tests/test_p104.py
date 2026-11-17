@@ -3825,9 +3825,11 @@ class TestPhysicalGazeboChassisLock(unittest.TestCase):
             lock_client = stream.read()
         self.assertIn("force=False", lock_client)
         self.assertIn("self.state == expected and not force", lock_client)
-        self.assertIn('for attempt in range(2):', lock_client)
+        self.assertIn('while time.monotonic() < deadline:', lock_client)
+        self.assertIn('timeout=min(0.25, remaining)', lock_client)
+        self.assertIn('self.last_command_attempts += 1', lock_client)
         self.assertIn('after_time=command_started', lock_client)
-        self.assertIn('if self.wait_for_state(expected', lock_client)
+        self.assertIn('self.wait_for_state(', lock_client)
         self.assertIn('self._ground_lock_ready = True', handshake)
 
     def test_main_waits_for_physical_lock_and_holds_base_during_boot_home(self):
@@ -3952,7 +3954,7 @@ class TestPhysicalGazeboChassisLock(unittest.TestCase):
             source = stream.read()
         self.assertIn('state not in ("attached", "detached")', source)
         self.assertIn('gz.msgs.Empty', source)
-        self.assertIn('self.wait_for_state(expected', source)
+        self.assertIn('self.wait_for_state(', source)
         self.assertIn('state_time >= after_time', source)
         self.assertIn('after_time=command_started', source)
         self.assertNotIn('state_age_s <= 0.5', source)
