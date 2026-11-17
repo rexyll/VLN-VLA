@@ -16,7 +16,16 @@ from gz.msgs10.pose_v_pb2 import Pose_V
 from gz.msgs10.stringmsg_pb2 import StringMsg
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-WORLD = os.path.join(ROOT, "tests", "diag", "articulated_arm_ground_lock_test.sdf")
+WORLD = os.environ.get(
+    "ARM_LOCK_PROBE_WORLD",
+    os.path.join(ROOT, "tests", "diag", "articulated_arm_ground_lock_test.sdf"),
+)
+CONTROLLER_MODE = os.environ.get(
+    "ARM_LOCK_PROBE_MODE", "use_velocity_commands=true"
+)
+LOG_NAME = os.environ.get(
+    "ARM_LOCK_PROBE_LOG", "articulated_arm_ground_lock_probe.log"
+)
 STATE = "/world/arm_lock_probe/chassis_lock/state"
 ATTACH = "/world/arm_lock_probe/chassis_lock/attach"
 DETACH = "/world/arm_lock_probe/chassis_lock/detach"
@@ -180,9 +189,7 @@ def run():
     if not os.path.isfile(WORLD):
         raise RuntimeError("missing world " + WORLD)
     os.makedirs(os.path.join(ROOT, "vla_ws", "logs"), exist_ok=True)
-    log_path = os.path.join(
-        ROOT, "vla_ws", "logs", "articulated_arm_ground_lock_probe.log"
-    )
+    log_path = os.path.join(ROOT, "vla_ws", "logs", LOG_NAME)
     with open(log_path, "w", encoding="utf-8") as log:
         proc = subprocess.Popen(
             ["gz", "sim", "-s", "-r", WORLD], cwd=ROOT,
@@ -191,7 +198,7 @@ def run():
         tel = None
         report = {
             "world": os.path.relpath(WORLD, ROOT),
-            "controller_mode": "use_velocity_commands=true",
+            "controller_mode": CONTROLLER_MODE,
             "target_rad": TARGET,
             "stages": [],
         }
