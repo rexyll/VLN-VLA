@@ -228,18 +228,18 @@ def run():
             wait_for(tel, lambda s: s[0] == "detached", "detach state")
             detached_start = tel.snapshot()[2]
             detached_start_index = len(tel.pose_snapshot())
-            report["current_stage"] = "detached_positive_{MODE_LABEL}"
-            detached_positive = move_and_measure(tel, TARGET, "detached positive {MODE_LABEL}")
+            report["current_stage"] = f"detached_positive_{MODE_LABEL}"
+            detached_positive = move_and_measure(tel, TARGET, f"detached positive {MODE_LABEL}")
             report["stages"].append({
-                "name": "detached_positive_{MODE_LABEL}",
+                "name": f"detached_positive_{MODE_LABEL}",
                 **detached_positive["metrics"],
             })
             report["current_stage"] = "detached_reset"
             move_and_measure(tel, 0.0, "detached reset")
-            report["current_stage"] = "detached_negative_{MODE_LABEL}"
-            detached_negative = move_and_measure(tel, -TARGET, "detached negative {MODE_LABEL}")
+            report["current_stage"] = f"detached_negative_{MODE_LABEL}"
+            detached_negative = move_and_measure(tel, -TARGET, f"detached negative {MODE_LABEL}")
             report["stages"].append({
-                "name": "detached_negative_{MODE_LABEL}",
+                "name": f"detached_negative_{MODE_LABEL}",
                 **detached_negative["metrics"],
             })
             report["current_stage"] = "detached_negative_reset"
@@ -261,16 +261,16 @@ def run():
             attached_start = tel.snapshot()[2]
             attached_start_index = len(tel.pose_snapshot())
             report["attached_start_pose"] = attached_start
-            report["current_stage"] = "attached_positive_{MODE_LABEL}"
-            attached_positive = move_and_measure(tel, TARGET, "attached positive {MODE_LABEL}")
+            report["current_stage"] = f"attached_positive_{MODE_LABEL}"
+            attached_positive = move_and_measure(tel, TARGET, f"attached positive {MODE_LABEL}")
             report["stages"].append({
-                "name": "attached_positive_{MODE_LABEL}",
+                "name": f"attached_positive_{MODE_LABEL}",
                 **attached_positive["metrics"],
             })
-            report["current_stage"] = "attached_negative_{MODE_LABEL}"
-            attached_negative = move_and_measure(tel, -TARGET, "attached negative {MODE_LABEL}")
+            report["current_stage"] = f"attached_negative_{MODE_LABEL}"
+            attached_negative = move_and_measure(tel, -TARGET, f"attached negative {MODE_LABEL}")
             report["stages"].append({
-                "name": "attached_negative_{MODE_LABEL}",
+                "name": f"attached_negative_{MODE_LABEL}",
                 **attached_negative["metrics"],
             })
             attached_end = tel.snapshot()[2]
@@ -286,13 +286,13 @@ def run():
             })
 
             if abs(detached_positive["snapshot"][1]["position"]) < 0.25:
-                raise RuntimeError("detached positive {MODE_LABEL} joint did not move enough")
+                raise RuntimeError(f"detached positive {MODE_LABEL} joint did not move enough")
             if abs(detached_negative["snapshot"][1]["position"]) < 0.25:
-                raise RuntimeError("detached negative {MODE_LABEL} joint did not move enough")
+                raise RuntimeError(f"detached negative {MODE_LABEL} joint did not move enough")
             if abs(attached_positive["snapshot"][1]["position"]) < 0.25:
-                raise RuntimeError("attached positive {MODE_LABEL} joint did not move enough")
+                raise RuntimeError(f"attached positive {MODE_LABEL} joint did not move enough")
             if abs(attached_negative["snapshot"][1]["position"]) < 0.25:
-                raise RuntimeError("attached negative {MODE_LABEL} joint did not move enough")
+                raise RuntimeError(f"attached negative {MODE_LABEL} joint did not move enough")
             if max_displacement > MAX_BASE_DISPLACEMENT_M or max_yaw > MAX_BASE_YAW_RAD:
                 raise RuntimeError(
                     "attached chassis exceeded hold limits: displacement=%.3fmm yaw=%.4fdeg"
