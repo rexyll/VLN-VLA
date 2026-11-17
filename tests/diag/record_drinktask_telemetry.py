@@ -16,14 +16,16 @@ from rclpy.node import Node
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import JointState
-from std_msgs.msg import Bool, String
+from std_msgs.msg import Bool, Float64, String
 from tf2_msgs.msg import TFMessage
+import yaml
 
 try:
     import gz.transport13 as gz_transport
     from gz.msgs10.pose_v_pb2 import Pose_V
     from gz.msgs10.model_pb2 import Model
     from gz.msgs10.stringmsg_pb2 import StringMsg
+    from gz.msgs10.double_pb2 import Double
 except Exception as exc:
     raise RuntimeError(
         "Gazebo Harmonic Python bindings unavailable (gz-transport13 / gz-msgs10): %s" % exc
@@ -47,7 +49,7 @@ def run_text(args):
 
 
 class Recorder(Node):
-    def __init__(self, output_dir, run_id):
+    def __init__(self, output_dir, run_id, bridge_config):
         super().__init__("drinktask_local_telemetry_recorder")
         self.output_dir = Path(output_dir).expanduser().resolve()
         self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -55,12 +57,24 @@ class Recorder(Node):
         self.stream = self.telemetry_path.open("w", encoding="utf-8", buffering=1)
         self.lock = threading.RLock()
         self.latest = {}
+        self.command_bridges = self._load_command_bridges(bridge_config)
+        self.command_stats = {
+            entry["ros_topic"]: {
+                "gz_topic": entry["gz_topic"],
+                "ros": {"count": 0, "last_value": None, "last_received_monotonic": None},
+                "gazebo": {"count": 0, "last_value": None, "last_received_monotonic": None},
+            }
+            for entry in self.command_bridges
+        }
         self.last_state = None
         self.started_mono = time.monotonic()
         self.seq = 0
         self.gz_node = gz_transport.Node()
         self.gz_ready = {}
+        self.ros_command_subscriptions = {}
+        self.gz_command_subscriptions = {}
         self._subscribe_ros()
+        self._subscribe_command_bridges()
         self._subscribe_gz()
         metadata = {
             "run_id": run_id,
@@ -70,6 +84,15 @@ class Recorder(Node):
             "python": platform.python_version(),
             "ros_distro": os.environ.get("ROS_DISTRO"),
             "rmw_implementation": os.environ.get("RMW_IMPLEMENTATION"),
+            "drink_command_bridges": [
+                {
+                    "ros_topic": entry["ros_topic"],
+                    "gz_topic": entry["gz_topic"],
+                    "ros_subscribed": entry["ros_topic"] in self.ros_command_subscriptions,
+                    "gazebo_subscribed": entry["gz_topic"] in self.gz_command_subscriptions,
+                }
+                for entry in self.command_bridges
+            ],
             "gazebo_topics": [
                 "/world/follow_world/dynamic_pose/info",
                 "/world/follow_world/model/robot/joint_state",
@@ -109,6 +132,58 @@ class Recorder(Node):
         self.create_subscription(TFMessage, "/tf_static", lambda m: self._put("tf_static", [
             {"parent": t.header.frame_id, "child": t.child_frame_id}
             for t in m.transforms]), 10)
+
+    @staticmethod
+    def _load_command_bridges(config_path):
+        path = Path(config_path).expanduser().resolve()
+        if not path.is_file():
+            raise FileNotFoundError("Bridge config not found: %s" % path)
+        config = yaml.safe_load(path.read_text(encoding="utf-8")) or []
+        entries = [
+            {
+                "ros_topic": item["ros_topic_name"],
+                "gz_topic": item["gz_topic_name"],
+            }
+            for item in config
+            if item.get("direction") == "ROS_TO_GZ"
+            and item.get("ros_type_name") == "std_msgs/msg/Float64"
+            and item.get("gz_type_name") == "gz.msgs.Double"
+            and item.get("ros_topic_name", "").startswith("/drink/cmd/")
+        ]
+        ros_topics = [entry["ros_topic"] for entry in entries]
+        if len(entries) != 39 or len(set(ros_topics)) != 39:
+            raise RuntimeError(
+                "Expected exactly 39 unique /drink/cmd Float64 -> gz.msgs.Double bridges; found %d" % len(entries)
+            )
+        return entries
+
+    def _command_cb(self, ros_topic, side, value):
+        now = time.monotonic()
+        with self.lock:
+            stats = self.command_stats[ros_topic][side]
+            stats["count"] += 1
+            stats["last_value"] = safe_float(value)
+            stats["last_received_monotonic"] = now
+
+    def _subscribe_command_bridges(self):
+        for entry in self.command_bridges:
+            ros_topic = entry["ros_topic"]
+            gz_topic = entry["gz_topic"]
+            ros_sub = self.create_subscription(
+                Float64,
+                ros_topic,
+                lambda msg, topic=ros_topic: self._command_cb(topic, "ros", msg.data),
+                50,
+            )
+            self.ros_command_subscriptions[ros_topic] = ros_sub is not None
+            gz_ok = self.gz_node.subscribe(
+                Double,
+                gz_topic,
+                lambda msg, topic=ros_topic: self._command_cb(topic, "gazebo", msg.data),
+            )
+            self.gz_command_subscriptions[gz_topic] = bool(gz_ok)
+            if not gz_ok:
+                self.get_logger().error("GAZEBO_COMMAND_SUBSCRIBE_FAILED ros=%s gz=%s" % (ros_topic, gz_topic))
 
     def _subscribe_gz(self):
         subscriptions = (
@@ -196,6 +271,24 @@ class Recorder(Node):
             "event": event,
             "topic_age_s": ages,
             "gazebo_subscriptions": self.gz_ready,
+            "drink_command_telemetry": {
+                ros_topic: {
+                    "gz_topic": stats["gz_topic"],
+                    "ros": {
+                        "count": stats["ros"]["count"],
+                        "last_value": stats["ros"]["last_value"],
+                        "age_s": round(now - stats["ros"]["last_received_monotonic"], 4)
+                        if stats["ros"]["last_received_monotonic"] is not None else None,
+                    },
+                    "gazebo": {
+                        "count": stats["gazebo"]["count"],
+                        "last_value": stats["gazebo"]["last_value"],
+                        "age_s": round(now - stats["gazebo"]["last_received_monotonic"], 4)
+                        if stats["gazebo"]["last_received_monotonic"] is not None else None,
+                    },
+                }
+                for ros_topic, stats in self.command_stats.items()
+            },
             "data": values
         }
         self.stream.write(json.dumps(record, ensure_ascii=False, separators=(",", ":")) + "\n")
@@ -211,11 +304,16 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", default=None)
     parser.add_argument("--run-id", default="local-drinktask")
+    parser.add_argument(
+        "--bridge-config",
+        default=str(Path(__file__).resolve().parents[2] / "vla_ws/src/vla_follow/config/bridge.yml"),
+        help="ROS-Gazebo bridge YAML used to derive the 39 read-only drink command subscriptions",
+    )
     args = parser.parse_args()
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     output = args.output_dir or ("tests/out/drinktask_%s_%s" % (args.run_id, stamp))
     rclpy.init()
-    node = Recorder(output, args.run_id)
+    node = Recorder(output, args.run_id, args.bridge_config)
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
