@@ -1961,3 +1961,15 @@
 - 已将 world-fixed SDF 加入 PR 与 push workflow path filter，并新增 continue-on-error 的独立 Gazebo 探针步骤；报告与日志会由现有 artifact 上传规则归档。若 world-fixed 对照能运动而 DetachableJoint child 模型不能运动，则支持跨模型固定约束的架构假设；若仍不能运动，则需继续定位 Gazebo physics/控制器本身，不可先入为主。
 - 同时修正 A/B 探针报告阶段标签：velocity bypass 报告为 `position_bypass_velocity`，`use_velocity_commands=false` 报告为 `position_pid_force`，避免把 PID force 测试错误标成 velocity mode。该修正只影响诊断标签。
 - 当前状态仍为正在进行中；新 world-fixed 对照尚未执行完毕，不计入任何通过项。生产 work_area.sdf、生产机械臂控制器参数及验收阈值均未修改；不修改/合并 main，不创建新分支。
+
+
+### 8.462 world-fixed 对照实验首次通过（2026-11-17）
+
+- 完整 Gazebo E2E Run [44098304011](https://github.com/rexyll/VLN-VLA/actions/runs/44098304011)，job 134092962432 的新增步骤 `Probe arm articulation with chassis fixed directly to world` 实际执行成功（`WORLD_FIXED_ARM_PROBE_EXIT=0`）。
+- 对照模型在同一 Gazebo Sim 8 / DART 物理环境下，使用 world→chassis 的模型内部 fixed joint；单关节 `probe_arm_joint` 使用原始 velocity-bypass position controller 参数。正向目标 +0.45rad 最终位置 +0.450000000000015rad，最大速度约 1.000000000014rad/s；反向目标 -0.45rad 最终位置 -0.450000000000015rad，最大速度约 1.000000000014rad/s。两个方向均到达并稳定 0.5s。
+- 机械臂运动期间底盘位姿采集 445 个样本；起止位姿均为 (x=0,y=0,z=-0.14,yaw=0)，最大底盘位移 0.0mm，最大 yaw 变化 0.0deg。探针 JSON `result=PASS`。
+- 对比之前同一简化单关节模型的生产拓扑 DetachableJoint 测试：detached 可运动，attached 正向目标超时，位置约 1.3e-20rad、速度约 1.49e-17rad/s、effort=0。现在形成强对照证据：world-fixed joint 可同时保持 chassis 不动并驱动内部关节，而跨模型 DetachableJoint attached 状态不能。**这强烈支持固定约束拓扑/跨模型约束交互是冻结根因，但尚不能证明完整机器人替换后可用，也不能单凭零位姿漂移证明真实驱动扰动抗性。**
+- 本轮完整 DrinkTask E2E 仍失败在启动双臂归位，0/9 任务阶段；world-fixed 对照只是简化模型单关节，不计作生产修复或 DrinkTask 通过。
+- 新增 `tests/diag/articulated_arm_ground_lock_world_fixed_force.sdf`，用 P=10、I=0、D=0.5、输出限幅±10Nm、`use_velocity_commands=false` 对照 PID 力控制路径；workflow 新增 world-fixed PID force 探针，并将 `arm_world_fixed_*.json` 纳入 artifacts。该试验尚未运行。
+- 下一步：先验证 world-fixed PID force 对照，再把生产机器人 SDF 复制到隔离诊断场景，保留完整 39 路关节、碰撞、惯量、驱动与桥接结构，只替换 chassis 固定约束；执行完整机械臂 home/hang 和独立底盘驱动挑战。仅当两项独立验收均通过后，才提出生产架构迁移。不得直接修改生产 `work_area.sdf`、不得绕过软件锁、不得降低阈值。
+- 状态：正在进行中。启动锁握手修复已通过完整 E2E；world-fixed 单关节对照通过；完整双臂启动归位未通过，DrinkTask 成功轮数不变。所有改动只在 `experiment/drinktask-bt-ik-recovery`，未修改/合并 main，未创建新分支。
