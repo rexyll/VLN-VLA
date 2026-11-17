@@ -923,21 +923,33 @@ class DrinkTask(Node):
 
             before = self.truth_base_pose_snapshot
             if not self._ground_lock.command('detached', timeout_s=5.0):
-                raise RuntimeError('initial detach transition was not acknowledged')
+                raise RuntimeError(
+                    'initial detach transition was not acknowledged '
+                    '(attempts=%d, error=%s)' % (
+                        self._ground_lock.last_command_attempts,
+                        self._ground_lock.last_command_error))
             physical_may_be_detached = True
             if not pose_stable(before, 'detach'):
                 raise RuntimeError('base pose changed during startup detach')
 
             before = self.truth_base_pose_snapshot
             if not self._ground_lock.command('attached', timeout_s=5.0):
-                raise RuntimeError('attach transition was not acknowledged')
+                raise RuntimeError(
+                    'attach transition was not acknowledged '
+                    '(attempts=%d, error=%s)' % (
+                        self._ground_lock.last_command_attempts,
+                        self._ground_lock.last_command_error))
             physical_may_be_detached = False
             if not pose_stable(before, 'attach'):
                 raise RuntimeError('base pose changed during startup attach')
 
             before = self.truth_base_pose_snapshot
             if not self._ground_lock.command('detached', timeout_s=5.0):
-                raise RuntimeError('final detach transition was not acknowledged')
+                raise RuntimeError(
+                    'final detach transition was not acknowledged '
+                    '(attempts=%d, error=%s)' % (
+                        self._ground_lock.last_command_attempts,
+                        self._ground_lock.last_command_error))
             physical_may_be_detached = True
             if not pose_stable(before, 'final_detach'):
                 raise RuntimeError('base pose changed during final startup detach')
