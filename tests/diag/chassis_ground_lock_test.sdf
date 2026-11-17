@@ -104,28 +104,26 @@
               name="gz::sim::systems::JointStatePublisher">
         <update_rate>100</update_rate>
       </plugin>
-      <!-- Host the detachable fixed joint on the robot and reverse its
-           parent/child orientation. The robot chassis is the parent. -->
+    </model>
+  
+    <!-- Static world anchor is the DetachableJoint parent; robot chassis is child. -->
+    <model name="ground_lock_anchor">
+      <static>true</static>
+      <pose>0 0 0.15 0 0 0</pose>
+      <!-- No collision geometry: DART requires attached parent/child models
+           not to overlap in their initial attached configuration. -->
+      <link name="ground_lock_anchor_link">
+        <pose>0 0 0 0 0 0</pose>
+      </link>
       <plugin filename="gz-sim-detachable-joint-system"
               name="gz::sim::systems::DetachableJoint">
-        <parent_link>chassis</parent_link>
-        <child_model>ground_lock_anchor</child_model>
-        <child_link>ground_lock_anchor_link</child_link>
+        <parent_link>ground_lock_anchor_link</parent_link>
+        <child_model>robot</child_model>
+        <child_link>chassis</child_link>
         <attach_topic>/world/brake_test/chassis_lock/attach</attach_topic>
         <detach_topic>/world/brake_test/chassis_lock/detach</detach_topic>
         <output_topic>/world/brake_test/chassis_lock/state</output_topic>
       </plugin>
-    </model>
-  
-    <!-- Static world anchor. The DetachableJoint is hosted by the robot:
-         parent=robot::chassis, child=static ground_lock_anchor. This mirrors
-         the passing articulated-arm topology and preserves robot articulation. -->
-    <model name="ground_lock_anchor">
-      <static>true</static>
-      <pose>0 0 0.15 0 0 0</pose>
-      <link name="ground_lock_anchor_link">
-        <pose>0 0 0 0 0 0</pose>
-      </link>
     </model>
   </world>
 </sdf>
