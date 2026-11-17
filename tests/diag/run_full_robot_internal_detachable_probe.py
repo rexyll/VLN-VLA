@@ -63,11 +63,9 @@ def make_world():
     start = re.search(r'<model name="robot" canonical_link="chassis">', source)
     if not start:
         raise RuntimeError("production robot model not found")
-    source = source[:start.start()] + source[start.start():].replace(
-        '<model name="robot" canonical_link="chassis">',
-        '<model name="robot" canonical_link="world_anchor">', 1
-    )
-    start = re.search(r'<model name="robot" canonical_link="world_anchor">', source)
+    # Keep chassis as canonical_link so dynamic_pose reports the actual
+    # mobile robot base after the internal detachable joint is released.
+    start = re.search(r'<model name="robot" canonical_link="chassis">', source)
     end = source.find("</model>", start.start())
     if end < 0:
         raise RuntimeError("robot model closing tag not found")
