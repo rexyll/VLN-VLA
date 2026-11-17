@@ -66,6 +66,15 @@ class Recorder(Node):
             }
             for entry in self.command_bridges
         }
+        self.graph_topics = sorted(
+            set([entry["ros_topic"] for entry in self.command_bridges] + [
+                "/drink/state", "/drink/base_lock_state", "/drink/cmd_vel",
+                "/robot/command", "/robot/cmd_vel",
+            ])
+        )
+        self.graph_snapshot = {}
+        self.last_graph_refresh = 0.0
+        self.graph_snapshot_due = False
         self.last_state = None
         self.started_mono = time.monotonic()
         self.seq = 0
@@ -253,8 +262,30 @@ class Recorder(Node):
             }
         self._put("gz_joint_state", joints)
 
+    def _refresh_ros_graph(self, now):
+        if now - self.last_graph_refresh < 1.0:
+            return
+        snapshot = {}
+        for topic in self.graph_topics:
+            endpoints = self.get_publishers_info_by_topic(topic)
+            snapshot[topic] = {
+                "publisher_count": len(endpoints),
+                "publishers": [
+                    {
+                        "node_name": endpoint.node_name,
+                        "node_namespace": endpoint.node_namespace,
+                        "topic_type": endpoint.topic_type,
+                    }
+                    for endpoint in endpoints
+                ],
+            }
+        self.graph_snapshot = snapshot
+        self.last_graph_refresh = now
+        self.graph_snapshot_due = True
+
     def write_sample(self):
         now = time.monotonic()
+        self._refresh_ros_graph(now)
         with self.lock:
             snapshot = {k: dict(v) for k, v in self.latest.items()}
             command_snapshot = {
@@ -280,6 +311,7 @@ class Recorder(Node):
             "event": event,
             "topic_age_s": ages,
             "gazebo_subscriptions": self.gz_ready,
+            "ros_graph_snapshot": self.graph_snapshot if self.graph_snapshot_due else None,
             "drink_command_telemetry": {
                 ros_topic: {
                     "gz_topic": stats["gz_topic"],
@@ -307,6 +339,7 @@ class Recorder(Node):
             "data": values
         }
         self.stream.write(json.dumps(record, ensure_ascii=False, separators=(",", ":")) + "\n")
+        self.graph_snapshot_due = False
 
     def close(self):
         try:
