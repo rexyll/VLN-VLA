@@ -1,0 +1,13 @@
+[INFO] [1794887246.916968546] [voice_node]: VOICE 真人语音识别节点已启动 (Vosk 离线中文, 等待语音指令...)
+LOG (VoskAPI:ReadDataFiles():model.cc:213) Decoding params beam=12 max-active=5000 lattice-beam=4
+LOG (VoskAPI:ReadDataFiles():model.cc:216) Silence phones 1:2:3:4:5:6:7:8:9:10
+LOG (VoskAPI:RemoveOrphanNodes():nnet-nnet.cc:948) Removed 0 orphan nodes.
+LOG (VoskAPI:RemoveOrphanComponents():nnet-nnet.cc:847) Removing 0 orphan components.
+LOG (VoskAPI:ReadDataFiles():model.cc:248) Loading i-vector extractor from /home/earl/workspace/VLA/vla_demo/vosk-model-small-cn-0.22/ivector/final.ie
+LOG (VoskAPI:ComputeDerivedVars():ivector-extractor.cc:183) Computing derived variables for iVector extractor
+LOG (VoskAPI:ComputeDerivedVars():ivector-extractor.cc:204) Done.
+LOG (VoskAPI:ReadDataFiles():model.cc:282) Loading HCL and G from /home/earl/workspace/VLA/vla_demo/vosk-model-small-cn-0.22/graph/HCLr.fst /home/earl/workspace/VLA/vla_demo/vosk-model-small-cn-0.22/graph/Gr.fst
+LOG (VoskAPI:ReadDataFiles():model.cc:308) Loading winfo /home/earl/workspace/VLA/vla_demo/vosk-model-small-cn-0.22/graph/phones/word_boundary.int
+[INFO] [1794887247.989595545] [voice_node]: VOICE 中文声学模型加载完成: /home/earl/workspace/VLA/vla_demo/vosk-model-small-cn-0.22 (0.6s), 可以开始识别
+[INFO] [1794887364.099216331] [voice_node]: VOICE ★ 解析为机器指令: {"action": "DRINK", "text": "我要喝水", "source": "text"}
+[INFO] [1794888217.705343332] [voice_node]: VOICE ★ 解析为机器指令: {"action": "DRINK", "text": "我要喝水", "source": "text"}

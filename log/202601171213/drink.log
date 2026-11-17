@@ -1,0 +1,55 @@
+[INFO] [1794887246.929260137] [drink_task]: drink_task 已起: 39 路指令 @20Hz, 人体手高 1.00m, 服务位 (1.75, 0.35, 0.0)
+[INFO] [1794887247.171654127] [drink_task]: BOOT_ARM_COMMAND_GATE closed: suppressing joint targets until physical chassis hold is confirmed
+[INFO] [1794887250.109972223] [drink_task]: PHYSICAL_CHASSIS_LOCK starting mux-locked detach/attach/detach state probe
+[INFO] [1794887252.522403926] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1794887255.630540697] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1794887257.790627488] [drink_task]: PHYSICAL_CHASSIS_LOCK startup_detach displacement_mm=0.000 yaw_deg=0.0000
+[INFO] [1794887258.625295665] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1794887259.092607083] [drink_task]: PHYSICAL_CHASSIS_LOCK startup_attach displacement_mm=0.000 yaw_deg=0.0000
+[INFO] [1794887260.469580420] [drink_task]: PHYSICAL_CHASSIS_LOCK startup_final_detach displacement_mm=0.000 yaw_deg=0.0000
+[INFO] [1794887260.576135238] [drink_task]: PHYSICAL_CHASSIS_LOCK startup PASS: mux locked, attached→detached→attached→detached verified; navigation enabled
+[INFO] [1794887260.704294387] [drink_task]: DRINK_BASE_LOCK software=LOCKED request_id=3 acknowledged
+[INFO] [1794887261.514191820] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1794887262.217771294] [drink_task]: PHYSICAL_CHASSIS_LOCK pose_check displacement_mm=0.000 yaw_deg=0.0000
+[INFO] [1794887262.218000409] [drink_task]: BOOT_ARM_COMMAND_GATE open: physical chassis hold confirmed
+[INFO] [1794887262.218163705] [drink_task]: DRINK_BASE_LOCK physical=ATTACHED + software=LOCKED + truth_hold=PASS
+[INFO] [1794887264.558964779] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1794887267.470807871] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1794887270.281561989] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1794887273.119570341] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1794887276.053607394] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[ERROR] [1794887277.344036753] [drink_task]: JOINT_SERVO_TIMEOUT side=R sim_elapsed_s=5.001 wall_elapsed_s=15.124 joints=[R_hand_index_1_joint:target=0.0200 actual=0.0000 error=0.0200 velocity=-0.0000 effort=0.0000; R_hand_index_2_joint:target=0.0500 actual=-0.0000 error=0.0500 velocity=0.0000 effort=0.0000; R_hand_middle_1_joint:target=0.0200 actual=0.0000 error=0.0200 velocity=-0.0000 effort=0.0000; R_hand_middle_2_joint:target=0.0500 actual=0.0000 error=0.0500 velocity=0.0000 effort=0.0000; R_hand_ring_1_joint:target=0.0200 actual=0.0000 error=0.0200 velocity=-0.0000 effort=0.0000; R_hand_ring_2_joint:target=0.0500 actual=0.0000 error=0.0500 velocity=0.0000 effort=0.0000; R_hand_little_1_joint:target=0.0200 actual=0.0000 error=0.0200 velocity=0.0000 effort=0.0000; R_hand_little_2_joint:target=0.0500 actual=0.0000 error=0.0500 velocity=-0.0000 effort=0.0000; R_hand_thumb_1_joint:target=0.0000 actual=0.0000 error=-0.0000 velocity=-0.0000 effort=0.0000; R_hand_thumb_2_joint:target=0.1000 actual=0.0000 error=0.1000 velocity=0.0000 effort=0.0000]
+[INFO] [1794887278.995622795] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1794887281.773915614] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1794887284.714914780] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1794887287.703569361] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1794887290.682708987] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1794887293.608436252] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1794887296.406799661] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1794887299.252193924] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1794887302.097232773] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1794887304.877783309] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[ERROR] [1794887307.763712571] [drink_task]: JOINT_SERVO_TIMEOUT side=R sim_elapsed_s=10.008 wall_elapsed_s=30.418 joints=[R_pan_joint:target=0.0000 actual=0.0000 error=-0.0000 velocity=-0.0000 effort=0.0000; R_lift_joint:target=-0.5500 actual=0.0000 error=-0.5500 velocity=-0.0000 effort=0.0000; R_up_roll_joint:target=0.0000 actual=-0.0000 error=0.0000 velocity=-0.0000 effort=0.0000; R_elbow_joint:target=-0.8500 actual=-0.0000 error=-0.8500 velocity=0.0000 effort=0.0000; R_fore_roll_joint:target=0.0000 actual=-0.0000 error=0.0000 velocity=-0.0000 effort=0.0000; R_wrist_p_joint:target=0.3500 actual=0.0000 error=0.3500 velocity=-0.0000 effort=0.0000; R_wrist_r_joint:target=0.0000 actual=-0.0000 error=0.0000 velocity=0.0000 effort=0.0000]
+[INFO] [1794887307.765591003] [drink_task]: R 侧 home: 臂 超时 (最大残差 48.7°)  手 超时 (5.7°)
+[INFO] [1794887307.833102774] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1794887310.665258643] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1794887313.685299612] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1794887316.516157262] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1794887319.626707546] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1794887322.499390547] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[ERROR] [1794887323.189218290] [drink_task]: JOINT_SERVO_TIMEOUT side=L sim_elapsed_s=5.006 wall_elapsed_s=15.423 joints=[L_hand_index_1_joint:target=0.0200 actual=0.0000 error=0.0200 velocity=0.0000 effort=0.0000; L_hand_index_2_joint:target=0.0500 actual=0.0000 error=0.0500 velocity=0.0000 effort=0.0000; L_hand_middle_1_joint:target=0.0200 actual=0.0000 error=0.0200 velocity=-0.0000 effort=0.0000; L_hand_middle_2_joint:target=0.0500 actual=0.0000 error=0.0500 velocity=-0.0000 effort=0.0000; L_hand_ring_1_joint:target=0.0200 actual=0.0000 error=0.0200 velocity=-0.0000 effort=0.0000; L_hand_ring_2_joint:target=0.0500 actual=0.0000 error=0.0500 velocity=-0.0000 effort=0.0000; L_hand_little_1_joint:target=0.0200 actual=0.0000 error=0.0200 velocity=-0.0000 effort=0.0000; L_hand_little_2_joint:target=0.0500 actual=-0.0000 error=0.0500 velocity=0.0000 effort=0.0000; L_hand_thumb_1_joint:target=0.0000 actual=0.0000 error=-0.0000 velocity=-0.0000 effort=0.0000; L_hand_thumb_2_joint:target=0.1000 actual=0.0000 error=0.1000 velocity=-0.0000 effort=0.0000]
+[INFO] [1794887325.252995670] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1794887328.157567082] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1794887330.963072219] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1794887333.859519549] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1794887336.842228367] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1794887339.689485958] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1794887342.607811223] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1794887345.425083317] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1794887348.324848112] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1794887351.272156532] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[INFO] [1794887354.172500993] [drink_task]: GT links_n=60 kettle=True cup=True disc=True
+[ERROR] [1794887354.265372496] [drink_task]: JOINT_SERVO_TIMEOUT side=L sim_elapsed_s=10.002 wall_elapsed_s=31.076 joints=[L_pan_joint:target=0.0000 actual=0.0000 error=-0.0000 velocity=0.0000 effort=0.0000; L_lift_joint:target=-0.5500 actual=0.0000 error=-0.5500 velocity=0.0000 effort=0.0000; L_up_roll_joint:target=0.0000 actual=0.0000 error=-0.0000 velocity=-0.0000 effort=0.0000; L_elbow_joint:target=-0.8500 actual=-0.0000 error=-0.8500 velocity=0.0000 effort=0.0000; L_fore_roll_joint:target=0.0000 actual=0.0000 error=-0.0000 velocity=0.0000 effort=0.0000; L_wrist_p_joint:target=0.3500 actual=-0.0000 error=0.3500 velocity=0.0000 effort=0.0000; L_wrist_r_joint:target=0.0000 actual=0.0000 error=-0.0000 velocity=-0.0000 effort=0.0000]
+[INFO] [1794887354.265694245] [drink_task]: L 侧 home: 臂 超时 (最大残差 48.7°)  手 超时 (5.7°)
+[ERROR] [1794887354.567189132] [drink_task]: STARTUP_ABORT: boot home/hang not confirmed; physical chassis hold remains engaged
+[ros2run]: Process exited with failure 5
