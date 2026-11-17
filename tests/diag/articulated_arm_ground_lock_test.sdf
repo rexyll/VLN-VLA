@@ -54,7 +54,7 @@
       <plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController">
         <joint_name>probe_arm_force_joint</joint_name>
         <topic>/arm_lock_probe/cmd/probe_arm_force_joint</topic>
-        <p_gain>20.0</p_gain><i_gain>0.0</i_gain><d_gain>0.0</d_gain>
+        <p_gain>-20.0</p_gain><i_gain>0.0</i_gain><d_gain>0.0</d_gain>
         <cmd_max>10.0</cmd_max><cmd_min>-10.0</cmd_min>
       </plugin>
       <plugin filename="gz-sim-joint-state-publisher-system" name="gz::sim::systems::JointStatePublisher">
