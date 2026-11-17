@@ -90,6 +90,7 @@ python3 tests/diag/record_drinktask_telemetry.py --run-id local-001
 
 采集器会输出目录，例如 tests/out/drinktask_local-001_YYYYMMDD_HHMMSS/，内含：
 - metadata.json：系统、ROS、分支、HEAD、订阅情况，以及从 `bridge.yml` 自动解析出的 39 路 `/drink/cmd/*` ROS→Gazebo topic 映射和订阅注册结果。
+- telemetry.jsonl：每秒（在 10Hz 记录流中按需写入）额外记录 ROS graph snapshot，覆盖 39 路命令 topic 及 `/drink/state`、`/drink/base_lock_state`、`/drink/cmd_vel`、`/robot/command`、`/robot/cmd_vel` 的发布者数量、节点名/命名空间和类型。该信息用于区分“没有发布者”与“有发布者但没有消息”。
 - telemetry.jsonl：10Hz 快照，包含 ROS 关节位置/速度/effort、Gazebo truth 底盘位姿、Gazebo 关节遥测、物理锁状态、软件底盘锁 ACK、底盘指令、odom、DrinkTask 状态、follower/Nav2 状态、TF 和 topic 数据新鲜度；另逐路记录 39 个命令 topic 在 ROS 端与 Gazebo Transport 端的实际接收计数、最后值、最后接收 UTC/monotonic 时间戳和数据 age。
 
 必须成功订阅以下三条 Gazebo topic：dynamic_pose、robot joint_state、chassis_lock state。若订阅失败，先不要开始正式验收，把报错和 topic 列表发回分析。
