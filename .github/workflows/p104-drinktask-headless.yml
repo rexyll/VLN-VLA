@@ -153,10 +153,6 @@ jobs:
         run: |
           PYTHONPATH=vla_ws/src/vla_follow python3 tests/test_manipulation_bt.py -v
 
-      - name: Test Gazebo physical chassis lock retry and acknowledgement behavior
-        run: |
-          PYTHONPATH=vla_ws/src/vla_follow python3 tests/test_gazebo_ground_lock.py -v
-
       - name: Configure Gazebo Harmonic apt repository
         run: |
           # Some hosted runner images contain a Microsoft apt source that can
@@ -199,6 +195,11 @@ jobs:
             python3-gz-transport13 python3-gz-msgs10 \
             xvfb x11-utils libgl1-mesa-dri libglx-mesa0
 
+      - name: Test Gazebo physical chassis lock retry and acknowledgement behavior
+        run: |
+          PYTHONPATH=vla_ws/src/vla_follow python3 tests/test_gazebo_ground_lock.py -v
+
+
       - name: Verify pinned MotionControlAlgorithms vendor snapshot
         run: |
           python3 -m py_compile vla_ws/src/mca_drink_control/tools/export_arm_urdf.py vla_ws/src/mca_drink_control/tools/verify_vendor.py
@@ -210,7 +211,7 @@ jobs:
 
       - name: Build Gazebo system plugins
         run: |
-          python3 -m py_compile vla_ws/src/vla_follow/vla_follow/gazebo_ground_lock.py vla_ws/src/vla_follow/vla_follow/drink_task.py tests/diag/run_chassis_brake_gz.py tests/diag/run_chassis_ground_lock_gz.py tests/diag/run_articulated_arm_ground_lock_probe.py tests/diag/record_drinktask_telemetry.py tests/diag/verify_p104_stage_locks.py tests/diag/verify_ground_fixed_joint.py
+          python3 -m py_compile vla_ws/src/vla_follow/vla_follow/gazebo_ground_lock.py vla_ws/src/vla_follow/vla_follow/drink_task.py tests/diag/run_chassis_brake_gz.py tests/diag/run_chassis_ground_lock_gz.py tests/diag/run_articulated_arm_ground_lock_probe.py tests/diag/record_drinktask_telemetry.py tests/diag/verify_p104_stage_locks.py tests/diag/verify_ground_fixed_joint.py tests/test_gazebo_ground_lock.py
           bash -n tools/gz_plugin.sh
           cmake -S vla_ws/src/vla_follow/gz_plugins \
             -B vla_ws/src/vla_follow/gz_plugins/build \
