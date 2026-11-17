@@ -44,6 +44,8 @@ ARM_JOINTS = {
 }
 MAX_BASE_DISPLACEMENT_M = 0.002
 MAX_BASE_YAW_RAD = math.radians(0.5)
+PLUGIN_SO = os.path.join(ROOT, "vla_ws/src/vla_follow/gz_plugins/build/libGraspCarry.so")
+PLUGIN_READY_MARKER = "[GraspCarry] 就绪"
 
 
 def make_world():
@@ -224,6 +226,63 @@ def move_joint(tel, proc, name, target):
     raise RuntimeError("%s target %.3f did not settle; last=%r" % (name, target, last))
 
 
+def wait_for_grasp_carry_plugin(proc, timeout=8.0):
+    """Require the production world plugin to be loaded, not merely named in SDF."""
+    deadline = time.monotonic() + timeout
+    last_log = ""
+    while time.monotonic() < deadline:
+        ensure_alive(proc, "GraspCarry plugin load")
+        try:
+            with open(LOG_OUT, encoding="utf-8", errors="replace") as f:
+                last_log = f.read()
+        except OSError:
+            pass
+        if PLUGIN_READY_MARKER in last_log:
+            return
+        if "Failed to load system plugin [libGraspCarry.so]" in last_log:
+            raise RuntimeError("Gazebo failed to load production libGraspCarry.so")
+        time.sleep(0.05)
+    raise RuntimeError(
+        "production GraspCarry plugin did not report ready; log_tail="
+        + repr(last_log[-1200:])
+    )
+
+
+def passive_stability_challenge(tel, proc, label, window_s=0.35):
+    """Mirror startup's no-command pose/stationarity check after each transition."""
+    _, origin, samples, _, _ = tel.snapshot()
+    if origin is None:
+        raise RuntimeError(label + ": missing initial robot pose")
+    index = len(samples)
+    deadline = time.monotonic() + window_s
+    while time.monotonic() < deadline:
+        ensure_alive(proc, label + " passive stability")
+        time.sleep(0.02)
+    _, end, all_samples, _, _ = tel.snapshot()
+    window_samples = all_samples[index:]
+    if len(window_samples) < 5:
+        raise RuntimeError(
+            label + ": insufficient passive pose samples (%d)" % len(window_samples)
+        )
+    xy, yaw = pose_excursion(window_samples, origin)
+    result = {
+        "phase": label,
+        "status": "passed",
+        "window_s": window_s,
+        "pose_samples": len(window_samples),
+        "max_displacement_mm": xy * 1000.0,
+        "max_yaw_delta_deg": math.degrees(yaw),
+        "start_pose": origin,
+        "end_pose": end,
+    }
+    if xy >= MAX_BASE_DISPLACEMENT_M or yaw >= MAX_BASE_YAW_RAD:
+        raise RuntimeError(
+            "%s passive pose changed %.3fmm / %.4fdeg"
+            % (label, xy * 1000.0, math.degrees(yaw))
+        )
+    return result
+
+
 def pose_excursion(samples, origin):
     xy = yaw = 0.0
     for _, p in samples:
@@ -261,11 +320,19 @@ def main():
         report["grasp_carry_plugin_retained"] = True
         report["external_anchor_removed"] = True
         report["sdf_check"] = make_world()
+        if not os.path.isfile(PLUGIN_SO):
+            raise RuntimeError("built production GraspCarry plugin missing: " + PLUGIN_SO)
         log = open(LOG_OUT, "w", encoding="utf-8")
+        env = os.environ.copy()
+        plugin_dir = os.path.dirname(PLUGIN_SO)
+        search_path = env.get("GZ_SIM_SYSTEM_PLUGIN_PATH", "")
+        env["GZ_SIM_SYSTEM_PLUGIN_PATH"] = plugin_dir + (os.pathsep + search_path if search_path else "")
         proc = subprocess.Popen(["gz", "sim", "-s", "-r", WORLD_OUT],
-                                cwd=ROOT, env=os.environ.copy(),
+                                cwd=ROOT, env=env,
                                 stdout=log, stderr=subprocess.STDOUT,
                                 start_new_session=True)
+        wait_for_grasp_carry_plugin(proc)
+        report["grasp_carry_plugin_loaded"] = True
         tel = Telemetry()
         wait_for(tel, proc, lambda s: len(s[0]) == len(ARM_JOINTS) and s[1] is not None and s[3] is not None,
                  35, "joint/pose/initial lock telemetry")
@@ -275,18 +342,23 @@ def main():
         for name, target in ARM_JOINTS.items():
             report["joint_stages"].append(move_joint(tel, proc, name, target))
             report["joint_stages"].append(move_joint(tel, proc, name, 0.0))
+        report["passive_stability"] = []
+        report["passive_stability"].append(passive_stability_challenge(tel, proc, "initial_attached"))
         report["drive_challenges"].append({"phase": "attached", **drive_challenge(tel, proc, True)})
         n = request_state(tel, proc, "detached")
         report["state_transitions"].append({"target": "detached", "attempts": n})
+        report["passive_stability"].append(passive_stability_challenge(tel, proc, "detached"))
         report["drive_challenges"].append({"phase": "detached", **drive_challenge(tel, proc, False)})
         n = request_state(tel, proc, "attached")
         report["state_transitions"].append({"target": "attached", "attempts": n})
+        report["passive_stability"].append(passive_stability_challenge(tel, proc, "reattached"))
         for name, target in ARM_JOINTS.items():
             report["joint_stages"].append(move_joint(tel, proc, name, target))
             report["joint_stages"].append(move_joint(tel, proc, name, 0.0))
         report["drive_challenges"].append({"phase": "reattached", **drive_challenge(tel, proc, True)})
         n = request_state(tel, proc, "detached")
         report["state_transitions"].append({"target": "detached", "attempts": n})
+        report["passive_stability"].append(passive_stability_challenge(tel, proc, "final_detached"))
         report["drive_challenges"].append({"phase": "final_detached", **drive_challenge(tel, proc, False)})
         report["state_messages"] = tel.snapshot()[4]
         report["result"] = "PASS"
