@@ -1796,3 +1796,13 @@
 - Gazebo Sim 8.15 的 JointPositionController 文档说明，use_velocity_commands=true 会绕过 PID 并通过速度命令实现目标位置，速度上限由 cmd_max 控制；因此当前目标值已发布但实测速度/effort 为零，下一步必须验证 ECS/Physics/DART 链路，不能靠调 PID、延长超时或改变关节阈值解决。参考：Gazebo Sim 8.15 JointPositionController 文档与 JointVelocityCmd 组件说明。
 - **下一步执行顺序：**(1) 新增最小 articulated-arm + 同款静态 Ground DetachableJoint 对照世界；同一关节控制器先在 detached 状态、再在 attached 状态接收相同目标，分别验证关节角变化和 chassis 位姿；(2) 若 detached 可动而 attached 不可动，锁定 DetachableJoint/DART 约束拓扑问题；若两种状态均不可动，检查 JointPositionController entity 解析、目标订阅与 Physics/DART 组件消费；若两种状态均可动，再回查生产机器人 SDF/插件配置差异；(3) 仅在最小复现明确后，才做生产场景单关节低幅度受控验证，保持底盘 <2mm、yaw <0.5°；(4) 恢复 boot home/hang 和连续两轮完整 E2E。
 - 禁止降低关节到位精度、物理锁阈值；禁止改惯量、质量、摩擦或使用 teleport/直接改 joint state 伪造响应。PR #3 保持 Draft/Open；仅在 experiment/drinktask-bt-ik-recovery 工作，不修改 main，不创建分支，不设置定时监控。
+
+
+### 8.448 建立 articulated-arm + Ground DetachableJoint 最小对照实验（2026-11-17）
+
+- 基于 §8.447 的排查路径，新增独立世界 `tests/diag/articulated_arm_ground_lock_test.sdf`：仅包含一个有惯量的 chassis、一个内部 revolute arm joint、Gazebo Sim 8.15 JointPositionController（`use_velocity_commands=true`）和与生产相同类型的静态 Ground DetachableJoint 锚点。该模型不引入轮式底盘控制、ApplyLinkWrench、ChassisBrake、MCA 或生产机器人惯量/摩擦参数，目的是隔离内部关节驱动与静态锚点的相互作用。
+- 新增 `tests/diag/run_articulated_arm_ground_lock_probe.py`：订阅 DetachableJoint state、robot joint_state 和 dynamic_pose；先验证初始 attached，再 detach 并发送 0.45rad 目标，回零后 attach，再发送相同目标。分别记录关节实际角度和 chassis pose；attached 阶段要求关节真实转动至少 0.25rad，同时底盘平移 <2mm、yaw <0.5°。脚本明确发布 Empty 消息，并在每阶段等待真实状态/关节反馈，不用命令发送成功代替物理响应。
+- 已将最小对照脚本接入 P104 Gazebo workflow：插件构建后、既有 GroundFixedJoint 三轮隔离实验前运行；同时加入 PR/push path filter 和 Python compile 检查。此次只新增诊断世界/runner/CI 步骤，不修改生产 `work_area.sdf`、JointPositionController 参数、机器人动力学参数或任务控制逻辑。
+- **结果状态：正在进行中，尚未取得本次 CI 的 Gazebo 实测结果。** 预期判读：detached 可动且 attached 不可动，支持 DetachableJoint/DART 约束拓扑影响内部 DOF；两种状态都不可动，优先排查控制器/JointVelocityCmd/Physics 链路或最小实验配置；两种状态都可动，则回到生产 SDF 比较 joint entity、controller 插件和模型拓扑。若 detached 对照未通过，禁止据 attached 结果归因。
+- 下一步：检查本次 CI 的 SDF 加载、控制器订阅、状态转换、joint-state 与 dynamic-pose 结果；若最小实验有效，再按其结果设计生产场景单关节低幅度受控验证。完整生产验收仍要求双臂 home/hang 原阈值、底盘 <2mm / yaw <0.5°，不得改质量/惯量/摩擦、不得 teleport 或伪造关节状态。
+- PR #3 保持 Draft/Open；仅在 `experiment/drinktask-bt-ik-recovery` 工作，不修改 `main`，不创建分支，不设置定时监控。
