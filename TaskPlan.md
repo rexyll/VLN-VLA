@@ -1841,3 +1841,12 @@
 - runner 的观测设计还有缺口：`move_and_measure()` 只判断角度误差 <0.08rad，不检查关节速度、连续稳定时间或峰值；detached 两个控制模式的测量仅在整段流程全部完成后才写入 `stages`，所以 force-mode 超时后报告 `stages=[]`，丢失 velocity-mode 阶段数据。下一版应逐阶段即时持久化，并采集位置/速度/力矩/峰值；成功条件增加速度阈值和连续稳定窗口，避免高速穿越目标被判为到位。
 - 下一步：先只修正诊断 SDF/runner，不改生产 `work_area.sdf`。以保守 P/D 参数、双向小目标和有界力矩做 detached force-mode 调试；按 Gazebo 的 `actual-target` 误差定义验证 P/D 方向，记录角度/速度/力矩时间序列，确认正负目标都能稳定收敛后，再执行 attached 对照。detached velocity-mode 结果也须单独落盘。只有两种模式 detached 基线均有效，才解释 attached A/B；若 velocity-mode attached 失败而 force-mode attached 通过，才支持命令路径差异；若两者均失败，再调查固定约束与 DART articulation。之后才允许进入生产场景单关节受控测试。
 - 继续保持底盘平移 <2mm、yaw <0.5°和既有机械臂验收门槛；不改变生产质量/惯量/摩擦，不降低验收阈值，不 teleport 或伪造关节响应。PR #3 保持 Draft/Open；仅在 `experiment/drinktask-bt-ik-recovery` 工作，不修改/合并 main，不创建分支，不设置定时监控。
+
+### 8.452 Force-mode 探针稳定性与逐阶段证据采集修正（2026-11-17）
+
+- 针对 Run #644 的 detached force-mode 基线触及 +1.0rad 关节上限，修正仅作用于诊断世界的控制器：P 从 -20 调整为 -4，D 从 0 调整为 -0.5，输出限幅从 ±10 调整为 ±2；I 保持 0。按 Gazebo PID 的 actual-target 误差定义，P/D 均采用负号提供目标方向恢复力与速度阻尼。该参数是最小实验待验证值，不是生产控制器参数，不得移植到生产 SDF。
+- 修正诊断 runner：关节遥测从仅记录 position 扩展为 position/velocity/force，并保留每次命令期间的时序样本；到位条件改为位置误差 <0.08rad、绝对速度 <0.05rad/s，且连续稳定 0.5s。报告在每个移动阶段成功后立即追加结果；失败报告记录当前阶段、最后遥测及最近样本，避免前序成功阶段丢失。
+- 增加 detached force-mode 负方向目标测试（-0.45rad），正负方向均需真实移动至少 0.25rad 并稳定到位，才允许进入 attached 对照。此举用于验证 P/D 极性和双向可控性，不用单向目标通过推断控制器稳定。
+- 代码提交：控制器参数 49971c49f30562a07978c83bc57122aa50963a34；runner 时序遥测/稳定判据 dcd66ef8e31f44322c6ed3b3a8a65b278f1c78b0；双向基线及移除样本环形截断 d40916024d79e6e29c16bd6825491562665947c9。
+- 当前 Run #645（run 44006148553，head SHA 4a41133745df7dcbb4a4c93aa4d492a3d4725670）是在上述参数/遥测改动前启动，仍在执行探针步骤；它只能验证旧配置，不能验证 §8.452 新配置。新提交将触发下一轮 CI，需单独检查。
+- 下一步：先确认新 runner 的 detached force-mode 正、负目标均稳定收敛；只有 detached velocity/force 基线均通过，才执行 attached 对照。若 detached force-mode 仍不稳定，暂停 A/B 结论，继续只在隔离探针内整定；禁止修改生产 work_area.sdf。
