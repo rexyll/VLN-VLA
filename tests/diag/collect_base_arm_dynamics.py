@@ -155,8 +155,8 @@ class Collector:
             header_stamp = stamp_dict(msg.header.stamp)
         self.emit("wheel_odometry", {
             "header_stamp": header_stamp,
-            "position": vec3(msg.pose.pose.position),
-            "orientation": quat(msg.pose.pose.orientation),
+            "position": vec3(msg.pose.position),
+            "orientation": quat(msg.pose.orientation),
             "linear_velocity": vec3(msg.twist.linear),
             "angular_velocity": vec3(msg.twist.angular),
         }, header_stamp)

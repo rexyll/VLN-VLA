@@ -1770,3 +1770,16 @@
 - 已提交实现：`a72718c181c9a538d7be73afec01755c9985ea05`；测试提交：`ae548f6c8cc4d6aa8ebab5ed42e9b034ff1d790f`。新增 AST 回归断言检查最多两次尝试以及每次等待新鲜状态事件。Python 语法与纯测试 workflow 当前已通过；完整生产 Gazebo E2E `43895621864` 尚待执行。
 - 下一验收：生产 `work_area.sdf` 至少 3 次独立启动均须通过真实 detach→attach→final-detach 事件确认；每阶段底盘位移 <2mm、yaw <0.5°，mux 在整个探测阶段保持 LOCKED；门控关闭期间不得发布任何双臂目标。只有 attach 与位姿保持验证通过后才允许打开双臂输出门控。不得跳过事件确认、降低物理阈值、改变机器人惯量/质量/摩擦或伪造物理响应。
 - PR #3 保持 Draft/Open；仅在 `experiment/drinktask-bt-ik-recovery` 工作，不修改 `main)，不创建新分支，不设置定时监控。
+
+
+### 8.446 生产物理锁握手通过后双臂 home 无实际运动（2026-11-17）
+
+- 最新生产 E2E run `43895819685`，提交 `74330e7285762232784c72345284ecdc33b1eb52`。离线 Python、Gazebo 插件构建、MCA 构建/服务测试和 GroundFixedJoint 三次隔离测试均通过；旧 ChassisBrake baseline 与旧阶段锁 manifest 仍作为 non-authoritative 诊断失败保留，不是本次主失败点。
+- **物理锁启动握手本轮通过：**生产 `work_area.sdf` 日志记录 startup detach、attach、final detach 的位移均为 0.000mm、yaw 均为 0.0000°；随后 `PHYSICAL_CHASSIS_LOCK startup PASS`、`BOOT_ARM_COMMAND_GATE open` 和 `DRINK_BASE_LOCK physical=ATTACHED + software=LOCKED + truth_hold=PASS`。这说明本轮不再卡在 attach ACK。
+- **新的主阻塞：**失败阶段为 `FAIL_STARTUP_HOME`。R/L home 均超时，双臂最大残差 48.7°，手部残差 5.7°。只读 Gazebo 遥测覆盖 sim time 0.04–57.62s：14 个 arm target 话题均有 603 条消息；目标从 0 更新为 `lift=-0.55rad`、`elbow=-0.85rad`、`wrist_p=0.35rad` 等，但 joint-state 中对应关节位置/速度始终约为 0，速度在 10^-18rad/s 量级。Gazebo 日志确认 39 路 JointPositionController 均订阅对应 `/drink/cmd/*` 话题。现有证据支持“命令已进入 Gazebo Transport，但物理关节没有响应”；尚未区分控制器 ECS 命令处理失败、关节实体/拓扑问题或 DetachableJoint 固定锚点对内部关节 DOF 的影响，不能先验归咎于某一项。
+- 这也解释了为什么延长 home 超时没有意义：目标持续下发约 10s 仿真时间，实际关节速度仍接近零。不得放宽 1.5°臂部/4°手部到位判据，也不得更改机械臂惯量、质量、摩擦或用 teleport 伪造到位。
+- **遥测采集器独立缺陷：**`collect_base_arm_dynamics.py:on_odom()` 将 Gazebo `gz.msgs.Odometry` 当成 ROS `nav_msgs/Odometry`，错误读取 `msg.pose.pose.position`；本轮回调持续抛出 `AttributeError: pose`，导致必需的 `wheel_odometry` 数据源缺失。Gazebo 消息应读取 `msg.pose.position` 和 `msg.pose.orientation`；twist 仍读取 `msg.twist.linear/angular`。已修正字段并增加 AST 回归测试。
+- **诊断增强：**已在 `JointServo.move()` 的超时分支增加逐关节 target/actual/error/velocity/effort 日志，下一轮可区分“控制器命令未生效”和“关节状态/速度回读异常”，而不是只输出最大角度残差。
+- 本轮另有 `ModuleNotFoundError: No module named 'vosk'`，语音节点依赖未安装；但 E2E 的主任务在 `FAIL_STARTUP_HOME` 已中止，语音/人走到接水位/九阶段未执行属于下游未运行，不能反向解释 home 失败。Nav2 初期的 odom TF 等待日志也不是本轮 home 失败的直接证据。
+- **下一步：**(1) 先验证 Gazebo Odometry 字段修复与新增超时诊断；(2) 构造最小 Gazebo Sim 8.15 articulated-arm + DetachableJoint 静态锚点复现实验，确认 fixed anchor 是否仍允许内部 revolute joints 被 JointPositionController 驱动；(3) 检查生产关节 entity 是否成功解析，以及 JointVelocityCmd 是否被 Physics/DART 消费；(4) 再在生产 `work_area.sdf` 做单关节低幅度、限时、底盘真值监控的受控验证，确认 arm motion 可在 chassis physically attached 时发生；(5) 恢复完整 boot home/hang 和连续两轮 E2E。每一步保持物理锁、底盘 <2mm、yaw <0.5°和关节原有到位门槛。
+- 生产 E2E 本轮只完成 1/2 轮，0/2 通过；完整 DrinkTask 九阶段未开始。PR #3 保持 Draft/Open；仅在 `experiment/drinktask-bt-ik-recovery` 工作，不修改 `main`，不创建分支，不设置定时监控。

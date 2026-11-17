@@ -4158,5 +4158,25 @@ class TestDrinkBaseLock(unittest.TestCase):
         self.assertIn('BOOT_ARM_COMMAND_GATE open', lock_source)
 
 
+class TestBaseArmCollectorContract(unittest.TestCase):
+    def test_gazebo_odometry_uses_pose_not_ros_nested_pose(self):
+        collector_path = os.path.join(
+            ROOT, 'tests', 'diag', 'collect_base_arm_dynamics.py')
+        with open(collector_path, encoding='utf-8') as stream:
+            tree = ast.parse(stream.read())
+        collector_class = next(
+            node for node in tree.body
+            if isinstance(node, ast.ClassDef) and node.name == 'Collector')
+        callback = next(
+            node for node in collector_class.body
+            if isinstance(node, ast.FunctionDef) and node.name == 'on_odom')
+        source = ast.unparse(callback)
+        self.assertIn('msg.pose.position', source)
+        self.assertIn('msg.pose.orientation', source)
+        self.assertIn('msg.twist.linear', source)
+        self.assertIn('msg.twist.angular', source)
+        self.assertNotIn('msg.pose.pose', source)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)
