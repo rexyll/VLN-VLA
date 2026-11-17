@@ -3826,7 +3826,7 @@ class TestPhysicalGazeboChassisLock(unittest.TestCase):
         self.assertIn("force=False", lock_client)
         self.assertIn("self.state == expected and not force", lock_client)
         self.assertIn('while time.monotonic() < deadline:', lock_client)
-        self.assertIn('timeout=min(0.25, remaining)', lock_client)
+        self.assertIn('timeout_s=min(0.25, remaining)', lock_client)
         self.assertIn('self.last_command_attempts += 1', lock_client)
         self.assertIn('after_time=command_started', lock_client)
         self.assertIn('self.wait_for_state(', lock_client)
