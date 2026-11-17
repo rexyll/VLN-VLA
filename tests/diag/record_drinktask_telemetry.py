@@ -61,8 +61,8 @@ class Recorder(Node):
         self.command_stats = {
             entry["ros_topic"]: {
                 "gz_topic": entry["gz_topic"],
-                "ros": {"count": 0, "last_value": None, "last_received_monotonic": None},
-                "gazebo": {"count": 0, "last_value": None, "last_received_monotonic": None},
+                "ros": {"count": 0, "last_value": None, "last_received_monotonic": None, "last_received_utc": None},
+                "gazebo": {"count": 0, "last_value": None, "last_received_monotonic": None, "last_received_utc": None},
             }
             for entry in self.command_bridges
         }
@@ -88,8 +88,8 @@ class Recorder(Node):
                 {
                     "ros_topic": entry["ros_topic"],
                     "gz_topic": entry["gz_topic"],
-                    "ros_subscribed": entry["ros_topic"] in self.ros_command_subscriptions,
-                    "gazebo_subscribed": entry["gz_topic"] in self.gz_command_subscriptions,
+                    "ros_subscribed": self.ros_command_subscriptions.get(entry["ros_topic"], False),
+                    "gazebo_subscribed": self.gz_command_subscriptions.get(entry["gz_topic"], False),
                 }
                 for entry in self.command_bridges
             ],
@@ -164,6 +164,7 @@ class Recorder(Node):
             stats["count"] += 1
             stats["last_value"] = safe_float(value)
             stats["last_received_monotonic"] = now
+            stats["last_received_utc"] = datetime.now(timezone.utc).isoformat()
 
     def _subscribe_command_bridges(self):
         for entry in self.command_bridges:
@@ -279,12 +280,18 @@ class Recorder(Node):
                         "last_value": stats["ros"]["last_value"],
                         "age_s": round(now - stats["ros"]["last_received_monotonic"], 4)
                         if stats["ros"]["last_received_monotonic"] is not None else None,
+                        "last_received_monotonic_s": round(stats["ros"]["last_received_monotonic"] - self.started_mono, 4)
+                        if stats["ros"]["last_received_monotonic"] is not None else None,
+                        "last_received_utc": stats["ros"]["last_received_utc"],
                     },
                     "gazebo": {
                         "count": stats["gazebo"]["count"],
                         "last_value": stats["gazebo"]["last_value"],
                         "age_s": round(now - stats["gazebo"]["last_received_monotonic"], 4)
                         if stats["gazebo"]["last_received_monotonic"] is not None else None,
+                        "last_received_monotonic_s": round(stats["gazebo"]["last_received_monotonic"] - self.started_mono, 4)
+                        if stats["gazebo"]["last_received_monotonic"] is not None else None,
+                        "last_received_utc": stats["gazebo"]["last_received_utc"],
                     },
                 }
                 for ros_topic, stats in self.command_stats.items()
