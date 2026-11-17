@@ -1906,3 +1906,17 @@
 - 已复核用户上传的 `log/202601171213/` 六份日志：`drink.log` 显示物理锁启动握手成功且 `BOOT_ARM_COMMAND_GATE` 打开，随后 startup home 的双臂/手指关节均发生 `JOINT_SERVO_TIMEOUT` 并以 `FAIL_STARTUP_HOME` 终止；`gzsim.log` 显示 39 路控制器均已订阅各自 Gazebo 命令 topic；`bridge.log` 显示 39 路 ROS→Gazebo bridge 配置建立且至少存在消息转发记录，但日志不足以证明本轮所有实际命令都已到达 Gazebo；`mux.log` 的 LOCKED 与底盘命令抑制符合启动归位期间安全设计；`pw.log` 的 GO_DRINK 人员移动入口正常；`voice.log` 解析“我要喝水”并生成 DRINK，但发生在 startup-home 失败之后，不能说明机器人已执行 DrinkTask。人物入口/语音链路不是当前首个阻断点。
 - 当前最重要的根因分流：若某关节 ROS 端计数增长而 Gazebo 端计数不增长，优先排查该 topic 的 bridge 实际转发与进程/域配置；若 Gazebo 端也收到非零目标而 Gazebo joint state 仍无变化，再继续隔离世界的 attached/detached A/B，且必须先获得 detached force-mode 正、负目标稳定基线。不得在生产场景解除物理锁来验证，不得修改生产质量/惯量/摩擦/控制器参数，不得降低关节和底盘验收门槛。
 - PR #3 当前仍为 Draft/Open/未合并；仅在 `experiment/drinktask-bt-ik-recovery` 工作，不修改 `main`，不创建分支，不设置定时监控。本地真实 Gazebo 验证仍由用户环境执行，CI 仅作为静态/构建/单元检查，不能替代本地物理验收。
+
+
+### 8.458 local-002 双端命令遥测与日志时间一致性审查（2026-11-17）
+
+- 审查对象：`log/drinktask_local-002_20261117_125548/`，包含 `metadata.json`、`telemetry.jsonl`、`drink.log`、`bridge.log`、`gzsim.log`。该目录已在当前实验分支 HEAD 中。
+- metadata 显示 ROS 2 Jazzy、Python 3.12.3，采集器为 39/39 路 ROS Float64 与 Gazebo Double 命令 topic 成功注册只读订阅；但这仅证明订阅注册，不等于接收到了任何命令。
+- 完整解析 JSONL：1,670 条 10Hz 记录，覆盖 167.157 秒（UTC 04:55:48.948 至 04:58:35.845）。39/39 路命令 topic 在 ROS 端累计接收数全部为 0，在 Gazebo Transport 端累计接收数也全部为 0；所有路的最后值和最后接收时间均为 null。`/drink/state`、`/drink/base_lock_state`、`/drink/cmd_vel` 在全部 1,670 条记录中均无数据；而 Gazebo truth pose、Gazebo joint state、ROS joint state、odom、follower status 和 robot cmd_vel 有数据。这排除了“整个采集器/ROS/Gazebo 都没有运行”的简单解释，但当前记录没有观测到 DrinkTask 的状态或命令发布。
+- 本轮 Gazebo 机械臂全部被采集关节位置/速度保持在数值零附近，effort 全部为 0；机器人底盘真值 XY/yaw 变化约为 0，`/robot/cmd_vel` 与 odom 均无非零速度样本；follower status 为 IDLE。Gazebo 物理锁状态数据为 attached（1169 条有该状态的数据记录）。该遥测表现更像“DrinkTask 命令发布者未出现在本次采集 ROS graph / 本轮 DrinkTask 未执行”，而不是已证实的“命令到达 Gazebo 但关节执行器不响应”。
+- **日志时间存在重大不一致，禁止把本目录的 drink.log 与 telemetry.jsonl 直接拼成同一次执行证据**：metadata 采集开始时间为 2026-11-17 04:55:48 UTC；bridge.log 首条记录为 04:56:47 UTC；telemetry 结束于 04:58:35 UTC；但 drink.log 首条记录为 03:47:26 UTC，最后一条任务失败记录为 03:49:14 UTC，较 telemetry 开始早约 66 分钟。若这些时间戳使用同一 VM 系统时钟，则 drink.log 很可能来自另一轮运行；在确认日志时钟来源/同轮关联前，只能将 drink.log 视为独立失败记录，不能据此解释本次 167 秒遥测。gzsim.log 无可用时间戳，虽能确认加载的是本地安装路径下的 `work_area.sdf` 且 39 个 JointPositionController 均订阅各自命令 topic，但无法单凭该文件证明它与 drink.log 属于同一轮。
+- bridge.log 有 39 条 ROS→Gazebo Double bridge 创建记录；没有证据显示本次遥测期间有命令消息通过。由于 ROS 端计数同样为 0，当前不能将故障归因于 bridge 转发。需要先确认 ROS graph 中是否存在 DrinkTask 的 39 路发布者，以及其 /drink/state 发布者。
+- 已更新 `tests/diag/record_drinktask_telemetry.py`：每秒刷新一次 ROS graph snapshot，并在 JSONL 中按需记录 39 路命令 topic 与 `/drink/state`、`/drink/base_lock_state`、`/drink/cmd_vel`、`/robot/command`、`/robot/cmd_vel` 的 publisher_count、node_name、namespace、topic_type。这样下一轮可明确区分“节点/发布者不存在”与“发布者存在但没有发消息”。提交：`64859dbe3f7a91ebb9108bddb1efd9c3878855da`；本地诊断文档同步提交：`a38f42d8e61f2fc849e3e719182b4043459a3e15`。
+- 下一轮必须先做同轮一致性检查：采集器启动前记录 `date -u`；DrinkTask、bridge、Gazebo 的日志放在同一个新 run-id 目录，启动/退出时各记录一次 UTC 时间；metadata、所有日志的 UTC 时间必须有重叠或能由明确的 sim-time/system-time 关系解释。采集器先启动，确认 ROS graph snapshot 出现 DrinkTask 命令发布者和 `/drink/state` 发布者，再启动/确认 DrinkTask 并触发单轮 startup-home；如 graph 中没有发布者，不得继续推断控制器或物理约束根因。
+- 当前不修改生产控制逻辑或物理参数；不解除生产底盘物理锁，不降低阈值。该轮不能计为 DrinkTask 成功或有效的控制器 A/B 试验。
+- PR #3 保持 Draft/Open/未合并；只在 `experiment/drinktask-bt-ik-recovery` 工作，不修改 `main`，不创建分支。
