@@ -15,8 +15,12 @@ on:
       - "tests/diag/run_chassis_brake_gz.py"
       - "tests/diag/run_chassis_ground_lock_gz.py"
       - "tests/diag/chassis_ground_lock_test.sdf"
+      - "tests/diag/articulated_arm_ground_lock_test.sdf"
+      - "tests/diag/run_articulated_arm_ground_lock_probe.py"
       - "tests/diag/verify_p104_stage_locks.py"
       - "tests/diag/chassis_brake_test.sdf"
+      - "tests/diag/articulated_arm_ground_lock_test.sdf"
+      - "tests/diag/run_articulated_arm_ground_lock_probe.py"
       - "tests/diag/collect_base_arm_dynamics.py"
       - "tests/diag/analyze_base_arm_dynamics.py"
       - "vla_ws/src/vla_follow/**"
@@ -204,6 +208,10 @@ jobs:
           test -s vla_ws/src/vla_follow/gz_plugins/build/libChassisBrake.so
           ldd -r vla_ws/src/vla_follow/gz_plugins/build/libGraspCarry.so
           ldd -r vla_ws/src/vla_follow/gz_plugins/build/libChassisBrake.so
+
+      - name: Probe articulated arm motion with chassis anchor detached and attached
+        run: |
+          python3 tests/diag/run_articulated_arm_ground_lock_probe.py
 
       - name: Run isolated Ground Fixed Joint attach, hold and release experiment
         run: |
