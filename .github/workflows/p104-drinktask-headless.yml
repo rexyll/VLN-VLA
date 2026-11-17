@@ -229,9 +229,17 @@ jobs:
           ldd -r vla_ws/src/vla_follow/gz_plugins/build/libGraspCarry.so
           ldd -r vla_ws/src/vla_follow/gz_plugins/build/libChassisBrake.so
 
-      - name: Probe articulated arm motion with chassis anchor detached and attached
+      - name: Probe rejected reverse-topology arm lock negative control (non-gating)
+        continue-on-error: true
+        shell: bash
         run: |
-          python3 tests/diag/run_articulated_arm_ground_lock_probe.py
+          set +e
+          python3 tests/diag/run_articulated_arm_ground_lock_probe.py \
+            > vla_ws/logs/articulated_arm_ground_lock_probe_console.log 2>&1
+          rc=$?
+          echo "REJECTED_REVERSE_TOPOLOGY_PROBE_EXIT=$rc"
+          tail -n 80 vla_ws/logs/articulated_arm_ground_lock_probe_console.log
+          exit 0
 
       - name: Probe arm articulation with chassis fixed directly to world
         continue-on-error: true
