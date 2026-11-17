@@ -257,6 +257,14 @@ class Recorder(Node):
         now = time.monotonic()
         with self.lock:
             snapshot = {k: dict(v) for k, v in self.latest.items()}
+            command_snapshot = {
+                topic: {
+                    "gz_topic": stats["gz_topic"],
+                    "ros": dict(stats["ros"]),
+                    "gazebo": dict(stats["gazebo"]),
+                }
+                for topic, stats in self.command_stats.items()
+            }
         values, ages = {}, {}
         for key, item in snapshot.items():
             values[key] = item["value"]
@@ -294,7 +302,7 @@ class Recorder(Node):
                         "last_received_utc": stats["gazebo"]["last_received_utc"],
                     },
                 }
-                for ros_topic, stats in self.command_stats.items()
+                for ros_topic, stats in command_snapshot.items()
             },
             "data": values
         }
