@@ -63,6 +63,7 @@ on:
       - "tests/diag/articulated_arm_ground_lock_world_fixed.sdf"
       - "tests/diag/articulated_arm_ground_lock_world_fixed_force.sdf"
       - "tests/diag/run_articulated_arm_ground_lock_probe.py"
+      - "tests/diag/run_full_robot_world_fixed_probe.py"
       - "vla_ws/src/vla_follow/**"
       - "vla_ws/src/mca_drink_control/**"
       - "tools/start_scene.sh"
