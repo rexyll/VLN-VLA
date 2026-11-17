@@ -1859,3 +1859,16 @@
 - 根因定位到隔离 SDF 的 PID 符号：力矩模式控制器配置了 `p_gain=-4.0`、`d_gain=-0.5`。按 Gazebo JointPositionController 的目标误差反馈约定，负 P/D 增益形成正反馈方向；关节偏离默认目标时控制器会继续放大误差并撞向限位。此前 Run #644/#645 已出现相同的启动漂移现象，本轮两个运行再次复现。此前“通过降低负增益幅值和增加阻尼即可稳定”的假设错误，不能继续以负增益做参数搜索。
 - 已将**仅隔离诊断**控制器的增益符号改为正值：`P=4.0, I=0.0, D=0.5`，保留 `cmd_max/min=±2.0`、关节 effort/velocity limit 和全部物理验收门槛。此修改尚未经过 CI 实测；不允许把该参数直接复制到生产 `work_area.sdf`。
 - 下一步：先确认启动静置阶段力矩模式关节不再自行漂向限位；再要求 detached 正向、回零、负向目标均达到位置/速度稳定条件；三项通过后才执行 attached 对照。若正增益仍异常，检查 Gazebo 8.15 PID 初始化默认 setpoint、SDF link/joint 初始位姿一致性及插件是否在首条命令前写入 JointForceCmd。生产 E2E 仍未获得本问题的有效验收证据，成功轮数不得增加。
+
+
+### 8.454 本地 ROS 2 Jazzy / Gazebo Harmonic 遥测采集与 MCA IK 诊断日志（2026-11-17）
+
+- 用户已在本地 Ubuntu 24.04 虚拟机部署 ROS 2 Jazzy 与 Gazebo，后续真实仿真测试转由本地环境执行；GitHub Actions 保留代码构建、静态/单元回归和必要 CI，不再作为每轮完整物理仿真的唯一执行环境。
+- 新增只读旁路采集器 `tests/diag/record_drinktask_telemetry.py`：10Hz 写入 JSONL 快照，不发布任何控制命令、不更改控制回路。采集 ROS /drink/state、/drink/joint_state、/robot/odom、/drink/cmd_vel、/robot/cmd_vel、/drink/base_lock_state、/follower/status、/nav2_active、/tf、/tf_static；并通过 Gazebo Transport 采集生产 world 的 dynamic_pose、robot joint_state 和 chassis_lock state。每条记录含 topic age、新鲜度和 DrinkTask 状态变化事件；metadata.json 记录主机、ROS 环境、分支和 Git HEAD。
+- 新增 `docs/testing/LOCAL_ROS2_GAZEBO_DIAGNOSTICS.md`，规定本地检出当前分支、依赖安装、colcon build、MCA service 自检、生产 work_area 启动、先启采集器再启业务节点、单轮测试、日志打包上传的步骤。采集器若不能订阅三条关键 Gazebo topic，必须停止正式测试，不得将缺失遥测当作零值。
+- MCA C++ DLS 服务 `mca_ik_server.cpp` 增加请求 ID、目标 base 坐标、seed 数量、求解容差/迭代上限、拒绝原因、求解成功标志、迭代数、位置/姿态残差、耗时和结果消息日志，便于将服务端求解结果与 DrinkTask 目标/关节反馈按时序关联。
+- 分析原则：优先定位首个 FAIL_* 或首次越限时间；交叉比较 Gazebo truth chassis pose/twist、轮关节速度/effort、底盘指令、物理锁状态、mux ACK、ROS 与 Gazebo joint telemetry、MCA 请求/结果和阶段日志。不得用日志采集替代现有动作级日志、JSON 报告、异常 traceback 或截图。
+- 本地测试顺序：先确认启动锁止握手，再确认 startup home，最后只执行一轮完整 DrinkTask；第一轮通过后才执行第二轮重复性检查。所有原有物理阈值、关节限位、质量/惯量/摩擦、IK/碰撞/交接验收标准保持不变。
+- MotionControlAlgorithms 继续按 P105-01 决策：只把实际使用的最小算法依赖 vendoring 到当前项目，固定上游 commit，保留 Apache-2.0 LICENSE / NOTICE、来源路径和修改记录；不复制整个上游仓库，不依赖本地测试时临时从另一个仓库拉取浮动代码。
+- 当前状态：采集器、部署/采集说明和 MCA service 诊断日志已提交，尚待 CI 构建验证及用户本地实际运行验证。用户上传完整日志包后再据证据推进修复；在本地生产 E2E 获得完整 PASS 前，不增加成功轮数，不宣称物理锁或 DrinkTask 问题已解决。
+- PR #3 仍保持 Draft/Open；仅在 `experiment/drinktask-bt-ik-recovery` 分支工作，不修改/合并 main，不创建分支，不设置定时监控。
