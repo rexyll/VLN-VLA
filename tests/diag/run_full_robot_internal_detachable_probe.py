@@ -4,8 +4,9 @@
 
 The robot model gets a tiny world-fixed anchor link. Gazebo's DetachableJoint
 system runs inside that model and uses child_model=__model__ to connect the
-anchor link to robot::chassis. This is diagnostic-only; production SDF is not
-modified.
+anchor link to robot::chassis. The production GraspCarry world plugin remains
+enabled so this probe isolates anchor topology without removing the production
+cup/kettle pose executor. Production SDF is not modified.
 """
 import json
 import math
@@ -49,17 +50,18 @@ def make_world():
     with open(SOURCE, encoding="utf-8") as f:
         source = f.read()
     source, n = re.subn(
-        r"\s*<!-- Physical chassis immobilizer[\s\S]*?</model>\s*",
-        "\n", source, count=1
+        r"\\s*<!-- Physical chassis immobilizer[\\s\\S]*?</model>\\s*",
+        "\\n", source, count=1
     )
     if n != 1:
         raise RuntimeError("could not remove exactly one external anchor model")
-    source, n = re.subn(
-        r"\s*<plugin filename=\"libGraspCarry\.so\" name=\"vla::GraspCarry\">"
-        r"[\s\S]*?</plugin>\s*", "\n", source, count=1
-    )
-    if n != 1:
-        raise RuntimeError("could not remove exactly one GraspCarry world plugin")
+    # Keep the production pose-executor plugin enabled. Removing it would
+    # confound the comparison: the candidate anchor topology must coexist with
+    # the actual cup/kettle carry system used by the full DrinkTask.
+    if not re.search(
+            r'<plugin filename="libGraspCarry\\.so" name="vla::GraspCarry">',
+            source):
+        raise RuntimeError("production GraspCarry world plugin is missing")
     start = re.search(r'<model name="robot" canonical_link="chassis">', source)
     if not start:
         raise RuntimeError("production robot model not found")
@@ -256,6 +258,8 @@ def main():
     proc = None
     log = None
     try:
+        report["grasp_carry_plugin_retained"] = True
+        report["external_anchor_removed"] = True
         report["sdf_check"] = make_world()
         log = open(LOG_OUT, "w", encoding="utf-8")
         proc = subprocess.Popen(["gz", "sim", "-s", "-r", WORLD_OUT],
