@@ -392,6 +392,9 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p vla_ws/logs
+          # This legacy fixed-name report may survive a previous run. Remove it
+          # so an artifact can never present stale DrinkTask evidence as current.
+          rm -f vla_ws/logs/test_drink.json
           TRACE="vla_ws/logs/base_arm_dynamics_ci_${GITHUB_RUN_ID}.jsonl"
           COLLECTOR_LOG="vla_ws/logs/base_arm_dynamics_collector_ci_${GITHUB_RUN_ID}.log"
 
