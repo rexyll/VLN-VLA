@@ -30,6 +30,7 @@ class Telemetry:
         self.lock = threading.Lock()
         self.state = None
         self.joint = {}
+        self.samples = []
         self.pose = None
         self.node = gz_transport.Node()
         for typ, topic, cb in ((StringMsg, STATE, self.on_state),
@@ -48,7 +49,11 @@ class Telemetry:
         for joint in msg.joint:
             if joint.name in ("probe_arm_joint", "probe_arm_force_joint") and joint.HasField("axis1"):
                 with self.lock:
-                    self.joint[joint.name] = float(joint.axis1.position)
+                    sample = {"position": float(joint.axis1.position), "velocity": float(joint.axis1.velocity), "effort": float(joint.axis1.force), "time_monotonic": time.monotonic()}
+                    self.joint[joint.name] = sample
+                    self.samples.append({"joint": joint.name, **sample})
+                    if len(self.samples) > 4000:
+                        self.samples = self.samples[-4000:]
 
     def on_pose(self, msg):
         for item in msg.pose:
@@ -61,7 +66,11 @@ class Telemetry:
 
     def snapshot(self):
         with self.lock:
-            return self.state, dict(self.joint), self.pose
+            return self.state, {k: dict(v) for k, v in self.joint.items()}, self.pose
+
+    def sample_snapshot(self):
+        with self.lock:
+            return [dict(x) for x in self.samples]
 
 def publish(topic, msg_type, payload=""):
     cmd = ["gz", "topic", "-t", topic, "-m", msg_type]
@@ -85,10 +94,30 @@ def wait_for(tel, predicate, label, timeout=8.0):
 
 def move_and_measure(tel, joint_name, target, label):
     topic = "/arm_lock_probe/cmd/" + joint_name
+    start_index = len(tel.sample_snapshot())
     publish(topic, "gz.msgs.Double", "data: %.6f" % target)
-    snap = wait_for(tel, lambda s: s[1].get(joint_name) is not None and abs(s[1][joint_name]-target) < 0.08,
-                    label + " joint target", timeout=10.0)
-    return snap
+    deadline = time.monotonic() + 10.0
+    stable_since = None
+    peak_position = None
+    max_velocity = 0.0
+    max_effort = 0.0
+    last = None
+    while time.monotonic() < deadline:
+        snap = tel.snapshot()
+        value = snap[1].get(joint_name)
+        if value is not None:
+            last = value
+            peak_position = value["position"] if peak_position is None else (max(peak_position, value["position"]) if target >= 0 else min(peak_position, value["position"]))
+            max_velocity = max(max_velocity, abs(value["velocity"]))
+            max_effort = max(max_effort, abs(value["effort"]))
+            if abs(value["position"] - target) < 0.08 and abs(value["velocity"]) < 0.05:
+                stable_since = time.monotonic() if stable_since is None else stable_since
+                if time.monotonic() - stable_since >= 0.5:
+                    return {"snapshot": snap, "metrics": {"joint": joint_name, "target_rad": target, "final_position_rad": value["position"], "final_velocity_rad_s": value["velocity"], "final_effort_nm": value["effort"], "peak_position_rad": peak_position, "max_abs_velocity_rad_s": max_velocity, "max_abs_effort_nm": max_effort, "stable_duration_s": 0.5, "samples": tel.sample_snapshot()[start_index:]}}
+            else:
+                stable_since = None
+        time.sleep(0.02)
+    raise RuntimeError("%s did not settle; last=%r; samples=%r" % (label, last, tel.sample_snapshot()[start_index:][-30:]))
 
 def run():
     if not os.path.isfile(WORLD):
@@ -111,15 +140,21 @@ def run():
             publish(DETACH, "gz.msgs.Empty")
             wait_for(tel, lambda s: s[0] == "detached", "detach state")
             detached_start = tel.snapshot()[2]
+            report["current_stage"] = "detached_velocity_mode"
             detached_velocity = move_and_measure(tel, "probe_arm_joint", TARGET, "detached velocity-mode")
+            report["stages"].append({"name": "detached_velocity_mode", **detached_velocity["metrics"]})
+            report["current_stage"] = "detached_velocity_reset"
             move_and_measure(tel, "probe_arm_joint", 0.0, "detached velocity-mode reset")
+            report["current_stage"] = "detached_force_mode"
             detached_force = move_and_measure(tel, "probe_arm_force_joint", TARGET, "detached force-mode")
+            report["stages"].append({"name": "detached_force_mode", **detached_force["metrics"]})
+            report["current_stage"] = "detached_force_reset"
             move_and_measure(tel, "probe_arm_force_joint", 0.0, "detached force-mode reset")
             detached_end = tel.snapshot()
             detached_delta = math.sqrt(sum((detached_end[2][i]-detached_start[i])**2 for i in range(3)))
             report["stages"].append({"name": "detached",
-                                     "velocity_mode_joint_rad": detached_velocity[1].get("probe_arm_joint"),
-                                     "force_mode_joint_rad": detached_force[1].get("probe_arm_force_joint"),
+                                     "velocity_mode_joint_rad": detached_velocity["snapshot"][1].get("probe_arm_joint", {}).get("position"),
+                                     "force_mode_joint_rad": detached_force["snapshot"][1].get("probe_arm_force_joint", {}).get("position"),
                                      "chassis_start_pose": detached_start,
                                      "chassis_pose": detached_end[2],
                                      "chassis_displacement_mm": detached_delta*1000.0})
@@ -128,24 +163,28 @@ def run():
             wait_for(tel, lambda s: s[0] == "attached", "attach state")
             attached_start = tel.snapshot()[2]
             report["attached_start_pose"] = attached_start
+            report["current_stage"] = "attached_velocity_mode"
             attached_velocity = move_and_measure(tel, "probe_arm_joint", TARGET, "attached velocity-mode")
+            report["stages"].append({"name": "attached_velocity_mode", **attached_velocity["metrics"]})
+            report["current_stage"] = "attached_force_mode"
             attached_force = move_and_measure(tel, "probe_arm_force_joint", TARGET, "attached force-mode")
+            report["stages"].append({"name": "attached_force_mode", **attached_force["metrics"]})
             attached_end = tel.snapshot()
             delta = math.sqrt(sum((attached_end[2][i]-attached_start[i])**2 for i in range(3)))
             yaw_delta = abs(attached_end[2][3]-attached_start[3])
             report["stages"].append({"name": "attached",
-                                     "velocity_mode_joint_rad": attached_velocity[1].get("probe_arm_joint"),
-                                     "force_mode_joint_rad": attached_force[1].get("probe_arm_force_joint"),
+                                     "velocity_mode_joint_rad": attached_velocity["snapshot"][1].get("probe_arm_joint", {}).get("position"),
+                                     "force_mode_joint_rad": attached_force["snapshot"][1].get("probe_arm_force_joint", {}).get("position"),
                                      "chassis_pose": attached_end[2],
                                      "chassis_displacement_mm": delta*1000.0,
                                      "chassis_yaw_delta_rad": yaw_delta})
-            if abs(detached_velocity[1].get("probe_arm_joint", 0.0)) < 0.25:
+            if abs(detached_velocity["snapshot"][1].get("probe_arm_joint", {}).get("position", 0.0)) < 0.25:
                 raise RuntimeError("detached velocity-mode joint did not move enough")
-            if abs(detached_force[1].get("probe_arm_force_joint", 0.0)) < 0.25:
+            if abs(detached_force["snapshot"][1].get("probe_arm_force_joint", {}).get("position", 0.0)) < 0.25:
                 raise RuntimeError("detached force-mode joint did not move enough")
-            if abs(attached_velocity[1].get("probe_arm_joint", 0.0)) < 0.25:
+            if abs(attached_velocity["snapshot"][1].get("probe_arm_joint", {}).get("position", 0.0)) < 0.25:
                 raise RuntimeError("attached velocity-mode joint did not move enough")
-            if abs(attached_force[1].get("probe_arm_force_joint", 0.0)) < 0.25:
+            if abs(attached_force["snapshot"][1].get("probe_arm_force_joint", {}).get("position", 0.0)) < 0.25:
                 raise RuntimeError("attached force-mode joint did not move enough")
             if delta > 0.002 or yaw_delta > math.radians(0.5):
                 raise RuntimeError("attached chassis moved beyond physical hold limits")
@@ -155,6 +194,7 @@ def run():
             report["result"] = "FAIL"
             report["error"] = str(exc)
             report["last_telemetry"] = tel.snapshot() if tel is not None else None
+            report["last_samples"] = tel.sample_snapshot()[-200:] if tel is not None else None
             print(json.dumps(report, indent=2))
             raise
         finally:
