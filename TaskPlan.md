@@ -1983,3 +1983,14 @@
 - 诊断结果写入 vla_ws/logs/full_robot_world_fixed.json，Gazebo日志写入 full_robot_world_fixed_gz.log；workflow 新增 Xvfb headless 执行步骤，暂设 continue-on-error 仅收集证据，不把未验证架构当成生产门禁或通过项。
 - 当前待验证：SDF 生成/解析、完整模型六个关节双向/归零运动、DiffDrive 挑战下底盘约束。该探针尚未运行；world-fixed 单关节速度模式通过仍是当前唯一新物理通过证据。PID force world-fixed 对照也尚未取得结果。
 - 状态继续为正在进行中；不修改生产场景，不降低验收阈值，不修改/合并 main，不创建新分支。
+
+
+### 8.464 隔离已否决反向拓扑探针，恢复后续诊断链路（2026-11-17）
+
+- 最新 E2E Run [44104724524](https://github.com/rexyll/VLN-VLA/actions/runs/44104724524) 在步骤“Probe articulated arm motion with chassis anchor detached and attached”失败，导致后续 world-fixed PID、完整生产机器人 world-fixed 探针以及 DrinkTask E2E 均被跳过。
+- 失败栈明确为等待 `/world/arm_lock_probe/chassis_lock/state` 从 attached 变为 detached 超时；最后关节位置约 `-3.47×10^-21rad`、速度约 `-3.94×10^-18rad/s`、effort=0。检查对应测试 SDF 后确认：该默认测试资产的 DetachableJoint 配置是 `parent_link=chassis`、`child_model=ground_lock_anchor`，属于此前已被真实底盘驱动挑战否决的反向拓扑，不是生产使用的 anchor-parent→robot-child 拓扑。
+- 反向拓扑已有独立物理证据：Run 44075470236 在 plugin state=attached 时，底盘仍移动 231.959mm，超过 2mm 验收阈值。因此该反向拓扑探针只能作为负对照/历史诊断，不应继续作为完整 E2E 的阻断门禁；这次 failure 不能解释为生产拓扑退化，也不能作为生产拓扑的机械臂冻结新证据。
+- 已修正 workflow：将该步骤标记为 `non-gating`，保留退出码、控制台日志和 JSON 报告，但不再阻断后续测试；同时把 `articulated_arm_ground_lock_probe.json` 加入 artifact 收集列表。后续权威对照仍由生产同拓扑 A/B（`articulated_arm_ground_lock_original_velocity.sdf` / `..._force.sdf`）、world-fixed 简化模型以及完整生产机器人 world-fixed 探针提供。
+- 本次修正提交：`ef3e5c447df4491891a6128afe63cb20cff86c8d`（反向拓扑探针改为非阻断），`04bff4a9bf18610dac2f23f47579b12f235199f4`（归档负对照 JSON）。均仅提交至 `experiment/drinktask-bt-ik-recovery`。
+- 下一步：等待新 workflow 完整执行，检查 PID force world-fixed、完整机器人六个主关节运动和 DiffDrive 底盘挑战的独立证据；随后再看生产启动归位与 DrinkTask 阶段。不得放宽 2mm/0.5°阈值，不得把负对照失败算成生产失败，也不得把诊断通过算成生产修复。
+- 状态：**正在进行中**。本轮未产生新的 DrinkTask 通过轮数；未修改生产 `work_area.sdf`、未修改/合并 main、未创建新分支。
