@@ -1920,3 +1920,16 @@
 - 下一轮必须先做同轮一致性检查：采集器启动前记录 `date -u`；DrinkTask、bridge、Gazebo 的日志放在同一个新 run-id 目录，启动/退出时各记录一次 UTC 时间；metadata、所有日志的 UTC 时间必须有重叠或能由明确的 sim-time/system-time 关系解释。采集器先启动，确认 ROS graph snapshot 出现 DrinkTask 命令发布者和 `/drink/state` 发布者，再启动/确认 DrinkTask 并触发单轮 startup-home；如 graph 中没有发布者，不得继续推断控制器或物理约束根因。
 - 当前不修改生产控制逻辑或物理参数；不解除生产底盘物理锁，不降低阈值。该轮不能计为 DrinkTask 成功或有效的控制器 A/B 试验。
 - PR #3 保持 Draft/Open/未合并；只在 `experiment/drinktask-bt-ik-recovery` 工作，不修改 `main`，不创建分支。
+
+
+### 8.459 DetachableJoint 方向性与重复解锁回归（2026-11-17）
+
+- 目标：在不改生产控制器参数、不放宽底盘/关节验收阈值的前提下，验证 DetachableJoint 的 parent/child 拓扑是否影响机器人内部关节运动，并验证底盘 attach→detach→attach→detach 的完整重复生命周期。
+- 历史 E2E Run 44070089217（commit 5e0f6be4b5a39a8ced545ddbe20f0cea58ae0917）中，原 articulated-arm 探针曾使用与生产相同的旧拓扑（静态 anchor 为 parent、robot chassis 为 child），attached 时关节无法运动。改为 robot chassis 为 parent、静态 anchor 为 child，并将 DetachableJoint 插件放入 robot model 后，探针的 detached/attached 正负方向速度模式关节运动和底盘保持检查全部 PASS。该探针仅覆盖一次 detach 与一次 attach，尚未覆盖第二次 detach。
+- 同一 Run 的独立底盘锁试验仍失败：ground_fixed_joint_01.json 明确记录 detached_drive 位移 212.152mm；attached_drive_challenge 位移 0mm、yaw 0°、最大轮速约 7.09e-19rad/s；但 state_messages 只有 attached → detached → attached，第二次 detach 超时，最终状态仍为 attached。Gazebo 进程正常退出（exit code 0）。这不是底盘保持失败，而是旧拓扑下重复 detach 生命周期未完成。
+- 已修改隔离底盘测试世界 tests/diag/chassis_ground_lock_test.sdf：将 DetachableJoint 插件从静态 anchor 移入 robot model，并反转 parent/child 为 robot::chassis parent、static ground_lock_anchor child。生产 work_area.sdf 尚未修改，避免仅凭一次隔离探针就将未完整验证的拓扑直接上线。
+- 已修正 .github/workflows/p104-drinktask-headless.yml 的 push path filters，使 run_chassis_ground_lock_gz.py、chassis_ground_lock_test.sdf、verify_ground_fixed_joint.py 的变化也会触发完整 Gazebo E2E。此前 push path 漏掉这些测试资产，导致测试世界变化可能不触发对应验证。
+- 代码提交：articulated-arm 速度模式探针与其 SDF 修正 aa42c62a / d6e97e53；反向拓扑隔离实验 5e0f6be4b5a39a8ced545ddbe20f0cea58ae0917；底盘隔离测试世界反向拓扑 541109c11f85e1e21acc2ac399f291b47e9f5061；workflow path filter 修正 86ce545b8f8fc19e806d46e6f930c521d062123b。
+- 最新 SHA 86ce545b8f8fc19e806d46e6f930c521d062123b 的 Python syntax、Base-arm diagnostic collector syntax 已通过；CarryBus ROS 2 executor integration 已通过。Gazebo E2E 的新运行 44075470236、44075494153 正在执行依赖安装/等待阶段；更新 SHA 后的 44075503531 仍 pending。上述 run 尚未给出反向拓扑下重复 detach 的物理结果。
+- 当前状态：**正在进行中**。下一步以反向拓扑的底盘隔离测试是否连续输出 attached → detached → attached → detached、detached 移动恢复是否达到 10mm、attached 位姿变化是否小于 2mm/0.5°为判据。全部通过后，才考虑将同一拓扑移植到生产 work_area.sdf，再验证生产启动握手、双臂 HANG/HOME 和完整 DrinkTask。若失败，继续定位 DetachableJoint 重复状态转换，不得通过放宽超时或跳过第二次 detach 规避。
+- 安全边界：本轮没有修改生产 work_area.sdf、DrinkTask 命令链路或机械臂控制器参数；没有修改/合并 main，没有创建新分支；没有增加 DrinkTask 成功轮数。
