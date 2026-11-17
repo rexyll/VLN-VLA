@@ -50,8 +50,8 @@
         <joint_name>probe_arm_joint</joint_name>
         <topic>/arm_lock_probe/cmd/probe_arm_joint</topic>
         <use_velocity_commands>false</use_velocity_commands>
-        <p_gain>5.0</p_gain><i_gain>0.0</i_gain><d_gain>0.1</d_gain>
-        <cmd_max>1.0</cmd_max><cmd_min>-1.0</cmd_min>
+        <p_gain>10.0</p_gain><i_gain>0.0</i_gain><d_gain>0.5</d_gain>
+        <cmd_max>10.0</cmd_max><cmd_min>-10.0</cmd_min>
       </plugin>
       <plugin filename="gz-sim-joint-state-publisher-system" name="gz::sim::systems::JointStatePublisher">
         <update_rate>100</update_rate>
