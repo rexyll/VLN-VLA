@@ -136,6 +136,32 @@ def publish_velocity(linear):
     if r.returncode:
         raise RuntimeError("Twist publish failed: " + r.stdout)
 
+def request_state(tel, topic, expected, timeout, description, proc):
+    """Retry idempotent Empty requests until the state publisher confirms them.
+
+    A one-shot 'gz topic' process can exit before transport discovery delivers
+    its message. Repeated attach/detach requests are safe: the Gazebo
+    DetachableJoint ignores requests that match its current state.
+    """
+    deadline = time.monotonic() + timeout
+    attempts = 0
+    while time.monotonic() < deadline:
+        ensure_alive(proc, description)
+        if tel.snapshot()[3] == expected:
+            return attempts
+        publish_empty(topic)
+        attempts += 1
+        retry_deadline = min(deadline, time.monotonic() + 0.25)
+        while time.monotonic() < retry_deadline:
+            ensure_alive(proc, description)
+            if tel.snapshot()[3] == expected:
+                return attempts
+            time.sleep(0.02)
+    raise RuntimeError(
+        "timeout waiting for %s after %d idempotent requests; state=%r"
+        % (description, attempts, tel.snapshot()[3])
+    )
+
 
 def wait_stationary(tel, proc, timeout=5.0):
     def stationary():
@@ -187,9 +213,11 @@ def run_once(index, output_dir):
                 raise RuntimeError("world_ready failed: chassis not stationary")
 
             # Stage 1: detach while stationary, then prove normal drive mobility.
-            publish_empty(DETACH_TOPIC)
-            wait_for(lambda: tel.snapshot()[3] == 'detached', 5,
-                     "DetachableJoint detached state", proc)
+            attempts = request_state(
+                tel, DETACH_TOPIC, "detached", 5,
+                "DetachableJoint detached state", proc)
+            report.setdefault("state_transition_attempts", []).append(
+                {"target": "detached", "attempts": attempts})
             wait_stationary(tel, proc)
             free_start = tel.snapshot()[0]
             publish_velocity(COMMAND_SPEED)
@@ -209,9 +237,11 @@ def run_once(index, output_dir):
             # Stage 2: attach at the current pose and challenge it with identical
             # drive commands. The Boolean ACK is necessary but not sufficient.
             attach_reference = tel.snapshot()[0]
-            publish_empty(ATTACH_TOPIC)
-            wait_for(lambda: tel.snapshot()[3] == 'attached', 5,
-                     "DetachableJoint attached state", proc)
+            attempts = request_state(
+                tel, ATTACH_TOPIC, "attached", 5,
+                "DetachableJoint attached state", proc)
+            report.setdefault("state_transition_attempts", []).append(
+                {"target": "attached", "attempts": attempts})
             wait_stationary(tel, proc)
             lock_start = tel.snapshot()[0]
             publish_velocity(COMMAND_SPEED)
@@ -244,9 +274,11 @@ def run_once(index, output_dir):
                     (lock_mm, yaw_delta))
 
             # Stage 3: detach again and prove drive recovery.
-            publish_empty(DETACH_TOPIC)
-            wait_for(lambda: tel.snapshot()[3] == 'detached', 5,
-                     "DetachableJoint second detach", proc)
+            attempts = request_state(
+                tel, DETACH_TOPIC, "detached", 5,
+                "DetachableJoint second detach", proc)
+            report.setdefault("state_transition_attempts", []).append(
+                {"target": "detached", "attempts": attempts})
             wait_stationary(tel, proc)
             recovery_start = tel.snapshot()[0]
             publish_velocity(COMMAND_SPEED)
