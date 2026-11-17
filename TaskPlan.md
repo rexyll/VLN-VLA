@@ -1806,3 +1806,12 @@
 - **结果状态：正在进行中，尚未取得本次 CI 的 Gazebo 实测结果。** 预期判读：detached 可动且 attached 不可动，支持 DetachableJoint/DART 约束拓扑影响内部 DOF；两种状态都不可动，优先排查控制器/JointVelocityCmd/Physics 链路或最小实验配置；两种状态都可动，则回到生产 SDF 比较 joint entity、controller 插件和模型拓扑。若 detached 对照未通过，禁止据 attached 结果归因。
 - 下一步：检查本次 CI 的 SDF 加载、控制器订阅、状态转换、joint-state 与 dynamic-pose 结果；若最小实验有效，再按其结果设计生产场景单关节低幅度受控验证。完整生产验收仍要求双臂 home/hang 原阈值、底盘 <2mm / yaw <0.5°，不得改质量/惯量/摩擦、不得 teleport 或伪造关节状态。
 - PR #3 保持 Draft/Open；仅在 `experiment/drinktask-bt-ik-recovery` 工作，不修改 `main`，不创建分支，不设置定时监控。
+
+
+### 8.449 Run #631 最小 articulated-arm 对照实验失败分析与诊断脚本修复（2026-11-17）
+
+- CI Run #631（run `43999670362`，提交 `4148e93b4f9551943821654c4a1ce7e37b9c7758`）中，离线 Python 回归和 Gazebo system plugin build 通过；新增步骤 `Probe articulated arm motion with chassis anchor detached and attached` 在 attached 阶段失败，导致后续隔离 GroundFixedJoint、MCA 服务构建和生产 E2E 被正确跳过。本轮不得记为生产 E2E 失败，也不得记为最小实验通过。
+- 失败栈定位到 attached 阶段再次发送 `0.45rad` 目标后，10s 内关节实际角度仍约为 `3.17e-21rad`，chassis pose 最新读数约为 `(-2.12e-7,-5.05e-19,-0.1400003)`，yaw 近零。脚本已成功观察到 DetachableJoint 状态为 attached，但原始失败输出没有持久化 detached 阶段的关节角和底盘位移，因而不能从本轮日志量化 detached/attached 的运动差异。
+- 现象与 §8.447 生产现象相似：控制器目标已发送，joint-state 不响应。但本轮还不能确认 attached 锁止导致内部 DOF 被冻结，因为必须先从增强后的 JSON 报告确认 detached 阶段确实达到目标、模型位姿有效且状态转换后控制器持续工作。特别是 pose 的 z 值 `-0.14m` 与预期初始模型高度不一致，需要检查最小 SDF 的碰撞/重力/锚点姿态与 dynamic_pose 观测对象，不能直接归因为 DART。
+- 已修复 runner 的清理代码缺少 `import signal`；同时新增失败时 JSON 输出、最后遥测快照、detached 起止 pose/位移和 attached 起始 pose。修复提交：`b713bbe0a369548cc698ee3aed340e96f7cee4ff`。这项修复只增强诊断可观测性，不改变控制器参数、物理阈值或生产模型。
+- 下一步：先验证修复后脚本能够在失败时正常终止 Gazebo 并输出完整 JSON；若 detached 关节运动和 pose 有效，再分析 attached 阶段为何停止；若 detached 本身不动或 pose 初始状态异常，则先修正最小实验模型/观测器，不能据此对生产物理锁作结论。只有最小实验得到可解释的 A/B 结果后，才继续生产场景单关节受控验证。PR #3 保持 Draft/Open；只在 `experiment/drinktask-bt-ik-recovery` 工作，不修改 main，不创建分支，不合并 PR。
