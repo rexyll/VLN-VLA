@@ -190,6 +190,15 @@ def run():
         raise RuntimeError("missing world " + WORLD)
     os.makedirs(os.path.join(ROOT, "vla_ws", "logs"), exist_ok=True)
     log_path = os.path.join(ROOT, "vla_ws", "logs", LOG_NAME)
+    report_name = os.environ.get(
+        "ARM_LOCK_PROBE_REPORT", os.path.splitext(LOG_NAME)[0] + ".json"
+    )
+    report_path = os.path.join(ROOT, "vla_ws", "logs", report_name)
+
+    def save_report(value):
+        with open(report_path, "w", encoding="utf-8") as output:
+            json.dump(value, output, indent=2)
+
     with open(log_path, "w", encoding="utf-8") as log:
         proc = subprocess.Popen(
             ["gz", "sim", "-s", "-r", WORLD], cwd=ROOT,
@@ -287,12 +296,14 @@ def run():
                     % (max_displacement * 1000.0, math.degrees(max_yaw))
                 )
             report["result"] = "PASS"
+            save_report(report)
             print(json.dumps(report, indent=2))
         except Exception as exc:
             report["result"] = "FAIL"
             report["error"] = str(exc)
             report["last_telemetry"] = tel.snapshot() if tel is not None else None
             report["last_samples"] = tel.sample_snapshot()[-200:] if tel is not None else None
+            save_report(report)
             print(json.dumps(report, indent=2))
             raise
         finally:
