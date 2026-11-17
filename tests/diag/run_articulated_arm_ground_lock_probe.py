@@ -29,7 +29,7 @@ class Telemetry:
     def __init__(self):
         self.lock = threading.Lock()
         self.state = None
-        self.joint = None
+        self.joint = {}
         self.pose = None
         self.node = gz_transport.Node()
         for typ, topic, cb in ((StringMsg, STATE, self.on_state),
