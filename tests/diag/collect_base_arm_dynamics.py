@@ -238,7 +238,12 @@ def main():
             return 2
         if missing_joints:
             return 2
-        if not counts.get("arm_position_target"):
+        arm_target_records = sum(
+            count for source, count in counts.items()
+            if source.startswith("arm_position_target:")
+        )
+        print("arm_target_messages:", arm_target_records)
+        if arm_target_records == 0:
             print("WARNING: no arm target messages observed during capture")
         return 0
 
