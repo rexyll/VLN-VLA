@@ -1830,3 +1830,14 @@
 - 已扩展最小实验：增加第二个内部 revolute joint，使用同一 JointPositionController 的普通 PID/force 模式；runner 在 detached 和 attached 两种状态下分别测试 velocity-mode 与 force-mode 两个独立关节，并分别记录真实 joint-state。若 attached 下 velocity-mode 失败但 force-mode 通过，问题收敛到 JointVelocityCmd 路径；若两种模式均失败，进一步调查 fixed constraint / DART articulation topology；若两种均通过，则检查生产机器人 SDF 的实体解析、joint 拓扑与 plugin 加载差异。
 - 本次变更仅修改测试 SDF 和诊断 runner，不改生产 work_area.sdf、控制器参数、关节物理阈值或动力学参数。下一步等 CI 结果后，若 detached 的两种控制方式都通过，才允许解释 attached 对照结果。生产验收仍要求 chassis 平移 <2mm、yaw <0.5°，不降低任何关节到位标准，不修改质量/惯量/摩擦，不使用 teleport 或伪造物理响应。
 - PR #3 保持 Draft/Open；仅在 experiment/drinktask-bt-ik-recovery 工作，不修改 main，不创建分支，不合并 PR，不设置定时监控。
+
+
+### 8.451 Run #644 Force-mode detached 基线失效；本轮不能判定 attached 物理约束影响（2026-11-17）
+
+- CI Run #644（run `44002958522`，head SHA `39e6088bed8bd04ad874199ae55ef3b749aafc19`）中，行为树 12 项测试、P104 离线安全/运动回归、Gazebo system plugin build 均通过；独立 CarryBus ROS 2 executor workflow 与 GraspCarry C++ build/runtime ACK workflow 也通过。P104 Gazebo 主 workflow 在新增 articulated-arm 探针步骤失败，后续 GroundFixedJoint、MCA service 和生产 `work_area.sdf` DrinkTask E2E 步骤均被跳过。因此这是诊断探针失败，不是本轮生产 DrinkTask E2E 失败。
+- 直接失败点：runner 在 anchor detached 状态先完成 velocity-mode 关节移动/回零，随后执行 force-mode 目标 `0.45rad`；10s 内未满足位置误差 <0.08rad。失败快照显示 velocity-mode 关节已回到约 0，force-mode 关节却到达 `1.0000000000004152rad`，恰好触及 SDF 关节上限 +1.0rad。由于 detached force-mode 基线不成立，runner 未进入 attached 阶段，不能比较两种模式，也不能据此判断 DetachableJoint/DART 固定锚点是否冻结内部 DOF。
+- 核对 Gazebo Sim 8 分支 `JointPositionController.cc`：PID 模式误差为 `actual_position - target_position`，PID 输出写入 `components::JointForceCmd`；ABS/velocity 模式则写入 `components::JointVelocityCmd`。因此负 P 增益是按该误差定义选择，不能仅凭负号认定控制方向错误。
+- 本轮 force-mode 探针配置为 P=-20、I=0、D=0、输出限幅±10、关节惯量对角项0.02、物理阻尼0.02。该配置没有 D 项，比例作用相对关节惯量过强且阻尼很低；最终角度撞到 +1.0rad 限位，表明控制器未能稳定跟踪目标。最可能是探针参数严重欠阻尼/过冲，但本轮没有速度/力矩时序数据，尚不能把具体动态过程断言为已证明；必须先在 detached 状态把 force-mode 控制器整定为稳定可复现基线。
+- runner 的观测设计还有缺口：`move_and_measure()` 只判断角度误差 <0.08rad，不检查关节速度、连续稳定时间或峰值；detached 两个控制模式的测量仅在整段流程全部完成后才写入 `stages`，所以 force-mode 超时后报告 `stages=[]`，丢失 velocity-mode 阶段数据。下一版应逐阶段即时持久化，并采集位置/速度/力矩/峰值；成功条件增加速度阈值和连续稳定窗口，避免高速穿越目标被判为到位。
+- 下一步：先只修正诊断 SDF/runner，不改生产 `work_area.sdf`。以保守 P/D 参数、双向小目标和有界力矩做 detached force-mode 调试；按 Gazebo 的 `actual-target` 误差定义验证 P/D 方向，记录角度/速度/力矩时间序列，确认正负目标都能稳定收敛后，再执行 attached 对照。detached velocity-mode 结果也须单独落盘。只有两种模式 detached 基线均有效，才解释 attached A/B；若 velocity-mode attached 失败而 force-mode attached 通过，才支持命令路径差异；若两者均失败，再调查固定约束与 DART articulation。之后才允许进入生产场景单关节受控测试。
+- 继续保持底盘平移 <2mm、yaw <0.5°和既有机械臂验收门槛；不改变生产质量/惯量/摩擦，不降低验收阈值，不 teleport 或伪造关节响应。PR #3 保持 Draft/Open；仅在 `experiment/drinktask-bt-ik-recovery` 工作，不修改/合并 main，不创建分支，不设置定时监控。
