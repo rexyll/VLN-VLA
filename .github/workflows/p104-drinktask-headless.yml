@@ -60,6 +60,7 @@ on:
       - "tests/diag/articulated_arm_ground_lock_original_velocity.sdf"
       - "tests/diag/articulated_arm_ground_lock_original_force.sdf"
       - "tests/diag/articulated_arm_ground_lock_world_fixed.sdf"
+      - "tests/diag/articulated_arm_ground_lock_world_fixed_force.sdf"
       - "tests/diag/run_articulated_arm_ground_lock_probe.py"
       - "vla_ws/src/vla_follow/**"
       - "vla_ws/src/mca_drink_control/**"
