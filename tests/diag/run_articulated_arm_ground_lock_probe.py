@@ -150,7 +150,7 @@ def move_and_measure(tel, target, label):
                 if time.monotonic() - stable_since >= 0.5:
                     metrics = {
                         "joint": JOINT,
-                        "mode": "use_velocity_commands=true",
+                        "mode": CONTROLLER_MODE,
                         "target_rad": target,
                         "final_position_rad": value["position"],
                         "final_velocity_rad_s": value["velocity"],
