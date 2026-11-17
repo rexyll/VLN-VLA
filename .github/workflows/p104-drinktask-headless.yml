@@ -151,6 +151,10 @@ jobs:
         run: |
           PYTHONPATH=vla_ws/src/vla_follow python3 tests/test_manipulation_bt.py -v
 
+      - name: Test Gazebo physical chassis lock retry and acknowledgement behavior
+        run: |
+          PYTHONPATH=vla_ws/src/vla_follow python3 tests/test_gazebo_ground_lock.py -v
+
       - name: Configure Gazebo Harmonic apt repository
         run: |
           # Some hosted runner images contain a Microsoft apt source that can
@@ -228,21 +232,23 @@ jobs:
           ARM_LOCK_PROBE_WORLD=tests/diag/articulated_arm_ground_lock_original_velocity.sdf \
           ARM_LOCK_PROBE_MODE=use_velocity_commands=true \
           ARM_LOCK_PROBE_LOG=arm_lock_original_velocity.log \
+          ARM_LOCK_PROBE_REPORT=arm_lock_original_velocity.json \
             python3 tests/diag/run_articulated_arm_ground_lock_probe.py \
-            > vla_ws/logs/arm_lock_original_velocity.json 2>&1
+            > vla_ws/logs/arm_lock_original_velocity_console.log 2>&1
           velocity_rc=$?
           ARM_LOCK_PROBE_WORLD=tests/diag/articulated_arm_ground_lock_original_force.sdf \
           ARM_LOCK_PROBE_MODE=use_velocity_commands=false_pid_force \
           ARM_LOCK_PROBE_LOG=arm_lock_original_force.log \
+          ARM_LOCK_PROBE_REPORT=arm_lock_original_force.json \
             python3 tests/diag/run_articulated_arm_ground_lock_probe.py \
-            > vla_ws/logs/arm_lock_original_force.json 2>&1
+            > vla_ws/logs/arm_lock_original_force_console.log 2>&1
           force_rc=$?
           echo "ORIGINAL_TOPOLOGY_VELOCITY_MODE_EXIT=$velocity_rc"
           echo "ORIGINAL_TOPOLOGY_FORCE_MODE_EXIT=$force_rc"
           echo "Velocity-mode evidence:"
-          tail -n 35 vla_ws/logs/arm_lock_original_velocity.json
+          tail -n 35 vla_ws/logs/arm_lock_original_velocity_console.log
           echo "Force-mode evidence:"
-          tail -n 35 vla_ws/logs/arm_lock_original_force.json
+          tail -n 35 vla_ws/logs/arm_lock_original_force_console.log
           if [ "$velocity_rc" -eq 0 ] || [ "$force_rc" -eq 0 ]; then
             echo "At least one original-topology arm controller mode passed."
           else
