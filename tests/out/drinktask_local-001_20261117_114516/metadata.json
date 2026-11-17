@@ -1,0 +1,30 @@
+{
+  "run_id": "local-001",
+  "started_at_utc": "2026-11-17T03:45:16.204393+00:00",
+  "host": "earl-VMware-Virtual-Platform",
+  "platform": "Linux-7.0.0-43-generic-x86_64-with-glibc2.39",
+  "python": "3.12.3",
+  "ros_distro": "jazzy",
+  "rmw_implementation": null,
+  "gazebo_topics": [
+    "/world/follow_world/dynamic_pose/info",
+    "/world/follow_world/model/robot/joint_state",
+    "/world/follow_world/chassis_lock/state"
+  ],
+  "ros_topics": [
+    "/drink/state",
+    "/drink/joint_state",
+    "/robot/odom",
+    "/drink/cmd_vel",
+    "/robot/cmd_vel",
+    "/drink/base_lock_state",
+    "/follower/status",
+    "/nav2_active",
+    "/tf",
+    "/tf_static"
+  ],
+  "git_head": "f7a13a71ed03717197261bded2cf7f08348eeeb2",
+  "git_branch": "main",
+  "output_dir": "/home/earl/workspace/VLA/tests/out/drinktask_local-001_20261117_114516",
+  "notes": "Read-only telemetry. No ROS/Gazebo command topics are published."
+}
