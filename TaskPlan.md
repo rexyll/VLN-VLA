@@ -1880,3 +1880,16 @@
 - 更新 mca_drink_control README，准确说明当前 ROS 2 Jazzy /mca_drink/solve_ik service 已存在、DrinkTask 可选调用并保留既有 IK fallback；该包仍不发布 39 路关节命令，S-Curve / differential-drive 算法尚未整体替换生产执行回路。
 - 本地采集器与文档当前提交链：recorder `1ef5549556ee7fe56ee9bf070650622d82653e25`；本地测试指南 `f5a820b37fce5c6f9a2d05c3759f8cd2fe5d9495`（CLI 自检修正 `7d1e4a477177460db7e116523ebdd642c4045b3c`）；MCA 服务诊断日志 `b07cd511e503a4662a980d408988eff82d0f54a0`；MCA README 更新 `4d9a79ba496c81a262520e519efd130a7728dc43`；CI Python syntax 检查 `6749b274e7128fede42804b6b393e83b4f766713`。
 - 尚未取得这些新提交对应的 CI 执行结果，也没有本地 VM 运行数据。用户开始测试前须先拉取最新分支并完成 colcon build；正式测试时确认采集器的三个 Gazebo 订阅均成功。任何 CI 或本地运行错误都保留完整日志再处理。
+
+
+### 8.456 本地运行 local-001：启动归位失败导致 DrinkTask 未进入待命（2026-11-17）
+
+- 已分析 `tests/out/drinktask_local-001_20261117_114516/telemetry.jsonl`：6,309 条记录，覆盖约 630.95s。用户确认运行代码来自 `experiment/drinktask-bt-ik-recovery`；metadata 中 `git_branch=main` / `git_head=f7a13a7...` 是运行目录遗留 Git 信息，用户已删除旧 Git 元数据，不能据此判定运行了 main。后续应以实际启动工作区/构建产物来源为准。
+- 三个 Gazebo 遥测 topic 均有实际消息：dynamic_pose、robot joint_state 从采集开始持续收到；chassis_lock/state 也持续收到。订阅成功不是本轮阻断点。
+- Gazebo 真值底盘 X/Y 位移约为 0，yaw 变化约 0；ROS odom 线速度约为 0。Gazebo 及 ROS 关节状态中所有被采集关节位置/速度/effort 均未出现非零变化；/robot/cmd_vel 没有非零命令，/drink/cmd_vel 本轮未收到消息。
+- DrinkTask 状态从 BOOT 进入 FAIL_STARTUP_HOME（相对采集器启动约 238.45s），从未进入 IDLE 或任何抓取/倒水阶段。启动物理锁状态序列为 detached→attached→detached→attached，软件锁最终 locked=true；底盘保持不动符合启动握手和归位期间的安全设计。
+- `/drink/state` 心跳中 frames 从 0 增长至约 596，且状态在启动归位阶段持续更新。结合当前 `drink_task.py`：`set_base_lock(True)` 在物理 attached、软件锁和真值静止验证通过后打开 `BOOT_ARM_COMMAND_GATE`；`_tick` 仅在该 gate 打开后调用 `bus.publish_all()`；随后 main 才调用 `home()`。因此启动流程已越过锁握手并进入归位执行，归位/悬垂动作没有得到关节反馈确认。现有采集器没有记录 39 路 `/drink/cmd/*` 指令值，不能仅凭本文件证明 Gazebo 实际收到了目标值。
+- 重要交叉证据：生产 `work_area.sdf` 配置 39 个 JointPositionController，全部 `use_velocity_commands=true`；`bridge.yml` 配置 39 路 ROS Float64→Gazebo Double 指令桥接。此前隔离探针 Run #635 曾观察到同一速度命令模式 detached 时可动、attached 后不动；force-mode attached 对照尚未形成有效基线。因此当前最可疑的根因是：启动归位时 chassis DetachableJoint 处于 attached，Gazebo 8.15/DART 固定锚点与 JointVelocityCmd 速度模式的组合使内部机械臂关节没有响应。该假设与本轮“锁握手成功、gate 已打开、所有关节静止、归位超时”的现象高度吻合，但尚不能排除 ROS→Gazebo 39 路命令桥未实际转发。
+- `send_person_cmd.sh drink` 实际首先发布 `/person/command GO_DRINK`，让场景中的人走到桌边；之后 person_walk 才触发语音，再由 voice_node 发布机器人 DRINK 请求。它不是机器人底盘的直接移动命令。本轮没有采集 `/person/command` / person_walk 状态，无法判断场景人物是否到位；但机器人 DrinkTask 已在启动归位阶段失败，无法进入正常任务。
+- 下一步诊断必须在不修改生产物理参数、不放宽验收阈值的前提下，给采集器增加 39 路 ROS `/drink/cmd/*` 与对应 Gazebo Transport Double 的只读接收计数/最后值/时间戳；确认 ROS 端确实发布目标、Gazebo 端确实收到目标。若 Gazebo 收到非零目标而 attached 下关节仍静止，再用隔离世界对同一控制器做 attached/detached A/B（先确保 detached force-mode 正负向基线稳定）确认物理固定约束与速度模式的交互；若 Gazebo 未收到目标，优先修复 bridge/启动配置。禁止直接在生产场景解除物理锁来绕过问题。
+- 本轮不计为任何 DrinkTask 成功轮次；PR #3 保持 Draft/Open；仅在 `experiment/drinktask-bt-ik-recovery` 工作，不修改/合并 main，不创建分支，不降低物理/关节阈值。
