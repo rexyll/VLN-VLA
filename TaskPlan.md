@@ -1952,3 +1952,12 @@
 - 下一步：新增独立诊断世界，比较“world→robot chassis 的同模型/世界级固定约束”与当前“static anchor model→robot child model 的 DetachableJoint”对内部关节 DOF 的影响；保持相同关节、惯量、控制器、命令目标与物理引擎，分别测 detached/attached arm motion 和底盘外部驱动挑战。优先验证能否在不把整个 robot 作为静态 anchor 的 child model 时，仍将 chassis 约束到 world。只有获得 arm motion 与底盘 2mm hold 两项独立物理证据后，才考虑生产架构变更。不得用反向拓扑，不得解除生产锁绕过归位，不得降低验收阈值。
 - 独立 Ground Fixed Joint 物理挑战仍为 3/3 PASS：attached_drive_challenge 位移 0mm、yaw 0°，detached drive 和 unlock recovery 位移约 215–240mm。说明底盘固定机制自身能物理保持底盘，但与机械臂 DOF 驱动存在耦合问题。
 - 本轮状态：正在进行中；启动锁握手修复已获得完整 E2E 证据，机械臂归位未通过；DrinkTask 成功轮数不变。仅在 `experiment/drinktask-bt-ik-recovery` 工作，不修改/合并 main，不创建新分支。
+
+
+### 8.461 新增 world-fixed chassis 对照试验（2026-11-17）
+
+- 为验证 8.460 中“跨模型静态 DetachableJoint 固定约束可能冻结 child model 内部 DOF”的假设，新增隔离世界 `tests/diag/articulated_arm_ground_lock_world_fixed.sdf`：保持同一机器人单关节、关节惯量、控制器和 Gazebo 物理设置，改用机器人模型内部 `<joint type="fixed"><parent>world</parent><child>chassis</child></joint>` 将底盘根链接直接固定到 world，不再使用外部静态 anchor model/DetachableJoint。
+- 扩展 `run_articulated_arm_ground_lock_probe.py` 支持 `ARM_LOCK_PROBE_ANCHOR=world_fixed`：在固定世界约束下执行正向目标、归零、反向目标、归零；同时采集关节位置/速度和底盘位姿。验收仍要求正反向关节运动达到至少 0.25rad，且底盘位移不超过 2mm、yaw 不超过 0.5deg。该测试仅诊断，不改生产场景。
+- 已将 world-fixed SDF 加入 PR 与 push workflow path filter，并新增 continue-on-error 的独立 Gazebo 探针步骤；报告与日志会由现有 artifact 上传规则归档。若 world-fixed 对照能运动而 DetachableJoint child 模型不能运动，则支持跨模型固定约束的架构假设；若仍不能运动，则需继续定位 Gazebo physics/控制器本身，不可先入为主。
+- 同时修正 A/B 探针报告阶段标签：velocity bypass 报告为 `position_bypass_velocity`，`use_velocity_commands=false` 报告为 `position_pid_force`，避免把 PID force 测试错误标成 velocity mode。该修正只影响诊断标签。
+- 当前状态仍为正在进行中；新 world-fixed 对照尚未执行完毕，不计入任何通过项。生产 work_area.sdf、生产机械臂控制器参数及验收阈值均未修改；不修改/合并 main，不创建新分支。
