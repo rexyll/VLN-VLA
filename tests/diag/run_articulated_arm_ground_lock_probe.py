@@ -46,9 +46,9 @@ class Telemetry:
 
     def on_joint(self, msg):
         for joint in msg.joint:
-            if joint.name == "probe_arm_joint" and joint.HasField("axis1"):
+            if joint.name in ("probe_arm_joint", "probe_arm_force_joint") and joint.HasField("axis1"):
                 with self.lock:
-                    self.joint = float(joint.axis1.position)
+                    self.joint[joint.name] = float(joint.axis1.position)
 
     def on_pose(self, msg):
         for item in msg.pose:
@@ -61,7 +61,7 @@ class Telemetry:
 
     def snapshot(self):
         with self.lock:
-            return self.state, self.joint, self.pose
+            return self.state, dict(self.joint), self.pose
 
 def publish(topic, msg_type, payload=""):
     cmd = ["gz", "topic", "-t", topic, "-m", msg_type]
@@ -83,9 +83,10 @@ def wait_for(tel, predicate, label, timeout=8.0):
         time.sleep(0.02)
     raise RuntimeError("timeout waiting for %s; latest=%r" % (label, tel.snapshot()))
 
-def move_and_measure(tel, target, label):
-    publish(CMD, "gz.msgs.Double", "data: %.6f" % target)
-    snap = wait_for(tel, lambda s: s[1] is not None and abs(s[1]-target) < 0.08,
+def move_and_measure(tel, joint_name, target, label):
+    topic = "/arm_lock_probe/cmd/" + joint_name
+    publish(topic, "gz.msgs.Double", "data: %.6f" % target)
+    snap = wait_for(tel, lambda s: s[1].get(joint_name) is not None and abs(s[1][joint_name]-target) < 0.08,
                     label + " joint target", timeout=10.0)
     return snap
 
@@ -102,7 +103,7 @@ def run():
         report = {"world": os.path.relpath(WORLD, ROOT), "target_rad": TARGET, "stages": []}
         try:
             tel = Telemetry()
-            wait_for(tel, lambda s: s[0] == "attached" and s[1] is not None and s[2] is not None,
+            wait_for(tel, lambda s: s[0] == "attached" and s[1].get("probe_arm_joint") is not None and s[1].get("probe_arm_force_joint") is not None and s[2] is not None,
                      "initial attached state and telemetry", timeout=30.0)
             initial = tel.snapshot()
             report["initial_pose"] = initial[2]
@@ -110,32 +111,42 @@ def run():
             publish(DETACH, "gz.msgs.Empty")
             wait_for(tel, lambda s: s[0] == "detached", "detach state")
             detached_start = tel.snapshot()[2]
-            move_and_measure(tel, TARGET, "detached")
+            detached_velocity = move_and_measure(tel, "probe_arm_joint", TARGET, "detached velocity-mode")
+            move_and_measure(tel, "probe_arm_joint", 0.0, "detached velocity-mode reset")
+            detached_force = move_and_measure(tel, "probe_arm_force_joint", TARGET, "detached force-mode")
+            move_and_measure(tel, "probe_arm_force_joint", 0.0, "detached force-mode reset")
             detached_end = tel.snapshot()
-            detached_delta = math.sqrt(sum((detached_end[2][i]-detached_start[i])**2
-                                            for i in range(3)))
-            report["stages"].append({"name": "detached", "joint_rad": detached_end[1],
+            detached_delta = math.sqrt(sum((detached_end[2][i]-detached_start[i])**2 for i in range(3)))
+            report["stages"].append({"name": "detached",
+                                     "velocity_mode_joint_rad": detached_velocity[1].get("probe_arm_joint"),
+                                     "force_mode_joint_rad": detached_force[1].get("probe_arm_force_joint"),
                                      "chassis_start_pose": detached_start,
                                      "chassis_pose": detached_end[2],
                                      "chassis_displacement_mm": detached_delta*1000.0})
 
-            move_and_measure(tel, 0.0, "detached reset")
             publish(ATTACH, "gz.msgs.Empty")
             wait_for(tel, lambda s: s[0] == "attached", "attach state")
             attached_start = tel.snapshot()[2]
             report["attached_start_pose"] = attached_start
-            move_and_measure(tel, TARGET, "attached")
+            attached_velocity = move_and_measure(tel, "probe_arm_joint", TARGET, "attached velocity-mode")
+            attached_force = move_and_measure(tel, "probe_arm_force_joint", TARGET, "attached force-mode")
             attached_end = tel.snapshot()
             delta = math.sqrt(sum((attached_end[2][i]-attached_start[i])**2 for i in range(3)))
             yaw_delta = abs(attached_end[2][3]-attached_start[3])
-            report["stages"].append({"name": "attached", "joint_rad": attached_end[1],
+            report["stages"].append({"name": "attached",
+                                     "velocity_mode_joint_rad": attached_velocity[1].get("probe_arm_joint"),
+                                     "force_mode_joint_rad": attached_force[1].get("probe_arm_force_joint"),
                                      "chassis_pose": attached_end[2],
                                      "chassis_displacement_mm": delta*1000.0,
                                      "chassis_yaw_delta_rad": yaw_delta})
-            if abs(detached_end[1]) < 0.25:
-                raise RuntimeError("detached revolute joint did not move enough")
-            if abs(attached_end[1]) < 0.25:
-                raise RuntimeError("attached revolute joint did not move enough")
+            if abs(detached_velocity[1].get("probe_arm_joint", 0.0)) < 0.25:
+                raise RuntimeError("detached velocity-mode joint did not move enough")
+            if abs(detached_force[1].get("probe_arm_force_joint", 0.0)) < 0.25:
+                raise RuntimeError("detached force-mode joint did not move enough")
+            if abs(attached_velocity[1].get("probe_arm_joint", 0.0)) < 0.25:
+                raise RuntimeError("attached velocity-mode joint did not move enough")
+            if abs(attached_force[1].get("probe_arm_force_joint", 0.0)) < 0.25:
+                raise RuntimeError("attached force-mode joint did not move enough")
             if delta > 0.002 or yaw_delta > math.radians(0.5):
                 raise RuntimeError("attached chassis moved beyond physical hold limits")
             report["result"] = "PASS"
