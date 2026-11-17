@@ -31,6 +31,7 @@ jobs:
             tests/test_drink.py \
             tests/test_orbit.py \
             tests/random_eval.py \
+            tests/diag/record_drinktask_telemetry.py \
             vla_ws/src/vla_follow/vla_follow/arm_kin.py \
             vla_ws/src/vla_follow/vla_follow/carry.py \
             vla_ws/src/vla_follow/vla_follow/drink_motion.py \
