@@ -193,7 +193,7 @@ jobs:
 
       - name: Build Gazebo system plugins
         run: |
-          python3 -m py_compile vla_ws/src/vla_follow/vla_follow/gazebo_ground_lock.py vla_ws/src/vla_follow/vla_follow/drink_task.py tests/diag/run_chassis_brake_gz.py tests/diag/run_chassis_ground_lock_gz.py tests/diag/verify_p104_stage_locks.py tests/diag/verify_ground_fixed_joint.py
+          python3 -m py_compile vla_ws/src/vla_follow/vla_follow/gazebo_ground_lock.py vla_ws/src/vla_follow/vla_follow/drink_task.py tests/diag/run_chassis_brake_gz.py tests/diag/run_chassis_ground_lock_gz.py tests/diag/run_articulated_arm_ground_lock_probe.py tests/diag/verify_p104_stage_locks.py tests/diag/verify_ground_fixed_joint.py
           bash -n tools/gz_plugin.sh
           cmake -S vla_ws/src/vla_follow/gz_plugins \
             -B vla_ws/src/vla_follow/gz_plugins/build \
