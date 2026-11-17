@@ -1815,3 +1815,18 @@
 - 现象与 §8.447 生产现象相似：控制器目标已发送，joint-state 不响应。但本轮还不能确认 attached 锁止导致内部 DOF 被冻结，因为必须先从增强后的 JSON 报告确认 detached 阶段确实达到目标、模型位姿有效且状态转换后控制器持续工作。特别是 pose 的 z 值 `-0.14m` 与预期初始模型高度不一致，需要检查最小 SDF 的碰撞/重力/锚点姿态与 dynamic_pose 观测对象，不能直接归因为 DART。
 - 已修复 runner 的清理代码缺少 `import signal`；同时新增失败时 JSON 输出、最后遥测快照、detached 起止 pose/位移和 attached 起始 pose。修复提交：`b713bbe0a369548cc698ee3aed340e96f7cee4ff`。这项修复只增强诊断可观测性，不改变控制器参数、物理阈值或生产模型。
 - 下一步：先验证修复后脚本能够在失败时正常终止 Gazebo 并输出完整 JSON；若 detached 关节运动和 pose 有效，再分析 attached 阶段为何停止；若 detached 本身不动或 pose 初始状态异常，则先修正最小实验模型/观测器，不能据此对生产物理锁作结论。只有最小实验得到可解释的 A/B 结果后，才继续生产场景单关节受控验证。PR #3 保持 Draft/Open；只在 `experiment/drinktask-bt-ik-recovery` 工作，不修改 main，不创建分支，不合并 PR。
+
+
+### 8.450 Run #635 A/B 结果与控制命令通路分离实验扩展（2026-11-17）
+
+- 修复后的诊断 runner 已正常完成清理并输出完整 JSON。Run #635（run 44001685093，head SHA 67ccdded80c5fb989487a75299d2e0196f7987d7）结果：
+  - detached 时 JointPositionController(use_velocity_commands=true) 将内部关节从 0 驱动到 0.3794495rad，目标 0.45rad，误差约 0.07055rad，满足探针的 0.08rad 容差。
+  - attach 状态确认后，对同一控制器发送同一目标，10s 内实际关节角仍约为 -8.0e-21rad，底盘 pose 保持约 (-2.12e-7,0,-0.1400003)。这说明 detached 可动、attached 后速度命令模式无响应；已排除“控制器全程无效”。
+  - 报告中的 detached chassis Z 位移约 140mm 是初始模型位姿基准设置不合理导致的自由落体：chassis 碰撞盒底部初始离地 0.14m，detach 后落到地面；它不是 attached 阶段底盘漂移，也不能作为 attach 锁止失效证据。最小世界已将 robot 模型初始 Z 改为 -0.14m、anchor Z 改为 0.06m，使 chassis 碰撞盒从地面起步且 anchor 与 chassis link 初始对齐。
+- 已查阅 Gazebo Sim 8 分支源码：
+  - DetachableJoint 在 attach 时创建一个 components::DetachableJoint({parentLink, childLink, "fixed"}) 实体；detach 时移除该实体。它没有显式将 child model 的整个模型设置为 static。
+  - JointPositionController 的 use_velocity_commands=true / ABS 模式，在 PreUpdate 中向目标 joint 写入 components::JointVelocityCmd；普通 PID 模式则写入 components::JointForceCmd。生产 work_area.sdf 的 39 路 JointPositionController 均启用了 use_velocity_commands=true。
+  - 因而下一轮要区分：是 attach 后 DART 对内部 joint 的 velocity command 应用失效，还是固定约束令整个 articulation DOF 无法响应。不能只重复同一个 velocity-mode 探针。
+- 已扩展最小实验：增加第二个内部 revolute joint，使用同一 JointPositionController 的普通 PID/force 模式；runner 在 detached 和 attached 两种状态下分别测试 velocity-mode 与 force-mode 两个独立关节，并分别记录真实 joint-state。若 attached 下 velocity-mode 失败但 force-mode 通过，问题收敛到 JointVelocityCmd 路径；若两种模式均失败，进一步调查 fixed constraint / DART articulation topology；若两种均通过，则检查生产机器人 SDF 的实体解析、joint 拓扑与 plugin 加载差异。
+- 本次变更仅修改测试 SDF 和诊断 runner，不改生产 work_area.sdf、控制器参数、关节物理阈值或动力学参数。下一步等 CI 结果后，若 detached 的两种控制方式都通过，才允许解释 attached 对照结果。生产验收仍要求 chassis 平移 <2mm、yaw <0.5°，不降低任何关节到位标准，不修改质量/惯量/摩擦，不使用 teleport 或伪造物理响应。
+- PR #3 保持 Draft/Open；仅在 experiment/drinktask-bt-ik-recovery 工作，不修改 main，不创建分支，不合并 PR，不设置定时监控。
