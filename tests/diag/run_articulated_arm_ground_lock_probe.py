@@ -5,6 +5,7 @@ its robot chassis is attached to a static DetachableJoint anchor?
 import json
 import math
 import os
+import signal
 import subprocess
 import threading
 import time
@@ -111,13 +112,18 @@ def run():
             detached_start = tel.snapshot()[2]
             move_and_measure(tel, TARGET, "detached")
             detached_end = tel.snapshot()
+            detached_delta = math.sqrt(sum((detached_end[2][i]-detached_start[i])**2
+                                            for i in range(3)))
             report["stages"].append({"name": "detached", "joint_rad": detached_end[1],
-                                     "chassis_pose": detached_end[2]})
+                                     "chassis_start_pose": detached_start,
+                                     "chassis_pose": detached_end[2],
+                                     "chassis_displacement_mm": detached_delta*1000.0})
 
             move_and_measure(tel, 0.0, "detached reset")
             publish(ATTACH, "gz.msgs.Empty")
             wait_for(tel, lambda s: s[0] == "attached", "attach state")
             attached_start = tel.snapshot()[2]
+            report["attached_start_pose"] = attached_start
             move_and_measure(tel, TARGET, "attached")
             attached_end = tel.snapshot()
             delta = math.sqrt(sum((attached_end[2][i]-attached_start[i])**2 for i in range(3)))
@@ -134,6 +140,12 @@ def run():
                 raise RuntimeError("attached chassis moved beyond physical hold limits")
             report["result"] = "PASS"
             print(json.dumps(report, indent=2))
+        except Exception as exc:
+            report["result"] = "FAIL"
+            report["error"] = str(exc)
+            report["last_telemetry"] = tel.snapshot() if tel is not None else None
+            print(json.dumps(report, indent=2))
+            raise
         finally:
             try:
                 os.killpg(proc.pid,  signal.SIGTERM)
