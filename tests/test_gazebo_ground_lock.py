@@ -41,7 +41,7 @@ class GazeboGroundLockRetryTests(unittest.TestCase):
         self.assertTrue(lock.command("detached", timeout_s=1.0))
         self.assertEqual(lock.last_command_attempts, 3)
         self.assertEqual(lock.state, "detached")
-        self.assertTrue(all("chassis_lock/detach" in x for x in calls))
+        self.assertTrue(all(any("chassis_lock/detach" in arg for arg in call) for call in calls))
 
     @patch("vla_follow.gazebo_ground_lock.subprocess.run")
     def test_force_requires_fresh_event_even_if_cached_state_matches(self, publish):
