@@ -23,6 +23,8 @@ class GazeboGroundLock:
         self._mutex = threading.Lock()
         self._state = None
         self._state_time = 0.0
+        self.last_command_attempts = 0
+        self.last_command_error = ""
         if not transport_node.subscribe(StringMsg, self.state_topic, self._on_state):
             raise RuntimeError("cannot subscribe to " + self.state_topic)
 
