@@ -26,6 +26,7 @@ MODE_LABEL = (
     if CONTROLLER_MODE == "use_velocity_commands=true"
     else "position_pid_force"
 )
+ANCHOR_MODE = os.environ.get("ARM_LOCK_PROBE_ANCHOR", "detachable_joint")
 LOG_NAME = os.environ.get(
     "ARM_LOCK_PROBE_LOG", "articulated_arm_ground_lock_probe.log"
 )
@@ -218,11 +219,45 @@ def run():
             tel = Telemetry()
             wait_for(
                 tel,
-                lambda s: s[0] == "attached" and s[1] is not None and s[2] is not None,
+                lambda s: (s[0] == "attached" or ANCHOR_MODE == "world_fixed") and s[1] is not None and s[2] is not None,
                 "initial attached state and telemetry",
                 timeout=30.0,
             )
             report["initial_pose"] = tel.snapshot()[2]
+            report["anchor_mode"] = ANCHOR_MODE
+
+            if ANCHOR_MODE == "world_fixed":
+                start_pose = tel.snapshot()[2]
+                start_index = len(tel.pose_snapshot())
+                report["current_stage"] = f"world_fixed_positive_{MODE_LABEL}"
+                positive = move_and_measure(tel, TARGET, f"world-fixed positive {MODE_LABEL}")
+                report["stages"].append({"name": f"world_fixed_positive_{MODE_LABEL}", **positive["metrics"]})
+                report["current_stage"] = "world_fixed_reset"
+                move_and_measure(tel, 0.0, "world-fixed reset")
+                report["current_stage"] = f"world_fixed_negative_{MODE_LABEL}"
+                negative = move_and_measure(tel, -TARGET, f"world-fixed negative {MODE_LABEL}")
+                report["stages"].append({"name": f"world_fixed_negative_{MODE_LABEL}", **negative["metrics"]})
+                report["current_stage"] = "world_fixed_final_reset"
+                move_and_measure(tel, 0.0, "world-fixed final reset")
+                end_pose = tel.snapshot()[2]
+                pose_samples = tel.pose_snapshot()[start_index:]
+                max_displacement, max_yaw = base_excursion(pose_samples, start_pose)
+                report["stages"].append({
+                    "name": "world_fixed_chassis_hold",
+                    "chassis_start_pose": start_pose,
+                    "chassis_end_pose": end_pose,
+                    "max_chassis_displacement_mm": max_displacement * 1000.0,
+                    "max_chassis_yaw_delta_deg": math.degrees(max_yaw),
+                    "pose_samples": len(pose_samples),
+                })
+                if abs(positive["snapshot"][1]["position"]) < 0.25 or abs(negative["snapshot"][1]["position"]) < 0.25:
+                    raise RuntimeError("world-fixed joint did not preserve bidirectional arm motion")
+                if max_displacement > MAX_BASE_DISPLACEMENT_M or max_yaw > MAX_BASE_YAW_RAD:
+                    raise RuntimeError("world-fixed chassis exceeded hold limits")
+                report["result"] = "PASS"
+                save_report(report)
+                print(json.dumps(report, indent=2))
+                return
 
             publish(DETACH, "gz.msgs.Empty")
             wait_for(tel, lambda s: s[0] == "detached", "detach state")
