@@ -434,6 +434,7 @@ jobs:
             vla_ws/logs/*.log
             vla_ws/logs/p104_stage_locks*.json
             vla_ws/logs/arm_lock_original_*.json
+            vla_ws/logs/articulated_arm_ground_lock_probe.json
             vla_ws/logs/arm_world_fixed_*.json
             vla_ws/logs/full_robot_world_fixed*.json
             vla_ws/logs/ground_fixed_joint_*.log
