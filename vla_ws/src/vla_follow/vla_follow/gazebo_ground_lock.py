@@ -70,22 +70,37 @@ class GazeboGroundLock:
         if self.state == expected and not force:
             return True
         topic = self.attach_topic if expected == "attached" else self.detach_topic
-        # Gazebo transport can accept a CLI publication while the system plugin
-        # misses that one-shot message during startup. Retry once only when the
-        # state transition was not acknowledged; each attempt still requires a
-        # fresh state event newer than its own command timestamp.
-        for attempt in range(2):
+        # A short-lived one-shot publisher can exit before Gazebo Transport
+        # discovery delivers its message. Retry idempotent requests throughout
+        # the acknowledgement window, matching the proven ground-lock probe.
+        # Every success still requires a fresh state event newer than a request.
+        deadline = time.monotonic() + max(0.0, float(timeout_s))
+        self.last_command_attempts = 0
+        self.last_command_error = ""
+        while time.monotonic() < deadline:
             command_started = time.monotonic()
+            remaining = max(0.0, deadline - command_started)
             try:
                 result = subprocess.run(
                     ["gz", "topic", "-t", topic, "-m", "gz.msgs.Empty", "-p", " "],
                     stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                    text=True, timeout=3.0, check=False)
-            except (OSError, subprocess.TimeoutExpired):
+                    text=True, timeout=min(2.0, max(0.2, remaining)),
+                    check=False)
+                self.last_command_attempts += 1
+                if result.returncode != 0:
+                    self.last_command_error = (
+                        "publisher exit %d: %s" % (result.returncode, result.stdout))
+                elif self.wait_for_state(
+                        expected, timeout_s=min(0.25, remaining), spin=spin,
+                        after_time=command_started):
+                    return True
+            except subprocess.TimeoutExpired as exc:
+                self.last_command_attempts += 1
+                self.last_command_error = "publisher timeout: %s" % exc
+            except OSError as exc:
+                self.last_command_error = "publisher unavailable: %s" % exc
                 return False
-            if result.returncode != 0:
-                return False
-            if self.wait_for_state(expected, timeout_s=timeout_s, spin=spin,
-                                   after_time=command_started):
-                return True
+
+            if spin is None:
+                time.sleep(min(0.05, max(0.0, deadline - time.monotonic())))
         return False
