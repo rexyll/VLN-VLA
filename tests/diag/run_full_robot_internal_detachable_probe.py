@@ -50,8 +50,8 @@ def make_world():
     with open(SOURCE, encoding="utf-8") as f:
         source = f.read()
     source, n = re.subn(
-        r"\\s*<!-- Physical chassis immobilizer[\\s\\S]*?</model>\\s*",
-        "\\n", source, count=1
+        r"\s*<!-- Physical chassis immobilizer[\s\S]*?</model>\s*",
+        "\n", source, count=1
     )
     if n != 1:
         raise RuntimeError("could not remove exactly one external anchor model")
@@ -59,7 +59,7 @@ def make_world():
     # confound the comparison: the candidate anchor topology must coexist with
     # the actual cup/kettle carry system used by the full DrinkTask.
     if not re.search(
-            r'<plugin filename="libGraspCarry\\.so" name="vla::GraspCarry">',
+            r'<plugin filename="libGraspCarry\.so" name="vla::GraspCarry">',
             source):
         raise RuntimeError("production GraspCarry world plugin is missing")
     start = re.search(r'<model name="robot" canonical_link="chassis">', source)
