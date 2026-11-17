@@ -20,6 +20,7 @@ on:
       - "tests/diag/articulated_arm_ground_lock_original_velocity.sdf"
       - "tests/diag/articulated_arm_ground_lock_original_force.sdf"
       - "tests/diag/articulated_arm_ground_lock_world_fixed.sdf"
+      - "tests/diag/articulated_arm_ground_lock_world_fixed_force.sdf"
       - "tests/diag/run_articulated_arm_ground_lock_probe.py"
       - "tests/diag/verify_p104_stage_locks.py"
       - "tests/diag/chassis_brake_test.sdf"
@@ -245,6 +246,22 @@ jobs:
           tail -n 60 vla_ws/logs/arm_world_fixed_velocity_console.log
           exit 0
 
+      - name: Probe PID force arm articulation with chassis fixed directly to world
+        continue-on-error: true
+        env:
+          ARM_LOCK_PROBE_WORLD: tests/diag/articulated_arm_ground_lock_world_fixed_force.sdf
+          ARM_LOCK_PROBE_ANCHOR: world_fixed
+          ARM_LOCK_PROBE_MODE: use_velocity_commands=false_pid_force
+          ARM_LOCK_PROBE_LOG: arm_world_fixed_force.log
+          ARM_LOCK_PROBE_REPORT: arm_world_fixed_force.json
+        run: |
+          python3 tests/diag/run_articulated_arm_ground_lock_probe.py \\
+            > vla_ws/logs/arm_world_fixed_force_console.log 2>&1
+          rc=$?
+          echo "WORLD_FIXED_ARM_FORCE_PROBE_EXIT=$rc"
+          tail -n 60 vla_ws/logs/arm_world_fixed_force_console.log
+          exit 0
+
       - name: Compare arm controller modes with production Ground Fixed Joint topology
         continue-on-error: true
         shell: bash
@@ -393,6 +410,7 @@ jobs:
             vla_ws/logs/*.log
             vla_ws/logs/p104_stage_locks*.json
             vla_ws/logs/arm_lock_original_*.json
+vla_ws/logs/arm_world_fixed_*.json
             vla_ws/logs/ground_fixed_joint_*.log
             vla_ws/logs/ground_fixed_joint_*.json
             vla_ws/logs/ground_fixed_joint_summary.json
