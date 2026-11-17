@@ -373,6 +373,7 @@ jobs:
           path: |
             vla_ws/logs/*.log
             vla_ws/logs/p104_stage_locks*.json
+            vla_ws/logs/arm_lock_original_*.json
             vla_ws/logs/ground_fixed_joint_*.log
             vla_ws/logs/ground_fixed_joint_*.json
             vla_ws/logs/ground_fixed_joint_summary.json
