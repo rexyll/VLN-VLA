@@ -16,6 +16,8 @@ on:
       - "tests/diag/run_chassis_ground_lock_gz.py"
       - "tests/diag/chassis_ground_lock_test.sdf"
       - "tests/diag/articulated_arm_ground_lock_test.sdf"
+      - "tests/diag/articulated_arm_ground_lock_original_velocity.sdf"
+      - "tests/diag/articulated_arm_ground_lock_original_force.sdf"
       - "tests/diag/run_articulated_arm_ground_lock_probe.py"
       - "tests/diag/verify_p104_stage_locks.py"
       - "tests/diag/chassis_brake_test.sdf"
@@ -51,6 +53,8 @@ on:
       - "tests/diag/chassis_ground_lock_test.sdf"
       - "tests/diag/verify_ground_fixed_joint.py"
       - "tests/diag/articulated_arm_ground_lock_test.sdf"
+      - "tests/diag/articulated_arm_ground_lock_original_velocity.sdf"
+      - "tests/diag/articulated_arm_ground_lock_original_force.sdf"
       - "tests/diag/run_articulated_arm_ground_lock_probe.py"
       - "vla_ws/src/vla_follow/**"
       - "vla_ws/src/mca_drink_control/**"
@@ -215,6 +219,36 @@ jobs:
       - name: Probe articulated arm motion with chassis anchor detached and attached
         run: |
           python3 tests/diag/run_articulated_arm_ground_lock_probe.py
+
+      - name: Compare arm controller modes with production Ground Fixed Joint topology
+        continue-on-error: true
+        shell: bash
+        run: |
+          set +e
+          ARM_LOCK_PROBE_WORLD=tests/diag/articulated_arm_ground_lock_original_velocity.sdf \
+          ARM_LOCK_PROBE_MODE=use_velocity_commands=true \
+          ARM_LOCK_PROBE_LOG=arm_lock_original_velocity.log \
+            python3 tests/diag/run_articulated_arm_ground_lock_probe.py \
+            > vla_ws/logs/arm_lock_original_velocity.json 2>&1
+          velocity_rc=$?
+          ARM_LOCK_PROBE_WORLD=tests/diag/articulated_arm_ground_lock_original_force.sdf \
+          ARM_LOCK_PROBE_MODE=use_velocity_commands=false_pid_force \
+          ARM_LOCK_PROBE_LOG=arm_lock_original_force.log \
+            python3 tests/diag/run_articulated_arm_ground_lock_probe.py \
+            > vla_ws/logs/arm_lock_original_force.json 2>&1
+          force_rc=$?
+          echo "ORIGINAL_TOPOLOGY_VELOCITY_MODE_EXIT=$velocity_rc"
+          echo "ORIGINAL_TOPOLOGY_FORCE_MODE_EXIT=$force_rc"
+          echo "Velocity-mode evidence:"
+          tail -n 35 vla_ws/logs/arm_lock_original_velocity.json
+          echo "Force-mode evidence:"
+          tail -n 35 vla_ws/logs/arm_lock_original_force.json
+          if [ "$velocity_rc" -eq 0 ] || [ "$force_rc" -eq 0 ]; then
+            echo "At least one original-topology arm controller mode passed."
+          else
+            echo "Neither controller mode passed; preserving evidence for diagnosis."
+          fi
+          exit 0
 
       - name: Run isolated Ground Fixed Joint attach, hold and release experiment
         run: |
