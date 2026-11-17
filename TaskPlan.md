@@ -1783,3 +1783,16 @@
 - 本轮另有 `ModuleNotFoundError: No module named 'vosk'`，语音节点依赖未安装；但 E2E 的主任务在 `FAIL_STARTUP_HOME` 已中止，语音/人走到接水位/九阶段未执行属于下游未运行，不能反向解释 home 失败。Nav2 初期的 odom TF 等待日志也不是本轮 home 失败的直接证据。
 - **下一步：**(1) 先验证 Gazebo Odometry 字段修复与新增超时诊断；(2) 构造最小 Gazebo Sim 8.15 articulated-arm + DetachableJoint 静态锚点复现实验，确认 fixed anchor 是否仍允许内部 revolute joints 被 JointPositionController 驱动；(3) 检查生产关节 entity 是否成功解析，以及 JointVelocityCmd 是否被 Physics/DART 消费；(4) 再在生产 `work_area.sdf` 做单关节低幅度、限时、底盘真值监控的受控验证，确认 arm motion 可在 chassis physically attached 时发生；(5) 恢复完整 boot home/hang 和连续两轮 E2E。每一步保持物理锁、底盘 <2mm、yaw <0.5°和关节原有到位门槛。
 - 生产 E2E 本轮只完成 1/2 轮，0/2 通过；完整 DrinkTask 九阶段未开始。PR #3 保持 Draft/Open；仅在 `experiment/drinktask-bt-ik-recovery` 工作，不修改 `main`，不创建分支，不设置定时监控。
+
+
+### 8.447 #621 验证逐关节超时诊断与 Odometry 修复；确认生产关节命令无物理响应（2026-11-17）
+
+- 诊断提交 aa8e2e21b8606aba12a14e16c391a3c2b7cc7590 的 E2E Run #621（run 43993316610）已完成。离线行为树测试、P104 回归、Gazebo 插件构建、GroundFixedJoint 三次隔离测试、ROS 2 工作区/MCA 双臂服务测试均通过；生产 work_area.sdf DrinkTask E2E 仍失败于 FAIL_STARTUP_HOME，仅完成第 1/2 轮，0/2 通过。
+- **物理锁再次通过：**startup detach/attach/final-detach 三个阶段均记录 0.000mm 位移、0.0000° yaw；PHYSICAL_CHASSIS_LOCK startup PASS、BOOT_ARM_COMMAND_GATE open 均出现。失败仍发生在物理锁确认之后。
+- **新增逐关节日志已验证有效：**右/左手及手臂超时日志逐项列出 target、actual、error、velocity、effort。两侧手臂的关键目标均为 lift=-0.55rad、elbow=-0.85rad、wrist_pitch=0.35rad；对应 actual 仍约 0，velocity 与 effort 均约 0。双侧手指目标 0.02/0.05/0.10rad，actual 同样约 0，velocity/effort 约 0。该证据排除了“伺服只打印最大残差、无法区分反馈异常”的信息缺口；目前仍无法仅凭日志断言是控制器未消费命令，还是 DART 未应用 JointVelocityCmd。
+- **Odometry 修复已通过真实 E2E 遥测验证：**本轮 wheel_odometry 收到 1,656 条记录，摘要中必需源完整；此前 msg.pose.pose.position 导致的 AttributeError: pose 和 MISSING REQUIRED SOURCES: wheel_odometry 未再出现。此修复可标记完成。
+- **生产底盘仍静止：**遥测摘要中底盘最大 XY 位移约 5.04e-14m、yaw 变化约 7.13e-13°，wheel 速度最大约 8.62e-14rad/s，base command 最大值 0。注意这只是启动失败期间的静止证据，不代表机械臂运动负载下的锁止验收。
+- **Nav2 TF：**启动初期仍出现短暂 odom / base_link frame 尚未出现的等待日志；由于 DrinkTask 在 boot home 失败即中止，本轮不能判断 Nav2 最终能否进入稳定导航状态，也不能将其认定为本轮直接失败原因。
+- Gazebo Sim 8.15 的 JointPositionController 文档说明，use_velocity_commands=true 会绕过 PID 并通过速度命令实现目标位置，速度上限由 cmd_max 控制；因此当前目标值已发布但实测速度/effort 为零，下一步必须验证 ECS/Physics/DART 链路，不能靠调 PID、延长超时或改变关节阈值解决。参考：Gazebo Sim 8.15 JointPositionController 文档与 JointVelocityCmd 组件说明。
+- **下一步执行顺序：**(1) 新增最小 articulated-arm + 同款静态 Ground DetachableJoint 对照世界；同一关节控制器先在 detached 状态、再在 attached 状态接收相同目标，分别验证关节角变化和 chassis 位姿；(2) 若 detached 可动而 attached 不可动，锁定 DetachableJoint/DART 约束拓扑问题；若两种状态均不可动，检查 JointPositionController entity 解析、目标订阅与 Physics/DART 组件消费；若两种状态均可动，再回查生产机器人 SDF/插件配置差异；(3) 仅在最小复现明确后，才做生产场景单关节低幅度受控验证，保持底盘 <2mm、yaw <0.5°；(4) 恢复 boot home/hang 和连续两轮完整 E2E。
+- 禁止降低关节到位精度、物理锁阈值；禁止改惯量、质量、摩擦或使用 teleport/直接改 joint state 伪造响应。PR #3 保持 Draft/Open；仅在 experiment/drinktask-bt-ik-recovery 工作，不修改 main，不创建分支，不设置定时监控。
