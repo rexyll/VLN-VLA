@@ -52,8 +52,6 @@ class Telemetry:
                     sample = {"position": float(joint.axis1.position), "velocity": float(joint.axis1.velocity), "effort": float(joint.axis1.force), "time_monotonic": time.monotonic()}
                     self.joint[joint.name] = sample
                     self.samples.append({"joint": joint.name, **sample})
-                    if len(self.samples) > 4000:
-                        self.samples = self.samples[-4000:]
 
     def on_pose(self, msg):
         for item in msg.pose:
@@ -150,6 +148,11 @@ def run():
             report["stages"].append({"name": "detached_force_mode", **detached_force["metrics"]})
             report["current_stage"] = "detached_force_reset"
             move_and_measure(tel, "probe_arm_force_joint", 0.0, "detached force-mode reset")
+            report["current_stage"] = "detached_force_negative"
+            detached_force_negative = move_and_measure(tel, "probe_arm_force_joint", -TARGET, "detached force-mode negative target")
+            report["stages"].append({"name": "detached_force_mode_negative", **detached_force_negative["metrics"]})
+            report["current_stage"] = "detached_force_negative_reset"
+            move_and_measure(tel, "probe_arm_force_joint", 0.0, "detached force-mode negative reset")
             detached_end = tel.snapshot()
             detached_delta = math.sqrt(sum((detached_end[2][i]-detached_start[i])**2 for i in range(3)))
             report["stages"].append({"name": "detached",
@@ -182,6 +185,8 @@ def run():
                 raise RuntimeError("detached velocity-mode joint did not move enough")
             if abs(detached_force["snapshot"][1].get("probe_arm_force_joint", {}).get("position", 0.0)) < 0.25:
                 raise RuntimeError("detached force-mode joint did not move enough")
+            if abs(detached_force_negative["snapshot"][1].get("probe_arm_force_joint", {}).get("position", 0.0)) < 0.25:
+                raise RuntimeError("detached force-mode negative target did not move enough")
             if abs(attached_velocity["snapshot"][1].get("probe_arm_joint", {}).get("position", 0.0)) < 0.25:
                 raise RuntimeError("attached velocity-mode joint did not move enough")
             if abs(attached_force["snapshot"][1].get("probe_arm_force_joint", {}).get("position", 0.0)) < 0.25:
