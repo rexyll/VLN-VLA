@@ -1973,3 +1973,13 @@
 - 新增 `tests/diag/articulated_arm_ground_lock_world_fixed_force.sdf`，用 P=10、I=0、D=0.5、输出限幅±10Nm、`use_velocity_commands=false` 对照 PID 力控制路径；workflow 新增 world-fixed PID force 探针，并将 `arm_world_fixed_*.json` 纳入 artifacts。该试验尚未运行。
 - 下一步：先验证 world-fixed PID force 对照，再把生产机器人 SDF 复制到隔离诊断场景，保留完整 39 路关节、碰撞、惯量、驱动与桥接结构，只替换 chassis 固定约束；执行完整机械臂 home/hang 和独立底盘驱动挑战。仅当两项独立验收均通过后，才提出生产架构迁移。不得直接修改生产 `work_area.sdf`、不得绕过软件锁、不得降低阈值。
 - 状态：正在进行中。启动锁握手修复已通过完整 E2E；world-fixed 单关节对照通过；完整双臂启动归位未通过，DrinkTask 成功轮数不变。所有改动只在 `experiment/drinktask-bt-ik-recovery`，未修改/合并 main，未创建新分支。
+
+
+### 8.463 准备完整生产机器人模型 world-fixed 验证（2026-11-17）
+
+- 已新增 tests/diag/run_full_robot_world_fixed_probe.py。该脚本读取生产源场景 vla_ws/src/vla_follow/worlds/work_area.sdf，在日志目录生成独立诊断副本：只移除外部 ground_lock_anchor + DetachableJoint 和与本实验无关的 GraspCarry world plugin，在完整 robot 模型内部插入 world→chassis fixed joint。生产源 SDF 不会被修改。
+- 完整模型探针先运行 gz sdf -k 验证生成 SDF，再启动完整工作区 Gazebo 世界；通过原生产 /drink/cmd/<joint> Gazebo Transport 话题依次驱动 R/L 两臂 lift、elbow、wrist_p 六个主关节至小幅目标并回零，逐关节检查实际位置、速度和最大运动速度。
+- 随后向生产 DiffDrive 话题 /model/robot/cmd_vel 施加 1s 的线速度 0.12m/s、角速度 0.15rad/s 命令，独立检查底盘位移≤2mm、yaw≤0.5°。这比简化单关节世界的“静态位姿未变化”更强，能同时验证完整机械臂 DOF 与底盘驱动锁止。
+- 诊断结果写入 vla_ws/logs/full_robot_world_fixed.json，Gazebo日志写入 full_robot_world_fixed_gz.log；workflow 新增 Xvfb headless 执行步骤，暂设 continue-on-error 仅收集证据，不把未验证架构当成生产门禁或通过项。
+- 当前待验证：SDF 生成/解析、完整模型六个关节双向/归零运动、DiffDrive 挑战下底盘约束。该探针尚未运行；world-fixed 单关节速度模式通过仍是当前唯一新物理通过证据。PID force world-fixed 对照也尚未取得结果。
+- 状态继续为正在进行中；不修改生产场景，不降低验收阈值，不修改/合并 main，不创建新分支。
