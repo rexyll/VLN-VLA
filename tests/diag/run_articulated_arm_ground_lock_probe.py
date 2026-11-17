@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
-"""Gazebo Sim 8 regression: production velocity-mode arm joint moves while
-its chassis is detached and while held by a static DetachableJoint anchor.
-"""
+"""Gazebo Sim 8 regression: compare arm controller modes with chassis detached / anchored."""
 import json
 import math
 import os
@@ -22,6 +20,11 @@ WORLD = os.environ.get(
 )
 CONTROLLER_MODE = os.environ.get(
     "ARM_LOCK_PROBE_MODE", "use_velocity_commands=true"
+)
+MODE_LABEL = (
+    "position_bypass_velocity"
+    if CONTROLLER_MODE == "use_velocity_commands=true"
+    else "position_pid_force"
 )
 LOG_NAME = os.environ.get(
     "ARM_LOCK_PROBE_LOG", "articulated_arm_ground_lock_probe.log"
@@ -225,18 +228,18 @@ def run():
             wait_for(tel, lambda s: s[0] == "detached", "detach state")
             detached_start = tel.snapshot()[2]
             detached_start_index = len(tel.pose_snapshot())
-            report["current_stage"] = "detached_positive_velocity_mode"
-            detached_positive = move_and_measure(tel, TARGET, "detached positive velocity-mode")
+            report["current_stage"] = "detached_positive_{MODE_LABEL}"
+            detached_positive = move_and_measure(tel, TARGET, "detached positive {MODE_LABEL}")
             report["stages"].append({
-                "name": "detached_positive_velocity_mode",
+                "name": "detached_positive_{MODE_LABEL}",
                 **detached_positive["metrics"],
             })
             report["current_stage"] = "detached_reset"
             move_and_measure(tel, 0.0, "detached reset")
-            report["current_stage"] = "detached_negative_velocity_mode"
-            detached_negative = move_and_measure(tel, -TARGET, "detached negative velocity-mode")
+            report["current_stage"] = "detached_negative_{MODE_LABEL}"
+            detached_negative = move_and_measure(tel, -TARGET, "detached negative {MODE_LABEL}")
             report["stages"].append({
-                "name": "detached_negative_velocity_mode",
+                "name": "detached_negative_{MODE_LABEL}",
                 **detached_negative["metrics"],
             })
             report["current_stage"] = "detached_negative_reset"
@@ -258,16 +261,16 @@ def run():
             attached_start = tel.snapshot()[2]
             attached_start_index = len(tel.pose_snapshot())
             report["attached_start_pose"] = attached_start
-            report["current_stage"] = "attached_positive_velocity_mode"
-            attached_positive = move_and_measure(tel, TARGET, "attached positive velocity-mode")
+            report["current_stage"] = "attached_positive_{MODE_LABEL}"
+            attached_positive = move_and_measure(tel, TARGET, "attached positive {MODE_LABEL}")
             report["stages"].append({
-                "name": "attached_positive_velocity_mode",
+                "name": "attached_positive_{MODE_LABEL}",
                 **attached_positive["metrics"],
             })
-            report["current_stage"] = "attached_negative_velocity_mode"
-            attached_negative = move_and_measure(tel, -TARGET, "attached negative velocity-mode")
+            report["current_stage"] = "attached_negative_{MODE_LABEL}"
+            attached_negative = move_and_measure(tel, -TARGET, "attached negative {MODE_LABEL}")
             report["stages"].append({
-                "name": "attached_negative_velocity_mode",
+                "name": "attached_negative_{MODE_LABEL}",
                 **attached_negative["metrics"],
             })
             attached_end = tel.snapshot()[2]
@@ -283,13 +286,13 @@ def run():
             })
 
             if abs(detached_positive["snapshot"][1]["position"]) < 0.25:
-                raise RuntimeError("detached positive velocity-mode joint did not move enough")
+                raise RuntimeError("detached positive {MODE_LABEL} joint did not move enough")
             if abs(detached_negative["snapshot"][1]["position"]) < 0.25:
-                raise RuntimeError("detached negative velocity-mode joint did not move enough")
+                raise RuntimeError("detached negative {MODE_LABEL} joint did not move enough")
             if abs(attached_positive["snapshot"][1]["position"]) < 0.25:
-                raise RuntimeError("attached positive velocity-mode joint did not move enough")
+                raise RuntimeError("attached positive {MODE_LABEL} joint did not move enough")
             if abs(attached_negative["snapshot"][1]["position"]) < 0.25:
-                raise RuntimeError("attached negative velocity-mode joint did not move enough")
+                raise RuntimeError("attached negative {MODE_LABEL} joint did not move enough")
             if max_displacement > MAX_BASE_DISPLACEMENT_M or max_yaw > MAX_BASE_YAW_RAD:
                 raise RuntimeError(
                     "attached chassis exceeded hold limits: displacement=%.3fmm yaw=%.4fdeg"
