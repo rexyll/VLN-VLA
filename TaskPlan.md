@@ -1893,3 +1893,16 @@
 - `send_person_cmd.sh drink` 实际首先发布 `/person/command GO_DRINK`，让场景中的人走到桌边；之后 person_walk 才触发语音，再由 voice_node 发布机器人 DRINK 请求。它不是机器人底盘的直接移动命令。本轮没有采集 `/person/command` / person_walk 状态，无法判断场景人物是否到位；但机器人 DrinkTask 已在启动归位阶段失败，无法进入正常任务。
 - 下一步诊断必须在不修改生产物理参数、不放宽验收阈值的前提下，给采集器增加 39 路 ROS `/drink/cmd/*` 与对应 Gazebo Transport Double 的只读接收计数/最后值/时间戳；确认 ROS 端确实发布目标、Gazebo 端确实收到目标。若 Gazebo 收到非零目标而 attached 下关节仍静止，再用隔离世界对同一控制器做 attached/detached A/B（先确保 detached force-mode 正负向基线稳定）确认物理固定约束与速度模式的交互；若 Gazebo 未收到目标，优先修复 bridge/启动配置。禁止直接在生产场景解除物理锁来绕过问题。
 - 本轮不计为任何 DrinkTask 成功轮次；PR #3 保持 Draft/Open；仅在 `experiment/drinktask-bt-ik-recovery` 工作，不修改/合并 main，不创建分支，不降低物理/关节阈值。
+
+
+
+### 8.457 补齐 39 路关节命令 ROS→Gazebo 双端接收遥测（2026-11-17）
+
+- 对当前分支实际配置复核：生产桥接文件为 `vla_ws/src/vla_follow/config/bridge.yml`，其中存在 **39 条唯一** `/drink/cmd/*` 映射，全部为 ROS `std_msgs/msg/Float64` → Gazebo Transport `gz.msgs.Double`，且当前 39 条映射的 ROS/Gazebo topic 名完全相同。生产 `vla_ws/src/vla_follow/worlds/work_area.sdf` 中对应 39 个 `JointPositionController` 均设置 `use_velocity_commands=true`。这确认了诊断采集器应按 bridge 配置订阅 39 路，而不是手工猜测 topic 名。
+- 已更新 `tests/diag/record_drinktask_telemetry.py`：启动时读取实际 `bridge.yml`，筛选并校验恰好 39 条唯一的 Float64→gz.msgs.Double 命令映射；逐路建立 ROS Float64 只读订阅和 Gazebo `gz.msgs.Double` 只读订阅。JSONL 的 `drink_command_telemetry` 对每个 ROS/Gazebo topic 分别记录接收计数、最后值、最后接收 UTC 时间、采集器启动后的 monotonic 时间及 age；metadata 同时记录映射和订阅注册结果。采集器仍不发布任何命令，不要求 39 路在每个阶段都必须有消息；分析时只对该阶段实际应发命令的关节检查计数与时间戳。
+- 已更新 `docs/testing/LOCAL_ROS2_GAZEBO_DIAGNOSTICS.md`，说明新增的 39 路双端接收指标及其解释边界。
+- 代码提交：采集器初版 `3d73c3da069332d74af0a0453ddb5830f4042298`；接收 UTC/monotonic 时间戳修正 `b6d6e11de017da4f02666fd2562f7094c4365705`；本地采集说明 `bb7e464a743a3781a6409ac4f9db8fa419ad23b5`。本次分支 HEAD 随 TaskPlan 更新继续前进。
+- 当前验证边界：已从仓库配置静态核实 39/39 映射唯一且同名，并核实 recorder 通过 YAML 动态派生订阅；尚未在用户 Ubuntu 24.04 / ROS 2 Jazzy / Gazebo Harmonic 环境执行 Python 运行时导入、实际订阅和消息接收验证。因此不得将此项标记为本地运行通过，也不能由订阅注册成功推断收到命令。后续应先运行 `py_compile` 与本地启动自检，再执行单轮 startup-home 诊断并检查每个实际应发关节的 ROS/Gazebo 双端计数。
+- 已复核用户上传的 `log/202601171213/` 六份日志：`drink.log` 显示物理锁启动握手成功且 `BOOT_ARM_COMMAND_GATE` 打开，随后 startup home 的双臂/手指关节均发生 `JOINT_SERVO_TIMEOUT` 并以 `FAIL_STARTUP_HOME` 终止；`gzsim.log` 显示 39 路控制器均已订阅各自 Gazebo 命令 topic；`bridge.log` 显示 39 路 ROS→Gazebo bridge 配置建立且至少存在消息转发记录，但日志不足以证明本轮所有实际命令都已到达 Gazebo；`mux.log` 的 LOCKED 与底盘命令抑制符合启动归位期间安全设计；`pw.log` 的 GO_DRINK 人员移动入口正常；`voice.log` 解析“我要喝水”并生成 DRINK，但发生在 startup-home 失败之后，不能说明机器人已执行 DrinkTask。人物入口/语音链路不是当前首个阻断点。
+- 当前最重要的根因分流：若某关节 ROS 端计数增长而 Gazebo 端计数不增长，优先排查该 topic 的 bridge 实际转发与进程/域配置；若 Gazebo 端也收到非零目标而 Gazebo joint state 仍无变化，再继续隔离世界的 attached/detached A/B，且必须先获得 detached force-mode 正、负目标稳定基线。不得在生产场景解除物理锁来验证，不得修改生产质量/惯量/摩擦/控制器参数，不得降低关节和底盘验收门槛。
+- PR #3 当前仍为 Draft/Open/未合并；仅在 `experiment/drinktask-bt-ik-recovery` 工作，不修改 `main`，不创建分支，不设置定时监控。本地真实 Gazebo 验证仍由用户环境执行，CI 仅作为静态/构建/单元检查，不能替代本地物理验收。
