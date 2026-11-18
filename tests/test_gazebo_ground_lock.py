@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
-"""Unit tests for retrying Gazebo DetachableJoint state transitions."""
+"""Unit tests for persistent Gazebo Transport chassis-lock publishers."""
 import sys
 import unittest
 from pathlib import Path
-from types import SimpleNamespace
-from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "vla_ws" / "src" / "vla_follow"))
@@ -13,60 +11,80 @@ from gz.msgs10.stringmsg_pb2 import StringMsg
 from vla_follow.gazebo_ground_lock import GazeboGroundLock
 
 
+class FakePublisher:
+    def __init__(self):
+        self.messages = []
+        self.on_publish = None
+
+    def publish(self, message):
+        self.messages.append(message)
+        if self.on_publish:
+            self.on_publish(message)
+        return True
+
+
 class FakeTransportNode:
+    def __init__(self):
+        self.publishers = {}
+        self.topic = None
+        self.callback = None
+
     def subscribe(self, msg_type, topic, callback):
         self.topic = topic
         self.callback = callback
         return True
 
+    def advertise(self, topic, msg_type):
+        publisher = FakePublisher()
+        self.publishers[topic] = publisher
+        return publisher
 
-class GazeboGroundLockRetryTests(unittest.TestCase):
+
+class GazeboGroundLockPublisherTests(unittest.TestCase):
     def make_lock(self):
         node = FakeTransportNode()
         lock = GazeboGroundLock(node, "test_world")
         return lock, node
 
-    @patch("vla_follow.gazebo_ground_lock.subprocess.run")
-    def test_retries_until_fresh_state_event(self, publish):
+    def test_advertises_persistent_attach_and_detach_publishers(self):
         lock, node = self.make_lock()
-        calls = []
+        self.assertIn(lock.attach_topic, node.publishers)
+        self.assertIn(lock.detach_topic, node.publishers)
 
-        def publish_side_effect(*args, **kwargs):
-            calls.append(args[0])
-            if len(calls) == 3:
+    def test_retries_until_fresh_state_event(self):
+        lock, node = self.make_lock()
+        publisher = node.publishers[lock.detach_topic]
+
+        def publish_side_effect(_message):
+            if len(publisher.messages) == 3:
                 node.callback(StringMsg(data="detached"))
-            return SimpleNamespace(returncode=0, stdout="")
 
-        publish.side_effect = publish_side_effect
+        publisher.on_publish = publish_side_effect
         self.assertTrue(lock.command("detached", timeout_s=1.0))
         self.assertEqual(lock.last_command_attempts, 3)
         self.assertEqual(lock.state, "detached")
-        self.assertTrue(all(any("chassis_lock/detach" in arg for arg in call) for call in calls))
+        self.assertEqual(len(publisher.messages), 3)
 
-    @patch("vla_follow.gazebo_ground_lock.subprocess.run")
-    def test_force_requires_fresh_event_even_if_cached_state_matches(self, publish):
+    def test_force_requires_fresh_event_even_if_cached_state_matches(self):
         lock, node = self.make_lock()
         node.callback(StringMsg(data="attached"))
-        publish.side_effect = lambda *a, **k: (
-            node.callback(StringMsg(data="attached"))
-            or SimpleNamespace(returncode=0, stdout="")
-        )
+        publisher = node.publishers[lock.attach_topic]
+        publisher.on_publish = lambda _msg: node.callback(StringMsg(data="attached"))
         self.assertTrue(lock.command("attached", timeout_s=0.5, force=True))
-        publish.assert_called_once()
+        self.assertEqual(len(publisher.messages), 1)
 
-    @patch("vla_follow.gazebo_ground_lock.subprocess.run")
-    def test_cached_matching_state_is_idempotent_without_publish(self, publish):
+    def test_cached_matching_state_is_idempotent_without_publish(self):
         lock, node = self.make_lock()
         node.callback(StringMsg(data="detached"))
         self.assertTrue(lock.command("detached", timeout_s=0.5))
-        publish.assert_not_called()
+        self.assertEqual(node.publishers[lock.detach_topic].messages, [])
 
-    @patch("vla_follow.gazebo_ground_lock.subprocess.run")
-    def test_timeout_reports_multiple_attempts(self, publish):
-        publish.return_value = SimpleNamespace(returncode=0, stdout="")
-        lock, _ = self.make_lock()
+    def test_timeout_reports_multiple_publish_attempts(self):
+        lock, node = self.make_lock()
         self.assertFalse(lock.command("detached", timeout_s=0.7))
         self.assertGreaterEqual(lock.last_command_attempts, 2)
+        self.assertEqual(len(node.publishers[lock.detach_topic].messages),
+                         lock.last_command_attempts)
 
 
 if __name__ == "__main__":
