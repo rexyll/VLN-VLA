@@ -65,11 +65,37 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends             gazebo libgz-sim8-dev libgz-transport13-dev             python3-colcon-common-extensions python3-pytest             ros-jazzy-ros-base ros-jazzy-rclpy ros-jazzy-geometry-msgs             ros-jazzy-sensor-msgs ros-jazzy-tf2-ros
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake pkg-config cppzmq-dev iptables iproute2 \
+            libgz-cmake3-dev libgz-plugin2-dev libgz-sim8-dev \
+            libgz-transport13-dev libgz-msgs10-dev libgz-common5-dev \
+            libgz-common5-profiler-dev libgz-math7-dev gz-harmonic \
+            ros-jazzy-ros-base ros-jazzy-ament-cmake-gtest ros-jazzy-ros-gz-bridge ros-jazzy-ros-gz-sim \
+            ros-jazzy-navigation2 ros-jazzy-nav2-bringup \
+            python3-colcon-common-extensions python3-numpy python3-opencv \
+            python3-gz-transport13 python3-gz-msgs10 python3-pytest \
+            xvfb x11-utils libgl1-mesa-dri libglx-mesa0
           echo "=== warm environment ready ==="
           gz sim --version
           source /opt/ros/jazzy/setup.bash
           ros2 --version
+
+      - name: Build Gazebo system plugins once
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile \
+            vla_ws/src/vla_follow/vla_follow/gazebo_ground_lock.py \
+            vla_ws/src/vla_follow/vla_follow/drink_task.py \
+            tests/diag/run_chassis_ground_lock_gz.py \
+            tests/diag/run_full_robot_internal_detachable_probe.py \
+            tests/test_gazebo_ground_lock.py
+          bash -n tools/gz_plugin.sh
+          cmake -S vla_ws/src/vla_follow/gz_plugins \
+            -B vla_ws/src/vla_follow/gz_plugins/build \
+            -DCMAKE_BUILD_TYPE=Release
+          cmake --build vla_ws/src/vla_follow/gz_plugins/build --parallel 2
+
 
       - name: Initialize lease monitor
         shell: bash
