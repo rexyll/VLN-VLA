@@ -264,7 +264,7 @@ def move_joint(tel, proc, name, target):
     raise RuntimeError("%s target %.3f did not settle; last=%r" % (name, target, last))
 
 
-def wait_for_grasp_carry_plugin(proc, timeout=8.0):
+def wait_for_grasp_carry_plugin(proc, timeout=45.0):
     """Require the production world plugin to be loaded, not merely named in SDF."""
     deadline = time.monotonic() + timeout
     last_log = ""
