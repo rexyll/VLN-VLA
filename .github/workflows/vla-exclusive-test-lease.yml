@@ -189,7 +189,7 @@ jobs:
             fi
 
             echo "lease heartbeat: idle=$idle_seconds seconds limit=$idle_limit seconds request=$last_request_id" | tee -a .lease-runtime/lease.log
-            sleep 30
+            # Poll the stable control ref without reinstalling the Gazebo/ROS2 stack.\n          sleep 30
           done
 
       - name: Upload lease diagnostics
