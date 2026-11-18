@@ -1,6 +1,6 @@
 {
-  "request_id": "full-robot-detachable-20261118-01",
+  "request_id": "full-robot-detachable-20261118-02",
   "operation": "full-robot-detachable",
-  "created_at": "2026-11-18T13:22:00Z",
-  "description": "Run the full-robot internal detachable probe on the feature branch after the chassis ground-lock diagnostic, reusing the existing warm ROS 2 Jazzy/Gazebo environment."
+  "created_at": "2026-11-18T15:58:00Z",
+  "description": "Re-run the full-robot internal detachable probe using the latest experiment/drinktask-bt-ik-recovery head; includes the 45-second GraspCarry readiness wait and persistent Gazebo Transport publishers."
 }
