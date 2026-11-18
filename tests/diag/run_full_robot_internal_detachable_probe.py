@@ -18,9 +18,13 @@ import threading
 import time
 
 import gz.transport13 as gz_transport
+from google.protobuf import text_format
+from gz.msgs10.double_pb2 import Double
+from gz.msgs10.empty_pb2 import Empty
 from gz.msgs10.model_pb2 import Model
 from gz.msgs10.pose_v_pb2 import Pose_V
 from gz.msgs10.stringmsg_pb2 import StringMsg
+from gz.msgs10.twist_pb2 import Twist
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 SOURCE = os.path.join(ROOT, "vla_ws/src/vla_follow/worlds/work_area.sdf")
@@ -162,14 +166,48 @@ def ensure_alive(proc, where):
         raise RuntimeError("Gazebo exited during %s (rc=%s)" % (where, proc.returncode))
 
 
+class TransportPublishers:
+    """Keep Gazebo Transport publishers alive for the entire probe.
+
+    Repeated gz topic subprocesses can incur discovery latency and time out
+    under scene load. Use native publishers, matching the production
+    chassis-lock implementation, while still requiring telemetry confirmation.
+    """
+
+    MESSAGE_TYPES = {
+        "gz.msgs.Empty": Empty,
+        "gz.msgs.Double": Double,
+        "gz.msgs.Twist": Twist,
+    }
+
+    def __init__(self):
+        self.node = gz_transport.Node()
+        self.publishers = {}
+
+    def publish(self, topic, typ, payload):
+        message_type = self.MESSAGE_TYPES.get(typ)
+        if message_type is None:
+            raise RuntimeError("unsupported Gazebo message type: " + typ)
+        publisher = self.publishers.get(topic)
+        if publisher is None:
+            publisher = self.node.advertise(topic, message_type)
+            if not publisher:
+                raise RuntimeError("cannot advertise Gazebo topic " + topic)
+            self.publishers[topic] = publisher
+        message = message_type()
+        if payload.strip():
+            text_format.Parse(payload, message)
+        if not publisher.publish(message):
+            raise RuntimeError("Gazebo Transport publish returned false: " + topic)
+
+
+_PUBLISHERS = None
+
+
 def publish(topic, typ, payload):
-    r = subprocess.run(
-        ["gz", "topic", "-t", topic, "-m", typ, "-p", payload],
-        cwd=ROOT, text=True, stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT, timeout=10
-    )
-    if r.returncode:
-        raise RuntimeError("publish failed %s: %s" % (topic, r.stdout))
+    if _PUBLISHERS is None:
+        raise RuntimeError("Gazebo Transport publishers are not initialized")
+    _PUBLISHERS.publish(topic, typ, payload)
 
 
 def wait_for(tel, proc, predicate, timeout, label):
@@ -313,6 +351,8 @@ def drive_challenge(tel, proc, should_hold):
 
 
 def main():
+    global _PUBLISHERS
+    _PUBLISHERS = TransportPublishers()
     report = {"result": "FAIL", "joint_stages": [], "state_transitions": [], "drive_challenges": []}
     proc = None
     log = None
