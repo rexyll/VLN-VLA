@@ -1,0 +1,175 @@
+name: VLA exclusive Gazebo ROS2 test lease
+
+on:
+  workflow_dispatch:
+    inputs:
+      test_ref:
+        description: "Git ref containing the code to test"
+        required: true
+        default: "experiment/drinktask-bt-ik-recovery"
+        type: string
+      idle_timeout_minutes:
+        description: "Release after this many minutes without a new lease request"
+        required: true
+        default: "120"
+        type: string
+
+concurrency:
+  group: vla-exclusive-test-environment
+  cancel-in-progress: false
+  queue: max
+
+permissions:
+  contents: read
+
+jobs:
+  lease:
+    name: Exclusive warm Gazebo ROS2 test environment
+    runs-on: ubuntu-24.04
+    timeout-minutes: 350
+    env:
+      TEST_REF: ${{ inputs.test_ref }}
+      IDLE_TIMEOUT_MINUTES: ${{ inputs.idle_timeout_minutes }}
+      REQUEST_FILE: tests/lease/request.json
+    steps:
+      - name: Checkout requested test ref
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.test_ref }}
+          fetch-depth: 0
+
+      - name: Configure Gazebo Harmonic apt repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list || true
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends curl lsb-release gnupg ca-certificates
+          curl -fsSL https://packages.osrfoundation.org/gazebo.gpg |
+            sudo gpg --dearmor -o /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] http://packages.osrfoundation.org/gazebo/ubuntu-stable $(lsb_release -cs) main" |
+            sudo tee /etc/apt/sources.list.d/gazebo-stable.list >/dev/null
+
+      - name: Configure ROS 2 Jazzy apt repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends curl ca-certificates
+          sudo curl -fsSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo $UBUNTU_CODENAME) main" |
+            sudo tee /etc/apt/sources.list.d/ros2.list >/dev/null
+
+      - name: Install Gazebo ROS2 and test dependencies once
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends             gazebo libgz-sim8-dev libgz-transport13-dev             python3-colcon-common-extensions python3-pytest             ros-jazzy-ros-base ros-jazzy-rclpy ros-jazzy-geometry-msgs             ros-jazzy-sensor-msgs ros-jazzy-tf2-ros
+          echo "=== warm environment ready ==="
+          gz sim --version
+          source /opt/ros/jazzy/setup.bash
+          ros2 --version
+
+      - name: Initialize lease monitor
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .lease-runtime
+          date +%s > .lease-runtime/lease_started_epoch
+          git fetch origin "$TEST_REF"
+          printf '%s\n' "Exclusive lease started: $(date -Is)" | tee .lease-runtime/lease.log
+
+      - name: Hold warm environment and process test requests
+        shell: bash
+        run: |
+          set -euo pipefail
+          source /opt/ros/jazzy/setup.bash
+          last_request_id=""
+          last_request_epoch=$(cat .lease-runtime/lease_started_epoch)
+
+          while true; do
+            git fetch --quiet origin "$TEST_REF"
+            git reset --hard --quiet "origin/$TEST_REF"
+
+            if [[ -f "$REQUEST_FILE" ]]; then
+              request_id=$(python3 -c 'import json; print(json.load(open("tests/lease/request.json"))["request_id"])')
+              request_epoch=$(git log -1 --format='%ct' "origin/$TEST_REF" -- "$REQUEST_FILE" || echo "$last_request_epoch")
+
+              if [[ "$request_id" != "$last_request_id" ]]; then
+                echo "=== new test request $request_id at $(date -Is) ===" | tee -a .lease-runtime/lease.log
+                cat "$REQUEST_FILE" | tee -a .lease-runtime/lease.log
+                operation=$(python3 -c 'import json; print(json.load(open("tests/lease/request.json"))["operation"])')
+
+                mkdir -p ".lease-runtime/results/$request_id"
+                set +e
+                case "$operation" in
+                  chassis-ground-lock)
+                    timeout 900s python3 tests/diag/run_chassis_ground_lock_gz.py
+                    rc=$?
+                    ;;
+                  full-robot-detachable)
+                    timeout 1200s python3 tests/diag/run_full_robot_internal_detachable_probe.py
+                    rc=$?
+                    ;;
+                  drinktask-e2e)
+                    timeout 2400s bash tests/run_drink_headless.sh
+                    rc=$?
+                    ;;
+                  p104-offline)
+                    timeout 900s python3 -m pytest -q tests/test_p104.py tests/test_gazebo_ground_lock.py
+                    rc=$?
+                    ;;
+                  base-arm-dynamics)
+                    timeout 1200s python3 tests/diag/collect_base_arm_dynamics.py
+                    rc=$?
+                    ;;
+                  smoke)
+                    timeout 300s bash -lc 'source /opt/ros/jazzy/setup.bash && python3 -m pytest -q tests/test_gazebo_ground_lock.py'
+                    rc=$?
+                    ;;
+                  *)
+                    echo "Unsupported lease operation: $operation"
+                    rc=64
+                    ;;
+                esac
+                set -e
+
+                {
+                  echo "request_id=$request_id"
+                  echo "operation=$operation"
+                  echo "exit_code=$rc"
+                  echo "finished_at=$(date -Is)"
+                  echo "tested_ref=$(git rev-parse HEAD)"
+                } | tee ".lease-runtime/results/$request_id/result.txt"
+
+                echo "=== request $request_id finished rc=$rc ===" | tee -a .lease-runtime/lease.log
+                last_request_id="$request_id"
+                last_request_epoch="$request_epoch"
+              fi
+            fi
+
+            now=$(date +%s)
+            idle_seconds=$((now - last_request_epoch))
+            idle_limit=$((IDLE_TIMEOUT_MINUTES * 60))
+            if (( idle_seconds >= idle_limit )); then
+              echo "=== releasing environment: no new request for $IDLE_TIMEOUT_MINUTES minutes ===" | tee -a .lease-runtime/lease.log
+              break
+            fi
+
+            echo "lease heartbeat: idle=$idle_seconds seconds limit=$idle_limit seconds request=$last_request_id" | tee -a .lease-runtime/lease.log
+            sleep 30
+          done
+
+      - name: Upload lease diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vla-exclusive-test-lease-${{ github.run_id }}
+          path: |
+            .lease-runtime/
+            log/
+            vla_ws/logs/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 7
