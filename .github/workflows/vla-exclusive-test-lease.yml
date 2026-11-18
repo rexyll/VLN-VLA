@@ -41,7 +41,7 @@ jobs:
       - name: Checkout requested test ref
         uses: actions/checkout@v6
         with:
-          ref: ${{ inputs.test_ref }}
+          ref: ${{ inputs.test_ref || 'experiment/drinktask-bt-ik-recovery' }}
           fetch-depth: 0
 
       - name: Configure Gazebo Harmonic apt repository
@@ -92,6 +92,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          git fetch --quiet origin "$TEST_REF"
+          git reset --hard --quiet "origin/$TEST_REF"
+          echo "Building Gazebo plugins from $(git rev-parse --short HEAD) ($TEST_REF)"
           python3 -m py_compile \
             vla_ws/src/vla_follow/vla_follow/gazebo_ground_lock.py \
             vla_ws/src/vla_follow/vla_follow/drink_task.py \
