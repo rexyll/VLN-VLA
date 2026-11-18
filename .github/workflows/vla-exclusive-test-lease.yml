@@ -1,6 +1,11 @@
 name: VLA exclusive Gazebo ROS2 test lease
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - tests/lease/start.json
   workflow_dispatch:
     inputs:
       test_ref:
@@ -28,8 +33,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 350
     env:
-      TEST_REF: ${{ inputs.test_ref }}
-      IDLE_TIMEOUT_MINUTES: ${{ inputs.idle_timeout_minutes }}
+      TEST_REF: ${{ inputs.test_ref || 'experiment/drinktask-bt-ik-recovery' }}
+      IDLE_TIMEOUT_MINUTES: ${{ inputs.idle_timeout_minutes || '120' }}
       CONTROL_REF: main
     steps:
       - name: Checkout requested test ref
