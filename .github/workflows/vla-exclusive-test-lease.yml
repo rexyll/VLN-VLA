@@ -36,6 +36,7 @@ jobs:
       TEST_REF: ${{ inputs.test_ref || 'experiment/drinktask-bt-ik-recovery' }}
       IDLE_TIMEOUT_MINUTES: ${{ inputs.idle_timeout_minutes || '120' }}
       CONTROL_REF: main
+      REQUEST_FILE: tests/lease/request.json
     steps:
       - name: Checkout requested test ref
         uses: actions/checkout@v6
@@ -83,7 +84,9 @@ jobs:
           echo "=== warm environment ready ==="
           gz sim --version
           source /opt/ros/jazzy/setup.bash
-          ros2 --version
+          ros2 --help >/dev/null
+          ros2 pkg list >/dev/null
+          echo "ROS 2 Jazzy CLI and package index are usable"
 
       - name: Build Gazebo system plugins once
         shell: bash
