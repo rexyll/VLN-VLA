@@ -68,7 +68,7 @@ jobs:
       - name: Install Gazebo ROS2 and test dependencies once
         shell: bash
         run: |
-          set -euo pipefail
+          set -eo pipefail
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             build-essential cmake pkg-config cppzmq-dev iptables iproute2 \
@@ -114,7 +114,7 @@ jobs:
       - name: Hold warm environment and process test requests
         shell: bash
         run: |
-          set -euo pipefail
+          set -eo pipefail
           source /opt/ros/jazzy/setup.bash
           last_request_id=""
           last_request_epoch=$(cat .lease-runtime/lease_started_epoch)
