@@ -108,6 +108,3 @@ class GazeboGroundLock:
                 time.sleep(min(0.05, max(0.0, deadline - time.monotonic())))
         return False
 
-            if spin is None:
-                time.sleep(min(0.05, max(0.0, deadline - time.monotonic())))
-        return False
