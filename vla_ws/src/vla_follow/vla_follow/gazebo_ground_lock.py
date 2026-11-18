@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """Fail-closed Gazebo Sim 8 DetachableJoint control for the DrinkTask chassis."""
-import subprocess
 import threading
 import time
 
 try:
+    from gz.msgs10.empty_pb2 import Empty
     from gz.msgs10.stringmsg_pb2 import StringMsg
 except Exception:  # pragma: no cover - exercised in simulator runtime
+    Empty = None
     StringMsg = None
 
 
@@ -15,8 +16,8 @@ class GazeboGroundLock:
     """Control and verify the physical world-anchor joint independently of cmd_mux."""
 
     def __init__(self, transport_node, world_name="follow_world"):
-        if StringMsg is None:
-            raise RuntimeError("gz.msgs10 StringMsg bindings are unavailable")
+        if StringMsg is None or Empty is None:
+            raise RuntimeError("gz.msgs10 StringMsg / Empty bindings are unavailable")
         self.attach_topic = f"/world/{world_name}/chassis_lock/attach"
         self.detach_topic = f"/world/{world_name}/chassis_lock/detach"
         self.state_topic = f"/world/{world_name}/chassis_lock/state"
@@ -27,6 +28,15 @@ class GazeboGroundLock:
         self.last_command_error = ""
         if not transport_node.subscribe(StringMsg, self.state_topic, self._on_state):
             raise RuntimeError("cannot subscribe to " + self.state_topic)
+        # Keep native Gazebo Transport publishers alive across state transitions.
+        # Repeated `gz topic` subprocesses add discovery latency under scene load.
+        self._attach_publisher = transport_node.advertise(self.attach_topic, Empty)
+        self._detach_publisher = transport_node.advertise(self.detach_topic, Empty)
+        if not self._attach_publisher:
+            raise RuntimeError("cannot advertise " + self.attach_topic)
+        if not self._detach_publisher:
+            raise RuntimeError("cannot advertise " + self.detach_topic)
+        self._empty_message = Empty()
 
     def _on_state(self, message):
         state = str(message.data).strip().lower()
@@ -71,37 +81,32 @@ class GazeboGroundLock:
             raise ValueError("expected state must be attached or detached")
         if self.state == expected and not force:
             return True
-        topic = self.attach_topic if expected == "attached" else self.detach_topic
-        # A short-lived one-shot publisher can exit before Gazebo Transport
-        # discovery delivers its message. Retry idempotent requests throughout
-        # the acknowledgement window, matching the proven ground-lock probe.
-        # Every success still requires a fresh state event newer than a request.
+        publisher = (self._attach_publisher if expected == "attached"
+                     else self._detach_publisher)
+        # Publish directly through a persistent Gazebo Transport publisher.
+        # Success still requires a fresh state event newer than this request.
         deadline = time.monotonic() + max(0.0, float(timeout_s))
         self.last_command_attempts = 0
         self.last_command_error = ""
         while time.monotonic() < deadline:
             command_started = time.monotonic()
-            remaining = max(0.0, deadline - command_started)
+            self.last_command_attempts += 1
             try:
-                result = subprocess.run(
-                    ["gz", "topic", "-t", topic, "-m", "gz.msgs.Empty", "-p", " "],
-                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                    text=True, timeout=min(2.0, max(0.2, remaining)),
-                    check=False)
-                self.last_command_attempts += 1
-                if result.returncode != 0:
-                    self.last_command_error = (
-                        "publisher exit %d: %s" % (result.returncode, result.stdout))
-                elif self.wait_for_state(
-                        expected, timeout_s=min(0.25, remaining), spin=spin,
-                        after_time=command_started):
-                    return True
-            except subprocess.TimeoutExpired as exc:
-                self.last_command_attempts += 1
-                self.last_command_error = "publisher timeout: %s" % exc
-            except OSError as exc:
-                self.last_command_error = "publisher unavailable: %s" % exc
+                published = publisher.publish(self._empty_message)
+            except Exception as exc:
+                self.last_command_error = "publisher exception: %s" % exc
                 return False
+            if not published:
+                self.last_command_error = "Gazebo Transport publish returned false"
+            elif self.wait_for_state(
+                    expected,
+                    timeout_s=min(0.25, max(0.0, deadline - time.monotonic())),
+                    spin=spin, after_time=command_started):
+                return True
+
+            if spin is None:
+                time.sleep(min(0.05, max(0.0, deadline - time.monotonic())))
+        return False
 
             if spin is None:
                 time.sleep(min(0.05, max(0.0, deadline - time.monotonic())))
