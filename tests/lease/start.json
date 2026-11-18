@@ -1,5 +1,5 @@
 {
-  "lease_request_id": "lease-20261118-02",
+  "lease_request_id": "lease-20261118-03",
   "test_ref": "experiment/drinktask-bt-ik-recovery",
-  "reason": "Restart warm Gazebo ROS2 lease after fixing bash ROS setup"
+  "reason": "Restart warm Gazebo ROS2 lease after fixing CLI validation and polling"
 }
