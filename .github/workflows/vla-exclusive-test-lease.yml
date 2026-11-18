@@ -30,7 +30,7 @@ jobs:
     env:
       TEST_REF: ${{ inputs.test_ref }}
       IDLE_TIMEOUT_MINUTES: ${{ inputs.idle_timeout_minutes }}
-      REQUEST_FILE: tests/lease/request.json
+      CONTROL_REF: main
     steps:
       - name: Checkout requested test ref
         uses: actions/checkout@v6
@@ -103,7 +103,7 @@ jobs:
           set -euo pipefail
           mkdir -p .lease-runtime
           date +%s > .lease-runtime/lease_started_epoch
-          git fetch origin "$TEST_REF"
+          git fetch origin "$TEST_REF" "$CONTROL_REF"
           printf '%s\n' "Exclusive lease started: $(date -Is)" | tee .lease-runtime/lease.log
 
       - name: Hold warm environment and process test requests
@@ -115,18 +115,18 @@ jobs:
           last_request_epoch=$(cat .lease-runtime/lease_started_epoch)
 
           while true; do
-            git fetch --quiet origin "$TEST_REF"
+            git fetch --quiet origin "$TEST_REF" "$CONTROL_REF"
             git reset --hard --quiet "origin/$TEST_REF"
 
-            if [[ -f "$REQUEST_FILE" ]]; then
-              request_id=$(python3 -c 'import json; print(json.load(open("tests/lease/request.json"))["request_id"])')
-              request_epoch=$(git log -1 --format='%ct' "origin/$TEST_REF" -- "$REQUEST_FILE" || echo "$last_request_epoch")
+            request_json=$(git show "origin/$CONTROL_REF:$REQUEST_FILE" 2>/dev/null || true)
+            if [[ -n "$request_json" ]]; then
+              request_id=$(printf "%s" "$request_json" | python3 -c 'import json,sys; print(json.load(sys.stdin)["request_id"])')
+              request_epoch=$(git log -1 --format='%ct' "origin/$CONTROL_REF" -- "$REQUEST_FILE" || echo "$last_request_epoch")
 
               if [[ "$request_id" != "$last_request_id" ]]; then
                 echo "=== new test request $request_id at $(date -Is) ===" | tee -a .lease-runtime/lease.log
-                cat "$REQUEST_FILE" | tee -a .lease-runtime/lease.log
-                operation=$(python3 -c 'import json; print(json.load(open("tests/lease/request.json"))["operation"])')
-
+                printf "%s\n" "$request_json" | tee -a .lease-runtime/lease.log
+                operation=$(printf "%s" "$request_json" | python3 -c 'import json,sys; print(json.load(sys.stdin)["operation"])')
                 mkdir -p ".lease-runtime/results/$request_id"
                 set +e
                 case "$operation" in
