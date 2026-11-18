@@ -1,6 +1,6 @@
 {
-  "request_id": "chassis-ground-lock-20261118-01",
-  "operation": "chassis-ground-lock",
-  "created_at": "2026-11-18T13:03:00Z",
-  "description": "Run the physical Gazebo chassis attach/detach ground-lock diagnostic on the feature branch using the already-warm exclusive ROS 2 Jazzy/Gazebo environment after P104 offline regression completion."
+  "request_id": "full-robot-detachable-20261118-01",
+  "operation": "full-robot-detachable",
+  "created_at": "2026-11-18T13:22:00Z",
+  "description": "Run the full-robot internal detachable probe on the feature branch after the chassis ground-lock diagnostic, reusing the existing warm ROS 2 Jazzy/Gazebo environment."
 }
