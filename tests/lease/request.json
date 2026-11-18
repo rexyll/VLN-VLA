@@ -1,6 +1,6 @@
 {
-  "request_id": "p104-offline-20261118-01",
-  "operation": "p104-offline",
-  "created_at": "2026-11-18T11:57:30Z",
-  "description": "Run the full P104 and Gazebo ground-lock offline regression suites on the feature branch in the already-warm exclusive ROS 2 Jazzy/Gazebo environment."
+  "request_id": "chassis-ground-lock-20261118-01",
+  "operation": "chassis-ground-lock",
+  "created_at": "2026-11-18T13:03:00Z",
+  "description": "Run the physical Gazebo chassis attach/detach ground-lock diagnostic on the feature branch using the already-warm exclusive ROS 2 Jazzy/Gazebo environment after P104 offline regression completion."
 }
