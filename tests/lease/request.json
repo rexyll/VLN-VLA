@@ -1,6 +1,6 @@
 {
-  "request_id": "full-robot-detachable-ab-20261119-03",
+  "request_id": "full-robot-detachable-ab-20261119-04",
   "operation": "full-robot-detachable",
-  "created_at": "2026-11-19T13:05:00+08:00",
-  "description": "Run full production robot detachable diagnostic on feature head 9ecf55db4784e09b55f8a87fda34c6dd38063471. New A/B evidence: test all six production arm joints while chassis constraint is attached; if attached servo motion fails, detach and test the same joints/controllers again; reattach and independently verify chassis hold. Preserve explicit FAIL classification; do not convert diagnostic completion into acceptance."
+  "created_at": "2026-11-19T15:30:00+08:00",
+  "description": "Run full robot internal detachable A/B diagnostic on exact feature commit ea5bb2ce970ef4dd9630ab56aee140deb8b03ac8. Continue after attached/detached drive challenge failures and capture all six arm joint probes in both states. Preserve FAIL status on any chassis hold or arm motion failure; no acceptance bypass."
 }
