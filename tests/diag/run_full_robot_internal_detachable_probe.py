@@ -90,19 +90,23 @@ def make_world():
       </plugin>
 """
     anchor_model = """
-    <!-- Static world anchor is the child of the robot chassis in this diagnostic. -->
+    <!-- Static world anchor is declared before the robot so DetachableJoint
+         can resolve the child model during plugin configuration. -->
     <model name="ground_lock_anchor">
       <static>true</static>
       <pose>0 0 0.13 0 0 0</pose>
       <link name="ground_lock_anchor_link"/>
     </model>
 """
+    # SDF world models are declared in spawn order. The previous version put
+    # this anchor after the robot, and Gazebo logged "Child Model ... could not
+    # be found" while configuring DetachableJoint. Declare the static child
+    # model first, then the robot plugin that references it.
     source = source[:end] + insert + source[end:]
-    robot_close = source.find("</model>", end + len(insert))
-    if robot_close < 0:
-        raise RuntimeError("robot model closing tag not found after reverse-parent plugin")
-    robot_close += len("</model>")
-    source = source[:robot_close] + anchor_model + source[robot_close:]
+    source = source[:start.start()] + anchor_model + source[start.start():]
+    if source.index('<model name="ground_lock_anchor"') > source.index(
+            '<model name="robot" canonical_link="chassis">'):
+        raise RuntimeError("static anchor must precede robot model in generated SDF")
     os.makedirs(LOG_DIR, exist_ok=True)
     with open(WORLD_OUT, "w", encoding="utf-8") as f:
         f.write(source)
@@ -434,11 +438,39 @@ def main():
                 {"phase": "reattached", **drive_challenge(tel, proc, True)})
             report["diagnostic_complete"] = True
             report["result"] = "FAIL"
-            report["failure_class"] = (
-                "ARM_MOTION_BLOCKED_ONLY_WHILE_ATTACHED"
-                if detached_motion_ok else
-                "ARM_MOTION_BLOCKED_ATTACHED_AND_DETACHED"
-            )
+            attached_by_joint = {
+                item["joint"]: item["status"]
+                for item in report.get("attached_joint_probe", [])
+            }
+            detached_by_joint = {
+                item["joint"]: item["status"]
+                for item in report.get("detached_joint_probe", [])
+            }
+            report["joint_motion_summary"] = {
+                name: {
+                    "attached": attached_by_joint.get(name, "not_run"),
+                    "detached": detached_by_joint.get(name, "not_run"),
+                }
+                for name in ARM_JOINTS
+            }
+            failed_drive = [
+                item for item in report["drive_challenges"]
+                if item.get("status") != "passed"
+            ]
+            if failed_drive and detached_motion_ok:
+                report["failure_class"] = (
+                    "CHASSIS_HOLD_FAILED_AND_ARM_MOTION_BLOCKED_WHILE_ATTACHED"
+                )
+            elif failed_drive:
+                report["failure_class"] = (
+                    "CHASSIS_HOLD_AND_ARM_MOTION_FAILED"
+                )
+            elif detached_motion_ok:
+                report["failure_class"] = "ARM_MOTION_BLOCKED_ONLY_WHILE_ATTACHED"
+            else:
+                report["failure_class"] = (
+                    "ARM_MOTION_BLOCKED_ATTACHED_AND_DETACHED"
+                )
             report["state_messages"] = tel.snapshot()[4]
             return 0
 
