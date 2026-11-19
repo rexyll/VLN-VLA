@@ -192,17 +192,31 @@ jobs:
           sudo apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update
 
       - name: Install Gazebo, ROS 2, Nav2 and software-rendering dependencies
+        shell: bash
         run: |
-          sudo apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install -y --no-install-recommends \
-            build-essential cmake pkg-config cppzmq-dev iptables iproute2 \
-            libgz-cmake3-dev libgz-plugin2-dev libgz-sim8-dev \
-            libgz-transport13-dev libgz-msgs10-dev libgz-common5-dev \
-            libgz-common5-profiler-dev libgz-math7-dev gz-harmonic \
-            ros-jazzy-ros-base ros-jazzy-ament-cmake-gtest ros-jazzy-ros-gz-bridge ros-jazzy-ros-gz-sim \
-            ros-jazzy-navigation2 ros-jazzy-nav2-bringup \
-            python3-colcon-common-extensions python3-numpy python3-opencv python3-pip \
-            python3-gz-transport13 python3-gz-msgs10 \
-            xvfb x11-utils libgl1-mesa-dri libglx-mesa0
+          # Retry the complete APT transaction after transient mirror-side 503s.
+          for attempt in 1 2 3 4; do
+            echo "Dependency installation attempt ${attempt}/4"
+            if sudo apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install -y --no-install-recommends \
+              build-essential cmake pkg-config cppzmq-dev iptables iproute2 \
+              libgz-cmake3-dev libgz-plugin2-dev libgz-sim8-dev \
+              libgz-transport13-dev libgz-msgs10-dev libgz-common5-dev \
+              libgz-common5-profiler-dev libgz-math7-dev gz-harmonic \
+              ros-jazzy-ros-base ros-jazzy-ament-cmake-gtest ros-jazzy-ros-gz-bridge ros-jazzy-ros-gz-sim \
+              ros-jazzy-navigation2 ros-jazzy-nav2-bringup \
+              python3-colcon-common-extensions python3-numpy python3-opencv python3-pip \
+              python3-gz-transport13 python3-gz-msgs10 \
+              xvfb x11-utils libgl1-mesa-dri libglx-mesa0; then
+              exit 0
+            fi
+            if [ "${attempt}" -lt 4 ]; then
+              echo "APT transaction failed; refreshing package indexes before retry."
+              sleep $((attempt * 15))
+              sudo apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update
+            fi
+          done
+          echo "ERROR: dependency installation failed after four complete attempts."
+          exit 1
 
       - name: Install Vosk offline speech dependency
         run: |
