@@ -78,29 +78,31 @@ def make_world():
     if end < 0:
         raise RuntimeError("robot model closing tag not found")
     insert = """
-      <!-- Diagnostic-only world root for same-model detachable lock. -->
-      <link name="world_anchor">
-        <pose>0 0 0.13 0 0 0</pose>
-        <inertial>
-          <mass>0.01</mass>
-          <inertia><ixx>0.000001</ixx><iyy>0.000001</iyy><izz>0.000001</izz>
-            <ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia>
-        </inertial>
-      </link>
-      <joint name="world_anchor_fixed" type="fixed">
-        <parent>world</parent><child>world_anchor</child>
-      </joint>
+      <!-- Reverse-parent experiment: robot chassis is parent; static world anchor is child. -->
       <plugin filename="gz-sim-detachable-joint-system"
               name="gz::sim::systems::DetachableJoint">
-        <parent_link>world_anchor</parent_link>
-        <child_model>__model__</child_model>
-        <child_link>chassis</child_link>
+        <parent_link>chassis</parent_link>
+        <child_model>ground_lock_anchor</child_model>
+        <child_link>ground_lock_anchor_link</child_link>
         <attach_topic>/world/follow_world/chassis_lock/attach</attach_topic>
         <detach_topic>/world/follow_world/chassis_lock/detach</detach_topic>
         <output_topic>/world/follow_world/chassis_lock/state</output_topic>
       </plugin>
 """
+    anchor_model = """
+    <!-- Static world anchor is the child of the robot chassis in this diagnostic. -->
+    <model name="ground_lock_anchor">
+      <static>true</static>
+      <pose>0 0 0.13 0 0 0</pose>
+      <link name="ground_lock_anchor_link"/>
+    </model>
+"""
     source = source[:end] + insert + source[end:]
+    robot_close = source.find("</model>", end + len(insert))
+    if robot_close < 0:
+        raise RuntimeError("robot model closing tag not found after reverse-parent plugin")
+    robot_close += len("</model>")
+    source = source[:robot_close] + anchor_model + source[robot_close:]
     os.makedirs(LOG_DIR, exist_ok=True)
     with open(WORLD_OUT, "w", encoding="utf-8") as f:
         f.write(source)
