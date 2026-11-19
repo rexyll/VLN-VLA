@@ -342,11 +342,17 @@ def drive_challenge(tel, proc, should_hold):
     _, end, all_samples, _, _ = tel.snapshot()
     xy, yaw = pose_excursion(all_samples[index:], origin)
     moved = xy >= 0.01
+    failure = None
     if should_hold and (xy > MAX_BASE_DISPLACEMENT_M or yaw > MAX_BASE_YAW_RAD):
-        raise RuntimeError("attached chassis moved %.3fmm / %.4fdeg" % (xy*1000, math.degrees(yaw)))
+        failure = "attached chassis moved %.3fmm / %.4fdeg" % (
+            xy * 1000, math.degrees(yaw))
     if not should_hold and not moved:
-        raise RuntimeError("detached chassis failed to move >=10mm")
-    return {"status": "passed", "max_displacement_mm": xy*1000,
+        failure = "detached chassis failed to move >=10mm"
+    # A failed chassis challenge is evidence, not a control-flow exception:
+    # continue the A/B sequence so joint motion can still be tested detached.
+    return {"status": "failed" if failure else "passed",
+            "error": failure,
+            "max_displacement_mm": xy*1000,
             "max_yaw_delta_deg": math.degrees(yaw),
             "start_pose": origin, "end_pose": end,
             "pose_samples": len(all_samples[index:])}
@@ -454,7 +460,14 @@ def main():
         report["drive_challenges"].append(
             {"phase": "final_detached", **drive_challenge(tel, proc, False)})
         report["state_messages"] = tel.snapshot()[4]
-        report["result"] = "PASS"
+        failed_drive = [item for item in report["drive_challenges"]
+                        if item.get("status") != "passed"]
+        if failed_drive:
+            report["result"] = "FAIL"
+            report["failure_class"] = "CHASSIS_HOLD_CHALLENGE_FAILED"
+            report["diagnostic_complete"] = True
+        else:
+            report["result"] = "PASS"
         return 0
     except Exception as exc:
         report["error"] = str(exc)
