@@ -1,5 +1,5 @@
 {
-  "lease_request_id": "lease-20261119-03",
+  "lease_request_id": "lease-20261119-05",
   "test_ref": "experiment/drinktask-bt-ik-recovery",
-  "reason": "Start a fresh exclusive warm ROS2 Jazzy/Gazebo environment to rerun the repaired full-robot A/B diagnostic after commit ea5bb2ce970ef4dd9630ab56aee140deb8b03ac8."
+  "reason": "Start a fresh exclusive warm ROS2 Jazzy/Gazebo environment for the revised full-robot detachable A/B diagnostic. The diagnostic now declares the static world anchor before the robot model so DetachableJoint can resolve its child model during plugin configuration; it also reports per-joint A/B and combined chassis-hold/arm-motion failure classes. Target commit 916e2463b6c5ddab2f7b4694987c8b399e733bb9."
 }
