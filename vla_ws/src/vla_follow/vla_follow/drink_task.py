@@ -891,16 +891,47 @@ class DrinkTask(Node):
             return False
 
         def pose_stable(before, label, window_s=0.30):
+            # Preserve the strict stationary/pose thresholds, but report which
+            # prerequisite failed. Previously every rejection was mislabeled
+            # "base pose changed", even when truth or JointState freshness was
+            # the actual cause.
             if before is None or before[0] is None:
+                self.get_logger().error(
+                    'PHYSICAL_CHASSIS_LOCK startup_%s pose baseline missing' % label)
                 return False
             deadline = time.monotonic() + window_s
+            stationary_failures = 0
+            last_stationary = None
             while time.monotonic() < deadline:
-                if not self._chassis_stationary_sample():
-                    return False
+                now = time.monotonic()
+                stationary = self._chassis_stationary_sample()
+                if not stationary:
+                    stationary_failures += 1
+                    wheel_values = (
+                        self.js_velocity.get('left_wheel_joint'),
+                        self.js_velocity.get('right_wheel_joint'))
+                    last_stationary = {
+                        'truth_twist_age_s': (
+                            round(now - self.truth_base_twist_t, 3)
+                            if self.truth_base_twist_t else None),
+                        'joint_state_age_s': (
+                            round(now - self.js_sample_t, 3)
+                            if self.js_sample_t else None),
+                        'truth_twist': self.truth_base_twist,
+                        'wheel_velocity_rad_s': wheel_values,
+                    }
                 time.sleep(0.02)
             after = self.truth_base_pose_snapshot
-            if (after is None or time.monotonic() - after[1] > 0.25
-                    or not self._chassis_stationary_sample()):
+            after_age = (time.monotonic() - after[1]) if after else None
+            final_stationary = self._chassis_stationary_sample()
+            if after is None or after_age > 0.25 or not final_stationary:
+                self.get_logger().error(
+                    'PHYSICAL_CHASSIS_LOCK startup_%s telemetry gate failed: '
+                    'pose_missing=%s pose_age_s=%s stationary_failures=%d '
+                    'last_stationary=%s final_stationary=%s'
+                    % (label, after is None,
+                       round(after_age, 3) if after_age is not None else None,
+                       stationary_failures, last_stationary, final_stationary))
                 return False
             bx, by, byaw = before[0]
             ax, ay, ayaw = after[0]
@@ -908,9 +939,15 @@ class DrinkTask(Node):
             yaw_delta = abs(math.degrees(math.atan2(
                 math.sin(ayaw - byaw), math.cos(ayaw - byaw))))
             self.get_logger().info(
-                'PHYSICAL_CHASSIS_LOCK startup_%s displacement_mm=%.3f yaw_deg=%.4f'
-                % (label, displacement_mm, yaw_delta))
-            return displacement_mm < 2.0 and yaw_delta < 0.5
+                'PHYSICAL_CHASSIS_LOCK startup_%s displacement_mm=%.3f yaw_deg=%.4f '
+                'stationary_failures=%d'
+                % (label, displacement_mm, yaw_delta, stationary_failures))
+            if displacement_mm >= 2.0 or yaw_delta >= 0.5:
+                self.get_logger().error(
+                    'PHYSICAL_CHASSIS_LOCK startup_%s pose excursion exceeded limit '
+                    '(translation_limit_mm=2.0 yaw_limit_deg=0.5)' % label)
+                return False
+            return True
 
         try:
             # Do not send any physical transition until the software command
