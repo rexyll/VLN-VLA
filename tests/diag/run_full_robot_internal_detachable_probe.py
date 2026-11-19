@@ -381,27 +381,78 @@ def main():
         report["initial_state"] = tel.snapshot()[3]
         if tel.snapshot()[3] != "attached":
             raise RuntimeError("internal DetachableJoint did not initialize attached")
-        for name, target in ARM_JOINTS.items():
-            report["joint_stages"].append(move_joint(tel, proc, name, target))
-            report["joint_stages"].append(move_joint(tel, proc, name, 0.0))
+
+        def probe_joint_set(label):
+            outcomes = []
+            for name, target in ARM_JOINTS.items():
+                try:
+                    outward = move_joint(tel, proc, name, target)
+                    inward = move_joint(tel, proc, name, 0.0)
+                    outcomes.append({"joint": name, "status": "passed",
+                                     "outward": outward, "reset": inward})
+                except Exception as exc:
+                    outcomes.append({"joint": name, "status": "failed",
+                                     "error": str(exc)})
+                    break
+            report[label] = outcomes
+            return len(outcomes) == len(ARM_JOINTS) and all(
+                item["status"] == "passed" for item in outcomes
+            )
+
         report["passive_stability"] = []
-        report["passive_stability"].append(passive_stability_challenge(tel, proc, "initial_attached"))
-        report["drive_challenges"].append({"phase": "attached", **drive_challenge(tel, proc, True)})
+        report["passive_stability"].append(
+            passive_stability_challenge(tel, proc, "initial_attached"))
+        attached_motion_ok = probe_joint_set("attached_joint_probe")
+        report["attached_joint_motion_passed"] = attached_motion_ok
+        report["drive_challenges"].append(
+            {"phase": "attached", **drive_challenge(tel, proc, True)})
+
+        if not attached_motion_ok:
+            # Crucial A/B: the previous probe stopped at the first attached
+            # servo timeout and never checked whether the exact same production
+            # joints/controllers work after releasing the chassis constraint.
+            n = request_state(tel, proc, "detached")
+            report["state_transitions"].append({"target": "detached", "attempts": n})
+            report["passive_stability"].append(
+                passive_stability_challenge(tel, proc, "detached"))
+            report["drive_challenges"].append(
+                {"phase": "detached", **drive_challenge(tel, proc, False)})
+            detached_motion_ok = probe_joint_set("detached_joint_probe")
+            report["detached_joint_motion_passed"] = detached_motion_ok
+            n = request_state(tel, proc, "attached")
+            report["state_transitions"].append({"target": "attached", "attempts": n})
+            report["passive_stability"].append(
+                passive_stability_challenge(tel, proc, "reattached"))
+            report["drive_challenges"].append(
+                {"phase": "reattached", **drive_challenge(tel, proc, True)})
+            report["diagnostic_complete"] = True
+            report["result"] = "FAIL"
+            report["failure_class"] = (
+                "ARM_MOTION_BLOCKED_ONLY_WHILE_ATTACHED"
+                if detached_motion_ok else
+                "ARM_MOTION_BLOCKED_ATTACHED_AND_DETACHED"
+            )
+            report["state_messages"] = tel.snapshot()[4]
+            return 0
+
         n = request_state(tel, proc, "detached")
         report["state_transitions"].append({"target": "detached", "attempts": n})
-        report["passive_stability"].append(passive_stability_challenge(tel, proc, "detached"))
-        report["drive_challenges"].append({"phase": "detached", **drive_challenge(tel, proc, False)})
+        report["passive_stability"].append(
+            passive_stability_challenge(tel, proc, "detached"))
+        report["drive_challenges"].append(
+            {"phase": "detached", **drive_challenge(tel, proc, False)})
         n = request_state(tel, proc, "attached")
         report["state_transitions"].append({"target": "attached", "attempts": n})
-        report["passive_stability"].append(passive_stability_challenge(tel, proc, "reattached"))
-        for name, target in ARM_JOINTS.items():
-            report["joint_stages"].append(move_joint(tel, proc, name, target))
-            report["joint_stages"].append(move_joint(tel, proc, name, 0.0))
-        report["drive_challenges"].append({"phase": "reattached", **drive_challenge(tel, proc, True)})
+        report["passive_stability"].append(
+            passive_stability_challenge(tel, proc, "reattached"))
+        report["drive_challenges"].append(
+            {"phase": "reattached", **drive_challenge(tel, proc, True)})
         n = request_state(tel, proc, "detached")
         report["state_transitions"].append({"target": "detached", "attempts": n})
-        report["passive_stability"].append(passive_stability_challenge(tel, proc, "final_detached"))
-        report["drive_challenges"].append({"phase": "final_detached", **drive_challenge(tel, proc, False)})
+        report["passive_stability"].append(
+            passive_stability_challenge(tel, proc, "final_detached"))
+        report["drive_challenges"].append(
+            {"phase": "final_detached", **drive_challenge(tel, proc, False)})
         report["state_messages"] = tel.snapshot()[4]
         report["result"] = "PASS"
         return 0
