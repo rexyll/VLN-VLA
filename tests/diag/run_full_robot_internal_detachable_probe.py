@@ -399,7 +399,8 @@ def main():
                 except Exception as exc:
                     outcomes.append({"joint": name, "status": "failed",
                                      "error": str(exc)})
-                    break
+                    # Continue through the complete six-joint set so one
+                    # blocked joint cannot hide independent controller results.
             report[label] = outcomes
             return len(outcomes) == len(ARM_JOINTS) and all(
                 item["status"] == "passed" for item in outcomes
