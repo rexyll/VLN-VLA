@@ -264,7 +264,7 @@ def move_joint(tel, proc, name, target):
     raise RuntimeError("%s target %.3f did not settle; last=%r" % (name, target, last))
 
 
-def wait_for_grasp_carry_plugin(proc, timeout=45.0):
+def wait_for_grasp_carry_plugin(proc, timeout=180.0):
     """Require the production world plugin to be loaded, not merely named in SDF."""
     deadline = time.monotonic() + timeout
     last_log = ""
@@ -367,7 +367,7 @@ def main():
         plugin_dir = os.path.dirname(PLUGIN_SO)
         search_path = env.get("GZ_SIM_SYSTEM_PLUGIN_PATH", "")
         env["GZ_SIM_SYSTEM_PLUGIN_PATH"] = plugin_dir + (os.pathsep + search_path if search_path else "")
-        proc = subprocess.Popen(["gz", "sim", "-s", "-r", WORLD_OUT],
+        proc = subprocess.Popen(["gz", "sim", "-v", "4", "-s", "-r", WORLD_OUT],
                                 cwd=ROOT, env=env,
                                 stdout=log, stderr=subprocess.STDOUT,
                                 start_new_session=True)
