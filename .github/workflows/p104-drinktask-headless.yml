@@ -136,7 +136,9 @@ jobs:
   drinktask-e2e:
     name: Full work_area DrinkTask E2E (two consecutive rounds)
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    # Hosted runners may need 30–40 minutes to download the full ROS/Gazebo dependency set.
+    # Reserve enough time for dependency retries, builds, diagnostics and the 50-minute E2E.
+    timeout-minutes: 120
     env:
       VLA_HOME: ${{ github.workspace }}
       P91_WARMUP: "25"
@@ -169,8 +171,8 @@ jobs:
             sudo mv "$source_file" "${source_file}.vla-disabled"
           done < <(grep -rlE 'packages\.microsoft\.com' \
             /etc/apt/sources.list /etc/apt/sources.list.d 2>/dev/null || true)
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends curl lsb-release gnupg
+          sudo apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update
+          sudo apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install -y --no-install-recommends curl lsb-release gnupg
           sudo curl -fsSL https://packages.osrfoundation.org/gazebo.gpg \
             --output /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg
           echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] https://packages.osrfoundation.org/gazebo/ubuntu-stable $(lsb_release -cs) main" \
@@ -178,7 +180,7 @@ jobs:
 
       - name: Configure ROS 2 Jazzy apt repository
         run: |
-          sudo apt-get install -y --no-install-recommends curl ca-certificates
+          sudo apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install -y --no-install-recommends curl ca-certificates
           sudo install -d -m 0755 /usr/share/keyrings
           sudo curl --fail --location --connect-timeout 20 --max-time 120 \
             --retry 8 --retry-all-errors --retry-delay 3 --retry-max-time 240 \
@@ -187,11 +189,11 @@ jobs:
             -o /usr/share/keyrings/ros-archive-keyring.gpg
           echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo ${UBUNTU_CODENAME}) main" \
             | sudo tee /etc/apt/sources.list.d/ros2.list > /dev/null
-          sudo apt-get update
+          sudo apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update
 
       - name: Install Gazebo, ROS 2, Nav2 and software-rendering dependencies
         run: |
-          sudo apt-get install -y --no-install-recommends \
+          sudo apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install -y --no-install-recommends \
             build-essential cmake pkg-config cppzmq-dev iptables iproute2 \
             libgz-cmake3-dev libgz-plugin2-dev libgz-sim8-dev \
             libgz-transport13-dev libgz-msgs10-dev libgz-common5-dev \
