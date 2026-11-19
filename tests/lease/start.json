@@ -1,5 +1,5 @@
 {
-  "lease_request_id": "lease-20261119-02",
+  "lease_request_id": "lease-20261119-03",
   "test_ref": "experiment/drinktask-bt-ik-recovery",
-  "reason": "Start a fresh exclusive warm ROS2 Jazzy/Gazebo environment for the current reverse-parent full-robot detachable diagnostic."
+  "reason": "Start a fresh exclusive warm ROS2 Jazzy/Gazebo environment to rerun the repaired full-robot A/B diagnostic after commit ea5bb2ce970ef4dd9630ab56aee140deb8b03ac8."
 }
