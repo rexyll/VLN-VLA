@@ -1,6 +1,6 @@
 {
-  "request_id": "full-robot-detachable-20261119-01",
+  "request_id": "full-robot-detachable-20261119-02",
   "operation": "full-robot-detachable",
-  "created_at": "2026-11-19T02:00:00Z",
-  "description": "Run the full-robot internal detachable probe on feature head 44cc0423a86275cdce3782ed671f57fc72e0fa83; use verbose Gazebo startup logs and a 180-second GraspCarry readiness window."
+  "created_at": "2026-11-19T12:10:00+08:00",
+  "description": "Run full-robot internal detachable probe on current feature branch head 68e4f6cfb57dd1b1715f93d6a48d96361dd5d550; verify generated SDF and reverse parent-child detachable topology with verbose Gazebo logs and 180-second GraspCarry readiness window."
 }
