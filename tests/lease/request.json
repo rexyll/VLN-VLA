@@ -1,6 +1,6 @@
 {
-  "request_id": "full-robot-detachable-ab-20261119-04",
+  "request_id": "full-robot-detachable-ab-20261119-05",
   "operation": "full-robot-detachable",
-  "created_at": "2026-11-19T15:33:00+08:00",
-  "description": "Run full robot internal detachable A/B diagnostic on exact feature commit 1f2e1316b6685023c36a9d6760acea051a20b469. Continue after attached/detached drive challenge failures; probe every one of the six arm joints even if an individual joint fails; capture attached and detached outcomes and reattach hold verification. Preserve FAIL status on any chassis hold or arm motion failure; no acceptance bypass."
+  "created_at": "2026-11-19T17:35:11+08:00",
+  "description": "Run the revised full robot internal detachable A/B diagnostic on exact feature commit 916e2463b6c5ddab2f7b4694987c8b399e733bb9. Confirm the static ground_lock_anchor model is declared before the robot and that Gazebo no longer reports Child Model ground_lock_anchor could not be found. Capture all six attached/detached joint outcomes, passive stability, attached drive hold, detached drive motion, and reattached drive hold. Preserve FAIL if any chassis hold or arm motion check fails; do not weaken thresholds."
 }
