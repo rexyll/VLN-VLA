@@ -1,6 +1,6 @@
 {
-  "request_id": "full-robot-detachable-20261119-02",
+  "request_id": "full-robot-detachable-ab-20261119-03",
   "operation": "full-robot-detachable",
-  "created_at": "2026-11-19T12:10:00+08:00",
-  "description": "Run full-robot internal detachable probe on current feature branch head 68e4f6cfb57dd1b1715f93d6a48d96361dd5d550; verify generated SDF and reverse parent-child detachable topology with verbose Gazebo logs and 180-second GraspCarry readiness window."
+  "created_at": "2026-11-19T13:05:00+08:00",
+  "description": "Run full production robot detachable diagnostic on feature head 9ecf55db4784e09b55f8a87fda34c6dd38063471. New A/B evidence: test all six production arm joints while chassis constraint is attached; if attached servo motion fails, detach and test the same joints/controllers again; reattach and independently verify chassis hold. Preserve explicit FAIL classification; do not convert diagnostic completion into acceptance."
 }
