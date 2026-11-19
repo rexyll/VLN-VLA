@@ -1,5 +1,5 @@
 {
-  "lease_request_id": "lease-20261118-05",
+  "lease_request_id": "lease-20261119-01",
   "test_ref": "experiment/drinktask-bt-ik-recovery",
-  "reason": "Start a fresh exclusive warm lease and re-run full robot detachable probe on the latest feature head after enabling hidden artifact retention."
+  "reason": "Start a fresh exclusive warm ROS2 Jazzy/Gazebo environment to run the updated full-robot detachable startup diagnostic."
 }
