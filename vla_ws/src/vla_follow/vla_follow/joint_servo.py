@@ -189,6 +189,27 @@ class JointServo(object):
             if np.max(np.abs(err)) < tol:
                 return True, err
             if el > timeout or el_wall > timeout * 6.0:
+                velocity = getattr(self.node, 'js_velocity', {})
+                effort = getattr(self.node, 'js_effort', {})
+                detail = []
+                for name, target, actual, error in zip(
+                        self.names, self.tgt, cur, err):
+                    measured_velocity = velocity.get(name)
+                    measured_effort = effort.get(name)
+                    detail.append(
+                        '%s:target=%.4f actual=%.4f error=%.4f '
+                        'velocity=%s effort=%s' % (
+                            name, float(target), float(actual), float(error),
+                            ('%.4f' % float(measured_velocity)
+                             if measured_velocity is not None else 'na'),
+                            ('%.4f' % float(measured_effort)
+                             if measured_effort is not None else 'na')))
+                logger = getattr(self.node, 'get_logger', lambda: None)()
+                if logger is not None:
+                    logger.error(
+                        'JOINT_SERVO_TIMEOUT side=%s sim_elapsed_s=%.3f '
+                        'wall_elapsed_s=%.3f joints=[%s]' % (
+                            self.side, el, el_wall, '; '.join(detail)))
                 return False, err
             if verbose and el - last >= 0.5:
                 last = el

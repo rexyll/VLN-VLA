@@ -1,0 +1,30 @@
+# MotionControlAlgorithms vendored source lock
+upstream_repository: https://github.com/rexyll/MotionControlAlgorithms
+upstream_commit: c11091bd2bb3ce001eb09f2664c1ff5076f8a73b
+upstream_branch_at_import: main
+license: Apache-2.0
+import_policy: selective-source-snapshot
+runtime_claim: none; these headers are not yet connected to production ROS 2 command topics
+integrity: Git blob SHA-1 values below were compared with the exact upstream commit and match byte-for-byte; these are not SHA-256 digests.
+
+files:
+  - path: include/mca/geometry/se3_so3.hpp
+    git_blob_sha1: 36f56ab8f0f0cc2594e800445b701f9fea670589
+  - path: include/mca/kinematics/dh_urdf_model.hpp
+    git_blob_sha1: aa53e0a64ac1f65aab613f494f937ab6ae1b0598
+  - path: include/mca/kinematics/forward_kinematics.hpp
+    git_blob_sha1: e0b2807814262ecba99c5244c413e36ba738b23e
+  - path: include/mca/kinematics/numerical_ik.hpp
+    git_blob_sha1: 8b7fcb9eb66ed869a2b6f05e56c158177db84f28
+  - path: include/mca/kinematics/damped_least_squares_ik.hpp
+    git_blob_sha1: b0128d1b362d8115796f73f55703627a75fbe6c6
+  - path: include/mca/kinematics/differential_drive.hpp
+    git_blob_sha1: aeccccbbf7844ee4d82dcb66d2801581f25a072f
+  - path: include/mca/trajectory/scalar.hpp
+    git_blob_sha1: 0a8a7bbc6b89cfec07e6ad152fc71d0f29631457
+  - path: include/mca/trajectory/s_curve.hpp
+    git_blob_sha1: 6ead8b432766ca591bbf1cf238ad2fbaeae9711d
+  - path: LICENSE
+    git_blob_sha1: 2b9e83c352cb17ffa9d3d429589bae708ca80010
+  - path: NOTICE
+    git_blob_sha1: 9ee4ec2f43c50ac963fa6f385d4cd46b8e6637ed

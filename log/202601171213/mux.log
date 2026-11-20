@@ -1,0 +1,5 @@
+[INFO] [1794887250.123901733] [cmd_mux]: CMD_MUX DRINK_BASE_LOCK state=LOCKED; all velocity inputs suppressed
+[INFO] [1794887260.470369839] [cmd_mux]: CMD_MUX DRINK_BASE_LOCK state=UNLOCKED; all velocity inputs awaiting fresh drink command
+[INFO] [1794887260.602357448] [cmd_mux]: CMD_MUX DRINK_BASE_LOCK state=LOCKED; all velocity inputs suppressed
+[INFO] [1794887364.099432964] [cmd_mux]: CMD_MUX ★ 喝水任务接管, 底盘输入锁定 300s(任务活着就续租)
+[INFO] [1794888217.709065171] [cmd_mux]: CMD_MUX ★ 喝水任务接管, 底盘输入锁定 300s(任务活着就续租)

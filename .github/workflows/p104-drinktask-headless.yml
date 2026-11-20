@@ -1,7 +1,7 @@
 name: P104 DrinkTask headless Gazebo E2E
 
 on:
-  push:
+  pull_request:
     branches:
       - main
     paths:
@@ -11,7 +11,62 @@ on:
       - "tests/drink_evidence.py"
       - "tests/test_drink.py"
       - "tests/test_p104.py"
+      - "tests/test_manipulation_bt.py"
+      - "tests/test_gazebo_ground_lock.py"
+      - "tests/diag/run_chassis_brake_gz.py"
+      - "tests/diag/run_chassis_ground_lock_gz.py"
+      - "tests/diag/chassis_ground_lock_test.sdf"
+      - "tests/diag/articulated_arm_ground_lock_test.sdf"
+      - "tests/diag/articulated_arm_ground_lock_original_velocity.sdf"
+      - "tests/diag/articulated_arm_ground_lock_original_force.sdf"
+      - "tests/diag/articulated_arm_ground_lock_world_fixed.sdf"
+      - "tests/diag/articulated_arm_ground_lock_world_fixed_force.sdf"
+      - "tests/diag/run_articulated_arm_ground_lock_probe.py"
+      - "tests/diag/run_full_robot_world_fixed_probe.py"
+      - "tests/diag/run_full_robot_internal_detachable_probe.py"
+      - "tests/diag/verify_p104_stage_locks.py"
+      - "tests/diag/chassis_brake_test.sdf"
+      - "tests/diag/collect_base_arm_dynamics.py"
+      - "tests/diag/analyze_base_arm_dynamics.py"
       - "vla_ws/src/vla_follow/**"
+      - "vla_ws/src/mca_drink_control/**"
+      - "tools/start_scene.sh"
+      - "tools/start_drink_demo.sh"
+      - "tools/killall_demo.sh"
+      - "tools/gz_plugin.sh"
+      - "tools/gen_drink_scene.py"
+      - "vla_demo/maps/**"
+      - "vla_demo/vision_config.json"
+  push:
+    branches:
+      - main
+      - experiment/prepare-base-stillness-ab
+      - experiment/drinktask-bt-ik-recovery
+    paths:
+      - ".github/workflows/p104-drinktask-headless.yml"
+      - "tests/run_drink_headless.sh"
+      - "tests/drink_repeat.sh"
+      - "tests/drink_evidence.py"
+      - "tests/test_drink.py"
+      - "tests/test_p104.py"
+      - "tests/test_manipulation_bt.py"
+      - "tests/test_gazebo_ground_lock.py"
+      - "tests/diag/collect_base_arm_dynamics.py"
+      - "tests/diag/analyze_base_arm_dynamics.py"
+      - "tests/diag/run_chassis_brake_gz.py"
+      - "tests/diag/chassis_brake_test.sdf"
+      - "tests/diag/run_chassis_ground_lock_gz.py"
+      - "tests/diag/chassis_ground_lock_test.sdf"
+      - "tests/diag/verify_ground_fixed_joint.py"
+      - "tests/diag/articulated_arm_ground_lock_test.sdf"
+      - "tests/diag/articulated_arm_ground_lock_original_velocity.sdf"
+      - "tests/diag/articulated_arm_ground_lock_original_force.sdf"
+      - "tests/diag/articulated_arm_ground_lock_world_fixed.sdf"
+      - "tests/diag/articulated_arm_ground_lock_world_fixed_force.sdf"
+      - "tests/diag/run_articulated_arm_ground_lock_probe.py"
+      - "tests/diag/run_full_robot_world_fixed_probe.py"
+      - "vla_ws/src/vla_follow/**"
+      - "vla_ws/src/mca_drink_control/**"
       - "tools/start_scene.sh"
       - "tools/start_drink_demo.sh"
       - "tools/killall_demo.sh"
@@ -30,6 +85,24 @@ on:
           - "0.08"
           - "0.06"
           - "0.04"
+      prepare_kettle_base_still:
+        description: "A/B experiment: require chassis twist below 5mm/s and 0.5deg/s before each kettle reach pass"
+        required: false
+        type: choice
+        default: "0"
+        options: ["0", "1"]
+      prepare_base_hold_zero_during_pour:
+        description: "B3 experiment: keep zero chassis command throughout the full PREPARE pour hold window"
+        required: false
+        type: choice
+        default: "0"
+        options: ["0", "1"]
+      present_base_hold_zero_during_follow:
+        description: "A/B experiment: suppress active chassis pose correction only during PRESENT follow_hand; retain strict cup target gate"
+        required: false
+        type: choice
+        default: "0"
+        options: ["0", "1"]
       present_base_hold_linear_limit:
         description: "PRESENT-only chassis hold linear cap (m/s), bounded to 0.04–0.12"
         required: false
@@ -53,27 +126,41 @@ permissions:
   contents: read
 
 concurrency:
-  group: p104-drinktask-headless-${{ github.ref }}
-  # New main revisions supersede stale E2E runs; keep only the newest code under test.
-  cancel-in-progress: true
+  # PR runs share the pull-request number. Do not cancel an in-progress physical
+  # E2E run merely because another commit/run is queued for the same PR.
+  # Branch pushes and manual dispatches retain supersession behavior.
+  group: p104-drinktask-headless-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'pull_request' }}
 
 jobs:
   drinktask-e2e:
     name: Full work_area DrinkTask E2E (two consecutive rounds)
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    # Hosted runners may need 30–40 minutes to download the full ROS/Gazebo dependency set.
+    # Reserve enough time for dependency retries, builds, diagnostics and the 50-minute E2E.
+    timeout-minutes: 120
     env:
       VLA_HOME: ${{ github.workspace }}
       P91_WARMUP: "25"
       P91_FOLLOW_WATCH: "75"
       PW_SEED: "7"
       VLA_KETTLE_POUR_REACH_TOL_DEG: ${{ inputs.kettle_pour_reach_tol_deg || '0.08' }}
+      VLA_PREPARE_KETTLE_BASE_STILL: ${{ github.event_name == 'pull_request' && '1' || inputs.prepare_kettle_base_still || '0' }}
+      # Keep the normal closed-loop PREPARE chassis pose hold in baseline CI.
+      # Zero-command isolation remains an explicit workflow_dispatch A/B option.
+      VLA_PREPARE_BASE_HOLD_ZERO_DURING_POUR: ${{ inputs.prepare_base_hold_zero_during_pour || '0' }}
+      # Branch-push E2E uses the normal closed-loop hold baseline; PR and explicit dispatch can isolate zero-command behavior.
+      VLA_PRESENT_BASE_HOLD_ZERO_DURING_FOLLOW: ${{ github.event_name == 'pull_request' && '1' || inputs.present_base_hold_zero_during_follow || '0' }}
       VLA_PRESENT_BASE_HOLD_LINEAR_LIMIT: ${{ inputs.present_base_hold_linear_limit || '0.08' }}
       VLA_PRESENT_BASE_HOLD_LINEAR_KP: ${{ inputs.present_base_hold_linear_kp || '1.5' }}
       VLA_PRESENT_BASE_HOLD_LINEAR_KD: ${{ inputs.present_base_hold_linear_kd || '0.8' }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+
+      - name: Run dependency-free manipulation behavior-tree unit tests
+        run: |
+          PYTHONPATH=vla_ws/src/vla_follow python3 tests/test_manipulation_bt.py -v
 
       - name: Configure Gazebo Harmonic apt repository
         run: |
@@ -84,8 +171,8 @@ jobs:
             sudo mv "$source_file" "${source_file}.vla-disabled"
           done < <(grep -rlE 'packages\.microsoft\.com' \
             /etc/apt/sources.list /etc/apt/sources.list.d 2>/dev/null || true)
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends curl lsb-release gnupg
+          sudo apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update
+          sudo apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install -y --no-install-recommends curl lsb-release gnupg
           sudo curl -fsSL https://packages.osrfoundation.org/gazebo.gpg \
             --output /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg
           echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] https://packages.osrfoundation.org/gazebo/ubuntu-stable $(lsb_release -cs) main" \
@@ -93,7 +180,7 @@ jobs:
 
       - name: Configure ROS 2 Jazzy apt repository
         run: |
-          sudo apt-get install -y --no-install-recommends curl ca-certificates
+          sudo apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install -y --no-install-recommends curl ca-certificates
           sudo install -d -m 0755 /usr/share/keyrings
           sudo curl --fail --location --connect-timeout 20 --max-time 120 \
             --retry 8 --retry-all-errors --retry-delay 3 --retry-max-time 240 \
@@ -102,29 +189,187 @@ jobs:
             -o /usr/share/keyrings/ros-archive-keyring.gpg
           echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo ${UBUNTU_CODENAME}) main" \
             | sudo tee /etc/apt/sources.list.d/ros2.list > /dev/null
-          sudo apt-get update
+          sudo apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update
 
       - name: Install Gazebo, ROS 2, Nav2 and software-rendering dependencies
+        shell: bash
         run: |
-          sudo apt-get install -y --no-install-recommends \
-            build-essential cmake pkg-config cppzmq-dev iptables iproute2 \
-            libgz-cmake3-dev libgz-plugin2-dev libgz-sim8-dev \
-            libgz-transport13-dev libgz-msgs10-dev libgz-common5-dev \
-            libgz-common5-profiler-dev libgz-math7-dev gz-harmonic \
-            ros-jazzy-ros-base ros-jazzy-ros-gz-bridge ros-jazzy-ros-gz-sim \
-            ros-jazzy-navigation2 ros-jazzy-nav2-bringup \
-            python3-colcon-common-extensions python3-numpy python3-opencv \
-            python3-gz-transport13 python3-gz-msgs10 \
-            xvfb x11-utils libgl1-mesa-dri libglx-mesa0
+          # Retry the complete APT transaction after transient mirror-side 503s.
+          for attempt in 1 2 3 4; do
+            echo "Dependency installation attempt ${attempt}/4"
+            if sudo apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install -y --no-install-recommends \
+              build-essential cmake pkg-config cppzmq-dev iptables iproute2 \
+              libgz-cmake3-dev libgz-plugin2-dev libgz-sim8-dev \
+              libgz-transport13-dev libgz-msgs10-dev libgz-common5-dev \
+              libgz-common5-profiler-dev libgz-math7-dev gz-harmonic \
+              ros-jazzy-ros-base ros-jazzy-ament-cmake-gtest ros-jazzy-ros-gz-bridge ros-jazzy-ros-gz-sim \
+              ros-jazzy-navigation2 ros-jazzy-nav2-bringup \
+              python3-colcon-common-extensions python3-numpy python3-opencv python3-pip \
+              python3-gz-transport13 python3-gz-msgs10 \
+              xvfb x11-utils libgl1-mesa-dri libglx-mesa0; then
+              exit 0
+            fi
+            if [ "${attempt}" -lt 4 ]; then
+              echo "APT transaction failed; refreshing package indexes before retry."
+              sleep $((attempt * 15))
+              sudo apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update
+            fi
+          done
+          echo "ERROR: dependency installation failed after four complete attempts."
+          exit 1
 
-      - name: Build GraspCarry Gazebo system plugin
+      - name: Install Vosk offline speech dependency
         run: |
+          python3 -m pip install --break-system-packages --disable-pip-version-check "vosk==0.3.45"
+          python3 -c 'import vosk; print("Vosk", vosk.__version__ if hasattr(vosk, "__version__") else "import OK")'
+
+      - name: Test Gazebo physical chassis lock retry and acknowledgement behavior
+        run: |
+          PYTHONPATH=vla_ws/src/vla_follow python3 tests/test_gazebo_ground_lock.py -v
+
+
+      - name: Verify pinned MotionControlAlgorithms vendor snapshot
+        run: |
+          python3 -m py_compile vla_ws/src/mca_drink_control/tools/export_arm_urdf.py vla_ws/src/mca_drink_control/tools/verify_vendor.py
+          python3 vla_ws/src/mca_drink_control/tools/verify_vendor.py
+
+      - name: Run P104 offline safety and motion regression tests
+        run: |
+          PYTHONPATH=vla_ws/src/vla_follow python3 tests/test_p104.py
+
+      - name: Build Gazebo system plugins
+        run: |
+          python3 -m py_compile vla_ws/src/vla_follow/vla_follow/gazebo_ground_lock.py vla_ws/src/vla_follow/vla_follow/drink_task.py tests/diag/run_chassis_brake_gz.py tests/diag/run_chassis_ground_lock_gz.py tests/diag/run_articulated_arm_ground_lock_probe.py tests/diag/run_full_robot_world_fixed_probe.py tests/diag/run_full_robot_internal_detachable_probe.py tests/diag/run_full_robot_external_detachable_probe.py tests/diag/record_drinktask_telemetry.py tests/diag/verify_p104_stage_locks.py tests/diag/verify_ground_fixed_joint.py tests/test_gazebo_ground_lock.py
+          bash -n tools/gz_plugin.sh
           cmake -S vla_ws/src/vla_follow/gz_plugins \
             -B vla_ws/src/vla_follow/gz_plugins/build \
             -DCMAKE_BUILD_TYPE=Release
           cmake --build vla_ws/src/vla_follow/gz_plugins/build --parallel 2
+          ctest --test-dir vla_ws/src/vla_follow/gz_plugins/build --output-on-failure
           test -s vla_ws/src/vla_follow/gz_plugins/build/libGraspCarry.so
+          test -s vla_ws/src/vla_follow/gz_plugins/build/libChassisBrake.so
           ldd -r vla_ws/src/vla_follow/gz_plugins/build/libGraspCarry.so
+          ldd -r vla_ws/src/vla_follow/gz_plugins/build/libChassisBrake.so
+
+      - name: Probe rejected reverse-topology arm lock negative control (non-gating)
+        continue-on-error: true
+        shell: bash
+        run: |
+          set +e
+          python3 tests/diag/run_articulated_arm_ground_lock_probe.py \
+            > vla_ws/logs/articulated_arm_ground_lock_probe_console.log 2>&1
+          rc=$?
+          echo "REJECTED_REVERSE_TOPOLOGY_PROBE_EXIT=$rc"
+          tail -n 80 vla_ws/logs/articulated_arm_ground_lock_probe_console.log
+          exit 0
+
+      - name: Probe arm articulation with chassis fixed directly to world
+        continue-on-error: true
+        env:
+          ARM_LOCK_PROBE_WORLD: tests/diag/articulated_arm_ground_lock_world_fixed.sdf
+          ARM_LOCK_PROBE_ANCHOR: world_fixed
+          ARM_LOCK_PROBE_MODE: use_velocity_commands=true
+          ARM_LOCK_PROBE_LOG: arm_world_fixed_velocity.log
+          ARM_LOCK_PROBE_REPORT: arm_world_fixed_velocity.json
+        run: |
+          python3 tests/diag/run_articulated_arm_ground_lock_probe.py \\
+            > vla_ws/logs/arm_world_fixed_velocity_console.log 2>&1
+          rc=$?
+          echo "WORLD_FIXED_ARM_PROBE_EXIT=$rc"
+          tail -n 60 vla_ws/logs/arm_world_fixed_velocity_console.log
+          exit 0
+
+      - name: Probe PID force arm articulation with chassis fixed directly to world
+        continue-on-error: true
+        env:
+          ARM_LOCK_PROBE_WORLD: tests/diag/articulated_arm_ground_lock_world_fixed_force.sdf
+          ARM_LOCK_PROBE_ANCHOR: world_fixed
+          ARM_LOCK_PROBE_MODE: use_velocity_commands=false_pid_force
+          ARM_LOCK_PROBE_LOG: arm_world_fixed_force.log
+          ARM_LOCK_PROBE_REPORT: arm_world_fixed_force.json
+        run: |
+          python3 tests/diag/run_articulated_arm_ground_lock_probe.py \\
+            > vla_ws/logs/arm_world_fixed_force_console.log 2>&1
+          rc=$?
+          echo "WORLD_FIXED_ARM_FORCE_PROBE_EXIT=$rc"
+          tail -n 60 vla_ws/logs/arm_world_fixed_force_console.log
+          exit 0
+
+      - name: Probe full production robot with chassis fixed directly to world
+        continue-on-error: true
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+          QT_X11_NO_MITSHM: "1"
+        run: |
+          set +e
+          xvfb-run -a python3 tests/diag/run_full_robot_world_fixed_probe.py > vla_ws/logs/full_robot_world_fixed_console.log 2>&1
+          rc=$?
+          echo "FULL_ROBOT_WORLD_FIXED_PROBE_EXIT=$rc"
+          tail -n 100 vla_ws/logs/full_robot_world_fixed_console.log
+          exit 0
+
+      - name: Probe full robot with same-model world-rooted detachable chassis lock
+        continue-on-error: true
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+          QT_X11_NO_MITSHM: "1"
+        run: |
+          set +e
+          xvfb-run -a python3 tests/diag/run_full_robot_internal_detachable_probe.py > vla_ws/logs/full_robot_internal_detachable_console.log 2>&1
+          rc=$?
+          echo "FULL_ROBOT_INTERNAL_DETACHABLE_PROBE_EXIT=$rc"
+          tail -n 120 vla_ws/logs/full_robot_internal_detachable_console.log
+          exit 0
+
+      - name: Compare arm controller modes with production Ground Fixed Joint topology
+        continue-on-error: true
+        shell: bash
+        run: |
+          set +e
+          ARM_LOCK_PROBE_WORLD=tests/diag/articulated_arm_ground_lock_original_velocity.sdf \
+          ARM_LOCK_PROBE_MODE=use_velocity_commands=true \
+          ARM_LOCK_PROBE_LOG=arm_lock_original_velocity.log \
+          ARM_LOCK_PROBE_REPORT=arm_lock_original_velocity.json \
+            python3 tests/diag/run_articulated_arm_ground_lock_probe.py \
+            > vla_ws/logs/arm_lock_original_velocity_console.log 2>&1
+          velocity_rc=$?
+          ARM_LOCK_PROBE_WORLD=tests/diag/articulated_arm_ground_lock_original_force.sdf \
+          ARM_LOCK_PROBE_MODE=use_velocity_commands=false_pid_force \
+          ARM_LOCK_PROBE_LOG=arm_lock_original_force.log \
+          ARM_LOCK_PROBE_REPORT=arm_lock_original_force.json \
+            python3 tests/diag/run_articulated_arm_ground_lock_probe.py \
+            > vla_ws/logs/arm_lock_original_force_console.log 2>&1
+          force_rc=$?
+          echo "ORIGINAL_TOPOLOGY_VELOCITY_MODE_EXIT=$velocity_rc"
+          echo "ORIGINAL_TOPOLOGY_FORCE_MODE_EXIT=$force_rc"
+          echo "Velocity-mode evidence:"
+          tail -n 35 vla_ws/logs/arm_lock_original_velocity_console.log
+          echo "Force-mode evidence:"
+          tail -n 35 vla_ws/logs/arm_lock_original_force_console.log
+          if [ "$velocity_rc" -eq 0 ] || [ "$force_rc" -eq 0 ]; then
+            echo "At least one original-topology arm controller mode passed."
+          else
+            echo "Neither controller mode passed; preserving evidence for diagnosis."
+          fi
+          exit 0
+
+      - name: Run isolated Ground Fixed Joint attach, hold and release experiment
+        run: |
+          python3 tests/diag/run_chassis_ground_lock_gz.py --repeats 3
+
+      - name: Verify Ground Fixed Joint physical evidence (3 independent Gazebo runs)
+        run: |
+          python3 tests/diag/verify_ground_fixed_joint.py
+
+      - name: Probe production external detachable chassis lock with full robot arms
+        continue-on-error: true
+        run: |
+          python3 tests/diag/run_full_robot_external_detachable_probe.py
+
+      - name: Run legacy ApplyLinkWrench and ChassisBrake diagnostic (non-authoritative; does not gate E2E)
+        continue-on-error: true
+        run: |
+          python3 tests/diag/run_chassis_brake_gz.py
 
       - name: Build ROS 2 workspace and verify installed Nav2 map assets
         shell: bash
@@ -135,20 +380,91 @@ jobs:
           source /opt/ros/jazzy/setup.bash
           set -u
           cd vla_ws
-          colcon build --symlink-install --packages-select vla_follow
+          colcon build --symlink-install --packages-select vla_follow mca_drink_control
           set +u
           source install/setup.bash
           set -u
+          colcon test --packages-select mca_drink_control --event-handlers console_direct+
+          colcon test-result --verbose
           PKG_SHARE="$(ros2 pkg prefix vla_follow)/share/vla_follow"
           test -s "$PKG_SHARE/maps/arena.yaml"
           test -s "$PKG_SHARE/maps/arena.pgm"
           grep -Fq "image: arena.pgm" "$PKG_SHARE/maps/arena.yaml"
 
-      - name: Run complete headless DrinkTask E2E baseline
+      - name: Test installed MCA DLS ROS 2 service on both arms
         shell: bash
         run: |
+          set -eo pipefail
+          set +u
+          source /opt/ros/jazzy/setup.bash
+          source vla_ws/install/setup.bash
+          set -u
+          python3 -m py_compile tests/diag/test_mca_ik_service.py
+          ros2 run mca_drink_control mca_ik_server > vla_ws/logs/mca_ik_service.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true; wait "$SERVER_PID" 2>/dev/null || true' EXIT
+          PYTHONPATH="vla_ws/src/vla_follow:${PYTHONPATH:-}" python3 tests/diag/test_mca_ik_service.py
+
+      - name: Verify immutable ChassisBrake stage locks (legacy non-authoritative diagnostic)
+        continue-on-error: true
+        run: |
+          python3 tests/diag/verify_p104_stage_locks.py
+
+      - name: Run headless DrinkTask E2E with read-only base-arm telemetry
+        id: drinktask_e2e
+        shell: bash
+        env:
+          VLA_MCA_IK_ENABLED: '1'
+        run: |
           set -euo pipefail
-          timeout 50m bash tests/run_drink_headless.sh 2 "ci_${GITHUB_RUN_ID}" 10
+          mkdir -p vla_ws/logs
+          # This legacy fixed-name report may survive a previous run. Remove it
+          # so an artifact can never present stale DrinkTask evidence as current.
+          rm -f vla_ws/logs/test_drink.json
+          TRACE="vla_ws/logs/base_arm_dynamics_ci_${GITHUB_RUN_ID}.jsonl"
+          COLLECTOR_LOG="vla_ws/logs/base_arm_dynamics_collector_ci_${GITHUB_RUN_ID}.log"
+
+          # Start the observer before scene startup so it can discover Gazebo
+          # publishers as the headless scenario comes online. It publishes no
+          # commands and does not alter the world or controller parameters.
+          (trap - INT; exec python3 tests/diag/collect_base_arm_dynamics.py \
+            --duration 3000 --output "$TRACE") >"$COLLECTOR_LOG" 2>&1 &
+          COLLECTOR_PID=$!
+
+          E2E_STATUS=0
+          timeout 50m bash tests/run_drink_headless.sh 2 "ci_${GITHUB_RUN_ID}" 10 || E2E_STATUS=$?
+
+          # SIGINT asks the collector to flush its JSONL and report source coverage.
+          COLLECTOR_STATUS=0
+          kill -INT "$COLLECTOR_PID" 2>/dev/null || true
+          wait "$COLLECTOR_PID" || COLLECTOR_STATUS=$?
+
+          if [ -s "$TRACE" ]; then
+            python3 tests/diag/analyze_base_arm_dynamics.py "$TRACE" \
+              --output "vla_ws/logs/base_arm_dynamics_summary_ci_${GITHUB_RUN_ID}.json"
+          else
+            echo "ERROR: read-only base-arm telemetry capture produced no data"
+            COLLECTOR_STATUS=1
+          fi
+
+          if [ "$E2E_STATUS" -ne 0 ]; then
+            echo "ERROR: DrinkTask E2E failed with exit code $E2E_STATUS"
+          fi
+          if [ "$COLLECTOR_STATUS" -ne 0 ]; then
+            echo "ERROR: telemetry collector reported missing required sources (exit=$COLLECTOR_STATUS)"
+          fi
+          if [ "$E2E_STATUS" -ne 0 ]; then
+            exit "$E2E_STATUS"
+          fi
+          if [ "$COLLECTOR_STATUS" -ne 0 ]; then
+            exit "$COLLECTOR_STATUS"
+          fi
+
+      - name: Re-verify legacy immutable ChassisBrake stage locks (non-authoritative diagnostic)
+        if: always() && steps.drinktask_e2e.outcome != 'skipped'
+        continue-on-error: true
+        run: |
+          python3 tests/diag/verify_p104_stage_locks.py
 
       - name: Upload Gazebo logs, round JSON and screenshot evidence
         if: always()
@@ -159,6 +475,19 @@ jobs:
           retention-days: 14
           path: |
             vla_ws/logs/*.log
+            vla_ws/logs/p104_stage_locks*.json
+            vla_ws/logs/arm_lock_original_*.json
+            vla_ws/logs/articulated_arm_ground_lock_probe.json
+            vla_ws/logs/arm_world_fixed_*.json
+            vla_ws/logs/full_robot_world_fixed*.json
+            vla_ws/logs/full_robot_internal_detachable*.json
+            vla_ws/logs/full_robot_external_detachable*.json
+            vla_ws/logs/ground_fixed_joint_*.log
+            vla_ws/logs/ground_fixed_joint_*.json
+            vla_ws/logs/ground_fixed_joint_summary.json
+            vla_ws/logs/p104_chassis_brake_stage_locks.json
+            vla_ws/logs/base_arm_dynamics_ci_*.jsonl
+            vla_ws/logs/base_arm_dynamics_summary_ci_*.json
             vla_ws/logs/test_drink.json
             tests/out/drink_repeat_ci_*.json
             tests/out/drink_ci_*.json

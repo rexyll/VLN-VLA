@@ -1,0 +1,65 @@
+<?xml version="1.0"?>
+<sdf version="1.9">
+  <world name="arm_lock_probe">
+    <physics name="1ms" type="ignored">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+    </physics>
+    <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands"/>
+    <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"/>
+    <model name="ground">
+      <static>true</static>
+      <link name="ground_link">
+        <collision name="collision">
+          <geometry><plane><normal>0 0 1</normal><size>10 10</size></plane></geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="robot" canonical_link="chassis">
+      <pose>0 0 -0.14 0 0 0</pose>
+      <link name="chassis">
+        <pose>0 0 0.20 0 0 0</pose>
+        <inertial>
+          <mass>10</mass>
+          <inertia><ixx>0.2</ixx><iyy>0.2</iyy><izz>0.2</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia>
+        </inertial>
+        <collision name="body"><geometry><box><size>0.4 0.3 0.12</size></box></geometry></collision>
+        <visual name="body"><geometry><box><size>0.4 0.3 0.12</size></box></geometry></visual>
+      </link>
+      <joint name="world_fixed_chassis" type="fixed">
+        <parent>world</parent>
+        <child>chassis</child>
+      </joint>
+      <link name="arm_link">
+        <pose relative_to="chassis">0 0 0.20 0 0 0</pose>
+        <inertial>
+          <mass>1.0</mass>
+          <inertia><ixx>0.02</ixx><iyy>0.02</iyy><izz>0.02</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia>
+        </inertial>
+        <collision name="arm"><geometry><box><size>0.08 0.08 0.45</size></box></geometry></collision>
+        <visual name="arm"><geometry><box><size>0.08 0.08 0.45</size></box></geometry></visual>
+      </link>
+      <joint name="probe_arm_joint" type="revolute">
+        <pose relative_to="chassis">0 0 0.05 0 0 0</pose>
+        <parent>chassis</parent>
+        <child>arm_link</child>
+        <axis>
+          <xyz>0 1 0</xyz>
+          <limit><lower>-1.0</lower><upper>1.0</upper><effort>20</effort><velocity>2.0</velocity></limit>
+          <dynamics><damping>0.02</damping></dynamics>
+        </axis>
+      </joint>
+      <plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController">
+        <joint_name>probe_arm_joint</joint_name>
+        <topic>/arm_lock_probe/cmd/probe_arm_joint</topic>
+        <use_velocity_commands>false</use_velocity_commands>
+        <p_gain>10.0</p_gain><i_gain>0.0</i_gain><d_gain>0.5</d_gain>
+        <cmd_max>10.0</cmd_max><cmd_min>-10.0</cmd_min>
+      </plugin>
+      <plugin filename="gz-sim-joint-state-publisher-system" name="gz::sim::systems::JointStatePublisher">
+        <update_rate>100</update_rate>
+      </plugin>
+    </model>
+  </world>
+</sdf>

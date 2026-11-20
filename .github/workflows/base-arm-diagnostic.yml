@@ -1,0 +1,57 @@
+name: Base-arm diagnostic collector syntax
+
+on:
+  push:
+    branches:
+      - main
+      - experiment/prepare-base-stillness-ab
+    paths:
+      - "tests/diag/collect_base_arm_dynamics.py"
+      - "tests/diag/analyze_base_arm_dynamics.py"
+      - "tests/diag/test_analyze_base_arm_dynamics.py"
+      - ".github/workflows/base-arm-diagnostic.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "tests/diag/collect_base_arm_dynamics.py"
+      - "tests/diag/analyze_base_arm_dynamics.py"
+      - "tests/diag/test_analyze_base_arm_dynamics.py"
+      - ".github/workflows/base-arm-diagnostic.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Compile and test diagnostic tools
+        run: |
+          python -m py_compile tests/diag/collect_base_arm_dynamics.py tests/diag/analyze_base_arm_dynamics.py tests/diag/test_analyze_base_arm_dynamics.py
+          python -m unittest discover -s tests/diag -p 'test_*.py' -v
+      - name: Check collector is read-only
+        run: |
+          python - <<'PY'
+          import ast
+          from pathlib import Path
+
+          path = Path("tests/diag/collect_base_arm_dynamics.py")
+          tree = ast.parse(path.read_text(encoding="utf-8"))
+          forbidden = {"Publisher", "create_publisher", "publish", "request"}
+          found = []
+          for node in ast.walk(tree):
+              if isinstance(node, ast.Call):
+                  name = node.func.id if isinstance(node.func, ast.Name) else (
+                      node.func.attr if isinstance(node.func, ast.Attribute) else "")
+                  if name in forbidden:
+                      found.append(name)
+          if found:
+              raise SystemExit(f"collector must remain read-only: {found}")
+          print("collector is read-only")
+          PY

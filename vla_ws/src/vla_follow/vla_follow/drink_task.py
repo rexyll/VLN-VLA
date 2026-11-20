@@ -40,6 +40,7 @@ P84 曾记录"dynamic_pose/info 里 link 位姿名字错位一位(R_L1 的 pose 
 """
 import json
 import math
+import os
 import sys
 import time
 import threading
@@ -57,6 +58,11 @@ from vla_follow import arm_kin as K
 from vla_follow import scene_layout as L
 from vla_follow.carry import CarryBus
 from vla_follow.joint_servo import JointServo
+from vla_follow.gazebo_ground_lock import GazeboGroundLock
+try:
+    from mca_drink_control.srv import SolveIk as McaSolveIk
+except Exception:  # pragma: no cover - optional during source-only tooling
+    McaSolveIk = None
 from vla_follow import liquid as _liquid_mod
 from vla_follow import drink_motion as _motion_mod
 from vla_follow.liquid import LiquidCtl
@@ -227,6 +233,7 @@ class DrinkTask(Node):
         self.js_effort = {}
         self.js_sample_t = 0.0
         self.links = {}
+        self._gt_model_sample_t = {}
         self.base = (0.0, 0.0, 0.0)
         # Model-truth finite-difference velocity is independent of wheel odom.
         self.truth_base_twist = None
@@ -235,9 +242,19 @@ class DrinkTask(Node):
         # Read-only high-water trace for chassis motion during arm follow.
         self._follow_base_trace = None
         self._follow_base_hold_target = None
+        self._follow_base_hold_zero_logged = False
+        self._physical_hold_correction_suppressed_logged = False
         self._prepare_base_hold_target = None
+        self._prepare_base_reach_active = False
+        self._last_prepare_hold_trace_t = 0.0
         self.truth_base_pose_snapshot = None
         self.truth_base_rpy_snapshot = None
+        self.truth_chassis_link_snapshot = None
+        self._gt_callback_meta = None
+        self._gt_last_arrival_t = None
+        self._pose_info_chassis_snapshot = None
+        self._pose_info_callback_meta = None
+        self._pose_info_last_arrival_t = None
         self._have_odom = False
         self._truth_base = False
         # Wheel odometry pose is not authoritative after Gazebo teleport, but
@@ -252,9 +269,16 @@ class DrinkTask(Node):
             self._gz.subscribe(GzPose_V,
                                '/world/follow_world/dynamic_pose/info',
                                self._gt_cb)
+            self._gz.subscribe(GzPose_V,
+                               '/world/follow_world/pose/info',
+                               self._gt_pose_info_cb)
 
         # ---- 输出: 39 路指令总线(唯一发布者)
         self.bus = CmdBus(self)
+        # Never send the default home posture to Gazebo until the physical
+        # chassis anchor and software mux hold have both been acknowledged.
+        # Otherwise the arms can start moving while startup is probing detach.
+        self._arm_command_output_enabled = False
         # observer_only: 端到端验收脚本只**看**不动手。此时不挂 20Hz/50Hz
         # 定时器, 于是 39 路指令和抓取位姿一帧都不会发出去 —— 否则会和
         # 常驻的 drink_task 抢同一个发布者, 杯子被两个目标拽来拽去。
@@ -282,6 +306,38 @@ class DrinkTask(Node):
         # cmd_mux 也上了 300s 锁)。这两个都是收到 /robot/command 才动作。
         self.pub_cmd = self.create_publisher(String, '/robot/command', 10)
         self.create_subscription(String, '/robot/command', self._cmd_cb, 10)
+        # Explicit table-side chassis lock with request-ID acknowledgement.
+        self.pub_base_lock = (None if observer_only else
+                              self.create_publisher(String, '/drink/base_lock', 10))
+        self._base_lock_ack = None
+        self._base_lock_request_id = 0
+        self._base_lock_active = False
+        self._base_motion_window_active = False
+        self._mca_ik_client = (
+            self.create_client(McaSolveIk, '/mca_drink/solve_ik')
+            if (not observer_only and McaSolveIk is not None) else None)
+        self._ground_lock = None
+        self._ground_lock_ready = bool(observer_only)
+        self._ground_lock_start_t = time.monotonic()
+        self._ground_lock_startup_reported = False
+        # DetachableJoint may publish its initial state before this ROS node subscribes.
+        # An explicit attach probe below elicits a fresh state acknowledgement.
+        self._ground_lock_probe_attempted = False
+        if not observer_only and HAVE_GZ:
+            try:
+                self._ground_lock = GazeboGroundLock(self._gz, "follow_world")
+                self._ground_lock_ready = False
+            except Exception as exc:
+                self.get_logger().error(
+                    'PHYSICAL_CHASSIS_LOCK initialization failed: %s' % exc)
+        elif not observer_only:
+            self.get_logger().error(
+                'PHYSICAL_CHASSIS_LOCK unavailable: Gazebo transport bindings missing')
+        self.create_subscription(String, '/drink/base_lock_state',
+                                 self._base_lock_state_cb, 10)
+        if not observer_only:
+            self._ground_lock_start_timer = self.create_timer(
+                0.1, self._startup_ground_lock_tick)
         # P104: 订阅 follower 状态，在交权后确认 FOLLOW 指令确已被接收。
         self._follower_status_snapshot = ({}, 0.0)
         self.create_subscription(String, '/follower/status',
@@ -294,14 +350,17 @@ class DrinkTask(Node):
         # telemetry to distinguish commanded rotation from passive wheel roll.
         self._drink_cmd_snapshot = None
         self._robot_cmd_snapshot = None
+        # Probe the ROS graph so the raw fallback never races cmd_mux.
+        self._cmd_mux_present = False
+        self._last_cmd_mux_probe = 0.0
+        self._last_cmd_route_mode = None
         self.create_subscription(Twist, '/drink/cmd_vel',
                                  self._drink_cmd_cb, 20)
         self.create_subscription(Twist, '/robot/cmd_vel',
                                  self._robot_cmd_cb, 20)
-        # 兜底直发(没有 cmd_mux 的单点脚本用; 见 drive())
-        self.pub_vel_raw = (None if observer_only
-                            else self.create_publisher(Twist,
-                                                       '/robot/cmd_vel', 10))
+        # No raw /robot/cmd_vel publisher is allowed here. All task motion must
+        # pass through cmd_mux; if graph discovery fails or mux is absent,
+        # drive() fails closed instead of bypassing the lock/arbitration path.
 
         # ---- 服务
         self.create_service(Trigger, '/drink/ck', self._srv_ck)
@@ -368,13 +427,70 @@ class DrinkTask(Node):
         self.base = (p.x, p.y, yaw_of(msg.pose.pose.orientation))
         self._have_odom = True
 
+    def _gt_pose_info_cb(self, msg):
+        """Read-only complete pose stream used to locate canonical chassis link."""
+        sample_t = time.monotonic()
+        previous_arrival = self._pose_info_last_arrival_t
+        callback_dt = (sample_t - previous_arrival
+                       if previous_arrival is not None else None)
+        self._pose_info_last_arrival_t = sample_t
+        sim_stamp = None
+        try:
+            stamp = msg.header.stamp
+            sim_stamp = (float(stamp.sec)
+                         + float(getattr(stamp, 'nsec', 0)) * 1e-9)
+        except Exception:
+            pass
+        found = None
+        names = []
+        for p in msg.pose:
+            name = p.name
+            if name == 'robot::chassis' or (
+                    name.startswith('robot::') and name.endswith('::chassis')):
+                rpy = quaternion_rpy(
+                    p.orientation.x, p.orientation.y,
+                    p.orientation.z, p.orientation.w)
+                if rpy is not None:
+                    found = ((float(p.position.x), float(p.position.y),
+                              float(rpy[2])), sample_t, name)
+            if name == 'robot' or name.startswith('robot::'):
+                names.append(name)
+        if found is not None:
+            self._pose_info_chassis_snapshot = found
+        self._pose_info_callback_meta = (
+            sample_t, callback_dt, sim_stamp, len(msg.pose),
+            tuple(names[:24]), found[2] if found else None)
+
     def _gt_cb(self, msg):
         # dynamic_pose/info is a stream of complete-ish snapshots. Build the
         # next map off-thread and publish it with one reference assignment.
         updated = dict(self.links)
+        model_sample_t = dict(getattr(self, '_gt_model_sample_t', {}))
         sample_t = time.monotonic()
+        previous_arrival = self._gt_last_arrival_t
+        callback_dt = (sample_t - previous_arrival
+                       if previous_arrival is not None else None)
+        self._gt_last_arrival_t = sample_t
+        sim_stamp = None
+        try:
+            stamp = msg.header.stamp
+            sim_stamp = (float(stamp.sec)
+                         + float(getattr(stamp, 'nsec', 0)) * 1e-9)
+        except Exception:
+            pass
+        self._gt_callback_meta = (sample_t, callback_dt, sim_stamp)
         for p in msg.pose:
             updated[p.name] = p
+            model_sample_t[p.name] = sample_t
+            if (p.name == 'robot::chassis'
+                    or (p.name.startswith('robot::') and p.name.endswith('::chassis'))):
+                link_rpy = quaternion_rpy(
+                    p.orientation.x, p.orientation.y,
+                    p.orientation.z, p.orientation.w)
+                if link_rpy is not None:
+                    self.truth_chassis_link_snapshot = (
+                        (float(p.position.x), float(p.position.y),
+                         float(link_rpy[2])), sample_t, p.name)
             if p.name == 'robot':
                 rpy = quaternion_rpy(p.orientation.x, p.orientation.y,
                                     p.orientation.z, p.orientation.w)
@@ -447,7 +563,49 @@ class DrinkTask(Node):
                                 trace['wheel_max_abs_effort_nm'],
                                 max(abs(float(v)) for v in wheel_eff))
                         trace['end'] = list(pose)
+                        # Keep a bounded 5Hz synchronized trace, not just
+                        # high-water marks, so command/odom/wheel/truth timing
+                        # can be compared without changing control behavior.
+                        last_detail = trace.get('detail_last_t', 0.0)
+                        if sample_t - last_detail >= 0.20:
+                            now_mono = time.monotonic()
+                            wheel_detail = [
+                                self.js_velocity.get('left_wheel_joint'),
+                                self.js_velocity.get('right_wheel_joint')]
+                            drink_cmd = self._drink_cmd_snapshot
+                            robot_cmd = self._robot_cmd_snapshot
+                            odom_detail = self.odom_twist
+                            trace.setdefault('detail_samples', []).append({
+                                't_s': round(sample_t - trace['start_t'], 3),
+                                'base_dx_mm': round(dx * 1000.0, 2),
+                                'base_dy_mm': round(dy * 1000.0, 2),
+                                'base_dyaw_deg': round(math.degrees(dyaw), 3),
+                                'truth_twist': (
+                                    [round(float(v), 5) for v in self.truth_base_twist]
+                                    if self.truth_base_twist is not None else None),
+                                'wheel_vel': [
+                                    round(float(v), 4)
+                                    if v is not None and math.isfinite(float(v))
+                                    else None for v in wheel_detail],
+                                'drink_cmd': (
+                                    [round(float(v), 5) for v in drink_cmd[0]]
+                                    if drink_cmd else None),
+                                'drink_cmd_age_s': (
+                                    round(now_mono - drink_cmd[1], 3)
+                                    if drink_cmd else None),
+                                'robot_cmd': (
+                                    [round(float(v), 5) for v in robot_cmd[0]]
+                                    if robot_cmd else None),
+                                'robot_cmd_age_s': (
+                                    round(now_mono - robot_cmd[1], 3)
+                                    if robot_cmd else None),
+                                'odom_twist': (
+                                    [round(float(v), 5) for v in odom_detail]
+                                    if odom_detail is not None else None),
+                            })
+                            trace['detail_last_t'] = sample_t
         self.links = updated
+        self._gt_model_sample_t = model_sample_t
         # P98 排查: 道具键会间歇性从 links 里"消失"(抓取时在、place_held
         # 时变 None → FAIL_PREPARE)。节流打印真值流的关键键存在性, 定位
         # 是"流里没有"还是"字典丢了"。
@@ -464,6 +622,78 @@ class DrinkTask(Node):
         t0 = time.time()
         while time.time() - t0 < s:
             rclpy.spin_once(self, timeout_sec=0.005)
+
+    def solve_mca_ik(self, side, target_world, base, seed,
+                     timeout_s=2.0):
+        """Call the MCA C++ DLS service with a target expressed in robot-base coordinates."""
+        if self._mca_ik_client is None or side not in ('R', 'L'):
+            return None
+        if not self._mca_ik_client.service_is_ready():
+            return None
+        try:
+            target_local = np.linalg.inv(K.base_pose(*base)) @ np.asarray(
+                target_world, dtype=float)
+            request = McaSolveIk.Request()
+            request.side = side
+            request.target.position.x = float(target_local[0, 3])
+            request.target.position.y = float(target_local[1, 3])
+            request.target.position.z = float(target_local[2, 3])
+            # Stable matrix-to-quaternion conversion in ROS x,y,z,w ordering.
+            rotation = target_local[:3, :3]
+            trace = float(np.trace(rotation))
+            if trace > 0.0:
+                scale = math.sqrt(trace + 1.0) * 2.0
+                qw = 0.25 * scale
+                qx = (rotation[2, 1] - rotation[1, 2]) / scale
+                qy = (rotation[0, 2] - rotation[2, 0]) / scale
+                qz = (rotation[1, 0] - rotation[0, 1]) / scale
+            elif rotation[0, 0] > rotation[1, 1] and rotation[0, 0] > rotation[2, 2]:
+                scale = math.sqrt(1.0 + rotation[0, 0] -
+                                  rotation[1, 1] - rotation[2, 2]) * 2.0
+                qw = (rotation[2, 1] - rotation[1, 2]) / scale
+                qx = 0.25 * scale
+                qy = (rotation[0, 1] + rotation[1, 0]) / scale
+                qz = (rotation[0, 2] + rotation[2, 0]) / scale
+            elif rotation[1, 1] > rotation[2, 2]:
+                scale = math.sqrt(1.0 + rotation[1, 1] -
+                                  rotation[0, 0] - rotation[2, 2]) * 2.0
+                qw = (rotation[0, 2] - rotation[2, 0]) / scale
+                qx = (rotation[0, 1] + rotation[1, 0]) / scale
+                qy = 0.25 * scale
+                qz = (rotation[1, 2] + rotation[2, 1]) / scale
+            else:
+                scale = math.sqrt(1.0 + rotation[2, 2] -
+                                  rotation[0, 0] - rotation[1, 1]) * 2.0
+                qw = (rotation[1, 0] - rotation[0, 1]) / scale
+                qx = (rotation[0, 2] + rotation[2, 0]) / scale
+                qy = (rotation[1, 2] + rotation[2, 1]) / scale
+                qz = 0.25 * scale
+            request.target.orientation.x = float(qx)
+            request.target.orientation.y = float(qy)
+            request.target.orientation.z = float(qz)
+            request.target.orientation.w = float(qw)
+            request.seed.name = [
+                '%s_%s_joint' % (side, joint[0]) for joint in K.JOINTS]
+            request.seed.position = [float(value) for value in seed]
+            request.position_tolerance_m = float(os.environ.get(
+                'VLA_MCA_IK_POSITION_TOLERANCE_M', '0.0015'))
+            request.orientation_tolerance_rad = float(os.environ.get(
+                'VLA_MCA_IK_ORIENTATION_TOLERANCE_RAD', '0.005'))
+            request.max_iterations = int(os.environ.get(
+                'VLA_MCA_IK_MAX_ITERATIONS', '200'))
+            future = self._mca_ik_client.call_async(request)
+            deadline = time.monotonic() + max(0.1, float(timeout_s))
+            while not future.done() and time.monotonic() < deadline:
+                self.spin_for(0.01)
+            if not future.done():
+                future.cancel()
+                return None
+            return future.result()
+        except Exception as exc:
+            self.get_logger().warn(
+                'MCA_IK service call failed; retain established IK path: %s' % exc,
+                throttle_duration_sec=5.0)
+            return None
 
     def spin_sim(self, s, cap=6.0):
         """**按仿真时间**阻塞 s 秒(墙上时间放宽 cap 倍兜底)。
@@ -514,19 +744,460 @@ class DrinkTask(Node):
             (float(msg.linear.x), float(msg.angular.z)), time.monotonic())
         self._record_follow_cmd_trace('robot', msg)
 
-    def drive(self, vx=0.0, wz=0.0):
-        """发一帧底盘速度。gz 的 DiffDrive 会锁存最后一条, 但仍按 20Hz 补发。
+    def _chassis_stationary_sample(self):
+        """Require fresh Gazebo truth, fresh joint state and near-zero wheel speed."""
+        now = time.monotonic()
+        if (self.truth_base_twist is None
+                or now - self.truth_base_twist_t > 0.25
+                or not self.js_sample_t
+                or now - self.js_sample_t > 0.25):
+            return False
+        vx, vy, wz = (float(v) for v in self.truth_base_twist)
+        wheel_values = [
+            self.js_velocity.get('left_wheel_joint'),
+            self.js_velocity.get('right_wheel_joint')]
+        if any(v is None for v in wheel_values):
+            return False
+        values = [vx, vy, wz] + [float(v) for v in wheel_values]
+        if not all(math.isfinite(v) for v in values):
+            return False
+        return (math.hypot(vx, vy) < 0.005
+                and abs(wz) < math.radians(0.5)
+                and max(abs(v) for v in wheel_values) < 0.05)
 
-        发两份: `/drink/cmd_vel` 给 cmd_mux(喝水锁内由它放行, 这是"正式通道"),
-        `/robot/cmd_vel` 给"没有 cmd_mux 的场景"(单点脚本 test_p87/p88/p89 直接
-        调 prepare_present, 那时没人中转)。两个值永远相同, 同时在场也不会打架。
+    def _wait_chassis_stationary(self, timeout=3.0, stable_s=0.25):
+        """Require a continuous stationary interval before changing physical lock."""
+        deadline = time.monotonic() + max(0.1, float(timeout))
+        stable_since = None
+        while time.monotonic() < deadline:
+            now = time.monotonic()
+            if self._chassis_stationary_sample():
+                if stable_since is None:
+                    stable_since = now
+                if now - stable_since >= stable_s:
+                    return True
+            else:
+                stable_since = None
+            self.spin_for(0.02)
+        return False
+
+    def _verify_chassis_pose_stable(self, before, window_s=0.30):
+        """Verify no measurable base excursion while attaching or detaching."""
+        if before is None or before[0] is None:
+            return False
+        self.spin_for(window_s)
+        after = self.truth_base_pose_snapshot
+        if (after is None or time.monotonic() - after[1] > 0.25
+                or not self._chassis_stationary_sample()):
+            return False
+        bx, by, byaw = before[0]
+        ax, ay, ayaw = after[0]
+        displacement_mm = math.hypot(ax - bx, ay - by) * 1000.0
+        yaw_delta = abs(math.degrees(math.atan2(
+            math.sin(ayaw - byaw), math.cos(ayaw - byaw))))
+        self.get_logger().info(
+            'PHYSICAL_CHASSIS_LOCK pose_check displacement_mm=%.3f yaw_deg=%.4f'
+            % (displacement_mm, yaw_delta))
+        return displacement_mm < 2.0 and yaw_delta < 0.5
+
+    def _base_lock_state_cb(self, msg):
+        try:
+            payload = json.loads(msg.data)
+            self._base_lock_ack = (
+                int(payload['request_id']), bool(payload['locked']),
+                time.monotonic())
+        except (ValueError, TypeError, KeyError):
+            self.get_logger().warn('DRINK_BASE_LOCK invalid mux acknowledgement')
+
+    def _startup_ground_lock_tick(self):
+        """Start a serialized, software-locked physical-joint handshake.
+
+        DetachableJoint publishes state only when its attached state changes.
+        Its initial attached event can precede this subscriber, and an attach
+        request while already attached is intentionally ignored by Gazebo.
+        Therefore startup must lock the mux, observe a real detach→attach→detach
+        transition sequence, then unlock navigation.
         """
+        if self._ground_lock_ready:
+            self._ground_lock_start_timer.cancel()
+            return
+        if self._ground_lock_startup_reported or self._ground_lock is None:
+            if self._ground_lock is None and not self._ground_lock_startup_reported:
+                self.get_logger().error(
+                    'PHYSICAL_CHASSIS_LOCK unavailable; navigation/task motion remains blocked')
+                self._ground_lock_startup_reported = True
+            return
+        if self._ground_lock_probe_attempted:
+            return
+        if time.monotonic() - self._ground_lock_start_t < 2.0:
+            return
+
+        initial_state = self._ground_lock.state
+        if initial_state not in (None, 'attached'):
+            self.get_logger().error(
+                'PHYSICAL_CHASSIS_LOCK startup expected attached or not-yet-observed, got %s; fail closed'
+                % initial_state)
+            self._ground_lock_startup_reported = True
+            self._ground_lock_start_timer.cancel()
+            return
+
+        self._ground_lock_probe_attempted = True
+        self.get_logger().info(
+            'PHYSICAL_CHASSIS_LOCK starting mux-locked detach/attach/detach state probe')
+        self._ground_lock_startup_thread = threading.Thread(
+            target=self._startup_ground_lock_handshake,
+            name='physical-chassis-lock-startup', daemon=True)
+        self._ground_lock_startup_thread.start()
+
+    def _startup_ground_lock_handshake(self):
+        """Exercise real DetachableJoint state transitions while cmd_mux is locked."""
+        mux_locked = False
+        physical_may_be_detached = False
+
+        def mux_request(locked, timeout_s=5.0):
+            if self.pub_base_lock is None:
+                return False
+            self._base_lock_request_id += 1
+            request_id = self._base_lock_request_id
+            self._base_lock_active = bool(locked)
+            payload = String(data=json.dumps({
+                'locked': bool(locked), 'request_id': request_id}))
+            deadline = time.monotonic() + timeout_s
+            while time.monotonic() < deadline:
+                self.pub_base_lock.publish(payload)
+                ack = self._base_lock_ack
+                if (ack is not None and ack[0] == request_id
+                        and ack[1] == bool(locked)
+                        and time.monotonic() - ack[2] < 0.5):
+                    return True
+                time.sleep(0.1)
+            if not locked:
+                self._base_lock_active = True
+            return False
+
+        def wait_stationary(timeout_s=5.0, stable_s=0.25):
+            deadline = time.monotonic() + timeout_s
+            stable_since = None
+            while time.monotonic() < deadline:
+                now = time.monotonic()
+                if self._chassis_stationary_sample():
+                    if stable_since is None:
+                        stable_since = now
+                    if now - stable_since >= stable_s:
+                        return True
+                else:
+                    stable_since = None
+                time.sleep(0.02)
+            return False
+
+        def pose_stable(before, label, window_s=0.30):
+            # Preserve the strict stationary/pose thresholds, but report which
+            # prerequisite failed. Previously every rejection was mislabeled
+            # "base pose changed", even when truth or JointState freshness was
+            # the actual cause.
+            if before is None or before[0] is None:
+                self.get_logger().error(
+                    'PHYSICAL_CHASSIS_LOCK startup_%s pose baseline missing' % label)
+                return False
+            deadline = time.monotonic() + window_s
+            stationary_failures = 0
+            last_stationary = None
+            while time.monotonic() < deadline:
+                now = time.monotonic()
+                stationary = self._chassis_stationary_sample()
+                if not stationary:
+                    stationary_failures += 1
+                    wheel_values = (
+                        self.js_velocity.get('left_wheel_joint'),
+                        self.js_velocity.get('right_wheel_joint'))
+                    last_stationary = {
+                        'truth_twist_age_s': (
+                            round(now - self.truth_base_twist_t, 3)
+                            if self.truth_base_twist_t else None),
+                        'joint_state_age_s': (
+                            round(now - self.js_sample_t, 3)
+                            if self.js_sample_t else None),
+                        'truth_twist': self.truth_base_twist,
+                        'wheel_velocity_rad_s': wheel_values,
+                    }
+                time.sleep(0.02)
+            after = self.truth_base_pose_snapshot
+            after_age = (time.monotonic() - after[1]) if after else None
+            final_stationary = self._chassis_stationary_sample()
+            if after is None or after_age > 0.25 or not final_stationary:
+                self.get_logger().error(
+                    'PHYSICAL_CHASSIS_LOCK startup_%s telemetry gate failed: '
+                    'pose_missing=%s pose_age_s=%s stationary_failures=%d '
+                    'last_stationary=%s final_stationary=%s'
+                    % (label, after is None,
+                       round(after_age, 3) if after_age is not None else None,
+                       stationary_failures, last_stationary, final_stationary))
+                return False
+            bx, by, byaw = before[0]
+            ax, ay, ayaw = after[0]
+            displacement_mm = math.hypot(ax - bx, ay - by) * 1000.0
+            yaw_delta = abs(math.degrees(math.atan2(
+                math.sin(ayaw - byaw), math.cos(ayaw - byaw))))
+            self.get_logger().info(
+                'PHYSICAL_CHASSIS_LOCK startup_%s displacement_mm=%.3f yaw_deg=%.4f '
+                'stationary_failures=%d'
+                % (label, displacement_mm, yaw_delta, stationary_failures))
+            if displacement_mm >= 2.0 or yaw_delta >= 0.5:
+                self.get_logger().error(
+                    'PHYSICAL_CHASSIS_LOCK startup_%s pose excursion exceeded limit '
+                    '(translation_limit_mm=2.0 yaw_limit_deg=0.5)' % label)
+                return False
+            return True
+
+        try:
+            # Do not send any physical transition until the software command
+            # arbiter has acknowledged LOCKED and truth/wheels are stationary.
+            if not mux_request(True):
+                raise RuntimeError('software mux lock acknowledgement timeout')
+            mux_locked = True
+            if not wait_stationary():
+                raise RuntimeError('fresh truth/joint/wheel stationary gate failed')
+
+            before = self.truth_base_pose_snapshot
+            if not self._ground_lock.command('detached', timeout_s=5.0):
+                raise RuntimeError(
+                    'initial detach transition was not acknowledged '
+                    '(attempts=%d, error=%s)' % (
+                        self._ground_lock.last_command_attempts,
+                        self._ground_lock.last_command_error))
+            physical_may_be_detached = True
+            if not pose_stable(before, 'detach'):
+                raise RuntimeError('base pose changed during startup detach')
+
+            before = self.truth_base_pose_snapshot
+            if not self._ground_lock.command('attached', timeout_s=5.0):
+                raise RuntimeError(
+                    'attach transition was not acknowledged '
+                    '(attempts=%d, error=%s)' % (
+                        self._ground_lock.last_command_attempts,
+                        self._ground_lock.last_command_error))
+            physical_may_be_detached = False
+            if not pose_stable(before, 'attach'):
+                raise RuntimeError('base pose changed during startup attach')
+
+            before = self.truth_base_pose_snapshot
+            if not self._ground_lock.command('detached', timeout_s=5.0):
+                raise RuntimeError(
+                    'final detach transition was not acknowledged '
+                    '(attempts=%d, error=%s)' % (
+                        self._ground_lock.last_command_attempts,
+                        self._ground_lock.last_command_error))
+            physical_may_be_detached = True
+            if not pose_stable(before, 'final_detach'):
+                raise RuntimeError('base pose changed during final startup detach')
+
+            if not mux_request(False):
+                # Restore physical hold if software navigation cannot safely
+                # regain authority. Never leave an ambiguous unlocked startup.
+                self._ground_lock.command('attached', timeout_s=5.0)
+                physical_may_be_detached = False
+                raise RuntimeError('software mux unlock acknowledgement timeout')
+            mux_locked = False
+            self._base_lock_active = False
+            self._ground_lock_ready = True
+            self.get_logger().info(
+                'PHYSICAL_CHASSIS_LOCK startup PASS: mux locked, '
+                'attached→detached→attached→detached verified; navigation enabled')
+        except Exception as exc:
+            # Keep the mux locked on every failure. If the last confirmed state
+            # may be detached, attempt to restore the physical anchor as well.
+            if mux_locked:
+                # Force a fresh attach request even if the last locally observed
+                # state is stale; a previous transition may have occurred while
+                # its state event was lost. If already attached Gazebo may ignore
+                # it, but the software mux remains locked either way.
+                if self._ground_lock.command(
+                        'attached', timeout_s=5.0, force=True):
+                    self.get_logger().warn(
+                        'PHYSICAL_CHASSIS_LOCK startup failure: physical anchor restored')
+                else:
+                    self.get_logger().error(
+                        'PHYSICAL_CHASSIS_LOCK startup failure: physical re-attach '
+                        'could not be confirmed; software mux remains locked')
+            self._base_lock_active = True if mux_locked else self._base_lock_active
+            self._ground_lock_startup_reported = True
+            self.get_logger().error(
+                'PHYSICAL_CHASSIS_LOCK startup handshake failed: %s; '
+                'navigation/task motion remains blocked' % exc)
+
+    def _set_mux_base_lock(self, locked, timeout=2.0):
+        """Request the software command-arbitration lock and verify its ACK."""
+        if self.pub_base_lock is None:
+            self.get_logger().error(
+                'DRINK_BASE_LOCK unavailable in observer-only mode')
+            return False
+        deadline = time.monotonic() + max(0.1, float(timeout))
+        while time.monotonic() < deadline and not self._cmd_mux_is_present():
+            self.spin_for(0.1)
+        if not self._cmd_mux_is_present():
+            self.get_logger().error(
+                'DRINK_BASE_LOCK cmd_mux unavailable; refusing table-side motion')
+            return False
+        self._base_lock_request_id += 1
+        request_id = self._base_lock_request_id
+        self._base_lock_active = bool(locked)
+        payload = String(data=json.dumps({
+            'locked': bool(locked), 'request_id': request_id}))
+        while time.monotonic() < deadline:
+            self.pub_base_lock.publish(payload)
+            self.spin_for(0.1)
+            ack = self._base_lock_ack
+            if (ack is not None and ack[0] == request_id
+                    and ack[1] == bool(locked)
+                    and time.monotonic() - ack[2] < 0.5):
+                self._base_lock_active = bool(locked)
+                self.get_logger().info(
+                    'DRINK_BASE_LOCK software=%s request_id=%d acknowledged' %
+                    ('LOCKED' if locked else 'UNLOCKED', request_id))
+                return True
+        if not locked:
+            self._base_lock_active = True
+        self.get_logger().error(
+            'DRINK_BASE_LOCK software %s acknowledgement timeout; fail closed' %
+            ('LOCK' if locked else 'UNLOCK'))
+        return False
+
+    def set_base_lock(self, locked, timeout=2.0):
+        """Coordinate mux arbitration and the Gazebo ground-fixed joint.
+
+        Lock order: software mux lock first, then physical attach. Unlock order:
+        physical detach first while software lock remains active, then mux unlock.
+        Either unconfirmed transition blocks task progression.
+        """
+        if self.pub_base_lock is None:
+            self.get_logger().error('DRINK_BASE_LOCK unavailable in observer-only mode')
+            return False
+        if not self._ground_lock_ready or self._ground_lock is None:
+            self.get_logger().error(
+                'PHYSICAL_CHASSIS_LOCK not ready; refusing arm/base task motion')
+            return False
+
+        if locked:
+            if not self._set_mux_base_lock(True, timeout=timeout):
+                return False
+            if not self._wait_chassis_stationary():
+                self.get_logger().error(
+                    'PHYSICAL_CHASSIS_LOCK refused attach: fresh truth/joint/wheel stationary gate failed')
+                return False
+            _pose_before_attach = self.truth_base_pose_snapshot
+            if not self._ground_lock.command(
+                    'attached', timeout_s=5.0, spin=self.spin_for):
+                self.get_logger().error(
+                    'PHYSICAL_CHASSIS_LOCK attach not confirmed; software mux remains locked')
+                return False
+            if not self._verify_chassis_pose_stable(_pose_before_attach):
+                self.get_logger().error(
+                    'PHYSICAL_CHASSIS_LOCK attach pose/twist verification failed; software mux remains locked')
+                return False
+            self._arm_command_output_enabled = True
+            self.get_logger().info(
+                'BOOT_ARM_COMMAND_GATE open: physical chassis hold confirmed')
+            self.get_logger().info(
+                'DRINK_BASE_LOCK physical=ATTACHED + software=LOCKED + truth_hold=PASS')
+            return True
+
+        # If a caller asks to unlock while the mux is not already locked, first
+        # establish the software lock before releasing a still-attached joint.
+        if self._ground_lock.state != 'detached' and not self._base_lock_active:
+            if not self._set_mux_base_lock(True, timeout=timeout):
+                return False
+        _pose_before_detach = self.truth_base_pose_snapshot
+        if not self._ground_lock.command(
+                'detached', timeout_s=5.0, spin=self.spin_for):
+            self.get_logger().error(
+                'PHYSICAL_CHASSIS_LOCK detach not confirmed; software mux remains locked')
+            return False
+        if not self._verify_chassis_pose_stable(_pose_before_detach):
+            self.get_logger().error(
+                'PHYSICAL_CHASSIS_LOCK detach stability verification failed; software mux remains locked')
+            self._ground_lock.command(
+                'attached', timeout_s=5.0, spin=self.spin_for)
+            return False
+        if not self._set_mux_base_lock(False, timeout=timeout):
+            # Restore both layers to the safe state after an unlock failure.
+            self._set_mux_base_lock(True, timeout=timeout)
+            if not self._ground_lock.command(
+                    'attached', timeout_s=5.0, spin=self.spin_for):
+                self.get_logger().error(
+                    'PHYSICAL_CHASSIS_LOCK re-attach also unconfirmed after mux unlock failure')
+            return False
+        self.get_logger().info(
+            'DRINK_BASE_LOCK physical=DETACHED + software=UNLOCKED')
+        return True
+
+    def run_base_motion_window(self, label, motion):
+        """Run one explicitly permitted chassis motion, then always re-lock.
+
+        The drink lease remains active, so velocity commands in this window
+        can only come from this task's /drink/cmd_vel path; follower/Nav2 remain
+        excluded by cmd_mux arbitration. CarryBus robot pose writes are also
+        guarded by _base_motion_window_active. A failed unlock skips the motion.
+        A failed re-lock reports failure and restores the lock heartbeat.
+        """
+        if not self.set_base_lock(False):
+            self.get_logger().error(
+                'DRINK_BASE_MOTION_WINDOW %s refused: unlock not acknowledged'
+                % label)
+            return False, None
+        self.get_logger().info(
+            'DRINK_BASE_MOTION_WINDOW %s OPEN: task motion only' % label)
+        result = None
+        relock_ok = False
+        self._base_motion_window_active = True
+        try:
+            result = motion()
+        finally:
+            self._base_motion_window_active = False
+            relock_ok = self.set_base_lock(True)
+            self.get_logger().info(
+                'DRINK_BASE_MOTION_WINDOW %s CLOSED: relock_ack=%s' %
+                (label, relock_ok))
+        if not relock_ok:
+            self.get_logger().error(
+                'DRINK_BASE_MOTION_WINDOW %s failed to re-lock; aborting'
+                % label)
+            return False, result
+        return True, result
+
+    def _cmd_mux_is_present(self):
+        """Return whether cmd_mux consumes /drink/cmd_vel, with a bounded graph probe."""
+        now = time.monotonic()
+        if now - self._last_cmd_mux_probe >= 0.5:
+            try:
+                endpoints = self.get_subscriptions_info_by_topic('/drink/cmd_vel')
+                self._cmd_mux_present = any(
+                    getattr(endpoint, 'node_name', '') == 'cmd_mux'
+                    for endpoint in endpoints)
+            except Exception as exc:
+                self.get_logger().warn(
+                    'CMD_ROUTE graph probe failed; task motion will fail closed: %s'
+                    % exc, throttle_duration_sec=5.0)
+                self._cmd_mux_present = False
+            self._last_cmd_mux_probe = now
+        return self._cmd_mux_present
+
+    def drive(self, vx=0.0, wz=0.0):
+        """Publish task velocity only through cmd_mux; never bypass arbitration."""
+        mux_present = self._cmd_mux_is_present()
+        route_mode = 'cmd_mux' if mux_present else 'blocked_no_mux'
+        if route_mode != self._last_cmd_route_mode:
+            self.get_logger().info('DRINK_CMD_ROUTE mode=%s' % route_mode)
+            self._last_cmd_route_mode = route_mode
+        if not mux_present:
+            self.get_logger().error(
+                'DRINK_CMD_BLOCKED: cmd_mux unavailable; refusing direct chassis command',
+                throttle_duration_sec=2.0)
+            return False
         m = Twist()
         m.linear.x = float(vx)
         m.angular.z = float(wz)
         self.pub_vel.publish(m)
-        if self.pub_vel_raw is not None:
-            self.pub_vel_raw.publish(m)
+        return True
 
     # ------------------------------------------------------------ P90 喝水任务
     def _cmd_cb(self, msg):
@@ -788,6 +1459,15 @@ class DrinkTask(Node):
         t0 = time.time()
         res = {'ok': False}
         try:
+            # Physical-lock startup is a hard task-entry precondition. Check it
+            # before water reset, arm home, base motion, or any other actuator command.
+            if (not self._ground_lock_ready or self._ground_lock is None
+                    or self._ground_lock.state != 'detached'):
+                self._set_state('FAIL_BASE_LOCK_NOT_READY')
+                self.get_logger().error(
+                    'DRINK 拒绝启动：物理底盘锁未完成 attached→detached 握手；'
+                    '不执行水位重置、机械臂或底盘动作')
+                return False
             # 0) 水位归零 —— 水面是两个滑动副、不是真流体, 不归零的话重复
             #    演示时"水涨"这一下就看不到了(上一轮还留在杯里)。
             if 'cup' in self.carry.holding():
@@ -828,7 +1508,15 @@ class DrinkTask(Node):
             self._set_state('PRESENT')
             res.setdefault('arm', {})['前伸前'] = self._arm_state('前伸前')
             # P94: 人站偏(±0.15m/±20°)时先把"够不着"的那段用底盘补上
-            res['approach'] = self._approach_if_far()
+            _approach_window_ok, _approach_result = (
+                self.run_base_motion_window(
+                    'PRESENT_APPROACH', self._approach_if_far))
+            if not _approach_window_ok:
+                self._set_state('FAIL_PRESENT_APPROACH')
+                self.get_logger().error(
+                    'DRINK 递杯补位窗口无法确认解锁/重新锁定；不伸臂、不交接')
+                return False
+            res['approach'] = _approach_result
             if not res['approach'].get('ok', False):
                 self._set_state('FAIL_PRESENT_APPROACH')
                 self.get_logger().error(
@@ -910,7 +1598,12 @@ class DrinkTask(Node):
             # The cup is attached to the left palm; this read-only trace distinguishes
             # an inaccurate frozen offset from contact-induced cup displacement.
             _cup_before_follow = M.object_pose(self, 'cup')
+            _left_before_follow = M.wrist(self, 'L')
             _right_before_follow = M.wrist(self, 'R')
+            _cup_left_rel_before = (
+                np.linalg.inv(_left_before_follow) @ _cup_before_follow
+                if (_left_before_follow is not None and
+                    _cup_before_follow is not None) else None)
             # Snapshot command channels and independent chassis telemetry at
             # both ends of follow_hand; a single BASE_STOP sample is not proof
             # that the base remained stationary during arm motion.
@@ -944,6 +1637,9 @@ class DrinkTask(Node):
             _trace_origin = (_base_diag_pre.get('truth_pose')
                              if _base_diag_pre else None)
             self._follow_base_trace = ({
+                'start_t': time.monotonic(),
+                'detail_last_t': 0.0,
+                'detail_samples': [],
                 'origin': tuple(_trace_origin),
                 'origin_rpy': (_base_diag_pre.get('truth_rpy') if _base_diag_pre else None),
                 'end_rpy': None,
@@ -1004,7 +1700,12 @@ class DrinkTask(Node):
                 self._follow_base_hold_target = None
                 self.drive(0.0, 0.0)
             _cup_after_follow = M.object_pose(self, 'cup')
+            _left_after_follow = M.wrist(self, 'L')
             _right_after_follow = M.wrist(self, 'R')
+            _cup_left_rel_after = (
+                np.linalg.inv(_left_after_follow) @ _cup_after_follow
+                if (_left_after_follow is not None and
+                    _cup_after_follow is not None) else None)
             _base_diag_post = _follow_base_diag()
             _base_trace_result = self._follow_base_trace
             self._follow_base_trace = None
@@ -1020,6 +1721,25 @@ class DrinkTask(Node):
                 M.pos_err_mm(_right_after_follow, _right_goal_follow)
                 if (_right_after_follow is not None and
                     _right_goal_follow is not None) else None)
+            _left_cup_rel_pos_mm = (
+                M.pos_err_mm(_cup_left_rel_after, _cup_left_rel_before)
+                if (_cup_left_rel_after is not None and
+                    _cup_left_rel_before is not None) else None)
+            _left_cup_rel_axis_deg = (
+                M.axis_angle_deg(_cup_left_rel_after, _cup_left_rel_before)
+                if (_cup_left_rel_after is not None and
+                    _cup_left_rel_before is not None) else None)
+            self.get_logger().info(
+                'PRESENT_LEFT_GRASP_REL left_pre=%s left_post=%s '
+                'cup_left_rel_pos_delta_mm=%s cup_left_rel_axis_delta_deg=%s' %
+                (np.round(_left_before_follow[:3, 3], 5).tolist()
+                 if _left_before_follow is not None else None,
+                 np.round(_left_after_follow[:3, 3], 5).tolist()
+                 if _left_after_follow is not None else None,
+                 (round(float(_left_cup_rel_pos_mm), 3)
+                  if _left_cup_rel_pos_mm is not None else None),
+                 (round(float(_left_cup_rel_axis_deg), 3)
+                  if _left_cup_rel_axis_deg is not None else None)))
             self.get_logger().info(
                 'PRESENT_FOLLOW_POST ok=%s reported_mm=%.3f cup_xyz=%s '
                 'cup_drift_mm=%s right_xyz=%s right_goal_err_mm=%s base=%s chassis=%s peak_trace=%s' %
@@ -1313,7 +2033,14 @@ class DrinkTask(Node):
             self._tell_person('DRINK_DONE')
             # 6) 转回桌前 → 放回原位
             self._set_state('PUT_BACK')
-            ok_turn_back, turn_back_err = M.turn_base(self, 0.0)
+            _turn_window_ok, _turn_result = self.run_base_motion_window(
+                'PUT_BACK_TURN', lambda: M.turn_base(self, 0.0))
+            if not _turn_window_ok:
+                self._set_state('FAIL_PUT_BACK_APPROACH')
+                self.get_logger().error(
+                    'DRINK 放回前转身窗口无法确认解锁/重新锁定；保持持杯并中止')
+                return False
+            ok_turn_back, turn_back_err = _turn_result
             if not ok_turn_back:
                 self._set_state('FAIL_PUT_BACK_APPROACH')
                 self.get_logger().error(
@@ -1428,16 +2155,33 @@ class DrinkTask(Node):
 
             # 不必先退满 1.15m：只退到桌沿净距约 0.80m（臂+手全长 0.715m
             # 再留 85mm）就可完成肩部归位/伸肘。底盘位置由真实桌面矩形计算。
-            ok_r, res_r = M.drive_to(
-                self, L.RETREAT_FOLD_XY, v_max=0.20, tol_mm=25.0,
-                tag='收臂净空位')
+            _retreat_window_ok, _retreat_result = self.run_base_motion_window(
+                'RETREAT_FOLD_CLEARANCE',
+                lambda: M.drive_to(
+                    self, L.RETREAT_FOLD_XY, v_max=0.20, tol_mm=25.0,
+                    tag='收臂净空位'))
+            if not _retreat_window_ok:
+                self._set_state('FAIL_RETREAT_CLEARANCE')
+                self.get_logger().error(
+                    'DRINK 撤离净空移动窗口无法确认重新锁定；停止任务')
+                return False
+            ok_r, res_r = _retreat_result
             _gap_fold = M.table_gap_m(self)
             _full_retreat_done = False
             if not ok_r or _gap_fold < K.ARM_REACH + 0.04:
                 # 进度不足时先退到最终安全位；未达到几何净空绝不执行后两段。
-                ok_r, res_r = M.drive_to(
-                    self, L.SERVE_RETREAT_XY, v_max=0.22,
-                    tol_mm=40.0, tag='补足收臂净空')
+                _retreat_window_ok, _retreat_result = (
+                    self.run_base_motion_window(
+                        'RETREAT_CLEARANCE_EXTEND',
+                        lambda: M.drive_to(
+                            self, L.SERVE_RETREAT_XY, v_max=0.22,
+                            tol_mm=40.0, tag='补足收臂净空')))
+                if not _retreat_window_ok:
+                    self._set_state('FAIL_RETREAT_CLEARANCE')
+                    self.get_logger().error(
+                        'DRINK 扩大撤离净空窗口无法确认重新锁定；停止任务')
+                    return False
+                ok_r, res_r = _retreat_result
                 _full_retreat_done = True
 
             # 如果桌边第①段因碰撞风险被拦截，就在净空位重新执行完整三段；
@@ -1454,9 +2198,18 @@ class DrinkTask(Node):
 
             # 若 0.80m 净空位仍被真实几何检查拦截，再退至 1.15m 并重试。
             if not _finish_ok and not _full_retreat_done:
-                ok_r, res_r = M.drive_to(
-                    self, L.SERVE_RETREAT_XY, v_max=0.22,
-                    tol_mm=40.0, tag='扩大收臂净空')
+                _retreat_window_ok, _retreat_result = (
+                    self.run_base_motion_window(
+                        'RETREAT_CLEARANCE_RETRY',
+                        lambda: M.drive_to(
+                            self, L.SERVE_RETREAT_XY, v_max=0.22,
+                            tol_mm=40.0, tag='扩大收臂净空')))
+                if not _retreat_window_ok:
+                    self._set_state('FAIL_RETREAT_CLEARANCE')
+                    self.get_logger().error(
+                        'DRINK 撤离重试窗口无法确认重新锁定；停止任务')
+                    return False
+                ok_r, res_r = _retreat_result
                 _full_retreat_done = True
                 _finish_ok = True
                 for _s in ('R', 'L'):
@@ -1476,9 +2229,18 @@ class DrinkTask(Node):
 
             # 机械臂已悬垂后再完成剩余撤离距离，避免在臂仍伸展时长距离倒车。
             if not _full_retreat_done:
-                ok_final, res_final = M.drive_to(
-                    self, L.SERVE_RETREAT_XY, v_max=0.22,
-                    tol_mm=40.0, tag='悬垂后撤离')
+                _retreat_window_ok, _retreat_result = (
+                    self.run_base_motion_window(
+                        'RETREAT_FINAL',
+                        lambda: M.drive_to(
+                            self, L.SERVE_RETREAT_XY, v_max=0.22,
+                            tol_mm=40.0, tag='悬垂后撤离')))
+                if not _retreat_window_ok:
+                    self._set_state('FAIL_RETREAT_CLEARANCE')
+                    self.get_logger().error(
+                        'DRINK 最终撤离窗口无法确认重新锁定；停止任务')
+                    return False
+                ok_final, res_final = _retreat_result
                 ok_r = bool(ok_r and ok_final)
                 res_r = res_final
                 _full_retreat_done = True
@@ -1575,6 +2337,15 @@ class DrinkTask(Node):
             # 8) 交权: follower 恢复跟随 + cmd_mux 解 300s 喝水锁。
             #    两条都是收到 /robot/command 才动作, 一条消息两处生效。
             self._set_state('HANDBACK')
+            # Only after cup placement, arm clearance and retreat geometry are
+            # confirmed may chassis lock be released for follower handback.
+            if not self.set_base_lock(False):
+                self._set_state('FAIL_HANDBACK')
+                self.get_logger().error(
+                    'DRINK 撤离已完成，但底盘解锁未获确认；不恢复 FOLLOW')
+                return False
+            self.get_logger().info(
+                'DRINK_BASE_LOCK released at HANDBACK after verified retreat')
             _handback_sent_t = time.monotonic()
             self._tell_robot('FOLLOW')
             self.spin_for(1.0)
@@ -1591,6 +2362,9 @@ class DrinkTask(Node):
                 'fresh': bool(0.0 <= _fs_age < 1.5),
             }
             if not handback_ok:
+                # Follower did not confirm ownership; restore the hard mux
+                # lock rather than leave an unowned chassis command path open.
+                self.set_base_lock(True)
                 self._set_state('FAIL_HANDBACK')
                 self.get_logger().error(
                     'DRINK 已发送 FOLLOW，但未在 1.5s 内收到 follower 的 FOLLOW 状态确认；'
@@ -1630,6 +2404,10 @@ class DrinkTask(Node):
                 % (ok_g, ok_d, res_d, res_r, ok_r, time.time() - t0))
             return res['ok']
         except Exception:                            # noqa: BLE001
+            # Any unexpected exception before confirmed handback must leave
+            # the chassis command path locked.
+            if self._base_lock_active is False:
+                self.set_base_lock(True)
             self._set_state('ERROR')
             # P98: %r 只有异常类型没有位置, numpy 歧义值这种错根本没法定位,
             # 打完整 traceback。
@@ -1646,6 +2424,12 @@ class DrinkTask(Node):
                 {'state': final_state, 'result': res}, ensure_ascii=False)))
 
     def _tick(self):
+        # Repeat the acknowledged lock request as a heartbeat. If cmd_mux is
+        # restarted during table-side manipulation, it re-enters LOCKED before
+        # any task velocity can be forwarded.
+        if self._base_lock_active and self.pub_base_lock is not None:
+            self.pub_base_lock.publish(String(data=json.dumps({
+                'locked': True, 'request_id': self._base_lock_request_id})))
         # 一旦锁定真值来源, 就每拍把 base 跟到模型世界位姿上 —— 机器人走动、
         # 被 teleport、被 Nav2 摆位, 机械臂的正解/逆解都自动跟着走。
         # P98: 改为**每拍无条件尝试** —— 真值订阅晚于节点就绪时(发现期),
@@ -1656,8 +2440,189 @@ class DrinkTask(Node):
         # a low-speed pose hold. Never run this while Nav2 owns the chassis.
         hold_target = (self._follow_base_hold_target
                        or self._prepare_base_hold_target)
-        if hold_target is not None:
-            snapshot = self.truth_base_pose_snapshot
+        physical_lock_active = (
+            self._base_lock_active
+            or (self._ground_lock is not None
+                and self._ground_lock.state == 'attached'))
+        if physical_lock_active:
+            # A fixed joint is the physical hold. Do not issue pose-correction
+            # or any other active chassis command while the arm is manipulating.
+            if hold_target is not None:
+                if not self._physical_hold_correction_suppressed_logged:
+                    self.get_logger().info(
+                        'PHYSICAL_CHASSIS_LOCK active: chassis pose correction suppressed')
+                    self._physical_hold_correction_suppressed_logged = True
+        elif hold_target is not None:
+            if (self._follow_base_hold_target is not None
+                    and os.environ.get(
+                        'VLA_PRESENT_BASE_HOLD_ZERO_DURING_FOLLOW', '0') == '1'):
+                # A/B diagnostic: suppress active pose corrections only during
+                # PRESENT follow_hand. This isolates controller-induced chassis
+                # motion from passive arm-reaction drift; the independent cup
+                # target gate (6mm / 0.5deg) remains unchanged and fail-closed.
+                self.drive(0.0, 0.0)
+                snapshot = None
+                if not getattr(self, '_follow_base_hold_zero_logged', False):
+                    self.get_logger().info(
+                        'PRESENT_BASE_HOLD_MODE zero-during-follow: '
+                        'active chassis pose correction suppressed; '
+                        'cup handover gate remains strict')
+                    self._follow_base_hold_zero_logged = True
+            elif (self._prepare_base_hold_target is not None
+                    and os.environ.get(
+                        'VLA_PREPARE_BASE_HOLD_ZERO_DURING_POUR', '0') == '1'):
+                # Isolated experiment: suppress active pose corrections only
+                # while PREPARE kettle reach is running. Zero command keeps
+                # the chassis controller in its stop state; truth stillness
+                # gate remains authoritative and fail-closed.
+                self.drive(0.0, 0.0)
+                snapshot = self.truth_base_pose_snapshot
+                if snapshot is not None:
+                    trace_now = time.monotonic()
+                    if trace_now - self._last_prepare_hold_trace_t >= 0.2:
+                        tx, ty, tyaw = self._prepare_base_hold_target
+                        cx, cy, cyaw = snapshot[0]
+                        dx, dy = tx - cx, ty - cy
+                        yaw_err = math.atan2(
+                            math.sin(tyaw - cyaw), math.cos(tyaw - cyaw))
+                        twist = self.truth_base_twist or (0.0, 0.0, 0.0)
+                        robot_cmd = self._robot_cmd_snapshot
+                        drink_cmd = self._drink_cmd_snapshot
+                        odom = self.odom_twist
+                        rpy_snapshot = self.truth_base_rpy_snapshot
+                        robot_cmd_v = (robot_cmd[0] if robot_cmd else (None, None))
+                        drink_cmd_v = (drink_cmd[0] if drink_cmd else (None, None))
+                        robot_cmd_age = (time.monotonic() - robot_cmd[1]
+                                         if robot_cmd else float('inf'))
+                        drink_cmd_age = (time.monotonic() - drink_cmd[1]
+                                         if drink_cmd else float('inf'))
+                        odom_age = (time.monotonic() - self.odom_twist_t
+                                    if odom is not None and self.odom_twist_t
+                                    else float('inf'))
+                        rpy = (rpy_snapshot[0] if rpy_snapshot else (None, None, None))
+                        gt_meta = self._gt_callback_meta
+                        gt_cb_age = (time.monotonic() - gt_meta[0]
+                                     if gt_meta else float('inf'))
+                        gt_cb_dt = (gt_meta[1] if gt_meta and gt_meta[1] is not None
+                                    else None)
+                        gt_sim_stamp = gt_meta[2] if gt_meta else None
+                        chassis_link = self._pose_info_chassis_snapshot
+                        pose_meta = self._pose_info_callback_meta
+                        pose_age = (time.monotonic() - pose_meta[0]
+                                    if pose_meta else float('inf'))
+                        pose_dt = (pose_meta[1] if pose_meta and pose_meta[1] is not None
+                                   else None)
+                        pose_sim_stamp = pose_meta[2] if pose_meta else None
+                        pose_count = pose_meta[3] if pose_meta else None
+                        pose_names = pose_meta[4] if pose_meta else ()
+                        pose_chassis_name = pose_meta[5] if pose_meta else None
+                        link_delta_mm = link_delta_yaw_deg = None
+                        chassis_link_name = 'na'
+                        if (chassis_link is not None
+                                and snapshot[1] - chassis_link[1] <= 0.25):
+                            lx, ly, lyaw = chassis_link[0]
+                            link_delta_mm = math.hypot(cx - lx, cy - ly) * 1000.0
+                            link_delta_yaw_deg = math.degrees(math.atan2(
+                                math.sin(cyaw - lyaw), math.cos(cyaw - lyaw)))
+                            chassis_link_name = chassis_link[2]
+                        wheel_names = sorted(
+                            n for n in self.js_velocity if 'wheel' in n.lower())
+                        wheel_v = ','.join(
+                            '%s:%.3f' % (n, float(self.js_velocity[n]))
+                            for n in wheel_names
+                            if math.isfinite(float(self.js_velocity[n])))
+                        arm_names = sorted(
+                            n for n in self.js_velocity
+                            if n.startswith(('L_', 'R_')) and 'wheel' not in n.lower())
+                        arm_velocity_samples = [
+                            (n, float(self.js_velocity[n])) for n in arm_names
+                            if math.isfinite(float(self.js_velocity[n]))]
+                        arm_v_max = max(
+                            (abs(v) for _, v in arm_velocity_samples), default=0.0)
+                        arm_active = ','.join(
+                            '%s:%.3f' % (n, v) for n, v in sorted(
+                                ((n, v) for n, v in arm_velocity_samples
+                                 if abs(v) >= 0.05),
+                                key=lambda item: abs(item[1]), reverse=True)[:4])
+                        arm_joint_detail = []
+                        for n, v in sorted(arm_velocity_samples,
+                                           key=lambda item: abs(item[1]),
+                                           reverse=True)[:4]:
+                            measured = self.js.get(n)
+                            target = self.bus.get(n)
+                            if measured is not None and math.isfinite(float(measured)):
+                                error = float(target) - float(measured)
+                                arm_joint_detail.append(
+                                    '%s:cmd=%.3f,pos=%.3f,err=%.3f,vel=%.3f,sat=%d'
+                                    % (n, float(target), float(measured), error, v,
+                                       int(abs(v) >= 2.45)))
+                        arm_sat_count = sum(
+                            1 for _, v in arm_velocity_samples if abs(v) >= 2.45)
+                        wheel_eff_samples = [
+                            (n, float(self.js_effort[n])) for n in wheel_names
+                            if n in self.js_effort
+                            and math.isfinite(float(self.js_effort[n]))]
+                        arm_eff_samples = [
+                            (n, float(self.js_effort[n])) for n in arm_names
+                            if n in self.js_effort
+                            and math.isfinite(float(self.js_effort[n]))]
+                        wheel_eff = ','.join(
+                            '%s:%.3f' % (n, v) for n, v in wheel_eff_samples)
+                        arm_eff_max = (max((abs(v) for _, v in arm_eff_samples))
+                                       if arm_eff_samples else None)
+                        self.get_logger().info(
+                            'PREPARE_BASE_HOLD_TRACE mode=zero-during-pour '
+                            'rho_mm=%.1f dx_mm=%.1f dy_mm=%.1f '
+                            'yaw_err_deg=%.3f truth_v=(%.5f,%.5f,%.5f) '
+                            'gt_cb_age_s=%.3f gt_cb_dt_s=%s gt_sim_s=%s '
+                            'model_chassis_delta_mm=%s model_chassis_delta_yaw_deg=%s chassis_link=%s '
+                            'pose_info_age_s=%.3f pose_info_dt_s=%s pose_info_sim_s=%s pose_info_count=%s pose_info_chassis=%s pose_info_names=%s '
+                            'cmd_v=(0.00000,0.00000) '
+                            'drink_cmd=(%s,%s age=%.3f) '
+                            'robot_cmd=(%s,%s age=%.3f) '
+                            'odom_v=(%s,%s,%s age=%.3f) '
+                            'rpy_deg=(%s,%s,%s) wheel_vel={%s} '
+                            'wheel_effort_samples=%d wheel_effort={%s} '
+                            'arm_v_max=%.3f arm_sat_count=%d arm_effort_samples=%d arm_eff_max=%s '
+                            'arm_active={%s} arm_joint_detail={%s}'
+                            % (math.hypot(dx, dy) * 1000.0,
+                               dx * 1000.0, dy * 1000.0,
+                               math.degrees(yaw_err), *twist,
+                               gt_cb_age,
+                               'na' if gt_cb_dt is None else '%.4f' % gt_cb_dt,
+                               'na' if gt_sim_stamp is None else '%.6f' % gt_sim_stamp,
+                               'na' if link_delta_mm is None else '%.3f' % link_delta_mm,
+                               'na' if link_delta_yaw_deg is None else '%.3f' % link_delta_yaw_deg,
+                               chassis_link_name,
+                               pose_age,
+                               'na' if pose_dt is None else '%.4f' % pose_dt,
+                               'na' if pose_sim_stamp is None else '%.6f' % pose_sim_stamp,
+                               'na' if pose_count is None else str(pose_count),
+                               'na' if pose_chassis_name is None else pose_chassis_name,
+                               ','.join(pose_names) if pose_names else 'na',
+                               'na' if drink_cmd_v[0] is None else '%.5f' % drink_cmd_v[0],
+                               'na' if drink_cmd_v[1] is None else '%.5f' % drink_cmd_v[1],
+                               drink_cmd_age,
+                               'na' if robot_cmd_v[0] is None else '%.5f' % robot_cmd_v[0],
+                               'na' if robot_cmd_v[1] is None else '%.5f' % robot_cmd_v[1],
+                               robot_cmd_age,
+                               'na' if odom is None else '%.5f' % odom[0],
+                               'na' if odom is None else '%.5f' % odom[1],
+                               'na' if odom is None else '%.5f' % odom[2],
+                               odom_age,
+                               'na' if rpy[0] is None else '%.3f' % math.degrees(rpy[0]),
+                               'na' if rpy[1] is None else '%.3f' % math.degrees(rpy[1]),
+                               'na' if rpy[2] is None else '%.3f' % math.degrees(rpy[2]),
+                               wheel_v, len(wheel_eff_samples), wheel_eff,
+                               arm_v_max, arm_sat_count, len(arm_eff_samples),
+                               'na' if arm_eff_max is None else '%.3f' % arm_eff_max,
+                               arm_active, ';'.join(arm_joint_detail)))
+                        self._last_prepare_hold_trace_t = trace_now
+                # Keep the shared freshness branch in stop mode; do not fall
+                # through to pose correction after issuing the zero command.
+                snapshot = None
+            else:
+                snapshot = self.truth_base_pose_snapshot
             now_mono = time.monotonic()
             if snapshot is None or now_mono - snapshot[1] > 0.25:
                 self.drive(0.0, 0.0)
@@ -1677,7 +2642,35 @@ class DrinkTask(Node):
                         current_twist=self.truth_base_twist,
                         translate_during_yaw=_present_follow_hold)
                     self.drive(vx, wz)
-        self.bus.publish_all()
+                    # P104 diagnostic only: correlate PREPARE hold command
+                    # with Gazebo truth motion once per wall-clock second.
+                    # This does not alter controller output or acceptance gates.
+                    if self._prepare_base_hold_target is not None:
+                        trace_now = time.monotonic()
+                        if trace_now - self._last_prepare_hold_trace_t >= 1.0:
+                            tx, ty, tyaw = self._prepare_base_hold_target
+                            cx, cy, cyaw = snapshot[0]
+                            dx, dy = tx - cx, ty - cy
+                            yaw_err = math.atan2(
+                                math.sin(tyaw - cyaw), math.cos(tyaw - cyaw))
+                            tvx, tvy, twz = self.truth_base_twist
+                            self.get_logger().info(
+                                'PREPARE_BASE_HOLD_TRACE '
+                                'rho_mm=%.1f dx_mm=%.1f dy_mm=%.1f '
+                                'yaw_err_deg=%.3f truth_v=(%.5f,%.5f,%.5f) '
+                                'cmd_v=(%.5f,%.5f)'
+                                % (math.hypot(dx, dy) * 1000.0,
+                                   dx * 1000.0, dy * 1000.0,
+                                   math.degrees(yaw_err), tvx, tvy, twz,
+                                   vx, wz))
+                            self._last_prepare_hold_trace_t = trace_now
+        if self._arm_command_output_enabled:
+            self.bus.publish_all()
+        elif not getattr(self, '_arm_command_gate_logged', False):
+            self._arm_command_gate_logged = True
+            self.get_logger().info(
+                'BOOT_ARM_COMMAND_GATE closed: suppressing joint targets '
+                'until physical chassis hold is confirmed')
         now = time.time()
         # P98: 道具自愈 —— 壶/杯是自由体, 速度只增不减, 漂出场外后喝水
         # 链路就死了; 长驻进程的 gz 服务调用才可靠(§2.1), 所以重建只能
@@ -1965,10 +2958,39 @@ def main():
         while not node.sync_base_from_truth(quiet=True) \
                 and time.time() - t_sync < 15.0:
             node.spin_for(0.1)
-        node.home()
+        # Physical lock startup must complete before ANY boot-time arm command.
+        # The boot home/hang motion is also performed under an acknowledged
+        # software + Gazebo physical hold, then navigation authority is restored.
+        lock_deadline = time.monotonic() + 30.0
+        while (not node._ground_lock_ready
+               and not node._ground_lock_startup_reported
+               and time.monotonic() < lock_deadline):
+            node.spin_for(0.1)
+        if not node._ground_lock_ready:
+            node.get_logger().error(
+                'STARTUP_ABORT: physical chassis lock handshake not ready; '
+                'refusing boot home/hang and all task motion')
+            return 3
+        if not node.set_base_lock(True):
+            node.get_logger().error(
+                'STARTUP_ABORT: physical chassis hold could not be confirmed; '
+                'refusing boot home/hang')
+            return 4
+        home_ok = node.home()
         # P98: 初始状态 = 悬垂(双臂沿体侧竖直向下, 手指并拢伸直朝下)。
         # 抓取编排不受影响 —— run_drink 的 prepare_present 第一动作就是 home()。
-        node.hang()
+        hang_ok = node.hang() if home_ok else False
+        if not (home_ok and hang_ok):
+            node._set_state('FAIL_STARTUP_HOME')
+            node.get_logger().error(
+                'STARTUP_ABORT: boot home/hang not confirmed; physical chassis '
+                'hold remains engaged')
+            return 5
+        if not node.set_base_lock(False):
+            node.get_logger().error(
+                'STARTUP_ABORT: boot home/hang succeeded but chassis unlock '
+                'was not confirmed; keep physical hold')
+            return 6
         # P94: home() 不再顺手改 self.state(它会把 PREPARE 播成 IDLE), 所以
         # "上电回 home 完成 = 待命"这一步要显式广播。
         node._set_state('IDLE')               # noqa: SLF001

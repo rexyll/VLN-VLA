@@ -15,6 +15,8 @@
 #   于是"水壶被掀飞到 -6m / 水杯飞到 +2.6m"—— 数据是真实的, 但属于不同的
 #   世界。必须按 cmdline 里的 "gz sim" 来杀。
 #
+# 诊断采集器由启动它的 workflow/runner 持有 PID，并负责 SIGINT + wait/flush。
+# 不在这里按 tests/diag 路径批量 SIGKILL，避免杀死仍需落盘的遥测采集器。
 # 用法: bash tools/killall_demo.sh [--keep-gz]
 
 KEEP_GZ=0
@@ -22,10 +24,10 @@ KEEP_GZ=0
 
 pkill -9 -f 'ros2 launch vla_follow' 2>/dev/null
 pkill -9 -f 'vla_follow/lib/vla_follow' 2>/dev/null
+pkill -9 -f 'mca_drink_control/lib/mca_drink_control/mca_ik_server' 2>/dev/null
 pkill -9 -f 'parameter_bridge' 2>/dev/null
 pkill -9 -f '/opt/ros/jazzy/lib/nav2_' 2>/dev/null
 pkill -9 -f 'ros2 topic hz' 2>/dev/null
-pkill -9 -f 'tests/diag/' 2>/dev/null
 pkill -9 -f 'tools/pose_demo.py' 2>/dev/null
 sleep 2
 
@@ -40,7 +42,7 @@ fi
 
 # 残留统计: 直接数 cmdline 里带 gz sim 的进程, 不看 comm
 left=$(ps -eo args --no-headers \
-    | grep -E 'gz sim|vla_follow/lib|parameter_bridge|nav2_|tests/diag' \
+    | grep -E 'gz sim|vla_follow/lib|mca_drink_control/lib|parameter_bridge|nav2_' \
     | grep -v grep | grep -v killall_demo | wc -l)
 echo ">>> 清理完成, 残留进程数: ${left}"
 if [ "$left" != "0" ]; then

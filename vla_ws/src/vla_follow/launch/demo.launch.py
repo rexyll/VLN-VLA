@@ -101,6 +101,10 @@ def generate_launch_description():
         #   手动: bash vla_demo/send_person_cmd.sh drink
         #   自动: auto_drink:=true(启动 delay 秒后自动给"人"下发)
         # 注意它启动时会做一次 home + 自检, 所以必须在 gz 就绪之后启动。
+        Node(package='mca_drink_control', executable='mca_ik_server',
+             output='both',
+             condition=IfCondition(LaunchConfiguration('use_drink'))),
+
         Node(package='vla_follow', executable='drink_task',
              output='both', parameters=[{'use_sim_time': True}],
              condition=IfCondition(LaunchConfiguration('use_drink'))),

@@ -25,8 +25,12 @@ def missing_required_shots(labels):
 def should_stop_terminal_observer(state, saved_labels, terminal_elapsed,
                                   grace_seconds=3.0):
     """Stop at terminal states, allowing DONE's final image a bounded retry."""
-    if state in ('ERROR', 'FAIL_PREPARE', 'FAIL_HANDOVER'):
+    if state == 'ERROR':
         return True
+    if isinstance(state, str) and state.startswith('FAIL_'):
+        # Failure states are terminal regardless of their exact suffix. Give
+        # the observer a short bounded window to save the failure-frame evidence.
+        return terminal_elapsed >= min(grace_seconds, 2.0)
     if state != 'DONE':
         return False
     if 'placed' in set(saved_labels or ()):

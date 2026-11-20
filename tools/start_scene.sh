@@ -53,6 +53,28 @@ for i in $(seq 1 45); do
 done
 sleep 3
 
+# Production DetachableJoint must be registered in the real work_area world.
+# Its initial state publication may be a one-shot event; drink_task actively
+# probes attached after subscribing. This check only verifies topic existence.
+LOCK_STATE_TOPIC="/world/follow_world/chassis_lock/state"
+lock_topic_ready=0
+for i in $(seq 1 15); do
+    if gz topic -l 2>/dev/null | grep -Fxq "$LOCK_STATE_TOPIC"; then
+        echo ">>> Gazebo DetachableJoint state topic ready: $LOCK_STATE_TOPIC"
+        gz topic -i -t "$LOCK_STATE_TOPIC" || true
+        lock_topic_ready=1
+        break
+    fi
+    sleep 1
+done
+if [ "$lock_topic_ready" -ne 1 ]; then
+    echo "!!! Gazebo DetachableJoint state topic unavailable: $LOCK_STATE_TOPIC" >&2
+    echo "!!! Production physical chassis lock is not loaded; refusing to start DrinkTask" >&2
+    grep -Ei 'detachable|ground_lock|failed to load|unable to load|plugin' \
+        "$VLA_HOME/vla_ws/logs/gzsim.log" | tail -80 >&2 || true
+    exit 1
+fi
+
 setsid nohup ros2 run ros_gz_bridge parameter_bridge --ros-args \
     -p config_file:="$BRIDGE" \
     > "$VLA_HOME/vla_ws/logs/bridge.log" 2>&1 < /dev/null &

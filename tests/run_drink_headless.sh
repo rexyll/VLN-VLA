@@ -67,7 +67,7 @@ cleanup() {
     trap - EXIT
     if (( status != 0 )); then
         echo "DrinkTask headless run failed (exit=$status); recent logs:" >&2
-        for file in gzsim bridge pw voice drink percept vision mux follower nav2; do
+        for file in gzsim bridge pw voice mca_ik drink percept vision mux follower nav2; do
             if [[ -s "$LOG_DIR/$file.log" ]]; then
                 echo "----- $file.log -----" >&2
                 tail -n 100 "$LOG_DIR/$file.log" >&2 || true
@@ -152,7 +152,7 @@ echo "[2/5] Starting full DrinkTask node set (Nav2 enabled; random auto-drink of
 PW_AUTO_DRINK=0 NAV2=1 bash "$ROOT/tools/start_drink_demo.sh"
 
 echo "[3/5] Waiting for required ROS nodes and Nav2 action server"
-required_nodes=(/person_walk /voice_node /drink_task /follower /cmd_mux)
+required_nodes=(/person_walk /voice_node /mca_ik_server /drink_task /follower /cmd_mux)
 for node in "${required_nodes[@]}"; do
     ready=0
     for _ in $(seq 1 90); do
@@ -181,6 +181,30 @@ if (( action_ready != 1 )); then
     ros2 action list >&2 || true
     exit 1
 fi
+
+echo "[4/5] Auditing ROS and Gazebo chassis velocity publishers"
+{
+    echo "===== ROS /robot/cmd_vel ====="
+    ros2 topic info -v /robot/cmd_vel || true
+    echo "===== ROS /drink/cmd_vel ====="
+    ros2 topic info -v /drink/cmd_vel || true
+    echo "===== ROS /follower_cmd_vel ====="
+    ros2 topic info -v /follower_cmd_vel || true
+    echo "===== ROS /cmd_vel_smoothed ====="
+    ros2 topic info -v /cmd_vel_smoothed || true
+} > "$LOG_DIR/chassis_ros_publishers.log" 2>&1
+{
+    echo "===== Gazebo /model/robot/cmd_vel ====="
+    gz topic -i -t /model/robot/cmd_vel || true
+    echo "===== Gazebo robot joint-state topic discovery ====="
+    gz topic -l | grep -E "joint_state$" || true
+    echo "===== Gazebo canonical robot joint-state endpoint ====="
+    gz topic -i -t /world/follow_world/model/robot/joint_state || true
+} > "$LOG_DIR/chassis_gz_publishers.log" 2>&1
+echo "ROS publisher audit:"
+cat "$LOG_DIR/chassis_ros_publishers.log"
+echo "Gazebo publisher audit:"
+cat "$LOG_DIR/chassis_gz_publishers.log"
 
 echo "[4/5] Running complete observer acceptance through drink_repeat.sh"
 echo "Rounds=$N tag=$TAG cooldown=$COOLDOWN"
