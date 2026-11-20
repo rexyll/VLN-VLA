@@ -239,7 +239,7 @@ jobs:
 
       - name: Build Gazebo system plugins
         run: |
-          python3 -m py_compile vla_ws/src/vla_follow/vla_follow/gazebo_ground_lock.py vla_ws/src/vla_follow/vla_follow/drink_task.py tests/diag/run_chassis_brake_gz.py tests/diag/run_chassis_ground_lock_gz.py tests/diag/run_articulated_arm_ground_lock_probe.py tests/diag/run_full_robot_world_fixed_probe.py tests/diag/run_full_robot_internal_detachable_probe.py tests/diag/run_full_robot_external_detachable_probe.py tests/diag/record_drinktask_telemetry.py tests/diag/verify_p104_stage_locks.py tests/diag/verify_ground_fixed_joint.py tests/test_gazebo_ground_lock.py
+          python3 -m py_compile vla_ws/src/vla_follow/vla_follow/gazebo_ground_lock.py vla_ws/src/vla_follow/vla_follow/drink_task.py tests/diag/run_chassis_brake_gz.py tests/diag/run_chassis_ground_lock_gz.py tests/diag/run_articulated_arm_ground_lock_probe.py tests/diag/run_full_robot_world_fixed_probe.py tests/diag/run_full_robot_internal_detachable_probe.py tests/diag/run_full_robot_external_detachable_probe.py tests/diag/run_full_robot_wheel_brake_probe.py tests/diag/record_drinktask_telemetry.py tests/diag/verify_p104_stage_locks.py tests/diag/verify_ground_fixed_joint.py tests/test_gazebo_ground_lock.py
           bash -n tools/gz_plugin.sh
           cmake -S vla_ws/src/vla_follow/gz_plugins \
             -B vla_ws/src/vla_follow/gz_plugins/build \
@@ -366,6 +366,11 @@ jobs:
         run: |
           python3 tests/diag/run_full_robot_external_detachable_probe.py
 
+      - name: Probe production robot with diagnostic wheel brake (arms + chassis hold + release)
+        continue-on-error: true
+        run: |
+          python3 tests/diag/run_full_robot_wheel_brake_probe.py
+
       - name: Run legacy ApplyLinkWrench and ChassisBrake diagnostic (non-authoritative; does not gate E2E)
         continue-on-error: true
         run: |
@@ -482,6 +487,9 @@ jobs:
             vla_ws/logs/full_robot_world_fixed*.json
             vla_ws/logs/full_robot_internal_detachable*.json
             vla_ws/logs/full_robot_external_detachable*.json
+vla_ws/logs/full_robot_wheel_brake*.json
+vla_ws/logs/full_robot_wheel_brake*.sdf
+vla_ws/logs/full_robot_wheel_brake*.log
             vla_ws/logs/ground_fixed_joint_*.log
             vla_ws/logs/ground_fixed_joint_*.json
             vla_ws/logs/ground_fixed_joint_summary.json
