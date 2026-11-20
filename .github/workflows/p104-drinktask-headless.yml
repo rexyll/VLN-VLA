@@ -361,6 +361,11 @@ jobs:
         run: |
           python3 tests/diag/verify_ground_fixed_joint.py
 
+      - name: Probe production external detachable chassis lock with full robot arms
+        continue-on-error: true
+        run: |
+          python3 tests/diag/run_full_robot_external_detachable_probe.py
+
       - name: Run legacy ApplyLinkWrench and ChassisBrake diagnostic (non-authoritative; does not gate E2E)
         continue-on-error: true
         run: |
