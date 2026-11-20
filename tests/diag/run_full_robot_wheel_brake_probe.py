@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Probe diagnostic wheel-brake hold against full-robot arm reaction.
+"""Probe diagnostic wheel-brake hold against full-robot arm reaction.\n\nThe 5.0 N m cap matches the plugin's built-in default; this checks whether\nthe earlier 0.5 N m diagnostic cap was simply saturating too early.
 
 This creates a diagnostic copy of production work_area.sdf, removes only the
 external chassis anchor in that copy, and tests whether a stronger wheel brake
@@ -35,7 +35,7 @@ LOG_OUT = os.path.join(LOG_DIR, "full_robot_wheel_brake_gz.log")
 REPORT_OUT = os.path.join(LOG_DIR, "full_robot_wheel_brake.json")
 BRAKE_COMMAND_TOPIC = "/chassis_brake/enable"
 BRAKE_STATUS_TOPIC = "/chassis_brake/status"
-BRAKE_MAX_TORQUE_NM = 0.5
+BRAKE_MAX_TORQUE_NM = 5.0
 BRAKE_PLUGIN_SO = os.path.join(ROOT, "vla_ws/src/vla_follow/gz_plugins/build/libChassisBrake.so")
 JOINT_TOPIC = "/world/follow_world/model/robot/joint_state"
 POSE_TOPIC = "/world/follow_world/dynamic_pose/info"
