@@ -56,15 +56,14 @@ def make_world():
     # the topology: this diagnostic must not accidentally test a variant.
     with open(SOURCE, encoding="utf-8") as stream:
         source = stream.read()
-    if not re.search(
-            r'<model name="ground_lock_anchor">[\\s\\S]*?'
-            r'<plugin filename="gz-sim-detachable-joint-system"',
-            source):
+    if ('<model name="ground_lock_anchor">' not in source
+            or '<plugin filename="gz-sim-detachable-joint-system"' not in source):
         raise RuntimeError("production external DetachableJoint anchor is missing")
-    if not re.search(
-            r'<parent_link>ground_lock_anchor_link</parent_link>\\s*'
-            r'<child_model>robot</child_model>\\s*'
-            r'<child_link>chassis</child_link>', source):
+    expected_topology = (
+        '<parent_link>ground_lock_anchor_link</parent_link>\\n'
+        '        <child_model>robot</child_model>\\n'
+        '        <child_link>chassis</child_link>')
+    if expected_topology not in source:
         raise RuntimeError("production anchor parent/child topology changed")
     os.makedirs(LOG_DIR, exist_ok=True)
     with open(WORLD_OUT, "w", encoding="utf-8") as stream:
