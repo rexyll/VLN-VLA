@@ -487,9 +487,9 @@ jobs:
             vla_ws/logs/full_robot_world_fixed*.json
             vla_ws/logs/full_robot_internal_detachable*.json
             vla_ws/logs/full_robot_external_detachable*.json
-vla_ws/logs/full_robot_wheel_brake*.json
-vla_ws/logs/full_robot_wheel_brake*.sdf
-vla_ws/logs/full_robot_wheel_brake*.log
+            vla_ws/logs/full_robot_wheel_brake*.json
+            vla_ws/logs/full_robot_wheel_brake*.sdf
+            vla_ws/logs/full_robot_wheel_brake*.log
             vla_ws/logs/ground_fixed_joint_*.log
             vla_ws/logs/ground_fixed_joint_*.json
             vla_ws/logs/ground_fixed_joint_summary.json
