@@ -3,9 +3,9 @@
 """Isolated Gazebo Sim 8 wheel-brake hold / release experiment.
 
 This launches tests/diag/chassis_brake_test.sdf only. It never loads the brake
-into the production work_area world. A persistent external yaw wrench provides
-a repeatable disturbance; the script compares DiffDrive zero-command behavior
-against the opt-in JointForceCmd PD brake, then verifies DiffDrive recovers
+into the production work_area world. A repeated nonzero DiffDrive command is
+the disturbance: baseline motion must be physically observed, the opt-in
+JointForceCmd PD brake must resist the same command, and DiffDrive must recover
 after the brake component is removed.
 """
 import argparse
@@ -226,8 +226,9 @@ def wait_until(predicate, timeout, description, process=None):
     raise RuntimeError("timeout waiting for " + description)
 
 
-def measure_with_wrench(telemetry, duration, publisher, phase, log, process):
-    """Publish the same persistent wrench throughout the measurement window."""
+def measure_with_drive_command(telemetry, duration, phase, log, process):
+    """Measure chassis response while repeatedly commanding DiffDrive motion."""
+    command = "linear: {x: 0.12} angular: {z: 0.15}"
     start_pose, start_twist, start_positions, start_velocities = (
         telemetry.motion_snapshot())
     if start_pose is None:
@@ -238,68 +239,61 @@ def measure_with_wrench(telemetry, duration, publisher, phase, log, process):
     publish_count = 0
     deadline = time.monotonic() + duration
     next_publish = time.monotonic()
-    while time.monotonic() < deadline:
-        ensure_sim_alive(process, phase + " wrench measurement")
-        now = time.monotonic()
-        if now >= next_publish:
-            publisher.publish_once()
-            publish_count += 1
-            next_publish = now + 0.05
-        pose, wheels, _ = telemetry.snapshot()
-        if pose is not None:
-            dx = pose[0] - start_pose[0]
-            dy = pose[1] - start_pose[1]
-            dyaw = math.atan2(math.sin(pose[2] - start_pose[2]),
-                              math.cos(pose[2] - start_pose[2]))
-            max_xy = max(max_xy, math.hypot(dx, dy))
-            max_yaw = max(max_yaw, abs(math.degrees(dyaw)))
-        if wheels:
-            max_wheel = max(max_wheel, *(abs(v) for v in wheels.values()))
-        motion = telemetry.motion_snapshot()
-        twist_values = motion[1] or (0.0, 0.0, 0.0)
-        position_values = motion[2].values()
-        velocity_values = motion[3].values()
-        if not all(math.isfinite(v) for v in
-                   (max_xy, max_yaw, max_wheel, *twist_values,
-                    *position_values, *velocity_values)):
-            raise RuntimeError("%s produced non-finite physical telemetry" % phase)
-        if max_wheel > MAX_DIAGNOSTIC_WHEEL_RAD_S:
-            log.write(
-                "%s runaway_wheel_velocity_rad_s=%.6f limit=%.1f "
-                "motion_snapshot=%r\n" %
-                (phase, max_wheel, MAX_DIAGNOSTIC_WHEEL_RAD_S,
-                 telemetry.motion_snapshot()))
-            log.flush()
-            raise RuntimeError(
-                "%s unstable dynamics: wheel velocity %.3f rad/s "
-                "exceeded diagnostic guard %.1f rad/s" %
-                (phase, max_wheel, MAX_DIAGNOSTIC_WHEEL_RAD_S))
-        time.sleep(0.01)
-    log.write("%s_wrench_publish_count=%d duration_s=%.3f\n" %
+    try:
+        while time.monotonic() < deadline:
+            ensure_sim_alive(process, phase + " drive-command measurement")
+            now = time.monotonic()
+            if now >= next_publish:
+                publish(CMD_TOPIC, "gz.msgs.Twist", command)
+                publish_count += 1
+                next_publish = now + 0.05
+            pose, _, _ = telemetry.snapshot()
+            motion = telemetry.motion_snapshot()
+            if pose is not None:
+                dx = pose[0] - start_pose[0]
+                dy = pose[1] - start_pose[1]
+                dyaw = math.atan2(math.sin(pose[2] - start_pose[2]),
+                                  math.cos(pose[2] - start_pose[2]))
+                max_xy = max(max_xy, math.hypot(dx, dy))
+                max_yaw = max(max_yaw, abs(math.degrees(dyaw)))
+            wheel_values = motion[3] or {}
+            if wheel_values:
+                max_wheel = max(max_wheel, *(abs(v) for v in wheel_values.values()))
+            twist_values = motion[1] or (0.0, 0.0, 0.0)
+            if not all(math.isfinite(v) for v in
+                       (max_xy, max_yaw, max_wheel, *twist_values,
+                        *(motion[2] or {}).values(), *wheel_values.values())):
+                raise RuntimeError("%s produced non-finite physical telemetry" % phase)
+            if max_wheel > MAX_DIAGNOSTIC_WHEEL_RAD_S:
+                raise RuntimeError(
+                    "%s unstable dynamics: wheel velocity %.3f rad/s exceeded %.1f" %
+                    (phase, max_wheel, MAX_DIAGNOSTIC_WHEEL_RAD_S))
+            time.sleep(0.01)
+    finally:
+        publish(CMD_TOPIC, "gz.msgs.Twist",
+                "linear: {x: 0.0} angular: {z: 0.0}")
+    log.write("%s_drive_command_publish_count=%d duration_s=%.3f\\n" %
               (phase, publish_count, duration))
     log.flush()
     if publish_count < 5:
-        raise RuntimeError("%s wrench publisher delivered too few messages" % phase)
+        raise RuntimeError("%s drive command was published too few times" % phase)
     end_pose, end_twist, end_positions, end_velocities = (
         telemetry.motion_snapshot())
-    log.write(
-        "%s_pose_start=%r pose_end=%r twist_start=%r twist_end=%r "
-        "wheel_position_start=%r wheel_position_end=%r "
-        "wheel_velocity_start=%r wheel_velocity_end=%r elapsed_s=%.3f\n" %
-        (phase, start_pose, end_pose, start_twist, end_twist,
-         start_positions, end_positions, start_velocities, end_velocities,
-         duration))
+    result = {
+        "max_xy_mm": max_xy * 1000.0,
+        "max_yaw_deg": max_yaw,
+        "max_wheel_rad_s": max_wheel,
+        "pose_start": start_pose, "pose_end": end_pose,
+        "twist_start": start_twist, "twist_end": end_twist,
+        "wheel_position_start": start_positions,
+        "wheel_position_end": end_positions,
+        "wheel_velocity_start": start_velocities,
+        "wheel_velocity_end": end_velocities,
+        "duration_s": duration,
+    }
+    log.write("%s_drive_result=%r\\n" % (phase, result))
     log.flush()
-    return {"max_xy_mm": max_xy * 1000.0,
-            "max_yaw_deg": max_yaw,
-            "max_wheel_rad_s": max_wheel,
-            "pose_start": start_pose, "pose_end": end_pose,
-            "twist_start": start_twist, "twist_end": end_twist,
-            "wheel_position_start": start_positions,
-            "wheel_position_end": end_positions,
-            "wheel_velocity_start": start_velocities,
-            "wheel_velocity_end": end_velocities,
-            "duration_s": duration}
+    return result
 
 
 def stage_lock_inputs():
@@ -469,49 +463,17 @@ def run_single(torque_nm, log_suffix=""):
                     "linear: {x: 0.0} angular: {z: 0.0}")
             time.sleep(0.5)
 
-            # Both publishers are long-lived Gazebo Transport objects. Repeated
-            # messages span the complete measurement window so discovery startup
-            # cannot consume the only disturbance sample.
-            wait_for_subscriber(WRENCH_TOPIC, "gz.msgs.EntityWrench", 15,
-                                runner_log)
-            # ApplyLinkWrench accepts a MODEL entity and routes the wrench to
-            # its canonical link. The test model explicitly declares chassis
-            # as canonical_link, avoiding an ambiguous unscoped link target.
-            target_entity_id = telemetry.entity_id()
-            if target_entity_id in (None, 0):
-                raise RuntimeError("robot model entity ID is unavailable")
-            # Use the explicit entity ID observed in dynamic_pose/info; the
-            # identical ID is used for wrench application and persistent clear.
-            wrench = ('entity: {id: %d name: "%s" type: %s} '
-                      'wrench: {torque: {z: %.9g}}' %
-                      (target_entity_id, WRENCH_ENTITY_NAME,
-                       WRENCH_ENTITY_TYPE, torque_nm))
-            clear = 'id: %d name: "%s" type: %s' % (
-                target_entity_id, WRENCH_ENTITY_NAME, WRENCH_ENTITY_TYPE)
-            record("wrench_target_model_entity_id=%d name=%s type=%s" %
-                   (target_entity_id, WRENCH_ENTITY_NAME, WRENCH_ENTITY_TYPE))
-            wrench_pub = PersistentPublisher(WRENCH_TOPIC, EntityWrench, wrench)
-            wait_for_subscriber(CLEAR_TOPIC, "gz.msgs.Entity", 15,
-                                runner_log)
-            clear_pub = PersistentPublisher(CLEAR_TOPIC, Entity, clear)
-            wait_for_publisher(WRENCH_TOPIC, "gz.msgs.EntityWrench", 15,
-                               runner_log)
-            wait_for_publisher(CLEAR_TOPIC, "gz.msgs.Entity", 15,
-                               runner_log)
-
-            # Baseline: the physical response gate remains the calibration
-            # proof that ApplyLinkWrench actually affected the chassis.
-            try:
-                baseline = measure_with_wrench(
-                    telemetry, 1.0, wrench_pub, "baseline", runner_log, process)
-            finally:
-                publish_clear_repeated(clear_pub, "baseline", runner_log)
+            # Calibrate with a real drive command, not transport delivery to
+            # ApplyLinkWrench. This proves the base can move before the brake
+            # is asked to resist the same command.
+            baseline = measure_with_drive_command(
+                telemetry, 1.0, "baseline", runner_log, process)
             record("candidate_torque_nm=%.9g baseline=%r" % (torque_nm, baseline))
-            if baseline["max_yaw_deg"] < 0.5:
+            if baseline["max_yaw_deg"] < 0.5 and baseline["max_xy_mm"] < 10.0:
                 raise RuntimeError(
-                    "baseline disturbance not physically observed: yaw %.6f deg "
-                    "< 0.5 deg (transport delivery alone is not a stage pass)" %
-                    baseline["max_yaw_deg"])
+                    "baseline DiffDrive disturbance not physically observed: "
+                    "%.3fmm / %.6fdeg" %
+                    (baseline["max_xy_mm"], baseline["max_yaw_deg"]))
             write_stage_lock(
                 stage_lock_path, "baseline_disturbance", torque_nm,
                 baseline, inputs)
@@ -521,18 +483,15 @@ def run_single(torque_nm, log_suffix=""):
             time.sleep(0.5)
             ensure_sim_alive(process, "post-baseline settling")
 
-            # Brake: latch current wheel angles, then apply the identical,
-            # repeatedly published disturbance through the same publisher.
+            # Brake: latch current wheel angles, then issue the exact same
+            # DiffDrive disturbance while the wheel-force hold is active.
             publish(BRAKE_TOPIC, "gz.msgs.Boolean", "data: true")
             wait_until(lambda: any(s.startswith("LOCKED")
                                    for s in telemetry.snapshot()[2]),
                        5, "ChassisBrake LOCKED component acknowledgement",
                        process)
-            try:
-                locked = measure_with_wrench(
-                    telemetry, 1.0, wrench_pub, "locked", runner_log, process)
-            finally:
-                publish_clear_repeated(clear_pub, "locked", runner_log)
+            locked = measure_with_drive_command(
+                telemetry, 1.0, "locked", runner_log, process)
             record("candidate_torque_nm=%.9g locked=%r" % (torque_nm, locked))
             if locked["max_yaw_deg"] >= baseline["max_yaw_deg"] * 0.5:
                 raise RuntimeError(
