@@ -250,7 +250,7 @@ def wait_for_grasp_carry_plugin(proc, timeout=180.0):
     )
 
 
-def passive_stability_challenge(tel, proc, label, window_s=0.35):
+def passive_stability_challenge(tel, proc, label, window_s=0.35, require_stable=True):
     """Mirror startup's no-command pose/stationarity check after each transition."""
     _, origin, samples, _, _ = tel.snapshot()
     if origin is None:
@@ -278,10 +278,12 @@ def passive_stability_challenge(tel, proc, label, window_s=0.35):
         "end_pose": end,
     }
     if xy >= MAX_BASE_DISPLACEMENT_M or yaw >= MAX_BASE_YAW_RAD:
-        raise RuntimeError(
-            "%s passive pose changed %.3fmm / %.4fdeg"
-            % (label, xy * 1000.0, math.degrees(yaw))
-        )
+        message = "%s passive pose changed %.3fmm / %.4fdeg" % (
+            label, xy * 1000.0, math.degrees(yaw))
+        result["status"] = "failed"
+        result["error"] = message
+        if require_stable:
+            raise RuntimeError(message)
     return result
 
 
@@ -383,7 +385,8 @@ def main():
             n = request_state(tel, proc, "detached")
             report["state_transitions"].append({"target": "detached", "attempts": n})
             report["passive_stability"].append(
-                passive_stability_challenge(tel, proc, "detached"))
+                passive_stability_challenge(
+                tel, proc, "detached", require_stable=False))
             report["drive_challenges"].append(
                 {"phase": "detached", **drive_challenge(tel, proc, False)})
             detached_motion_ok = probe_joint_set("detached_joint_probe")
