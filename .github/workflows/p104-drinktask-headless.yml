@@ -142,7 +142,7 @@ jobs:
     runs-on: ubuntu-24.04
     # Hosted runners may need 30–40 minutes to download the full ROS/Gazebo dependency set.
     # Reserve enough time for dependency retries, builds, diagnostics and the 50-minute E2E.
-    timeout-minutes: 120
+    timeout-minutes: 300
     env:
       VLA_HOME: ${{ github.workspace }}
       P91_WARMUP: "25"
