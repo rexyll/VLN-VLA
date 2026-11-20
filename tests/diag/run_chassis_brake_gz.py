@@ -28,6 +28,7 @@ from gz.msgs10.model_pb2 import Model
 from gz.msgs10.odometry_pb2 import Odometry
 from gz.msgs10.pose_v_pb2 import Pose_V
 from gz.msgs10.stringmsg_pb2 import StringMsg
+from gz.msgs10.twist_pb2 import Twist
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 WORLD = os.path.join(ROOT, "tests", "diag", "chassis_brake_test.sdf")
@@ -239,12 +240,15 @@ def measure_with_drive_command(telemetry, duration, phase, log, process):
     publish_count = 0
     deadline = time.monotonic() + duration
     next_publish = time.monotonic()
+    command_pub = PersistentPublisher(CMD_TOPIC, Twist, command)
+    stop_pub = PersistentPublisher(
+        CMD_TOPIC, Twist, "linear: {x: 0.0} angular: {z: 0.0}")
     try:
         while time.monotonic() < deadline:
             ensure_sim_alive(process, phase + " drive-command measurement")
             now = time.monotonic()
             if now >= next_publish:
-                publish(CMD_TOPIC, "gz.msgs.Twist", command)
+                command_pub.publish_once()
                 publish_count += 1
                 next_publish = now + 0.05
             pose, _, _ = telemetry.snapshot()
@@ -270,8 +274,9 @@ def measure_with_drive_command(telemetry, duration, phase, log, process):
                     (phase, max_wheel, MAX_DIAGNOSTIC_WHEEL_RAD_S))
             time.sleep(0.01)
     finally:
-        publish(CMD_TOPIC, "gz.msgs.Twist",
-                "linear: {x: 0.0} angular: {z: 0.0}")
+        for _ in range(3):
+            stop_pub.publish_once()
+            time.sleep(0.02)
     log.write("%s_drive_command_publish_count=%d duration_s=%.3f\\n" %
               (phase, publish_count, duration))
     log.flush()
