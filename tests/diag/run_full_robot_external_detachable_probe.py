@@ -60,8 +60,8 @@ def make_world():
             or '<plugin filename="gz-sim-detachable-joint-system"' not in source):
         raise RuntimeError("production external DetachableJoint anchor is missing")
     expected_topology = (
-        '<parent_link>ground_lock_anchor_link</parent_link>\\n'
-        '        <child_model>robot</child_model>\\n'
+        '<parent_link>ground_lock_anchor_link</parent_link>\n'
+        '        <child_model>robot</child_model>\n'
         '        <child_link>chassis</child_link>')
     if expected_topology not in source:
         raise RuntimeError("production anchor parent/child topology changed")
@@ -73,7 +73,7 @@ def make_world():
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=30
     )
     if check.returncode:
-        raise RuntimeError("production SDF invalid:\\n" + check.stdout)
+        raise RuntimeError("production SDF invalid:\n" + check.stdout)
     return check.stdout[-3000:]
 
 
