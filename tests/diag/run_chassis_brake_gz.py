@@ -22,8 +22,6 @@ import time
 
 import gz.transport13 as gz_transport
 from google.protobuf import text_format
-from gz.msgs10.entity_pb2 import Entity
-from gz.msgs10.entity_wrench_pb2 import EntityWrench
 from gz.msgs10.model_pb2 import Model
 from gz.msgs10.odometry_pb2 import Odometry
 from gz.msgs10.pose_v_pb2 import Pose_V
@@ -37,10 +35,6 @@ JOINT_TOPIC = "/world/brake_test/model/robot/joint_state"
 STATUS_TOPIC = "/chassis_brake/status"
 CMD_TOPIC = "/model/robot/cmd_vel"
 ODOM_TOPIC = "/model/robot/odometry"
-WRENCH_TOPIC = "/world/brake_test/wrench/persistent"
-CLEAR_TOPIC = "/world/brake_test/wrench/clear"
-WRENCH_ENTITY_NAME = "robot"
-WRENCH_ENTITY_TYPE = "MODEL"
 BRAKE_TOPIC = "/chassis_brake/enable"
 # Diagnostic guard only; not a physical acceptance threshold.
 MAX_DIAGNOSTIC_WHEEL_RAD_S = 100.0
@@ -146,64 +140,6 @@ class PersistentPublisher:
         if not self.publisher.publish(self.message):
             raise RuntimeError("Gazebo Transport publish returned false on " +
                                self.topic)
-
-
-def topic_info(topic):
-    result = subprocess.run(
-        ["gz", "topic", "-i", "-t", topic],
-        text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-        timeout=10)
-    if result.returncode:
-        return result.stdout
-    return result.stdout
-
-
-def wait_for_subscriber(topic, message_type, timeout, log):
-    """Require the ApplyLinkWrench subscriber before advertising the publisher."""
-    deadline = time.monotonic() + timeout
-    last_info = ""
-    while time.monotonic() < deadline:
-        last_info = topic_info(topic)
-        # gz topic -i prints endpoint rows below the Subscribers heading.
-        # Requiring the expected message type avoids mistaking a publisher
-        # endpoint or an unrelated subscriber for ApplyLinkWrench readiness.
-        sections = re.split(r"Subscribers\s*\[[^]]*\]\s*:", last_info,
-                            maxsplit=1, flags=re.IGNORECASE)
-        if len(sections) == 2:
-            subscriber_section = sections[1].split("\n\n", 1)[0]
-            if message_type in subscriber_section and "tcp://" in subscriber_section:
-                log.write("subscriber_ready topic=%s type=%s\n%s\n" %
-                          (topic, message_type, last_info))
-                log.flush()
-                return
-        time.sleep(0.1)
-    log.write("subscriber_timeout topic=%s type=%s\n%s\n" %
-              (topic, message_type, last_info))
-    log.flush()
-    raise RuntimeError("no %s subscriber discovered for %s" %
-                       (message_type, topic))
-
-
-def wait_for_publisher(topic, message_type, timeout, log):
-    """Confirm our long-lived publisher is visible to Gazebo discovery."""
-    deadline = time.monotonic() + timeout
-    last_info = ""
-    while time.monotonic() < deadline:
-        last_info = topic_info(topic)
-        sections = re.split(r"Publishers\s*\[[^]]*\]\s*:", last_info,
-                            maxsplit=1, flags=re.IGNORECASE)
-        if len(sections) == 2:
-            publisher_section = sections[1].split("\n\n", 1)[0]
-            if message_type in publisher_section and "tcp://" in publisher_section:
-                log.write("publisher_visible topic=%s type=%s\n%s\n" %
-                          (topic, message_type, last_info))
-                log.flush()
-                return
-        time.sleep(0.1)
-    log.write("publisher_visibility_timeout topic=%s type=%s\n%s\n" %
-              (topic, message_type, last_info))
-    log.flush()
-    raise RuntimeError("Gazebo publisher not discovered for " + topic)
 
 
 def ensure_sim_alive(process, phase):
@@ -387,24 +323,6 @@ def verify_stage_lock(path, expected_stages, inputs, torque_nm):
     if current_sha and manifest.get("git_sha") != current_sha:
         raise RuntimeError("stage lock belongs to a different Git commit")
     return manifest
-
-
-def publish_clear_repeated(publisher, phase, log):
-    count = 0
-    deadline = time.monotonic() + 0.25
-    next_publish = time.monotonic()
-    while time.monotonic() < deadline:
-        publisher.publish_once()
-        count += 1
-        next_publish += 0.05
-        time.sleep(max(0.0, next_publish - time.monotonic()))
-    log.write("%s_wrench_clear_publish_count=%d entity=MODEL:robot\n" %
-              (phase, count))
-    log.flush()
-    if count < 3:
-        raise RuntimeError("%s wrench clear published too few messages" % phase)
-
-
 
 
 def run_single(torque_nm, log_suffix=""):
