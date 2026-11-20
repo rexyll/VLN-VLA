@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Probe diagnostic wheel-brake hold against full-robot arm reaction.\n\nThe 5.0 N m cap matches the plugin's built-in default; this checks whether\nthe earlier 0.5 N m diagnostic cap was simply saturating too early.
+"""Probe diagnostic wheel-brake hold against full-robot arm reaction.\n\nRaise both the diagnostic brake cap and copied wheel-joint effort limit to\n20 N m. Production SDF and wheel limits remain unchanged; this isolates\nwhether the existing 5 N m wheel-joint effort ceiling is saturating.
 
 This creates a diagnostic copy of production work_area.sdf, removes only the
 external chassis anchor in that copy, and tests whether a stronger wheel brake
@@ -35,7 +35,8 @@ LOG_OUT = os.path.join(LOG_DIR, "full_robot_wheel_brake_gz.log")
 REPORT_OUT = os.path.join(LOG_DIR, "full_robot_wheel_brake.json")
 BRAKE_COMMAND_TOPIC = "/chassis_brake/enable"
 BRAKE_STATUS_TOPIC = "/chassis_brake/status"
-BRAKE_MAX_TORQUE_NM = 5.0
+BRAKE_MAX_TORQUE_NM = 20.0
+DIAGNOSTIC_WHEEL_EFFORT_NM = 20.0
 BRAKE_PLUGIN_SO = os.path.join(ROOT, "vla_ws/src/vla_follow/gz_plugins/build/libChassisBrake.so")
 JOINT_TOPIC = "/world/follow_world/model/robot/joint_state"
 POSE_TOPIC = "/world/follow_world/dynamic_pose/info"
@@ -65,6 +66,17 @@ def make_world():
     source, removed = anchor.subn("\n", source, count=1)
     if removed != 1:
         raise RuntimeError("expected exactly one production world-rooted chassis anchor")
+    # In this disposable diagnostic copy only, raise both drive-wheel effort
+    # limits with the brake cap. Otherwise the existing 5 N m joint effort
+    # ceiling can mask whether the brake controller needs more authority.
+    for joint_name in ("left_wheel_joint", "right_wheel_joint"):
+        pattern = (r'(<joint\\s+name="' + re.escape(joint_name) +
+                   r'"[\\s\\S]*?<effort>)5(?:\\.0)?(</effort>)')
+        source, changed = re.subn(
+            pattern, r"\\g<1>%.9g\\g<2>" % DIAGNOSTIC_WHEEL_EFFORT_NM,
+            source, count=1)
+        if changed != 1:
+            raise RuntimeError("could not raise diagnostic effort for " + joint_name)
     marker = "<!-- DRINK:END robot_ext -->\n    </model>"
     plugin = """<!-- Diagnostic-only wheel brake; not added to production work_area.sdf. -->
       <plugin filename="libChassisBrake.so" name="vla::ChassisBrake">
@@ -369,6 +381,7 @@ def main():
         "production_world_modified": False,
         "old_external_anchor_removed_from_copy": True,
         "brake_max_torque_nm": BRAKE_MAX_TORQUE_NM,
+        "diagnostic_wheel_effort_limit_nm": DIAGNOSTIC_WHEEL_EFFORT_NM,
         "arm_joint_probes": [],
         "base_challenges": [],
         "stability_checks": [],
