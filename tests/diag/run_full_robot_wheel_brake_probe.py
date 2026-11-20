@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Probe the exact production external-anchor DetachableJoint topology on the full robot.
+"""Probe diagnostic wheel-brake hold against full-robot arm reaction.
 
-This loads the production work_area.sdf unchanged: a static world anchor
-connects to robot::chassis through the world-level DetachableJoint plugin.
-The production GraspCarry world plugin and all production controllers remain
-enabled. No production SDF is modified.
+This creates a diagnostic copy of production work_area.sdf, removes only the
+external chassis anchor in that copy, and tests whether a stronger wheel brake
+can resist arm reaction while preserving the production robot and controllers.
+No production SDF is modified.
 """
 import json
 import math
@@ -35,7 +35,7 @@ LOG_OUT = os.path.join(LOG_DIR, "full_robot_wheel_brake_gz.log")
 REPORT_OUT = os.path.join(LOG_DIR, "full_robot_wheel_brake.json")
 BRAKE_COMMAND_TOPIC = "/chassis_brake/enable"
 BRAKE_STATUS_TOPIC = "/chassis_brake/status"
-BRAKE_MAX_TORQUE_NM = 0.05
+BRAKE_MAX_TORQUE_NM = 0.5
 BRAKE_PLUGIN_SO = os.path.join(ROOT, "vla_ws/src/vla_follow/gz_plugins/build/libChassisBrake.so")
 JOINT_TOPIC = "/world/follow_world/model/robot/joint_state"
 POSE_TOPIC = "/world/follow_world/dynamic_pose/info"
