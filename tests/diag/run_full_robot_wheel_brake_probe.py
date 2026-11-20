@@ -191,6 +191,17 @@ def publish(topic, typ, payload):
     _PUBLISHERS.publish(topic, typ, payload)
 
 
+def publish_brake_command(enabled):
+    """Use the CLI transport path for the brake command, matching the proven isolated probe."""
+    result = subprocess.run(
+        ["gz", "topic", "-t", BRAKE_COMMAND_TOPIC, "-m", "gz.msgs.Boolean",
+         "-p", "data: %s" % ("true" if enabled else "false")],
+        cwd=ROOT, text=True, stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT, timeout=10)
+    if result.returncode:
+        raise RuntimeError("ChassisBrake command publish failed: " + result.stdout)
+
+
 def wait_for(tel, proc, predicate, timeout, label):
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
@@ -379,7 +390,7 @@ def main():
                  35, "full production robot joint/pose telemetry")
 
         # Engage wheel brake and require its explicit plugin acknowledgement.
-        publish(BRAKE_COMMAND_TOPIC, "gz.msgs.Boolean", "data: true")
+        publish_brake_command(True)
         deadline = time.monotonic() + 6.0
         while time.monotonic() < deadline:
             ensure_alive(proc, "wheel brake lock acknowledgement")
@@ -461,7 +472,7 @@ def main():
             raise RuntimeError("wheel brake failed full-robot drive challenge: " +
                                str(held["error"]))
 
-        publish(BRAKE_COMMAND_TOPIC, "gz.msgs.Boolean", "data: false")
+        publish_brake_command(False)
         deadline = time.monotonic() + 6.0
         while time.monotonic() < deadline:
             ensure_alive(proc, "wheel brake unlock acknowledgement")
@@ -479,7 +490,7 @@ def main():
                                str(released["error"]))
 
         # Re-lock to prove the same full-robot assembly can return to a stable hold.
-        publish(BRAKE_COMMAND_TOPIC, "gz.msgs.Boolean", "data: true")
+        publish_brake_command(True)
         deadline = time.monotonic() + 6.0
         while time.monotonic() < deadline:
             ensure_alive(proc, "wheel brake relock acknowledgement")
@@ -503,7 +514,7 @@ def main():
     finally:
         if proc is not None:
             try:
-                publish(BRAKE_COMMAND_TOPIC, "gz.msgs.Boolean", "data: false")
+                publish_brake_command(False)
             except Exception:
                 pass
             try:
