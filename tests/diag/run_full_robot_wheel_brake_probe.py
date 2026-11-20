@@ -231,13 +231,22 @@ def request_state(tel, proc, target):
 
 
 def move_joint(tel, proc, name, target):
-    publish("/drink/cmd/" + name, "gz.msgs.Double", "data: %.6f" % target)
+    # A one-shot Gazebo Transport publish can race subscriber discovery when
+    # this is the first command sent to a joint topic in a fresh world. Repeat
+    # the setpoint at 10 Hz until measured motion/settling confirms delivery.
+    topic = "/drink/cmd/" + name
+    payload = "data: %.6f" % target
     deadline = time.monotonic() + 8.0
     stable = None
     peak = 0.0
     last = None
+    next_publish = 0.0
     while time.monotonic() < deadline:
         ensure_alive(proc, "move " + name)
+        now = time.monotonic()
+        if now >= next_publish:
+            publish(topic, "gz.msgs.Double", payload)
+            next_publish = now + 0.1
         last = tel.snapshot()[0].get(name)
         if last:
             peak = max(peak, abs(last[1]))
@@ -253,7 +262,8 @@ def move_joint(tel, proc, name, target):
             else:
                 stable = None
         time.sleep(0.02)
-    raise RuntimeError("%s target %.3f did not settle; last=%r" % (name, target, last))
+    raise RuntimeError("%s target %.3f did not settle; last=%r peak_velocity=%.6f" %
+                       (name, target, last, peak))
 
 
 def wait_for_grasp_carry_plugin(proc, timeout=180.0):
