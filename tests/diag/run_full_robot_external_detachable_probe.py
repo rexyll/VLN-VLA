@@ -356,6 +356,22 @@ def main():
             outcomes = []
             for name, target in ARM_JOINTS.items():
                 try:
+                    # A command issued while attached may remain queued and only
+                    # take effect after detach. Establish a measured zero baseline
+                    # before each detached outward probe so a pre-existing target
+                    # cannot be mistaken for fresh joint motion.
+                    if label == "detached_joint_probe":
+                        publish("/drink/cmd/" + name, "gz.msgs.Double", "data: 0.0")
+                        deadline = time.monotonic() + 5.0
+                        baseline = None
+                        while time.monotonic() < deadline:
+                            ensure_alive(proc, "zero baseline " + name)
+                            baseline = tel.snapshot()[0].get(name)
+                            if baseline and abs(baseline[0]) < 0.02 and abs(baseline[1]) < 0.08:
+                                break
+                            time.sleep(0.02)
+                        else:
+                            raise RuntimeError("%s zero baseline not confirmed: %r" % (name, baseline))
                     outward = move_joint(tel, proc, name, target)
                     inward = move_joint(tel, proc, name, 0.0)
                     outcomes.append({"joint": name, "status": "passed",
