@@ -49,6 +49,7 @@ ARM_JOINTS = {
     "L_elbow_joint": -0.15,
     "L_wrist_p_joint": 0.15,
 }
+DRIVE_JOINTS = ("left_wheel_joint", "right_wheel_joint")
 MAX_BASE_DISPLACEMENT_M = 0.002
 MAX_BASE_YAW_RAD = math.radians(0.5)
 PLUGIN_SO = os.path.join(ROOT, "vla_ws/src/vla_follow/gz_plugins/build/libGraspCarry.so")
@@ -119,6 +120,8 @@ class Telemetry:
     def __init__(self):
         self.lock = threading.Lock()
         self.joints = {}
+        self.wheels = {}
+        self.wheel_samples = []
         self.pose = None
         self.samples = []
         self.brake_status = None
@@ -134,11 +137,17 @@ class Telemetry:
 
     def on_joints(self, msg):
         values = {}
+        wheel_values = {}
         for j in msg.joint:
             if j.name in ARM_JOINTS and j.HasField("axis1"):
                 values[j.name] = (float(j.axis1.position), float(j.axis1.velocity))
+            elif j.name in DRIVE_JOINTS and j.HasField("axis1"):
+                wheel_values[j.name] = (float(j.axis1.position), float(j.axis1.velocity))
         with self.lock:
             self.joints.update(values)
+            self.wheels.update(wheel_values)
+            if wheel_values:
+                self.wheel_samples.append((time.monotonic(), dict(self.wheels)))
 
     def on_pose(self, msg):
         for item in msg.pose:
@@ -161,6 +170,10 @@ class Telemetry:
         with self.lock:
             return (dict(self.joints), self.pose, list(self.samples),
                     self.brake_status, list(self.brake_messages))
+
+    def wheel_snapshot(self):
+        with self.lock:
+            return dict(self.wheels), list(self.wheel_samples)
 
 def ensure_alive(proc, where):
     if proc.poll() is not None:
@@ -355,6 +368,32 @@ def pose_excursion(samples, origin):
     return xy, yaw
 
 
+def wheel_excursion(samples, origin):
+    """Return maximum absolute drive-wheel angle and speed during a probe."""
+    result = {}
+    for name in DRIVE_JOINTS:
+        start = origin.get(name)
+        if start is None:
+            result[name] = {"available": False}
+            continue
+        max_angle = max_speed = 0.0
+        count = 0
+        for _, values in samples:
+            state = values.get(name)
+            if state is None:
+                continue
+            count += 1
+            max_angle = max(max_angle, abs(state[0] - start[0]))
+            max_speed = max(max_speed, abs(state[1]))
+        result[name] = {
+            "available": count > 0,
+            "samples": count,
+            "max_abs_angle_delta_rad": max_angle,
+            "max_abs_velocity_rad_s": max_speed,
+        }
+    return result
+
+
 def drive_challenge(tel, proc, should_hold):
     _, origin, samples, _, _ = tel.snapshot()
     index = len(samples)
@@ -478,15 +517,23 @@ def main():
                 raise RuntimeError("%s zero baseline not confirmed: %r" % (name, baseline))
             _, base_origin, pose_samples, _, _ = tel.snapshot()
             pose_index = len(pose_samples)
+            wheel_origin, wheel_samples = tel.wheel_snapshot()
+            wheel_index = len(wheel_samples)
+            if not all(wheel_origin.get(j) for j in DRIVE_JOINTS):
+                raise RuntimeError("drive-wheel joint telemetry unavailable before arm probe")
             outward = move_joint(tel, proc, name, target)
             inward = move_joint(tel, proc, name, 0.0)
             _, _, after_samples, _, _ = tel.snapshot()
+            _, after_wheel_samples = tel.wheel_snapshot()
             arm_xy, arm_yaw = pose_excursion(after_samples[pose_index:], base_origin)
+            wheel_motion = wheel_excursion(
+                after_wheel_samples[wheel_index:], wheel_origin)
             item = {
                 "joint": name, "status": "passed",
                 "outward": outward, "reset": inward,
                 "base_max_displacement_mm": arm_xy * 1000.0,
                 "base_max_yaw_delta_deg": math.degrees(arm_yaw),
+                "drive_wheel_motion": wheel_motion,
             }
             if arm_xy >= MAX_BASE_DISPLACEMENT_M or arm_yaw >= MAX_BASE_YAW_RAD:
                 item["status"] = "failed"
