@@ -157,14 +157,19 @@ def wait_ready(tel, process, timeout=30.0):
 
 def move_joint(tel, process, name, target):
     topic = "/drink/cmd/" + name
-    publish(topic, "gz.msgs.Double", "data: %.6f" % target)
+    payload = "data: %.6f" % target
     deadline = time.monotonic() + 8.0
     stable_since = None
     peak_velocity = 0.0
     last = None
+    next_publish = 0.0
     while time.monotonic() < deadline:
         if process.poll() is not None:
             raise RuntimeError("Gazebo exited while moving " + name)
+        now = time.monotonic()
+        if now >= next_publish:
+            publish(topic, "gz.msgs.Double", payload)
+            next_publish = now + 0.1
         joints, _, _ = tel.snapshot()
         last = joints.get(name)
         if last:
