@@ -70,13 +70,24 @@ def make_world():
     # limits with the brake cap. Otherwise the existing 5 N m joint effort
     # ceiling can mask whether the brake controller needs more authority.
     for joint_name in ("left_wheel_joint", "right_wheel_joint"):
+        # Match one complete SDF joint block. Keep regex escapes single-quoted
+        # in Python source (\\s / \\S); double escaping would match literal
+        # backslashes and silently miss the XML structure.
         pattern = (r'(<joint\\s+name="' + re.escape(joint_name) +
-                   r'"[\\s\\S]*?<effort>)5(?:\\.0)?(</effort>)')
+                   r'"[\\s\\S]*?<effort>)\\s*5(?:\\.0)?\\s*(</effort>)')
         source, changed = re.subn(
             pattern, r"\\g<1>%.9g\\g<2>" % DIAGNOSTIC_WHEEL_EFFORT_NM,
             source, count=1)
         if changed != 1:
             raise RuntimeError("could not raise diagnostic effort for " + joint_name)
+        joint = re.search(
+            r'<joint\\s+name="' + re.escape(joint_name) + r'"[\\s\\S]*?</joint>',
+            source)
+        effort = (re.search(r'<effort>\\s*([0-9.eE+-]+)\\s*</effort>', joint.group(0))
+                  if joint else None)
+        if effort is None or not math.isclose(
+                float(effort.group(1)), DIAGNOSTIC_WHEEL_EFFORT_NM, rel_tol=0, abs_tol=1e-9):
+            raise RuntimeError("diagnostic effort verification failed for " + joint_name)
     marker = "<!-- DRINK:END robot_ext -->\n    </model>"
     plugin = """<!-- Diagnostic-only wheel brake; not added to production work_area.sdf. -->
       <plugin filename="libChassisBrake.so" name="vla::ChassisBrake">
