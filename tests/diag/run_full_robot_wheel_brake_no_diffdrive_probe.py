@@ -547,17 +547,43 @@ def main():
             }
             if arm_xy >= MAX_BASE_DISPLACEMENT_M or arm_yaw >= MAX_BASE_YAW_RAD:
                 item["status"] = "failed"
-                report["arm_joint_probes"].append(item)
-                raise RuntimeError(
-                    "%s arm articulation moved base %.3fmm / %.4fdeg" %
-                    (name, arm_xy * 1000.0, math.degrees(arm_yaw)))
             report["arm_joint_probes"].append(item)
+            # Collect all six joints even when the first joint exceeds the
+            # chassis envelope; this is diagnostic evidence, not acceptance.
 
-        # This diagnostic intentionally has no DiffDrive plugin. Stop after
-        # the arm-articulation A/B measurement; drive challenges are inapplicable.
-        report["result"] = "PASS"
+        # A/B control: repeat R_lift movement with the brake released. Since
+        # DiffDrive was removed from this disposable world, this isolates the
+        # wheel-brake contribution without controller competition.
+        publish_brake_command(False)
+        deadline = time.monotonic() + 6.0
+        while time.monotonic() < deadline:
+            ensure_alive(proc, "wheel brake unlock acknowledgement")
+            if tel.snapshot()[3] and tel.snapshot()[3].startswith("UNLOCKED"):
+                break
+            time.sleep(0.02)
+        else:
+            raise RuntimeError("full robot ChassisBrake did not acknowledge UNLOCKED")
+        unlocked = []
+        for target in (-0.15, 0.0):
+            _, base_origin, pose_samples, _, _ = tel.snapshot()
+            pose_index = len(pose_samples)
+            wheel_origin, wheel_samples = tel.wheel_snapshot()
+            wheel_index = len(wheel_samples)
+            move_joint(tel, proc, "R_lift_joint", target)
+            _, _, after_samples, _, _ = tel.snapshot()
+            _, after_wheel_samples = tel.wheel_snapshot()
+            xy, yaw = pose_excursion(after_samples[pose_index:], base_origin)
+            unlocked.append({
+                "target_rad": target,
+                "base_max_displacement_mm": xy * 1000.0,
+                "base_max_yaw_delta_deg": math.degrees(yaw),
+                "drive_wheel_motion": wheel_excursion(
+                    after_wheel_samples[wheel_index:], wheel_origin),
+            })
+        report["brake_unlocked_arm_ab"] = unlocked
+        report["result"] = "DATA_COLLECTED"
         report["diagnostic_complete"] = True
-        report["scope"] = "arm articulation with DiffDrive absent; diagnostic copy only"
+        report["scope"] = "six arm joints locked-brake plus R_lift unlocked-brake A/B; DiffDrive absent"
         return 0
 
         # Challenge DiffDrive while brake is active. The same challenge must
