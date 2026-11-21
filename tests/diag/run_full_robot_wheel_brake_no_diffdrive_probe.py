@@ -71,9 +71,9 @@ def make_world():
     # isolation determines whether its wheel velocity controller competes with
     # the brake during arm articulation; production SDF remains untouched.
     diffdrive = re.compile(
-        r'\\s*<plugin\\s+filename="gz-sim-diff-drive-system"'
-        r'[\\s\\S]*?</plugin>\\s*', re.MULTILINE)
-    source, diffdrive_removed = diffdrive.subn("\\n", source, count=1)
+        r'\s*<plugin\s+filename="gz-sim-diff-drive-system"'
+        r'[\s\S]*?</plugin>\s*', re.MULTILINE)
+    source, diffdrive_removed = diffdrive.subn("\n", source, count=1)
     if diffdrive_removed != 1:
         raise RuntimeError("expected exactly one DiffDrive plugin in diagnostic copy")
     # In this disposable diagnostic copy only, raise both drive-wheel effort
