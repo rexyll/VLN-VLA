@@ -70,6 +70,7 @@ on:
       - "tests/diag/run_full_robot_world_fixed_probe.py"
       - "tests/diag/run_full_robot_external_detachable_probe.py"
       - "tests/diag/run_full_robot_wheel_brake_probe.py"
+      - "tests/diag/run_full_robot_wheel_brake_no_diffdrive_probe.py"
       - "vla_ws/src/vla_follow/**"
       - "vla_ws/src/mca_drink_control/**"
       - "tools/start_scene.sh"
