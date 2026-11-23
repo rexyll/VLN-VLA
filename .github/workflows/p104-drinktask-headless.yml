@@ -22,7 +22,8 @@ on:
       - "tests/diag/articulated_arm_ground_lock_world_fixed.sdf"
       - "tests/diag/articulated_arm_ground_lock_world_fixed_force.sdf"
       - "tests/diag/run_articulated_arm_ground_lock_probe.py"
-      - "tests/diag/run_full_robot_world_fixed_probe.py"\n      - "tests/diag/run_full_robot_dynamic_fixed_lock_probe.py"
+      - "tests/diag/run_full_robot_world_fixed_probe.py"
+      - "tests/diag/run_full_robot_dynamic_fixed_lock_probe.py"
       - "tests/diag/run_full_robot_internal_detachable_probe.py"
       - "tests/diag/run_full_robot_external_detachable_probe.py"
       - "tests/diag/run_full_robot_wheel_brake_probe.py"
@@ -68,6 +69,7 @@ on:
       - "tests/diag/articulated_arm_ground_lock_world_fixed_force.sdf"
       - "tests/diag/run_articulated_arm_ground_lock_probe.py"
       - "tests/diag/run_full_robot_world_fixed_probe.py"
+      - "tests/diag/run_full_robot_dynamic_fixed_lock_probe.py"
       - "tests/diag/run_full_robot_internal_detachable_probe.py"
       - "tests/diag/run_full_robot_external_detachable_probe.py"
       - "tests/diag/run_full_robot_wheel_brake_probe.py"
@@ -254,9 +256,11 @@ jobs:
           cmake --build vla_ws/src/vla_follow/gz_plugins/build --parallel 2
           ctest --test-dir vla_ws/src/vla_follow/gz_plugins/build --output-on-failure
           test -s vla_ws/src/vla_follow/gz_plugins/build/libGraspCarry.so
-          test -s vla_ws/src/vla_follow/gz_plugins/build/libChassisBrake.so\n          test -s vla_ws/src/vla_follow/gz_plugins/build/libDynamicChassisLock.so
+          test -s vla_ws/src/vla_follow/gz_plugins/build/libChassisBrake.so
+          test -s vla_ws/src/vla_follow/gz_plugins/build/libDynamicChassisLock.so
           ldd -r vla_ws/src/vla_follow/gz_plugins/build/libGraspCarry.so
-          ldd -r vla_ws/src/vla_follow/gz_plugins/build/libChassisBrake.so\n          ldd -r vla_ws/src/vla_follow/gz_plugins/build/libDynamicChassisLock.so
+          ldd -r vla_ws/src/vla_follow/gz_plugins/build/libChassisBrake.so
+          ldd -r vla_ws/src/vla_follow/gz_plugins/build/libDynamicChassisLock.so
 
       - name: Probe rejected reverse-topology arm lock negative control (non-gating)
         continue-on-error: true
@@ -522,7 +526,10 @@ jobs:
             vla_ws/logs/arm_lock_original_*.json
             vla_ws/logs/articulated_arm_ground_lock_probe.json
             vla_ws/logs/arm_world_fixed_*.json
-            vla_ws/logs/full_robot_world_fixed*.json\n            vla_ws/logs/full_robot_dynamic_fixed_lock*.json\n            vla_ws/logs/full_robot_dynamic_fixed_lock*.sdf\n            vla_ws/logs/full_robot_dynamic_fixed_lock*.log
+            vla_ws/logs/full_robot_world_fixed*.json
+            vla_ws/logs/full_robot_dynamic_fixed_lock*.json
+            vla_ws/logs/full_robot_dynamic_fixed_lock*.sdf
+            vla_ws/logs/full_robot_dynamic_fixed_lock*.log
             vla_ws/logs/full_robot_internal_detachable*.json
             vla_ws/logs/full_robot_external_detachable*.json
             vla_ws/logs/full_robot_wheel_brake*.json
