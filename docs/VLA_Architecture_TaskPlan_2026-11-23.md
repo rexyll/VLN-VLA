@@ -209,3 +209,8 @@
 
 
 2026-11-23 P112 实施路线补充：查阅 Gazebo Sim 8.15 官方 API 后，传统 Joint API 的 CreateJoint/Attach/Detach 仍标记 TODO；但 SdfEntityCreator 提供运行时 CreateEntities(sdf::Joint*)、SetParent 和 RequestRemoveEntity。已在实验分支新增诊断插件 DynamicChassisLock.cc（robot model 内创建 parent=world / child=chassis 的 fixed joint，解除时请求移除）及全机器人生命周期探针。探针要求六个主关节往返运动、锁定态 DiffDrive 挑战≤2mm/0.5°、解锁态移动≥10mm、至少三轮 attach/detach。插件状态 ACK 仅表示实体创建/移除，不替代物理验收。新 Actions Run [45196034392](https://github.com/rexyll/VLN-VLA/actions/runs/45196034392) 待执行；C++ 编译、动态物理约束和循环稳定性尚未验证。此实验不加载到生产 work_area.sdf，不改变 P112 门槛或 P104 主流程。
+
+
+
+2026-11-23 P112 动态 fixed-joint 试验结论与启动顺序定位：Run [45203182358](https://github.com/rexyll/VLN-VLA/actions/runs/45203182358) 的插件编译成功，frame resolution 修复后探针越过实体创建阶段，但第一轮 detach 后 DiffDrive 仍为 0mm，JSON `result=FAIL`。审阅 Gazebo Sim 8.15 Physics.cc 发现：移除普通 Joint ECS entity 不会解除 physics-engine constraint；普通 joint/link/collision 只随所属 model 移除而清理。Physics 的 runtime DetachableJoint 路径需两个有效 link entity，并通过 DetachJointFeature 才能真正 detach。插件已改为 detach 不受支持时 fail-closed 报 fault，不再假报 detached；提交 `71cf58d7a3376518db66a309412a4db6a30a0a6c`，后续 Actions 待验证构建。
+同轮生产日志结合源码明确启动顺序：startup handshake 在 mux 锁定状态下执行 detach→attach→detach，最后恢复 mux 并标记 navigation enabled；随后主程序又调用 `set_base_lock(True)`，即再次 attach 物理 DetachableJoint，再执行 `home()` / `hang()`。该顺序使 boot home 正好运行在已被证实会冻结机械臂 6/6 主关节的 attached 状态。生产 E2E 的左右手指、左右臂 servo timeout 与此吻合。下一步必须先做诊断副本 A/B：在软件 mux 锁定、物理 DetachableJoint detached 状态下执行完整 home/hang，并独立测量底盘位移/偏航及关节实测位移；只有同时满足 arm motion 与底盘稳定门槛，才讨论生产启动时序修改。若 detached 状态底盘在 arm articulation 下超门槛，不能仅凭 software mux lock 放行 boot home；继续寻找具备真实 physics detach 能力且不冻结内部 DOF 的约束方式。生产 SDF、阈值、安全门控均未更改。
