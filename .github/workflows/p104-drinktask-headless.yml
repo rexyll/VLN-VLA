@@ -378,19 +378,22 @@ jobs:
         run: |
           python3 tests/diag/run_full_robot_wheel_brake_probe.py
 
-      - name: Sweep full-robot wheel-brake authority with DiffDrive removed (diagnostic copies only)
+      - name: Sweep full-robot wheel-brake PD gains with DiffDrive removed (diagnostic copies only)
         continue-on-error: true
         shell: bash
         run: |
-          for torque in 40 80 160; do
-            echo "===== DIAGNOSTIC WHEEL BRAKE TORQUE ${torque} N m ====="
+          for gains in "300 20" "600 30" "1000 50"; do
+            read -r kp kd <<< "${gains}"
+            echo "===== DIAGNOSTIC WHEEL BRAKE 160 N m, KP=${kp}, KD=${kd} ====="
             set +e
-            VLA_DIAG_BRAKE_TORQUE_NM="${torque}" \
-              VLA_DIAG_WHEEL_EFFORT_NM="${torque}" \
+            VLA_DIAG_BRAKE_TORQUE_NM="160" \
+              VLA_DIAG_WHEEL_EFFORT_NM="160" \
+              VLA_DIAG_BRAKE_KP="${kp}" \
+              VLA_DIAG_BRAKE_KD="${kd}" \
               python3 tests/diag/run_full_robot_wheel_brake_no_diffdrive_probe.py
             rc=$?
             set -e
-            echo "WHEEL_BRAKE_TORQUE_${torque}_EXIT=${rc}"
+            echo "WHEEL_BRAKE_KP_${kp}_KD_${kd}_EXIT=${rc}"
           done
 
       - name: Run legacy ApplyLinkWrench and ChassisBrake diagnostic (non-authoritative; does not gate E2E)
