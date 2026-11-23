@@ -35,18 +35,21 @@ SOURCE = os.path.join(ROOT, "vla_ws/src/vla_follow/worlds/work_area.sdf")
 LOG_DIR = os.path.join(ROOT, "vla_ws/logs")
 BRAKE_COMMAND_TOPIC = "/chassis_brake/enable"
 BRAKE_STATUS_TOPIC = "/chassis_brake/status"
-BRAKE_MAX_TORQUE_NM = float(os.environ.get("VLA_DIAG_BRAKE_TORQUE_NM", "20"))
-DIAGNOSTIC_WHEEL_EFFORT_NM = float(os.environ.get("VLA_DIAG_WHEEL_EFFORT_NM", "20"))
-if (not math.isfinite(BRAKE_MAX_TORQUE_NM)
-        or not math.isfinite(DIAGNOSTIC_WHEEL_EFFORT_NM)
-        or BRAKE_MAX_TORQUE_NM <= 0
-        or DIAGNOSTIC_WHEEL_EFFORT_NM < BRAKE_MAX_TORQUE_NM
-        or BRAKE_MAX_TORQUE_NM > 200):
-    raise ValueError("diagnostic brake torque must be >0 and <=200 Nm; wheel effort must be >= brake torque")
+BRAKE_MAX_TORQUE_NM = float(os.environ.get("VLA_DIAG_BRAKE_TORQUE_NM", "160"))
+DIAGNOSTIC_WHEEL_EFFORT_NM = float(os.environ.get("VLA_DIAG_WHEEL_EFFORT_NM", "160"))
+BRAKE_POSITION_KP = float(os.environ.get("VLA_DIAG_BRAKE_KP", "80"))
+BRAKE_VELOCITY_KD = float(os.environ.get("VLA_DIAG_BRAKE_KD", "2"))
+if (not all(math.isfinite(v) for v in (BRAKE_MAX_TORQUE_NM, DIAGNOSTIC_WHEEL_EFFORT_NM, BRAKE_POSITION_KP, BRAKE_VELOCITY_KD))
+        or BRAKE_MAX_TORQUE_NM <= 0 or DIAGNOSTIC_WHEEL_EFFORT_NM < BRAKE_MAX_TORQUE_NM
+        or BRAKE_MAX_TORQUE_NM > 200 or BRAKE_POSITION_KP < 0 or BRAKE_VELOCITY_KD < 0):
+    raise ValueError("invalid diagnostic brake torque/effort/gains")
 TORQUE_TAG = (f"{BRAKE_MAX_TORQUE_NM:g}").replace(".", "p")
-WORLD_OUT = os.path.join(LOG_DIR, "full_robot_wheel_brake_no_diffdrive_t%s.sdf" % TORQUE_TAG)
-LOG_OUT = os.path.join(LOG_DIR, "full_robot_wheel_brake_no_diffdrive_t%s_gz.log" % TORQUE_TAG)
-REPORT_OUT = os.path.join(LOG_DIR, "full_robot_wheel_brake_no_diffdrive_t%s.json" % TORQUE_TAG)
+KP_TAG = (f"{BRAKE_POSITION_KP:g}").replace(".", "p")
+KD_TAG = (f"{BRAKE_VELOCITY_KD:g}").replace(".", "p")
+GAIN_TAG = "t%s_kp%s_kd%s" % (TORQUE_TAG, KP_TAG, KD_TAG)
+WORLD_OUT = os.path.join(LOG_DIR, "full_robot_wheel_brake_no_diffdrive_%s.sdf" % GAIN_TAG)
+LOG_OUT = os.path.join(LOG_DIR, "full_robot_wheel_brake_no_diffdrive_%s_gz.log" % GAIN_TAG)
+REPORT_OUT = os.path.join(LOG_DIR, "full_robot_wheel_brake_no_diffdrive_%s.json" % GAIN_TAG)
 BRAKE_PLUGIN_SO = os.path.join(ROOT, "vla_ws/src/vla_follow/gz_plugins/build/libChassisBrake.so")
 JOINT_TOPIC = "/world/follow_world/model/robot/joint_state"
 POSE_TOPIC = "/world/follow_world/dynamic_pose/info"
@@ -113,11 +116,11 @@ def make_world():
         <right_joint>right_wheel_joint</right_joint>
         <command_topic>/chassis_brake/enable</command_topic>
         <status_topic>/chassis_brake/status</status_topic>
-        <position_kp>80.0</position_kp>
-        <velocity_kd>2.0</velocity_kd>
+        <position_kp>%.9g</position_kp>
+        <velocity_kd>%.9g</velocity_kd>
         <max_torque>%.9g</max_torque>
       </plugin>
-    """ % BRAKE_MAX_TORQUE_NM
+    """ % (BRAKE_POSITION_KP, BRAKE_VELOCITY_KD, BRAKE_MAX_TORQUE_NM)
     if marker not in source:
         raise RuntimeError("production robot model extension marker changed")
     source = source.replace(marker, "<!-- DRINK:END robot_ext -->\n    " + plugin + "</model>", 1)
@@ -449,6 +452,8 @@ def main():
         "old_external_anchor_removed_from_copy": True,
         "diff_drive_plugin_removed_from_copy": True,
         "brake_max_torque_nm": BRAKE_MAX_TORQUE_NM,
+        "brake_position_kp": BRAKE_POSITION_KP,
+        "brake_velocity_kd": BRAKE_VELOCITY_KD,
         "diagnostic_wheel_effort_limit_nm": DIAGNOSTIC_WHEEL_EFFORT_NM,
         "arm_joint_probes": [],
         "base_challenges": [],
