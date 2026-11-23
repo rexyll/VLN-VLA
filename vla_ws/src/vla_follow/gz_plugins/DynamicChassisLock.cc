@@ -18,7 +18,6 @@
 #include <gz/sim/EntityComponentManager.hh>
 #include <gz/sim/SdfEntityCreator.hh>
 #include <gz/sim/System.hh>
-#include <gz/sim/components/DetachableJoint.hh>
 #include <gz/sim/components/Joint.hh>
 #include <gz/transport/Node.hh>
 #include <sdf/Joint.hh>
@@ -155,14 +154,6 @@ public:
         return;
       }
 
-      // Gazebo Sim 8 Physics removes ordinary Joint entities from ECM without
-      // removing the corresponding physics-engine constraint. Its supported
-      // runtime detach path specifically handles removed DetachableJoint
-      // components and calls DetachJointFeature. Mark this runtime joint so
-      // removal follows that path instead of silently leaving a ghost lock.
-      _ecm.CreateComponent(created,
-          gz::sim::components::DetachableJoint());
-
       this->jointEntity = created;
       this->Publish("attached");
       gzmsg << "[DynamicChassisLock] fixed detachable joint entity created: "
@@ -180,10 +171,16 @@ public:
         this->Publish("detached");
         return;
       }
-      this->creator->RequestRemoveEntity(this->jointEntity);
-      this->removalPending = true;
-      gzmsg << "[DynamicChassisLock] detachable fixed-joint removal requested: "
-            << this->jointEntity << std::endl;
+      // Gazebo Sim 8 Physics does not remove ordinary runtime Joint entities
+      // from the physics engine when their ECM entity is removed. Its removal
+      // path only detaches components::DetachableJoint, which requires two
+      // actual link entities; a world frame is not a link entity. Do not
+      // delete the ECM entity and falsely report "detached": that would leave
+      // a ghost physics constraint while software believes the base is free.
+      this->Publish("fault runtime_fixed_joint_detach_unsupported");
+      gzerr << "[DynamicChassisLock] refusing detach: Gazebo Sim 8 Physics "
+            << "does not expose removal for this runtime world joint"
+            << std::endl;
     }
   }
 
