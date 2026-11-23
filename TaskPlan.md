@@ -2032,3 +2032,14 @@
 - P104 workflow 已加入插件编译/链接检查、Python 语法检查和非阻断物理诊断步骤，并归档 JSON/SDF/Gazebo 日志。当前 Actions Run [45196034392](https://github.com/rexyll/VLN-VLA/actions/runs/45196034392) 已启动，正在安装 Gazebo/ROS 2 依赖，尚未进入插件编译步骤，故插件编译和物理验证均**尚未确认**；本次代码仅为实验候选，不能视为 P112 通过或生产方案。
 - 下一步：先检查该 Run 的 C++ 编译与链接结果；若构建通过，再解析动态关节创建是否能被 Physics system 识别、attach 期间 6/6 关节运动和底盘驱动保持、detach 后移动恢复及三轮重复性。若编译失败先按错误修复；若创建成功但物理挑战失败，停止该候选，不将状态 ACK 当成锁止证据。P112 仍阻塞阶段 B。
 - 未修改生产 `work_area.sdf`、DrinkTask 锁控制器、安全门控和阈值；未修改/合并 `main`，未创建新分支，PR #3 保持 Draft/Open。
+
+
+
+### 8.468 动态 fixed-joint 首轮探针定位到 SDF frame resolution 问题（2026-11-23）
+
+- Actions Run [45196034392](https://github.com/rexyll/VLN-VLA/actions/runs/45196034392)，执行 commit `7854cc3f4c35bb6d6e30f745dcca7c57666ec260`。Gazebo/ROS 依赖安装、插件构建、`ldd -r`、Python 语法检查以及 12 项 BT/恢复单元测试均通过；完整机器人动态 fixed-joint 探针步骤本身以 0 退出，但其 JSON 报告实际为 `result=FAIL`，不得把 workflow step 的成功误认为物理探针通过。
+- 下载并解析 artifact `p104-drinktask-e2e-45196034392`：`full_robot_dynamic_fixed_lock.json` 中 `cycles=[]`，错误为 `plugin reported fault joint_entity_creation_failed`。Gazebo 日志明确指出 `SdfEntityCreator.cc:876 Failed to resolve child link`，child name=`chassis`，随后报告 `Frame has invalid pointer to FrameAttachedToGraph`。因此失败发生在运行时创建 joint 实体的 SDF frame/name resolution 阶段，尚未进入任何 arm motion、底盘 hold 或 detach mobility 物理测试。
+- 生产 E2E 同轮仍为 `BOOT → FAIL_STARTUP_HOME`，阶段 0/9。生产启动锁握手及物理 hold 报告通过，但右手手指、右臂、左手手指、左臂 home 均触发 `JOINT_SERVO_TIMEOUT`，关节实测位置/速度/effort 近零，最终 `STARTUP_ABORT` 并保持物理锁止。observer 的 0 条 DRINK 是启动进程退出后的下游结果，不是本轮根因。
+- 对照 Gazebo Sim 8 源码 `SdfEntityCreator::CreateEntities(const sdf::Joint*, bool _resolved)`：默认重载会调用 `ResolveParentLink / ResolveChildLink`；动态构造的 standalone `sdf::Joint` 不处于原始 robot SDF frame graph 中，因而无法按普通 SDF 加载路径解析局部名 `chassis`。已在诊断插件中改为调用 `CreateEntities(&joint, true)`，显式将 parent=`world`、child=`chassis` 作为预解析名称传入，避免再次调用 sdformat frame-graph resolution。修复提交 `b13ee04d10cd09149fab7980e0b22fb9d5dd3d42`。该修复仅针对已定位的解析失败，**尚未有后续 Actions 结果验证**；预解析名称是否符合 ECM/Physics 对 world 与 scoped chassis 的实际查找要求仍待实测。
+- 下一步：等待并检查修复提交触发的 P104 Actions；重点先看插件构建，再看 JSON 是否能创建 joint entity、Physics 是否实际锁住底盘、六个主关节能否运动、detach 后底盘能否移动、三轮循环是否通过。若 entity 创建成功但 physical challenge 不通过，继续判定为候选失败，不升级生产。
+- 本轮插件构建成功，但动态 fixed-joint 探针物理阶段未开始；生产 E2E 仍失败。未修改生产 `work_area.sdf`、DrinkTask 锁控制器、安全门控或阈值；未修改/合并 `main`，未创建新分支，PR #3 仍保持 Draft/Open；P112 继续阻塞阶段 B。
