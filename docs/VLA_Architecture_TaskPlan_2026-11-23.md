@@ -182,7 +182,7 @@
 | 顺序 | 节点 | 状态 |
 |---|---|---|
 | 1 | P111 架构/代码基线核对 | **已完成** |
-| 2 | P112 双臂启动归位根因修复 | **执行中：DetachableJoint 与轮刹 PD 增益扫描均失败；转向动态 world-fixed joint 诊断** |
+| 2 | P112 双臂启动归位根因修复 | **执行中：完整机器人静态 world-fixed 对照通过；生产启动仍 FAIL_STARTUP_HOME，转向动态 fixed-joint 生命周期诊断** |
 | 3 | P113–P116 命令、反馈、运动控制和安全基线 | 待 P112 通过后执行 |
 | 4 | P117–P123 感知与状态估计 | 未开始 |
 | 5 | P124–P130 导航和精确对接 | 未开始 |
@@ -203,3 +203,6 @@
 ## 13. 计划修订记录
 
 2026-11-23：用户确认 SmolVLA 先行、OpenVLA-OFT 与 π0.5 对照；在线执行只用传感器估计；完整推进 A→F。P111 已完成。P112 已确认外部/同模型 DetachableJoint attached 会阻断机械臂；40/80/160 N·m 轮刹力矩扫描和 160 N·m 下三档 PD 增益扫描均未达到底盘保持门槛。静态 world-fixed joint 的全臂诊断通过但不能解锁移动；下一步转向运行时 fixed-joint 创建/移除实验。
+
+
+2026-11-23 补充：Actions Run [45188631629](https://github.com/rexyll/VLN-VLA/actions/runs/45188631629) 中，修正位置差测量后的完整机器人 world-fixed 诊断通过：六个主关节往返 12/12、DiffDrive 挑战底盘位移 0mm/yaw 0°。但生产 DrinkTask 仍在 BOOT→FAIL_STARTUP_HOME 失败：startup lock 状态握手报告位姿稳定，左右手指及双臂关节命令却没有实测响应，最终 JOINT_SERVO_TIMEOUT/STARTUP_ABORT。外部与同模型 DetachableJoint attached 对照均阻断 6/6 主关节；轮刹在 lift 动作时仍超 2mm/0.5°门槛。P112 继续阻塞；下一步仅在诊断副本验证动态 world→chassis fixed-joint attach/detach，生产 SDF 不动，安全阈值不变。
