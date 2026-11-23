@@ -33,9 +33,6 @@ from gz.msgs10.twist_pb2 import Twist
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 SOURCE = os.path.join(ROOT, "vla_ws/src/vla_follow/worlds/work_area.sdf")
 LOG_DIR = os.path.join(ROOT, "vla_ws/logs")
-WORLD_OUT = os.path.join(LOG_DIR, "full_robot_wheel_brake_no_diffdrive_t%s.sdf" % TORQUE_TAG)
-LOG_OUT = os.path.join(LOG_DIR, "full_robot_wheel_brake_no_diffdrive_t%s_gz.log" % TORQUE_TAG)
-REPORT_OUT = os.path.join(LOG_DIR, "full_robot_wheel_brake_no_diffdrive_t%s.json" % TORQUE_TAG)
 BRAKE_COMMAND_TOPIC = "/chassis_brake/enable"
 BRAKE_STATUS_TOPIC = "/chassis_brake/status"
 BRAKE_MAX_TORQUE_NM = float(os.environ.get("VLA_DIAG_BRAKE_TORQUE_NM", "20"))
@@ -47,6 +44,9 @@ if (not math.isfinite(BRAKE_MAX_TORQUE_NM)
         or BRAKE_MAX_TORQUE_NM > 200):
     raise ValueError("diagnostic brake torque must be >0 and <=200 Nm; wheel effort must be >= brake torque")
 TORQUE_TAG = (f"{BRAKE_MAX_TORQUE_NM:g}").replace(".", "p")
+WORLD_OUT = os.path.join(LOG_DIR, "full_robot_wheel_brake_no_diffdrive_t%s.sdf" % TORQUE_TAG)
+LOG_OUT = os.path.join(LOG_DIR, "full_robot_wheel_brake_no_diffdrive_t%s_gz.log" % TORQUE_TAG)
+REPORT_OUT = os.path.join(LOG_DIR, "full_robot_wheel_brake_no_diffdrive_t%s.json" % TORQUE_TAG)
 BRAKE_PLUGIN_SO = os.path.join(ROOT, "vla_ws/src/vla_follow/gz_plugins/build/libChassisBrake.so")
 JOINT_TOPIC = "/world/follow_world/model/robot/joint_state"
 POSE_TOPIC = "/world/follow_world/dynamic_pose/info"
