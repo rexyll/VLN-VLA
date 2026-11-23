@@ -2,11 +2,12 @@
 # -*- coding: utf-8 -*-
 """Probe a same-model, world-rooted detachable chassis lock.
 
-The robot model gets a tiny world-fixed anchor link. Gazebo's DetachableJoint
-system runs inside that model and uses child_model=__model__ to connect the
-anchor link to robot::chassis. The production GraspCarry world plugin remains
-enabled so this probe isolates anchor topology without removing the production
-cup/kettle pose executor. Production SDF is not modified.
+A world-fixed joint anchors robot::world_anchor to the world. The
+DetachableJoint system is loaded inside the robot model and connects
+world_anchor to robot::chassis using child_model=__model__. This avoids the
+external cross-model anchor topology that froze the production robot's
+articulated joints. The production GraspCarry world plugin remains enabled.
+Only a disposable diagnostic SDF is modified; production SDF is untouched.
 """
 import json
 import math
@@ -71,42 +72,49 @@ def make_world():
     start = re.search(r'<model name="robot" canonical_link="chassis">', source)
     if not start:
         raise RuntimeError("production robot model not found")
-    # Keep chassis as canonical_link so dynamic_pose reports the actual
-    # mobile robot base after the internal detachable joint is released.
-    start = re.search(r'<model name="robot" canonical_link="chassis">', source)
+    # Keep chassis as canonical_link so dynamic_pose reports the mobile base
+    # after the internal detachable joint is released.
     end = source.find("</model>", start.start())
     if end < 0:
         raise RuntimeError("robot model closing tag not found")
-    insert = """
-      <!-- Reverse-parent experiment: robot chassis is parent; static world anchor is child. -->
+    internal_anchor = """
+      <!-- Same-model tree topology: world -> world_anchor -> detachable chassis. -->
+      <link name="world_anchor">
+        <pose>0 0 0.13 0 0 0</pose>
+      </link>
+      <joint name="world_anchor_fixed_joint" type="fixed">
+        <parent>world</parent>
+        <child>world_anchor</child>
+      </joint>
       <plugin filename="gz-sim-detachable-joint-system"
               name="gz::sim::systems::DetachableJoint">
-        <parent_link>chassis</parent_link>
-        <child_model>ground_lock_anchor</child_model>
-        <child_link>ground_lock_anchor_link</child_link>
+        <parent_link>world_anchor</parent_link>
+        <child_model>__model__</child_model>
+        <child_link>chassis</child_link>
         <attach_topic>/world/follow_world/chassis_lock/attach</attach_topic>
         <detach_topic>/world/follow_world/chassis_lock/detach</detach_topic>
         <output_topic>/world/follow_world/chassis_lock/state</output_topic>
       </plugin>
 """
-    anchor_model = """
-    <!-- Static world anchor is declared before the robot so DetachableJoint
-         can resolve the child model during plugin configuration. -->
-    <model name="ground_lock_anchor">
-      <static>true</static>
-      <pose>0 0 0.13 0 0 0</pose>
-      <link name="ground_lock_anchor_link"/>
-    </model>
-"""
-    # SDF world models are declared in spawn order. The previous version put
-    # this anchor after the robot, and Gazebo logged "Child Model ... could not
-    # be found" while configuring DetachableJoint. Declare the static child
-    # model first, then the robot plugin that references it.
-    source = source[:end] + insert + source[end:]
-    source = source[:start.start()] + anchor_model + source[start.start():]
-    if source.index('<model name="ground_lock_anchor"') > source.index(
-            '<model name="robot" canonical_link="chassis">'):
-        raise RuntimeError("static anchor must precede robot model in generated SDF")
+    source = source[:end] + internal_anchor + source[end:]
+    if "ground_lock_anchor" in source:
+        raise RuntimeError("generated world still contains the external anchor model")
+    if source.count('<link name="world_anchor">') != 1:
+        raise RuntimeError("same-model world_anchor link insertion is not unique")
+    if source.count('<joint name="world_anchor_fixed_joint"') != 1:
+        raise RuntimeError("world_anchor fixed joint insertion is not unique")
+    if source.count('name="gz::sim::systems::DetachableJoint"') != 1:
+        raise RuntimeError("same-model DetachableJoint insertion is not unique")
+    expected_topology = (
+        "<parent>world</parent>\\n"
+        "        <child>world_anchor</child>"
+    )
+    if expected_topology not in source:
+        raise RuntimeError("world_anchor is not fixed directly to world")
+    if ("<parent_link>world_anchor</parent_link>" not in source
+            or "<child_model>__model__</child_model>" not in source
+            or "<child_link>chassis</child_link>" not in source):
+        raise RuntimeError("DetachableJoint does not use the intended same-model topology")
     os.makedirs(LOG_DIR, exist_ok=True)
     with open(WORLD_OUT, "w", encoding="utf-8") as f:
         f.write(source)
@@ -370,7 +378,8 @@ def main():
     log = None
     try:
         report["grasp_carry_plugin_retained"] = True
-        report["external_anchor_removed"] = True
+        report["production_external_anchor_removed"] = True
+        report["same_model_world_anchor_topology"] = True
         report["sdf_check"] = make_world()
         if not os.path.isfile(PLUGIN_SO):
             raise RuntimeError("built production GraspCarry plugin missing: " + PLUGIN_SO)
