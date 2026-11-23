@@ -2055,3 +2055,13 @@
 - 正式 DrinkTask 同轮仍 `BOOT → FAIL_STARTUP_HOME`。日志显示 startup mux 锁生命周期握手完成，随后 DrinkTask 再次取得 software lock，physical attached + software locked + truth hold 检查通过；接下来右手指、右臂、左手指、左臂 home 依次出现 `JOINT_SERVO_TIMEOUT`，关节位置/速度/effort 近零，最终 `STARTUP_ABORT` 并保持锁止。结合完整机器人 external DetachableJoint A/B 结果（attached 时 6/6 主关节不能运动，detached 时 6/6 能运动），当前生产启动故障高度指向：**startup home 阶段仍保持/重新施加了会阻断机械臂 DOF 的 DetachableJoint 物理约束**。需要核对 startup lock 生命周期与 boot home 顺序，不能把“底盘静止”当作“机械臂可动”的充分条件。
 - 下一步不再尝试通过普通 `Joint` ECS entity 删除实现动态解锁。优先从生产控制时序和约束拓扑入手：明确 boot home 前必须真实 detach，且在所有 arm/hand home 完成并验证后才允许导航/底盘锁阶段转换；同时用独立底盘驱动挑战证明 detach 生效、再用关节实测位移证明 arm 可动。若后续仍需要“锁底盘但保持 arm DOF”，必须选择 Gazebo 物理系统明确支持的可 detach link-link 约束并通过完整机器人 A/B 验证，或实现/采用具备真实 physics detach 能力的专用系统插件；禁止仅删除 ECS joint entity 伪装解锁。
 - 未修改生产 `work_area.sdf`、DrinkTask 控制器、安全门控或验收阈值；未修改/合并 `main`，未创建新分支，PR #3 保持 Draft/Open。P112 继续阻塞阶段 B。
+
+
+
+### 8.470 增加 detached arm articulation 期间的底盘漂移测量（2026-11-23）
+
+- 对 `drink_task.py` 启动主流程完成源码顺序核对：`_startup_ground_lock_handshake` 在 mux 锁定期间完成 detach→attach→detach，最后解锁 mux 并设置 `_ground_lock_ready=True`；但主程序随后明确再次调用 `node.set_base_lock(True)`，然后才执行 `node.home()` 与 `node.hang()`。因此 boot home 实际处于物理 DetachableJoint attached 状态。此前完整机器人 external DetachableJoint A/B 已证明 attached 时六个主关节 6/6 不能运动，detached 时 6/6 能运动；这与正式 E2E home timeout 高度一致。不能将 startup handshake 中“最后 detach”误解为 boot home 也在 detached 状态。
+- 不能直接把 boot home 改为 detached：同轮 external DetachableJoint 探针记录 detach 后立即的被动位姿变化约 3.69mm / 1.09°，超过 2mm / 0.5°门槛（可能含解锁瞬态，仍需延迟稳定后复测）。此前 wheel-brake lift 负载试验也超标。因此尚无证据证明“软件 mux 锁定 + 物理 detach”能在 boot home 全部动作期间稳定底盘。
+- 已扩展 `tests/diag/run_full_robot_external_detachable_probe.py`：在 attached/detached 两组主关节往返动作期间，逐关节记录底盘最大位移、偏航和是否满足 2mm / 0.5°阈值；该测量只作用于原生产 SDF 的诊断副本，不修改生产配置。提交 `a56d6fe918dcc8ef33bf0c62314a40773e352922`，P104 Run [45206861174](https://github.com/rexyll/VLN-VLA/actions/runs/45206861174) 已排队，待执行。
+- 当前动态 ECS world-joint 候选在 Gazebo Sim 8.15 普通 Joint runtime removal 路径上存在物理 detach 缺口；插件已按提交 `71cf58d7a3376518db66a309412a4db6a30a0a6c` 改为 detach 不支持时 fail-closed。Run [45206617110](https://github.com/rexyll/VLN-VLA/actions/runs/45206617110) 正在执行，等待插件编译和探针错误状态验证。
+- 下一步根据 Run 45206861174 的 detached arm motion 期间底盘实测决定：若稳定后的 arm articulation 全程满足 2mm / 0.5°，再设计单独的启动时序实验（仍不直接改生产）；若超标，拒绝软件 mux lock 单独替代物理锁，继续研究真正支持 detach 的物理拓扑/插件。P112 仍阻塞阶段 B；生产 SDF、控制器、安全门控、验收阈值均未改。
