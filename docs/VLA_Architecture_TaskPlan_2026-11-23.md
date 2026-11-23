@@ -4,7 +4,7 @@
 - 仓库：rexyll/VLN-VLA
 - 执行分支：experiment/drinktask-bt-ik-recovery
 - PR #3：保持 Draft/Open，禁止合并
-- 状态：**用户已授权执行；P111 已完成，P112 根因定位已收敛，候选拓扑等待 Actions 验证**
+- 状态：**P111 已完成；P112 执行中。DetachableJoint attached 冻结机械臂的现象已在外部与同模型拓扑中复现；正在验证轮刹替代方案。
 - 权威入口：根目录 TaskPlan.md 的“当前进度”及本文件
 
 ## 1. 用户确认的决策
@@ -182,7 +182,7 @@
 | 顺序 | 节点 | 状态 |
 |---|---|---|
 | 1 | P111 架构/代码基线核对 | **已完成** |
-| 2 | P112 双臂启动归位根因修复 | **执行中：跨模型 DetachableJoint 冻结 DOF 已高度收敛；同模型拓扑探针待 Actions 验证** |
+| 2 | P112 双臂启动归位根因修复 | **执行中：外部/同模型 DetachableJoint attached 均阻断机械臂；轮刹力矩扫描待 Actions** |
 | 3 | P113–P116 命令、反馈、运动控制和安全基线 | 待 P112 通过后执行 |
 | 4 | P117–P123 感知与状态估计 | 未开始 |
 | 5 | P124–P130 导航和精确对接 | 未开始 |
@@ -193,12 +193,12 @@
 ### P111/P112 当前执行记录
 
 - P111 已核对实验分支、PR #3、TaskPlan、DrinkTask 启动门控、39 路 CmdBus、JointServo、ROS-Gazebo bridge、生产 SDF 控制器配置和 P104 workflow。
-- P112 的对照证据指向外部 anchor model→robot 的跨模型 DetachableJoint 在 attached 状态冻结机器人内部 DOF：完整机器人 world-fixed 对照六个主关节正反向/归零 12/12 通过，DiffDrive 挑战下底盘位移 0mm/yaw 0°；原生产跨模型拓扑在 attached 时 velocity/PID-force 均无有效关节运动，detached 后可运动。生产 E2E Run 44896037698 仍在 BOOT→FAIL_STARTUP_HOME，任务阶段 0/9。
-- 原 internal-detachable 探针曾错误构造为反向跨模型拓扑，已在 commit da3fdfb 修正为同模型 world→world_anchor→chassis，并在 commit 12488d2 修正拓扑断言。**候选拓扑仍未取得 CI 验证；生产 work_area.sdf 未修改。**
-- 下一步按 P112 门槛验证 SDF、attached 六主关节运动、底盘 2mm/0.5°保持、detach 移动、reattach 重复测试；通过后至少 3 次，再扩展到完整 39 路 home/hang。未完成前不迁移生产 SDF，不放宽阈值。
+- P112 对照结果已修正原先的过窄判断：生产外部 DetachableJoint 诊断副本 attached 时 6/6 主关节不能运动、detached 时可运动；同模型 `world → world_anchor → chassis` 探针在 Run 45153913645 中 attached 仍只有 1/6 通过、detached 6/6 通过，且底盘被动保持稳定。说明问题不只限于跨模型拓扑；当前不能把任何 attached-to-chassis DetachableJoint 方案视为合格生产锁止。
+- Run [45153913645](https://github.com/rexyll/VLN-VLA/actions/runs/45153913645) 的生产 E2E 停在 BOOT→FAIL_STARTUP_HOME：物理锁握手通过，双臂和手指关节归位目标已发出但实测位置/速度接近零。Vosk 在任务进程因归位超时退出约 3 秒后才识别“我要喝水”，故 0 条 DRINK 是观察时序结果，不是 ASR 失败。
+- 20 N·m 轮刹 + 移除 DiffDrive 的完整机器人诊断副本中，六个主关节均能运动，但 R/L_lift 分别引起约 4.35/4.54mm 底盘位移，超过 2mm 门槛；肘/腕在门槛内。已参数化诊断脚本，在 Run [45159988934](https://github.com/rexyll/VLN-VLA/actions/runs/45159988934) 执行 40/80/160 N·m 轮刹与车轮 effort limit 扫描，均只改临时诊断副本，生产 `work_area.sdf` 未修改。
 
 使用普通 GitHub-hosted Actions，不使用长期独占 runner 方案；PR #3 保持 Draft/Open，不合并。
 
 ## 13. 计划修订记录
 
-2026-11-23：用户确认 SmolVLA 先行、OpenVLA-OFT 与 π0.5 对照；最终在线执行严格使用传感器估计，Gazebo 真值仅用于评测；完整推进 A→F；优先解决双臂启动归位。随后用户明确授权执行 P111/P112；P111 已完成，P112 根因定位和诊断探针修正已提交，等待 Gazebo Actions 验证.
+2026-11-23：用户确认 SmolVLA 先行、OpenVLA-OFT 与 π0.5 对照；在线执行只用传感器估计；完整推进 A→F。P111 已完成。P112 诊断进一步确认外部和同模型 DetachableJoint attached 均不能满足底盘固定且机械臂可动；20 N·m 轮刹让手臂可动但升降关节造成底盘漂移，现运行 40/80/160 N·m 诊断扫描。
