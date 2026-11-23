@@ -2022,3 +2022,13 @@
 - 原生产外部 DetachableJoint 拓扑对照在 attached 时六个主关节全部无法运动、detached 时均可运动；同模型 world-anchor DetachableJoint 对照也在 attached 时 6/6 失败。两类 DetachableJoint 仍不能作为可接受的机械臂工作锁方案。轮刹诊断在 R_lift 动作时底盘位移 4.423mm、yaw 2.121°，超过 2mm / 0.5°门槛；不采用该轮刹方案，也不继续盲目提高增益。
 - 当前架构判断更新：静态 world-fixed joint 是目前唯一在完整机器人上同时通过主关节运动和 DiffDrive 锁止挑战的物理约束对照；但它不可移动，不能直接用于导航。下一步应在**诊断副本**实现/验证可控的动态 world→chassis fixed-joint 生命周期（创建、解除、重复循环），并验证 attach 时 6 个主关节可动、底盘驱动挑战≤2mm/0.5°；detach 后底盘移动恢复；重复至少 3 次无残留约束/冲量。若动态创建/解除不可行，再研究可证明不冻结 DOF 的等效约束架构。此项未完成前不迁移生产。
 - 生产 `work_area.sdf` 未修改；没有放宽阈值、绕过门控或安全约束；仅更新当前工作分支，PR #3 保持 Draft/Open，未修改/合并 main，未创建新分支。P112 继续阻塞阶段 B。
+
+
+### 8.467 P112 转向 Gazebo Sim ECS 动态固定关节候选实现（2026-11-23）
+
+- 查阅 Gazebo Sim 8.15 官方 API：传统 Joint API 迁移表将 `CreateJoint`、`Attach`、`Detach` 标记为 TODO，不能照搬 Gazebo Classic 接口；但 `SdfEntityCreator` 提供 `CreateEntities(const sdf::Joint*)`、`SetParent` 和 `RequestRemoveEntity`，可作为运行时关节实体创建/删除的候选机制。官方文档：[Joint API migration](https://gazebosim.org/api/sim/8/migrationjointapi.html)、[SdfEntityCreator](https://gazebosim.org/api/sim/8/classgz_1_1sim_1_1SdfEntityCreator.html)、[EntityComponentManager](https://gazebosim.org/api/sim/8/classgz_1_1sim_1_1EntityComponentManager.html)。
+- 新增诊断专用插件 `vla_ws/src/vla_follow/gz_plugins/DynamicChassisLock.cc`：由机器人模型内的 Gazebo Sim System 插件通过 `SdfEntityCreator` 创建 fixed joint（parent=world, child=chassis），并通过 `RequestRemoveEntity` 请求移除。状态 `attached` 只表示 joint entity 创建成功，不代表物理锁止通过；物理 hold 必须由外部 DiffDrive 驱动挑战和底盘实测位姿独立验收。创建/删除故障不报告 unlocked。
+- CMake 新增 `libDynamicChassisLock.so` 诊断构建目标；新增 `tests/diag/run_full_robot_dynamic_fixed_lock_probe.py`，在日志目录生成临时 SDF 副本，移除外部 DetachableJoint anchor 并注入候选插件，执行 6 个主关节往返、attached 底盘挑战（≤2mm/≤0.5°）、detached 移动挑战（≥10mm），至少 3 次 attach/detach 循环。生产 `work_area.sdf` 不会被改写。
+- P104 workflow 已加入插件编译/链接检查、Python 语法检查和非阻断物理诊断步骤，并归档 JSON/SDF/Gazebo 日志。当前 Actions Run [45196034392](https://github.com/rexyll/VLN-VLA/actions/runs/45196034392) 尚在排队/待启动，故插件编译和物理验证均**尚未确认**；本次代码仅为实验候选，不能视为 P112 通过或生产方案。
+- 下一步：先检查该 Run 的 C++ 编译与链接结果；若构建通过，再解析动态关节创建是否能被 Physics system 识别、attach 期间 6/6 关节运动和底盘驱动保持、detach 后移动恢复及三轮重复性。若编译失败先按错误修复；若创建成功但物理挑战失败，停止该候选，不将状态 ACK 当成锁止证据。P112 仍阻塞阶段 B。
+- 未修改生产 `work_area.sdf`、DrinkTask 锁控制器、安全门控和阈值；未修改/合并 `main`，未创建新分支，PR #3 保持 Draft/Open。
