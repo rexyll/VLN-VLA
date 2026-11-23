@@ -158,6 +158,10 @@ def wait_ready(tel, process, timeout=30.0):
 def move_joint(tel, process, name, target):
     topic = "/drink/cmd/" + name
     payload = "data: %.6f" % target
+    initial = tel.snapshot()[0].get(name)
+    if initial is None:
+        raise RuntimeError("%s has no measured position before command" % name)
+    initial_position = float(initial["position"])
     deadline = time.monotonic() + 8.0
     stable_since = None
     peak_velocity = 0.0
@@ -177,11 +181,16 @@ def move_joint(tel, process, name, target):
             if abs(last["position"] - target) < 0.04 and abs(last["velocity"]) < 0.08:
                 stable_since = time.monotonic() if stable_since is None else stable_since
                 if time.monotonic() - stable_since >= 0.3:
-                    if peak_velocity < 0.03:
-                        raise RuntimeError("%s did not physically move: %r" % (name, last))
+                    measured_delta = float(last["position"]) - initial_position
+                    if abs(measured_delta) < 0.03:
+                        raise RuntimeError(
+                            "%s measured position change %.6f rad is below 0.03 rad: %r"
+                            % (name, measured_delta, last))
                     return {
-                        "joint": name, "target_rad": target,
+                        "joint": name, "initial_position_rad": initial_position,
+                        "target_rad": target,
                         "final_position_rad": last["position"],
+                        "measured_position_delta_rad": measured_delta,
                         "final_velocity_rad_s": last["velocity"],
                         "peak_abs_velocity_rad_s": peak_velocity,
                         "status": "passed",
