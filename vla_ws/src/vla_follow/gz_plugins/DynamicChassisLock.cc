@@ -18,6 +18,7 @@
 #include <gz/sim/EntityComponentManager.hh>
 #include <gz/sim/SdfEntityCreator.hh>
 #include <gz/sim/System.hh>
+#include <gz/sim/components/DetachableJoint.hh>
 #include <gz/sim/components/Joint.hh>
 #include <gz/transport/Node.hh>
 #include <sdf/Joint.hh>
@@ -95,8 +96,6 @@ public:
     if (!this->configured || _info.paused)
       return;
 
-    // Removal is asynchronous in ECM. Do not publish "detached" until the
-    // joint entity is actually gone from the manager.
     if (this->removalPending)
     {
       if (!this->creator || _ecm.HasEntity(this->jointEntity))
@@ -132,11 +131,8 @@ public:
       sdf::Joint joint;
       joint.SetName("runtime_world_fixed_chassis_lock");
       joint.SetType(sdf::JointType::FIXED);
-      // This joint is assembled at runtime, outside the original SDF frame
-      // graph. Supply already-resolved ECM link names and use the overload
-      // that skips sdformat frame-graph resolution. The previous overload
-      // attempted to resolve "chassis" without the robot model's SDF scope
-      // and failed before creating any entity.
+      // Runtime-created joint is outside the source SDF frame graph.
+      // These names are deliberately passed as pre-resolved ECM names.
       joint.SetParentLinkName("world");
       joint.SetChildLinkName("chassis");
 
@@ -158,9 +154,18 @@ public:
               << std::endl;
         return;
       }
+
+      // Gazebo Sim 8 Physics removes ordinary Joint entities from ECM without
+      // removing the corresponding physics-engine constraint. Its supported
+      // runtime detach path specifically handles removed DetachableJoint
+      // components and calls DetachJointFeature. Mark this runtime joint so
+      // removal follows that path instead of silently leaving a ghost lock.
+      _ecm.CreateComponent(created,
+          gz::sim::components::DetachableJoint());
+
       this->jointEntity = created;
       this->Publish("attached");
-      gzmsg << "[DynamicChassisLock] fixed joint entity created: "
+      gzmsg << "[DynamicChassisLock] fixed detachable joint entity created: "
             << created << " (physical hold still requires external test)"
             << std::endl;
       return;
@@ -177,7 +182,7 @@ public:
       }
       this->creator->RequestRemoveEntity(this->jointEntity);
       this->removalPending = true;
-      gzmsg << "[DynamicChassisLock] fixed joint removal requested: "
+      gzmsg << "[DynamicChassisLock] detachable fixed-joint removal requested: "
             << this->jointEntity << std::endl;
     }
   }
