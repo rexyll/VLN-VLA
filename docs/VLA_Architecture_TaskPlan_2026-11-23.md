@@ -206,3 +206,6 @@
 
 
 2026-11-23 补充：Actions Run [45188631629](https://github.com/rexyll/VLN-VLA/actions/runs/45188631629) 中，修正位置差测量后的完整机器人 world-fixed 诊断通过：六个主关节往返 12/12、DiffDrive 挑战底盘位移 0mm/yaw 0°。但生产 DrinkTask 仍在 BOOT→FAIL_STARTUP_HOME 失败：startup lock 状态握手报告位姿稳定，左右手指及双臂关节命令却没有实测响应，最终 JOINT_SERVO_TIMEOUT/STARTUP_ABORT。外部与同模型 DetachableJoint attached 对照均阻断 6/6 主关节；轮刹在 lift 动作时仍超 2mm/0.5°门槛。P112 继续阻塞；下一步仅在诊断副本验证动态 world→chassis fixed-joint attach/detach，生产 SDF 不动，安全阈值不变。
+
+
+2026-11-23 P112 实施路线补充：查阅 Gazebo Sim 8.15 官方 API 后，传统 Joint API 的 CreateJoint/Attach/Detach 仍标记 TODO；但 SdfEntityCreator 提供运行时 CreateEntities(sdf::Joint*)、SetParent 和 RequestRemoveEntity。已在实验分支新增诊断插件 DynamicChassisLock.cc（robot model 内创建 parent=world / child=chassis 的 fixed joint，解除时请求移除）及全机器人生命周期探针。探针要求六个主关节往返运动、锁定态 DiffDrive 挑战≤2mm/0.5°、解锁态移动≥10mm、至少三轮 attach/detach。插件状态 ACK 仅表示实体创建/移除，不替代物理验收。新 Actions Run [45196034392](https://github.com/rexyll/VLN-VLA/actions/runs/45196034392) 待执行；C++ 编译、动态物理约束和循环稳定性尚未验证。此实验不加载到生产 work_area.sdf，不改变 P112 门槛或 P104 主流程。
