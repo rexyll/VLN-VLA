@@ -55,6 +55,20 @@ set_target_properties(ChassisBrake PROPERTIES
   LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
 
+# Diagnostic-only runtime world-to-chassis fixed-joint lifecycle experiment.
+# It is not loaded by the production work_area.sdf.
+add_library(DynamicChassisLock SHARED DynamicChassisLock.cc)
+target_link_libraries(DynamicChassisLock
+  gz-sim8::gz-sim8
+  gz-plugin2::register
+  gz-transport13::gz-transport13
+  gz-msgs10::gz-msgs10
+  gz-common5::gz-common5
+  gz-math7::gz-math7
+)
+set_target_properties(DynamicChassisLock PROPERTIES
+  LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+
 # Standalone unit tests for the transport-thread queue/cache primitives.
 # The test executable itself has no Gazebo link dependency; project configure still
 # resolves the Gazebo packages above because the plugin target is part of this build.
