@@ -61,8 +61,8 @@ def make_world():
     with open(SOURCE, encoding="utf-8") as stream:
         source = stream.read()
     source, removed = re.subn(
-        r"\\s*<!-- Physical chassis immobilizer[\\s\\S]*?</model>\\s*",
-        "\\n", source, count=1
+        r"\s*<!-- Physical chassis immobilizer[\s\S]*?</model>\s*",
+        "\n", source, count=1
     )
     if removed != 1:
         raise RuntimeError("expected exactly one production external anchor block")
@@ -362,7 +362,7 @@ def main():
         os.makedirs(LOG_DIR, exist_ok=True)
         with open(REPORT_OUT, "w", encoding="utf-8") as stream:
             json.dump(report, stream, indent=2, sort_keys=True)
-            stream.write("\\n")
+            stream.write("\n")
         print(json.dumps(report, indent=2, sort_keys=True))
 
 
