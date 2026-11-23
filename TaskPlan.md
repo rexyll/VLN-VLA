@@ -2012,3 +2012,13 @@
 - 已新增诊断脚本 `tests/diag/run_full_robot_internal_detachable_probe.py`，只对生产 SDF 生成临时副本，不改生产源文件。探针将保持 `robot` 的 canonical link 为 chassis，以确保底盘位姿遥测反映真实可移动底盘；初始 attached 时先测试六个主关节及 DiffDrive 锁止，再 detach 测试移动，再 attach 重复关节运动与锁止挑战，最后 detach 再验证移动恢复。workflow 已加入该探针步骤、语法检查、path filter 与 JSON artifact 收集，提交 `b1036458` / `4ffa80a0`。此探针尚待 CI 实际执行。
 - 下一步：先检查同模型 world-rooted DetachableJoint 探针的 SDF 解析、初始 attached 状态、attached arm motion、attached DiffDrive 2mm/0.5deg hold、detach mobility、reattach 后 arm motion/hold、再次 detach mobility；任何阶段失败都先按日志定位，不修改生产 `work_area.sdf`。若全部通过，至少重复 3 次，再扩大至全关节与完整 startup home/hang 场景，最后才评估生产迁移。
 - 状态：**正在进行中**。完整生产机器人 world-fixed 六主关节与底盘挑战诊断通过，但生产 E2E 仍为 0/9；新同模型可分离锁拓扑待验证。未修改生产场景、未降低阈值、未修改/合并 main、未创建新分支。
+
+
+### 8.466 完整机器人 world-fixed 对照通过；生产启动仍被锁止路径阻断（2026-11-23）
+
+- 最新 Actions Run [45188631629](https://github.com/rexyll/VLN-VLA/actions/runs/45188631629)，commit `129558c3c8f6f09a2ad3bf6a770edd5de8b0f0d2`。12 个 BT/恢复单元测试通过；P104 stage-lock 不变量检查通过；Gazebo/ROS 构建与场景检查通过。但完整 DrinkTask E2E 仍失败，任务阶段为 `BOOT → FAIL_STARTUP_HOME`，连续测试批次在第一轮失败后停止，成功轮数仍为 0。
+- 修正 `run_full_robot_world_fixed_probe.py` 的关节运动检测：不再依赖可能漏采样的峰值速度，改为比较命令前后的实测关节位置差。修正后完整机器人诊断副本结果为 `full_robot_world_fixed.json: PASS`：R/L lift、elbow、wrist_p 六个主关节分别正向运动并回零，12/12 阶段通过，实测变化均为 0.15rad；world-fixed 底盘接受 1s DiffDrive 挑战后最大位移 0mm、yaw 0°。这证明完整机器人模型在**静态 world→chassis fixed joint**约束下能够保持底盘并驱动六个主关节，但不证明可动态 attach/detach，也不覆盖全部 39 路关节。
+- 同一 Run 的生产启动日志显示，物理锁 startup detach/attach/final detach 的位姿握手均报告 0mm / 0°，软件门控也曾确认物理 hold；但左右手指和左右臂 home 命令均未转化为实测运动，关节位置/速度/effort 近零，分别触发 `JOINT_SERVO_TIMEOUT`，最后 `STARTUP_ABORT` 并保持锁止。故不能把问题归为语音识别或 BT 任务阶段；目前仍集中在启动时物理锁生命周期与机械臂实际驱动的兼容性/解锁真实性。
+- 原生产外部 DetachableJoint 拓扑对照在 attached 时六个主关节全部无法运动、detached 时均可运动；同模型 world-anchor DetachableJoint 对照也在 attached 时 6/6 失败。两类 DetachableJoint 仍不能作为可接受的机械臂工作锁方案。轮刹诊断在 R_lift 动作时底盘位移 4.423mm、yaw 2.121°，超过 2mm / 0.5°门槛；不采用该轮刹方案，也不继续盲目提高增益。
+- 当前架构判断更新：静态 world-fixed joint 是目前唯一在完整机器人上同时通过主关节运动和 DiffDrive 锁止挑战的物理约束对照；但它不可移动，不能直接用于导航。下一步应在**诊断副本**实现/验证可控的动态 world→chassis fixed-joint 生命周期（创建、解除、重复循环），并验证 attach 时 6 个主关节可动、底盘驱动挑战≤2mm/0.5°；detach 后底盘移动恢复；重复至少 3 次无残留约束/冲量。若动态创建/解除不可行，再研究可证明不冻结 DOF 的等效约束架构。此项未完成前不迁移生产。
+- 生产 `work_area.sdf` 未修改；没有放宽阈值、绕过门控或安全约束；仅更新当前工作分支，PR #3 保持 Draft/Open，未修改/合并 main，未创建新分支。P112 继续阻塞阶段 B。
