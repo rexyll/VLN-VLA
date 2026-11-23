@@ -355,6 +355,8 @@ def main():
         def probe_joint_set(label):
             outcomes = []
             for name, target in ARM_JOINTS.items():
+                pose_before = tel.snapshot()[1]
+                sample_index = len(tel.snapshot()[2])
                 try:
                     # A command issued while attached may remain queued and only
                     # take effect after detach. Establish a measured zero baseline
@@ -374,11 +376,38 @@ def main():
                             raise RuntimeError("%s zero baseline not confirmed: %r" % (name, baseline))
                     outward = move_joint(tel, proc, name, target)
                     inward = move_joint(tel, proc, name, 0.0)
-                    outcomes.append({"joint": name, "status": "passed",
-                                     "outward": outward, "reset": inward})
+                    _, pose_after, pose_samples, _, _ = tel.snapshot()
+                    base_xy, base_yaw = pose_excursion(
+                        pose_samples[sample_index:], pose_before)
+                    outcomes.append({
+                        "joint": name, "status": "passed",
+                        "outward": outward, "reset": inward,
+                        "base_excursion_during_motion": {
+                            "max_displacement_mm": base_xy * 1000.0,
+                            "max_yaw_delta_deg": math.degrees(base_yaw),
+                            "within_startup_hold_threshold": (
+                                base_xy <= MAX_BASE_DISPLACEMENT_M
+                                and base_yaw <= MAX_BASE_YAW_RAD),
+                            "pose_samples": len(pose_samples[sample_index:]),
+                            "start_pose": pose_before, "end_pose": pose_after,
+                        },
+                    })
                 except Exception as exc:
-                    outcomes.append({"joint": name, "status": "failed",
-                                     "error": str(exc)})
+                    _, pose_after, pose_samples, _, _ = tel.snapshot()
+                    base_xy, base_yaw = pose_excursion(
+                        pose_samples[sample_index:], pose_before)
+                    outcomes.append({
+                        "joint": name, "status": "failed", "error": str(exc),
+                        "base_excursion_during_motion": {
+                            "max_displacement_mm": base_xy * 1000.0,
+                            "max_yaw_delta_deg": math.degrees(base_yaw),
+                            "within_startup_hold_threshold": (
+                                base_xy <= MAX_BASE_DISPLACEMENT_M
+                                and base_yaw <= MAX_BASE_YAW_RAD),
+                            "pose_samples": len(pose_samples[sample_index:]),
+                            "start_pose": pose_before, "end_pose": pose_after,
+                        },
+                    })
                     # Continue through the complete six-joint set so one
                     # blocked joint cannot hide independent controller results.
             report[label] = outcomes
