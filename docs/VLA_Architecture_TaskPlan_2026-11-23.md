@@ -4,7 +4,7 @@
 - 仓库：rexyll/VLN-VLA
 - 执行分支：experiment/drinktask-bt-ik-recovery
 - PR #3：保持 Draft/Open，禁止合并
-- 状态：**P111 已完成；P112 执行中。DetachableJoint attached 冻结机械臂的现象已在外部与同模型拓扑中复现；正在验证轮刹替代方案。
+- 状态：**P111 已完成；P112 执行中。外部/同模型 DetachableJoint 与三档轮刹 PD 增益方案均未满足“底盘保持且机械臂可动”；下一步验证运行时 world-fixed joint attach/detach。
 - 权威入口：根目录 TaskPlan.md 的“当前进度”及本文件
 
 ## 1. 用户确认的决策
@@ -182,7 +182,7 @@
 | 顺序 | 节点 | 状态 |
 |---|---|---|
 | 1 | P111 架构/代码基线核对 | **已完成** |
-| 2 | P112 双臂启动归位根因修复 | **执行中：外部/同模型 DetachableJoint attached 均阻断机械臂；轮刹力矩扫描待 Actions** |
+| 2 | P112 双臂启动归位根因修复 | **执行中：DetachableJoint 与轮刹 PD 增益扫描均失败；转向动态 world-fixed joint 诊断** |
 | 3 | P113–P116 命令、反馈、运动控制和安全基线 | 待 P112 通过后执行 |
 | 4 | P117–P123 感知与状态估计 | 未开始 |
 | 5 | P124–P130 导航和精确对接 | 未开始 |
@@ -195,11 +195,11 @@
 - P111 已核对实验分支、PR #3、TaskPlan、DrinkTask 启动门控、39 路 CmdBus、JointServo、ROS-Gazebo bridge、生产 SDF 控制器配置和 P104 workflow。
 - P112 对照结果已修正原先的过窄判断：生产外部 DetachableJoint 诊断副本 attached 时 6/6 主关节不能运动、detached 时可运动；同模型 `world → world_anchor → chassis` 探针在 Run 45153913645 中 attached 仍只有 1/6 通过、detached 6/6 通过，且底盘被动保持稳定。说明问题不只限于跨模型拓扑；当前不能把任何 attached-to-chassis DetachableJoint 方案视为合格生产锁止。
 - P104 Run [45159988934](https://github.com/rexyll/VLN-VLA/actions/runs/45159988934) 的 `drink.log` 进一步证实：startup 物理锁检查通过，底盘位姿稳定，`BOOT_ARM_COMMAND_GATE` 打开后左右臂和右手关节 home 命令已下发，但实际位置、速度、effort 基本为 0，随后 `JOINT_SERVO_TIMEOUT` 并 `STARTUP_ABORT`；物理锁保持 engaged。该证据将 E2E 失败定位到 attached 状态的关节运动阻断，而非 ASR。
-- P112 轮刹力矩扫描的 40/80/160 N·m 结果均未满足升降关节底盘约束；下一轮改为在 160 N·m torque cap 下扫描 PD 增益，当前 Actions Run [45169174479](https://github.com/rexyll/VLN-VLA/actions/runs/45169174479) 执行中。
-- 轮刹诊断 Run [45159988934](https://github.com/rexyll/VLN-VLA/actions/runs/45159988934)：40/80/160 N·m torque cap 下，右/左升降关节仍分别造成约 4.23–4.37mm / 4.35–4.50mm 底盘位移，偏航约 1.97–2.22°；肘/腕关节通过 2mm/0.5°门槛，静止保持通过。车轮峰值速度仍约 1.2–3.1rad/s，三档测试固定 kp=80、kd=2；增加 torque cap 未带来实质改善，推测 PD 增益不足但尚无实际关节力矩遥测。诊断脚本已加入 kp/kd 参数，Run [45169159332](https://github.com/rexyll/VLN-VLA/actions/runs/45169159332) 正在 160 N·m cap 下测试 (kp,kd)=(300,20)、(600,30)、(1000,50)。生产 SDF 未修改。
+- P112 轮刹 PD 增益扫描已由 Actions Run [45169174479](https://github.com/rexyll/VLN-VLA/actions/runs/45169174479) 完成：在 160 N·m torque cap / wheel effort 下，kp/kd=(300,20)、(600,30)、(1000,50) 三组均失败；六个主关节底盘位移范围分别为 15.83–48.87mm、30.94–103.73mm、9.52–166.68mm，最大偏航分别为 48.58°、45.15°、6.96°，远超 2mm/0.5°门槛。被动静止保持通过，但 arm articulation 期间车轮峰值速度约 32–54rad/s；增益提升未解决问题，停止继续调参。
+- 轮刹诊断 Run [45159988934](https://github.com/rexyll/VLN-VLA/actions/runs/45159988934)：40/80/160 N·m torque cap 下，右/左升降关节分别造成约 4.23–4.37mm / 4.35–4.50mm 底盘位移，偏航约 1.97–2.22°；肘/腕关节在该组试验中满足 2mm/0.5°，被动静止保持通过。随后 PD 增益扫描 Run [45169174479](https://github.com/rexyll/VLN-VLA/actions/runs/45169174479) 的三组 kp/kd 全部失败，车轮速度约 32–54rad/s。所有轮刹测试均为诊断副本，生产 SDF 未修改。静态 world-fixed 诊断 Run [44111020156](https://github.com/rexyll/VLN-VLA/actions/runs/44111020156) 六个主关节往返 12/12 通过，DiffDrive 底盘挑战位移 0mm/yaw 0°；但静态约束不能解锁移动。下一步研究运行时创建/移除 fixed joint 的方案，验证 arm DOF、底盘锁止/解锁、重复性与 fail-closed。
 
 使用普通 GitHub-hosted Actions，不使用长期独占 runner 方案；PR #3 保持 Draft/Open，不合并。
 
 ## 13. 计划修订记录
 
-2026-11-23：用户确认 SmolVLA 先行、OpenVLA-OFT 与 π0.5 对照；在线执行只用传感器估计；完整推进 A→F。P111 已完成。P112 诊断进一步确认外部和同模型 DetachableJoint attached 均不能满足底盘固定且机械臂可动；20 N·m 轮刹让手臂可动但升降关节造成底盘漂移，现运行 40/80/160 N·m 诊断扫描。
+2026-11-23：用户确认 SmolVLA 先行、OpenVLA-OFT 与 π0.5 对照；在线执行只用传感器估计；完整推进 A→F。P111 已完成。P112 已确认外部/同模型 DetachableJoint attached 会阻断机械臂；40/80/160 N·m 轮刹力矩扫描和 160 N·m 下三档 PD 增益扫描均未达到底盘保持门槛。静态 world-fixed joint 的全臂诊断通过但不能解锁移动；下一步转向运行时 fixed-joint 创建/移除实验。
