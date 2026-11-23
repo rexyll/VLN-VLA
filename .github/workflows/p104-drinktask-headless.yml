@@ -22,7 +22,7 @@ on:
       - "tests/diag/articulated_arm_ground_lock_world_fixed.sdf"
       - "tests/diag/articulated_arm_ground_lock_world_fixed_force.sdf"
       - "tests/diag/run_articulated_arm_ground_lock_probe.py"
-      - "tests/diag/run_full_robot_world_fixed_probe.py"
+      - "tests/diag/run_full_robot_world_fixed_probe.py"\n      - "tests/diag/run_full_robot_dynamic_fixed_lock_probe.py"
       - "tests/diag/run_full_robot_internal_detachable_probe.py"
       - "tests/diag/run_full_robot_external_detachable_probe.py"
       - "tests/diag/run_full_robot_wheel_brake_probe.py"
@@ -246,7 +246,7 @@ jobs:
 
       - name: Build Gazebo system plugins
         run: |
-          python3 -m py_compile vla_ws/src/vla_follow/vla_follow/gazebo_ground_lock.py vla_ws/src/vla_follow/vla_follow/drink_task.py tests/diag/run_chassis_brake_gz.py tests/diag/run_chassis_ground_lock_gz.py tests/diag/run_articulated_arm_ground_lock_probe.py tests/diag/run_full_robot_world_fixed_probe.py tests/diag/run_full_robot_internal_detachable_probe.py tests/diag/run_full_robot_external_detachable_probe.py tests/diag/run_full_robot_wheel_brake_probe.py tests/diag/run_full_robot_wheel_brake_no_diffdrive_probe.py tests/diag/record_drinktask_telemetry.py tests/diag/verify_p104_stage_locks.py tests/diag/verify_ground_fixed_joint.py tests/test_gazebo_ground_lock.py
+          python3 -m py_compile vla_ws/src/vla_follow/vla_follow/gazebo_ground_lock.py vla_ws/src/vla_follow/vla_follow/drink_task.py tests/diag/run_chassis_brake_gz.py tests/diag/run_chassis_ground_lock_gz.py tests/diag/run_articulated_arm_ground_lock_probe.py tests/diag/run_full_robot_world_fixed_probe.py tests/diag/run_full_robot_dynamic_fixed_lock_probe.py tests/diag/run_full_robot_internal_detachable_probe.py tests/diag/run_full_robot_external_detachable_probe.py tests/diag/run_full_robot_wheel_brake_probe.py tests/diag/run_full_robot_wheel_brake_no_diffdrive_probe.py tests/diag/record_drinktask_telemetry.py tests/diag/verify_p104_stage_locks.py tests/diag/verify_ground_fixed_joint.py tests/test_gazebo_ground_lock.py
           bash -n tools/gz_plugin.sh
           cmake -S vla_ws/src/vla_follow/gz_plugins \
             -B vla_ws/src/vla_follow/gz_plugins/build \
@@ -254,9 +254,9 @@ jobs:
           cmake --build vla_ws/src/vla_follow/gz_plugins/build --parallel 2
           ctest --test-dir vla_ws/src/vla_follow/gz_plugins/build --output-on-failure
           test -s vla_ws/src/vla_follow/gz_plugins/build/libGraspCarry.so
-          test -s vla_ws/src/vla_follow/gz_plugins/build/libChassisBrake.so
+          test -s vla_ws/src/vla_follow/gz_plugins/build/libChassisBrake.so\n          test -s vla_ws/src/vla_follow/gz_plugins/build/libDynamicChassisLock.so
           ldd -r vla_ws/src/vla_follow/gz_plugins/build/libGraspCarry.so
-          ldd -r vla_ws/src/vla_follow/gz_plugins/build/libChassisBrake.so
+          ldd -r vla_ws/src/vla_follow/gz_plugins/build/libChassisBrake.so\n          ldd -r vla_ws/src/vla_follow/gz_plugins/build/libDynamicChassisLock.so
 
       - name: Probe rejected reverse-topology arm lock negative control (non-gating)
         continue-on-error: true
@@ -313,6 +313,19 @@ jobs:
           rc=$?
           echo "FULL_ROBOT_WORLD_FIXED_PROBE_EXIT=$rc"
           tail -n 100 vla_ws/logs/full_robot_world_fixed_console.log
+          exit 0
+
+      - name: Probe full robot dynamic world-fixed joint lifecycle (diagnostic, non-gating)
+        continue-on-error: true
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+          QT_X11_NO_MITSHM: "1"
+        run: |
+          set +e
+          xvfb-run -a python3 tests/diag/run_full_robot_dynamic_fixed_lock_probe.py > vla_ws/logs/full_robot_dynamic_fixed_lock_console.log 2>&1
+          rc=$?
+          echo "FULL_ROBOT_DYNAMIC_FIXED_LOCK_PROBE_EXIT=$rc"
+          tail -n 140 vla_ws/logs/full_robot_dynamic_fixed_lock_console.log
           exit 0
 
       - name: Probe full robot with same-model world-rooted detachable chassis lock
@@ -509,7 +522,7 @@ jobs:
             vla_ws/logs/arm_lock_original_*.json
             vla_ws/logs/articulated_arm_ground_lock_probe.json
             vla_ws/logs/arm_world_fixed_*.json
-            vla_ws/logs/full_robot_world_fixed*.json
+            vla_ws/logs/full_robot_world_fixed*.json\n            vla_ws/logs/full_robot_dynamic_fixed_lock*.json\n            vla_ws/logs/full_robot_dynamic_fixed_lock*.sdf\n            vla_ws/logs/full_robot_dynamic_fixed_lock*.log
             vla_ws/logs/full_robot_internal_detachable*.json
             vla_ws/logs/full_robot_external_detachable*.json
             vla_ws/logs/full_robot_wheel_brake*.json
