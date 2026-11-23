@@ -106,7 +106,7 @@ def make_world():
     if source.count('name="gz::sim::systems::DetachableJoint"') != 1:
         raise RuntimeError("same-model DetachableJoint insertion is not unique")
     expected_topology = (
-        "<parent>world</parent>\\n"
+        "<parent>world</parent>\n"
         "        <child>world_anchor</child>"
     )
     if expected_topology not in source:
