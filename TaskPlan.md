@@ -22,10 +22,13 @@
 ## 当前进度
 
 - 当前分支：experiment/drinktask-bt-ik-recovery；PR [#3](https://github.com/rexyll/VLN-VLA/pull/3) 保持 Draft/Open、base main、未合并；不修改 main、不创建新分支。
-- **2026-11-23 用户已确认 VLA 总路线：阶段 A→F 全部推进；SmolVLA 先行，OpenVLA-OFT 与 π0.5 做对照；最终在线执行严格使用机器人传感器估计，Gazebo 真值仅用于独立评测/诊断。** 本次授权只包括更新正式计划，未授权开始开发。
+- **2026-11-23 用户已确认并授权开始执行阶段 A→F；当前执行 P111/P112。** 模型路线为 SmolVLA 先行、OpenVLA-OFT 与 π0.5 对照；最终在线执行严格使用机器人传感器估计，Gazebo 真值仅用于独立评测/诊断。
 - 最新完整 E2E：Run [44896037698](https://github.com/rexyll/VLN-VLA/actions/runs/44896037698)，提交 1d06f41df376a31bbe16b726d03e2678107fc127（2026-11-21）。仍失败于 BOOT → FAIL_STARTUP_HOME；完整 DrinkTask 未进入抓取、倒水、递杯阶段，成功轮数不增加。物理锁启动握手通过，但双臂启动归位仍出现关节伺服超时。
 - 最新诊断中部分关节运动伴随底盘漂移：L_lift 样本约 4.516mm / 2.241°，超过既有 2mm / 0.5°门槛；其他部分关节样本通过。该结果不能概括为所有关节均失败或均通过。独立 world-fixed、隔离锁止和插件探针不等于生产整机通过。
-- **第一阻塞：P112 双臂启动归位无有效物理响应。** 必须逐路追踪 39 路 ROS command、Gazebo Transport 接收、JointPositionController 响应和 joint_state 反馈，区分桥接、控制器、物理约束及伺服判据问题；保持 fail-closed，不得通过解锁生产底盘绕过问题。
+- **P111 已完成｜架构与代码基线核对。** 已复核实验分支 HEAD、PR #3 状态、DrinkTask 启动门控、CmdBus 唯一 39 路命令发布者、JointServo、Gazebo bridge、work_area SDF 中的关节与控制器配置，以及 P104 workflow。PR #3 仍 Draft/Open、base=main、未合并；本轮不修改 main、不创建新分支。
+- **P112 根因已高度收敛｜外部跨模型 DetachableJoint 在 attached 状态冻结机器人内部 DOF。** 证据链：Run [44111020156](https://github.com/rexyll/VLN-VLA/actions/runs/44111020156) 的完整机器人 world-fixed 对照中，六个主关节正反向及归零 12/12 通过，DiffDrive 挑战下底盘位移 0mm/yaw 0°；同轮原生产外部 anchor model→robot DetachableJoint attached 对照中，velocity 与 PID-force 两种控制模式均无有效关节运动，而 detached 可运动。Run [44896037698](https://github.com/rexyll/VLN-VLA/actions/runs/44896037698) 的生产 E2E 也在物理锁握手通过后，左右两臂 14 个关节和左右手 20 个手指关节均出现目标变化而实测位置/速度接近零，最终 BOOT→FAIL_STARTUP_HOME、任务阶段 0/9。该证据高度指向跨模型固定约束与内部 DOF 驱动耦合；尚不能把它当作生产修复完成。
+- **P112 当前实验方案｜待 CI 证实。** 将底盘锁候选拓扑改为同一 robot 模型内的树形结构 world → world_anchor → chassis：world 通过 fixed joint 固定 world_anchor，同模型 DetachableJoint 使用 parent_link=world_anchor、child_model=__model__、child_link=chassis。此前名为 internal detachable 的探针实际生成了反向跨模型拓扑，不能用于验证该方案；已在提交 [12488d2](https://github.com/rexyll/VLN-VLA/commit/12488d2bc587d33f30f2241995c3cb29ab1cfe43) 修正探针生成逻辑与拓扑断言。**生产 work_area.sdf 尚未修改**。
+- 下一步：验证生成 SDF、初始 attached、attached 六主关节运动、底盘 2mm/0.5°保持、detach 后移动、reattach 后再次关节运动与底盘保持；通过后至少重复 3 次，再扩大到完整 39 路 home/hang 和生产启动流程。只有证据通过后才评估迁移生产 SDF。保持 fail-closed，不得通过解锁生产底盘绕过问题，也不得放宽任何阈值。
 - 既有 Nav2、BT、双侧 7 自由度运动学、DLS IK、关节伺服、物体位姿闭环、抓握/释放状态机、CarryBus、GazeboGroundLock 和 MCA 适配层继续复用。MCA 是低层运动控制候选子系统，不再作为项目唯一技术路线；所有算法必须经模型一致性、实时性、稳定性和整机验证。
 - VLA 只负责多模态策略和有界技能/动作目标；BT 负责任务阶段、前置条件、超时、重试和恢复；传统控制器负责闭环执行；独立安全层拥有最终否决权。VLA 不直接发布生产 39 路 joint command，也不能绕过底盘锁、关节限位、碰撞检查、急停或释放门禁。
 - 最终在线策略输入不得读取 Gazebo ground-truth pose。真值仅允许进入独立 evaluator、诊断日志和离线训练标签；在线观测必须来自实际传感器，并携带时间戳、坐标系、置信度/协方差及有效期。
