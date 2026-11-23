@@ -1,9 +1,7 @@
 // DynamicChassisLock.cc — experimental runtime world-to-chassis fixed joint.
-//
-// Diagnostic-only candidate for Gazebo Sim 8.15. The plugin is attached to
-// the robot model and uses SdfEntityCreator to create/remove a fixed joint
-// whose parent is world and child is the robot's chassis. It deliberately
-// does not modify the production SDF or replace production lock logic.
+// Diagnostic-only candidate for Gazebo Sim 8.15. This plugin creates/removes
+// a fixed joint through SdfEntityCreator; it never changes production SDF or
+// replaces the production lock.
 //
 // A published "attached" state means only that the joint entity was created.
 // Physical hold is independently accepted by measured chassis pose under a
@@ -134,10 +132,15 @@ public:
       sdf::Joint joint;
       joint.SetName("runtime_world_fixed_chassis_lock");
       joint.SetType(sdf::JointType::FIXED);
+      // This joint is assembled at runtime, outside the original SDF frame
+      // graph. Supply already-resolved ECM link names and use the overload
+      // that skips sdformat frame-graph resolution. The previous overload
+      // attempted to resolve "chassis" without the robot model's SDF scope
+      // and failed before creating any entity.
       joint.SetParentLinkName("world");
       joint.SetChildLinkName("chassis");
 
-      const auto created = this->creator->CreateEntities(&joint);
+      const auto created = this->creator->CreateEntities(&joint, true);
       if (created == gz::sim::kNullEntity)
       {
         this->Publish("fault joint_entity_creation_failed");
