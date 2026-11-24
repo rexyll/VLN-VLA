@@ -2075,3 +2075,14 @@
 - 正式 `drink.log` 显示 startup detach→attach→detach 握手通过后，主流程再次请求 `DRINK_BASE_LOCK physical=ATTACHED + software=LOCKED + truth_hold=PASS`，随后左右手指和双臂 home 均出现 `JOINT_SERVO_TIMEOUT`，关节实际位置/速度/effort 近零，最终 `STARTUP_ABORT`，物理锁保持 engaged。故当前 E2E 根因仍与 attached 物理约束阻断关节运动一致；不能通过移除锁止门禁来规避。
 - 结论：外部 DetachableJoint attached 会冻结机械臂；detached 虽允许机械臂运动，但 detached 初期底盘被动稳定性也不达标。不得调整生产启动顺序为 detached home，不得只依赖软件 mux 锁，不得降低阈值。继续寻找可在物理上保持 chassis 且不冻结内部 arm DOF 的有效拓扑/专用物理插件，并在完整机器人诊断副本中验证。
 - 未修改生产 `work_area.sdf`、生产 DrinkTask 锁止流程、安全门控或验收阈值；未修改/合并 `main`，未创建分支；PR #3 保持 Draft/Open。P112 仍阻塞，阶段 B 不启动。
+
+
+### 8.472 Run 45310996375：修正逐关节窗口后确认 lift 负载漂移超限（2026-11-24）
+
+- P104 Actions Run [45310996375](https://github.com/rexyll/VLN-VLA/actions/runs/45310996375)，执行探针修正 commit `ebca5b4e3b73e51b5a86fce49597eb0e5c57bf3b`，最终 conclusion=failure。依赖安装、离线安全/运动回归、Gazebo 插件构建、各项前置诊断均成功；正式 DrinkTask E2E 第 28 步失败。artifact `p104-drinktask-e2e-45310996375` 已下载并检查。
+- 修正后的逐关节窗口已从零位基线确认后开始，采样窗口约 45–47 帧。detached arm articulation：R_lift 最大底盘位移 4.917mm / 偏航 2.044°；L_lift 5.734mm / 2.100°，均超过 2mm / 0.5°。R_elbow 0.463mm / 0.194°、R_wrist_p 0.0010mm / 0.00034°、L_elbow 0.822mm / 0.358°、L_wrist_p 0.0019mm / 0.00084°，这些单独窗口满足阈值。不能因四个关节窗口通过而忽略两个 lift 关节失败。
+- detached 后独立被动稳定性窗口（0.35s）再次失败：6.111mm / 2.558°。attached 状态下六个主关节仍全部无法达到目标（6/6 failed），底盘 0mm / 0°。detached 状态六个主关节往返均达到目标（6/6 passed），但 lift 动作产生超限底盘漂移。由此确认：当前 external DetachableJoint attached 阻断 arm DOF；detached 则被动稳定和 lift 负载保持均不合格。不得把 boot home 改为 detached，也不得只依赖 software mux lock。
+- 正式 `drink.log`：startup mux-locked detach/attach/detach handshake 通过；主流程随后重新取得 physical attached + software locked + truth hold；右手、右臂、左手、左臂均出现 `JOINT_SERVO_TIMEOUT`，目标命令有发出，但实测关节位置/速度/effort 近零，最终 `STARTUP_ABORT`，保持物理锁。E2E 记录 `BOOT → FAIL_STARTUP_HOME`，阶段 0/9；第二轮 JSON 缺失，故双轮要求未完成。observer 下游阶段均为 NOT_RUN，不能归因到 ASR 或任务行为树。
+- 本轮诊断判定：修正后的逐关节窗口可信地显示 lift 动作本身也会导致底盘超限；之前 8.471 的 detached 被动稳定性数值 6.781mm / 2.1733°属于上一轮原始测量，当前更正后的同类测量应以本轮 6.111mm / 2.558°为准。探针统计修正已由 artifact 验证，不再重复调整统计起点。
+- 下一步：停止围绕 boot home detach/attach 时序做试错；转向可独立约束 chassis 六自由度、同时保留 robot 内部 arm/hand DOF 的物理方案。优先在诊断副本中研究 Gazebo Sim 8 支持的 link-link detachable constraint、具备真正 physics detach 能力的系统插件，或可验证的底盘支撑/制动多点约束；每个候选都必须先做完整机器人 6 主关节 + 14 arm joints + 20 hand joints 的物理运动/底盘保持联合测试，再考虑接入 DrinkTask。普通 ECS joint entity 删除、软件 mux 锁、单纯增加 wheel brake PD 增益均已有反证，不再重复。
+- 正式 E2E 本轮仍失败，不推进 P112，不启动阶段 B。未修改生产 `work_area.sdf`、DrinkTask 锁止流程、安全门控或阈值；未修改/合并 `main`，未创建分支；PR #3 保持 Draft/Open。
