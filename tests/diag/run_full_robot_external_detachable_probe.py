@@ -374,6 +374,12 @@ def main():
                             time.sleep(0.02)
                         else:
                             raise RuntimeError("%s zero baseline not confirmed: %r" % (name, baseline))
+                    # Start the articulation-only chassis window after the
+                    # zero baseline has settled. The earlier window includes
+                    # baseline wait time and can misattribute detach drift to
+                    # arm motion.
+                    pose_before = tel.snapshot()[1]
+                    sample_index = len(tel.snapshot()[2])
                     outward = move_joint(tel, proc, name, target)
                     inward = move_joint(tel, proc, name, 0.0)
                     _, pose_after, pose_samples, _, _ = tel.snapshot()
