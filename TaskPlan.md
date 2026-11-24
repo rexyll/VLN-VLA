@@ -2065,3 +2065,13 @@
 - 已扩展 `tests/diag/run_full_robot_external_detachable_probe.py`：在 attached/detached 两组主关节往返动作期间，逐关节记录底盘最大位移、偏航和是否满足 2mm / 0.5°阈值；该测量只作用于原生产 SDF 的诊断副本，不修改生产配置。提交 `a56d6fe918dcc8ef33bf0c62314a40773e352922`，P104 Run [45206861174](https://github.com/rexyll/VLN-VLA/actions/runs/45206861174) 已排队，待执行。
 - 当前动态 ECS world-joint 候选在 Gazebo Sim 8.15 普通 Joint runtime removal 路径上存在物理 detach 缺口；插件已按提交 `71cf58d7a3376518db66a309412a4db6a30a0a6c` 改为 detach 不支持时 fail-closed。Run [45206617110](https://github.com/rexyll/VLN-VLA/actions/runs/45206617110) 正在执行，等待插件编译和探针错误状态验证。
 - 下一步根据 Run 45206861174 的 detached arm motion 期间底盘实测决定：若稳定后的 arm articulation 全程满足 2mm / 0.5°，再设计单独的启动时序实验（仍不直接改生产）；若超标，拒绝软件 mux lock 单独替代物理锁，继续研究真正支持 detach 的物理拓扑/插件。P112 仍阻塞阶段 B；生产 SDF、控制器、安全门控、验收阈值均未改。
+
+
+### 8.471 Run 45206861174：attached 阻断关节、detached 被动底盘稳定性失败（2026-11-24）
+
+- P104 Actions Run [45206861174](https://github.com/rexyll/VLN-VLA/actions/runs/45206861174)（执行 commit `a56d6fe918dcc8ef33bf0c62314a40773e352922`）已完成，结论为 failure。构建、离线安全/运动回归、Gazebo 插件构建、诊断构建和上传 artifact 均成功；正式 DrinkTask E2E 在启动归位阶段失败。不能把诊断步骤通过等同于 E2E 通过。
+- artifact `full_robot_external_detachable.json`：attached 状态下六个主关节均未能移动，关节实测仍约为 0；attached 底盘保持 0mm/0°。detached 状态下六个主关节往返均达到目标（6/6），但**解锁后的独立被动稳定性窗口**（0.35s）已失败：最大底盘位移 6.781mm、最大偏航 2.1733°，超过 2mm/0.5°门槛。该被动检查发生在 detached arm articulation 之前，因此无需依赖逐关节漂移数据即可否决“仅软件 mux lock + 物理 detach”作为当前 boot-home 方案。
+- 逐关节漂移字段原先在发送零位基线命令之前就记录起始位姿和采样索引，统计窗口因此包含了零位基线等待阶段；R_lift 3.929mm/1.791°、L_lift 5.111mm/2.001°等数字不能直接解释为机械臂动作本身造成的底盘漂移。本轮不将这些值用于因果结论。已在后续提交 `ebca5b4e3b73e51b5a86fce49597eb0e5c57bf3b` 修正探针：在零位基线确认后重置位姿起点和采样索引，只统计 outward/reset 关节动作窗口；等待新 Actions 复验。
+- 正式 `drink.log` 显示 startup detach→attach→detach 握手通过后，主流程再次请求 `DRINK_BASE_LOCK physical=ATTACHED + software=LOCKED + truth_hold=PASS`，随后左右手指和双臂 home 均出现 `JOINT_SERVO_TIMEOUT`，关节实际位置/速度/effort 近零，最终 `STARTUP_ABORT`，物理锁保持 engaged。故当前 E2E 根因仍与 attached 物理约束阻断关节运动一致；不能通过移除锁止门禁来规避。
+- 结论：外部 DetachableJoint attached 会冻结机械臂；detached 虽允许机械臂运动，但 detached 初期底盘被动稳定性也不达标。不得调整生产启动顺序为 detached home，不得只依赖软件 mux 锁，不得降低阈值。继续寻找可在物理上保持 chassis 且不冻结内部 arm DOF 的有效拓扑/专用物理插件，并在完整机器人诊断副本中验证。
+- 未修改生产 `work_area.sdf`、生产 DrinkTask 锁止流程、安全门控或验收阈值；未修改/合并 `main`，未创建分支；PR #3 保持 Draft/Open。P112 仍阻塞，阶段 B 不启动。
