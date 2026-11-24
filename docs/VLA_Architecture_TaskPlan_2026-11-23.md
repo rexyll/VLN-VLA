@@ -4,7 +4,7 @@
 - 仓库：rexyll/VLN-VLA
 - 执行分支：experiment/drinktask-bt-ik-recovery
 - PR #3：保持 Draft/Open，禁止合并
-- 状态：**P111 已完成；P112 执行中。外部/同模型 DetachableJoint 与三档轮刹 PD 增益方案均未满足“底盘保持且机械臂可动”；下一步验证运行时 world-fixed joint attach/detach。
+- 状态：**P111 已完成；P112 阻塞。attached DetachableJoint 冻结 6/6 主关节；detached 后虽 6/6 可动，但 0.35s 被动底盘稳定性测得 6.781mm / 2.1733°，不满足 2mm / 0.5°；不得改为 detached boot-home。继续研究能保持 chassis 且不冻结内部 DOF 的物理拓扑/插件。**
 - 权威入口：根目录 TaskPlan.md 的“当前进度”及本文件
 
 ## 1. 用户确认的决策
@@ -214,3 +214,10 @@
 
 2026-11-23 P112 动态 fixed-joint 试验结论与启动顺序定位：Run [45203182358](https://github.com/rexyll/VLN-VLA/actions/runs/45203182358) 的插件编译成功，frame resolution 修复后探针越过实体创建阶段，但第一轮 detach 后 DiffDrive 仍为 0mm，JSON `result=FAIL`。审阅 Gazebo Sim 8.15 Physics.cc 发现：移除普通 Joint ECS entity 不会解除 physics-engine constraint；普通 joint/link/collision 只随所属 model 移除而清理。Physics 的 runtime DetachableJoint 路径需两个有效 link entity，并通过 DetachJointFeature 才能真正 detach。插件已改为 detach 不受支持时 fail-closed 报 fault，不再假报 detached；提交 `71cf58d7a3376518db66a309412a4db6a30a0a6c`，后续 Actions 待验证构建。
 同轮生产日志结合源码明确启动顺序：startup handshake 在 mux 锁定状态下执行 detach→attach→detach，最后恢复 mux 并标记 navigation enabled；随后主程序又调用 `set_base_lock(True)`，即再次 attach 物理 DetachableJoint，再执行 `home()` / `hang()`。该顺序使 boot home 正好运行在已被证实会冻结机械臂 6/6 主关节的 attached 状态。生产 E2E 的左右手指、左右臂 servo timeout 与此吻合。下一步必须先做诊断副本 A/B：在软件 mux 锁定、物理 DetachableJoint detached 状态下执行完整 home/hang，并独立测量底盘位移/偏航及关节实测位移；只有同时满足 arm motion 与底盘稳定门槛，才讨论生产启动时序修改。若 detached 状态底盘在 arm articulation 下超门槛，不能仅凭 software mux lock 放行 boot home；继续寻找具备真实 physics detach 能力且不冻结内部 DOF 的约束方式。生产 SDF、阈值、安全门控均未更改。
+
+
+## P112 最新诊断补充（2026-11-24）
+
+P104 Run [45206861174](https://github.com/rexyll/VLN-VLA/actions/runs/45206861174) 已完成但正式 DrinkTask E2E 仍在启动归位失败。external DetachableJoint A/B：attached 时 6/6 主关节不动且底盘保持；detached 时 6/6 主关节可以往返，但 detach 后独立 0.35s 被动稳定性检查达到 6.781mm / 2.1733°，超过 2mm / 0.5°。因此“物理 detach + software mux lock”目前也不能作为 boot-home 的合格方案。
+
+逐关节 chassis excursion 的原采样窗口包含零位基线等待阶段，不能把该窗口的最大漂移直接归因于关节动作。已在提交 `ebca5b4e3b73e51b5a86fce49597eb0e5c57bf3b` 将测量起点移动到零位基线确认之后，等待该版本 P104 Actions 复验。正式 `drink.log` 再次确认 DrinkTask 在重新 attach 后执行 home/hang，手指和主臂 servo 均超时，最终 fail-closed abort。生产 SDF、锁止流程、门槛均未更改；P112 未通过，阶段 B 不启动。
