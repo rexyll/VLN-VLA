@@ -4,7 +4,7 @@
 - 仓库：rexyll/VLN-VLA
 - 执行分支：experiment/drinktask-bt-ik-recovery
 - PR #3：保持 Draft/Open，禁止合并
-- 状态：**P111 已完成；P112 阻塞。attached DetachableJoint 冻结 6/6 主关节；detached 后虽 6/6 可动，但 0.35s 被动底盘稳定性测得 6.781mm / 2.1733°，不满足 2mm / 0.5°；不得改为 detached boot-home。继续研究能保持 chassis 且不冻结内部 DOF 的物理拓扑/插件。**
+- 状态：**P111 已完成；P112 阻塞。Run 45310996375 修正测量窗口后确认 detached lift 动作本身导致底盘漂移：R_lift 4.917mm / 2.044°、L_lift 5.734mm / 2.100°；detached 被动保持 6.111mm / 2.558°。attached 则冻结 6/6 主关节。当前 external DetachableJoint 两种状态均不合格，禁止 detached boot-home。**
 - 权威入口：根目录 TaskPlan.md 的“当前进度”及本文件
 
 ## 1. 用户确认的决策
@@ -182,7 +182,7 @@
 | 顺序 | 节点 | 状态 |
 |---|---|---|
 | 1 | P111 架构/代码基线核对 | **已完成** |
-| 2 | P112 双臂启动归位根因修复 | **执行中：完整机器人静态 world-fixed 对照通过；生产启动仍 FAIL_STARTUP_HOME，转向动态 fixed-joint 生命周期诊断** |
+| 2 | P112 双臂启动归位根因修复 | **阻塞：external DetachableJoint attached 冻结 6/6 主关节；detached 被动保持及 lift 负载漂移超限。转向可独立约束 chassis 六自由度且保留内部 arm/hand DOF 的物理方案** |
 | 3 | P113–P116 命令、反馈、运动控制和安全基线 | 待 P112 通过后执行 |
 | 4 | P117–P123 感知与状态估计 | 未开始 |
 | 5 | P124–P130 导航和精确对接 | 未开始 |
@@ -221,3 +221,12 @@
 P104 Run [45206861174](https://github.com/rexyll/VLN-VLA/actions/runs/45206861174) 已完成但正式 DrinkTask E2E 仍在启动归位失败。external DetachableJoint A/B：attached 时 6/6 主关节不动且底盘保持；detached 时 6/6 主关节可以往返，但 detach 后独立 0.35s 被动稳定性检查达到 6.781mm / 2.1733°，超过 2mm / 0.5°。因此“物理 detach + software mux lock”目前也不能作为 boot-home 的合格方案。
 
 逐关节 chassis excursion 的原采样窗口包含零位基线等待阶段，不能把该窗口的最大漂移直接归因于关节动作。已在提交 `ebca5b4e3b73e51b5a86fce49597eb0e5c57bf3b` 将测量起点移动到零位基线确认之后，等待该版本 P104 Actions 复验。正式 `drink.log` 再次确认 DrinkTask 在重新 attach 后执行 home/hang，手指和主臂 servo 均超时，最终 fail-closed abort。生产 SDF、锁止流程、门槛均未更改；P112 未通过，阶段 B 不启动。
+
+
+### P112 最新验证（2026-11-24，Run 45310996375）
+
+修正逐关节统计窗口后，完整机器人 external DetachableJoint A/B 的结论如下：attached 状态底盘 0mm/0°，但六个主关节均不能移动；detached 状态六个主关节均可往返，但独立 0.35s 被动稳定性为 6.111mm / 2.558°。更关键的是，detached lift 关节动作期间 R_lift 为 4.917mm / 2.044°、L_lift 为 5.734mm / 2.100°，均超过 2mm / 0.5°；elbow/wrist 四个单关节窗口满足阈值。
+
+正式 DrinkTask 再次在 `BOOT → FAIL_STARTUP_HOME` 失败：startup detach/attach/detach 握手后，主流程重新 attach，左右手指和双臂 home 实测位置/速度/effort 近零，最终 fail-closed abort。只完成第 1 轮，第二轮缺失；P104 双轮 E2E 不通过。
+
+**P112 决策：** 不再尝试 detached boot-home 或只依赖 software mux lock；不再重复普通 ECS joint entity 删除、单纯增加 wheel-brake PD 增益等已有反证方案。转向能独立约束 chassis 六自由度、同时保留内部 arm/hand DOF 的真实物理方案。候选先在诊断副本中验证 6 个主臂关节、完整 14 路 arm + 20 路 hand 运动，以及底盘静止门槛的联合通过，再考虑生产集成。生产 SDF/锁止流程/安全门禁/阈值不变。阶段 B 仍未开始。
